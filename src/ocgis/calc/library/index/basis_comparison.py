@@ -3,12 +3,12 @@ from ocgis.calc.base import AbstractParameterizedFunction, AbstractUnivariateFun
 import numpy as np
 
 
-class BasisComparison(AbstractUnivariateFunction, AbstractParameterizedFunction):
+class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
     description = ''
     dtype = constants.np_float
-    key = 'basis_comparison'
-    long_name = 'Comparison to Basis Time Series'
-    standard_name = 'basis_comparison'
+    key = 'basis_function'
+    long_name = 'Operations with Basis Time Series'
+    standard_name = 'basis_function'
     parms_definition = {'pyfunc': None, 'basis': None, 'match': None}
 
     def calculate(self, values, basis=None, pyfunc=None, match=None):
@@ -30,6 +30,10 @@ class BasisComparison(AbstractUnivariateFunction, AbstractParameterizedFunction)
             ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
 
         return ret
+
+    @staticmethod
+    def get_basis(source, match):
+        import ipdb;ipdb.set_trace()
 
     @staticmethod
     def _get_key_(dt, match):
