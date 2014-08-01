@@ -42,14 +42,14 @@ class TestSubsetOperation(TestBase):
         actual = pickle.loads(actual)
         self.assertEqual(coll.properties, actual)
 
-    def test_different_time_dimension_lengths(self):
-        """Test passing collections with different time dimension lengths to calculations."""
+    def test_merge_collections(self):
+        """Test merging collections in the subset operations."""
 
         longer_time = self.test_data.get_rd('cancm4_tas')
         shorter_time = ocgis.OcgOperations(dataset=longer_time, time_region={'year': [2010]}, output_format='nc').execute()
         shorter_time = ocgis.RequestDataset(uri=shorter_time, variable='tas', alias='tas_short')
 
         ops = ocgis.OcgOperations(dataset=[longer_time, shorter_time], geom='state_boundaries', select_ugid=[23, 24])
-        sub = SubsetOperation(ops)
+        sub = SubsetOperation(ops, merge_collections=True)
         for coll in sub: print coll
         import ipdb;ipdb.set_trace()

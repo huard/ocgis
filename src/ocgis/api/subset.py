@@ -23,13 +23,16 @@ class SubsetOperation(object):
     :param bool request_base_size_only: If ``True``, return field objects following
      the spatial subset performing as few operations as possible.
     :param :class:`ocgis.util.logging_ocgis.ProgressOcgOperations` progress:
+    :param bool merge_collections: If ``True``, merge collections inside the subset iterator. This is useful for certain
+     classes of calculations requiring a full collection.
     """
     
-    def __init__(self,ops,request_base_size_only=False,progress=None):
+    def __init__(self,ops,request_base_size_only=False,progress=None,merge_collections=False):
         self.ops = ops
         self._request_base_size_only = request_base_size_only
         self._subset_log = ocgis_lh.get_logger('subset')
         self._progress = progress or ProgressOcgOperations()
+        self.merge_collections = merge_collections
 
         ## create the calculation engine
         if self.ops.calc == None or self._request_base_size_only == True:
@@ -109,35 +112,32 @@ class SubsetOperation(object):
         ## process the data collections
         for rds in itr_rd:
             msg = 'Processing URI(s): {0}'.format([rd.uri for rd in rds])
-            ocgis_lh(msg=msg,logger=self._subset_log)
+            ocgis_lh(msg=msg, logger=self._subset_log)
             
             for coll in self._process_subsettables_(rds):
-                ## if there are calculations, do those now and return a new type of collection
+                # if there are calculations, do those now and return a new type of collection
                 if self.cengine is not None:
-                    ocgis_lh('Starting calculations.',
-                             self._subset_log,
-                             alias=coll.items()[0][1].keys()[0],
+                    ocgis_lh('Starting calculations.', self._subset_log, alias=coll.items()[0][1].keys()[0],
                              ugid=coll.keys()[0])
                     
-                    ## look for any optimizations for temporal grouping.
+                    # look for any optimizations for temporal grouping.
                     if self.ops.optimizations is None:
                         tgds = None
                     else:
                         tgds = self.ops.optimizations.get('tgds')
-                    ## execute the calculations
-                    coll = self.cengine.execute(coll,file_only=self.ops.file_only,
-                                                tgds=tgds)
+
+                    # execute the calculations
+                    coll = self.cengine.execute(coll, file_only=self.ops.file_only, tgds=tgds)
                 else:
-                    ## if there are no calculations, mark progress to indicate
-                    ## a geometry has been completed.
+                    # if there are no calculations, mark progress to indicate a geometry has been completed.
                     self._progress.mark()
                 
-                ## conversion of groups.
+                # conversion of groups.
                 if self.ops.output_grouping is not None:
-                    raise(NotImplementedError)
+                    raise NotImplementedError
                 else:
-                    ocgis_lh('subset yielding',self._subset_log,level=logging.DEBUG)
-                    yield(coll)
+                    ocgis_lh('subset yielding', self._subset_log, level=logging.DEBUG)
+                    yield coll
 
     def _process_subsettables_(self, rds):
         """
