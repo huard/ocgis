@@ -1,5 +1,6 @@
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis import env, constants
+from ocgis.conv.numpy_ import NumpyConverter
 from ocgis.exc import EmptyData, ExtentError, MaskedDataError, EmptySubsetError,\
     ImproperPolygonBoundsError, VariableInCollectionError
 from ocgis.util.spatial.wrap import Wrapper
@@ -28,6 +29,9 @@ class SubsetOperation(object):
     """
     
     def __init__(self,ops,request_base_size_only=False,progress=None,merge_collections=False):
+        if ops.output_grouping is not None:
+            raise NotImplementedError
+
         self.ops = ops
         self._request_base_size_only = request_base_size_only
         self._subset_log = ocgis_lh.get_logger('subset')
@@ -109,34 +113,54 @@ class SubsetOperation(object):
              format(', '.join([_['func'] for _ in self.ops.calc]))
         ocgis_lh(msg=msg,logger=self._subset_log)
 
-        ## process the data collections
-        for rds in itr_rd:
-            msg = 'Processing URI(s): {0}'.format([rd.uri for rd in rds])
-            ocgis_lh(msg=msg, logger=self._subset_log)
-            
-            for coll in self._process_subsettables_(rds):
-                # if there are calculations, do those now and return a new type of collection
-                if self.cengine is not None:
-                    ocgis_lh('Starting calculations.', self._subset_log, alias=coll.items()[0][1].keys()[0],
-                             ugid=coll.keys()[0])
-                    
-                    # look for any optimizations for temporal grouping.
-                    if self.ops.optimizations is None:
-                        tgds = None
-                    else:
-                        tgds = self.ops.optimizations.get('tgds')
+        for coll in self._process_collections_(itr_rd):
+            yield coll
 
-                    # execute the calculations
-                    coll = self.cengine.execute(coll, file_only=self.ops.file_only, tgds=tgds)
-                else:
-                    # if there are no calculations, mark progress to indicate a geometry has been completed.
-                    self._progress.mark()
-                
-                # conversion of groups.
-                if self.ops.output_grouping is not None:
-                    raise NotImplementedError
-                else:
+    def _apply_calculation_or_pass_(self, coll):
+        if self.cengine is not None:
+            ocgis_lh('Starting calculations.', self._subset_log, alias=coll.items()[0][1].keys()[0], ugid=coll.keys()[0])
+
+            # look for any optimizations for temporal grouping.
+            if self.ops.optimizations is None:
+                tgds = None
+            else:
+                tgds = self.ops.optimizations.get('tgds')
+
+            # execute the calculations
+            coll = self.cengine.execute(coll, file_only=self.ops.file_only, tgds=tgds)
+        else:
+            # if there are no calculations, mark progress to indicate a geometry has been completed.
+            self._progress.mark()
+
+        return coll
+
+    def _process_collections_(self, itr_rd):
+
+        if self.merge_collections:
+            colls = []
+            for rds in itr_rd:
+                msg = 'Processing URI(s): {0}'.format([rd.uri for rd in rds])
+                ocgis_lh(msg=msg, logger=self._subset_log)
+                for coll in self._process_subsettables_(rds):
+                    colls.append(coll)
+
+            numpy_converter = NumpyConverter(colls, None, None, ops=self.ops)
+            coll = numpy_converter.write()
+            coll = self._apply_calculation_or_pass_(coll)
+            ocgis_lh('subset yielding', self._subset_log, level=logging.DEBUG)
+
+            yield coll
+        else:
+            ## process the data collections
+            for rds in itr_rd:
+                msg = 'Processing URI(s): {0}'.format([rd.uri for rd in rds])
+                ocgis_lh(msg=msg, logger=self._subset_log)
+
+                for coll in self._process_subsettables_(rds):
+                    # if there are calculations, do those now and return a new type of collection
+                    coll = self._apply_calculation_or_pass_(coll)
                     ocgis_lh('subset yielding', self._subset_log, level=logging.DEBUG)
+
                     yield coll
 
     def _process_subsettables_(self, rds):

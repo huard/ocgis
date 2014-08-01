@@ -51,5 +51,8 @@ class TestSubsetOperation(TestBase):
 
         ops = ocgis.OcgOperations(dataset=[longer_time, shorter_time], geom='state_boundaries', select_ugid=[23, 24])
         sub = SubsetOperation(ops, merge_collections=True)
-        for coll in sub: print coll
-        import ipdb;ipdb.set_trace()
+        for ii, coll in enumerate(sub):
+            self.assertEqual(set(coll.keys()), set([23, 24]))
+            for v in coll.itervalues():
+                self.assertEqual(set(v.keys()), set(['tas', 'tas_short']))
+        self.assertEqual(ii, 0)
