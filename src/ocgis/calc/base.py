@@ -126,7 +126,7 @@ class AbstractFunction(object):
     @abc.abstractmethod
     def calculate(self, values, **kwargs):
         """
-        The calculation method to overload. Values are explicitly passed to  avoid dereferencing. Reducing along the
+        The calculation method to overload. Values are explicitly passed to avoid dereferencing. Reducing along the
         time axis is required (i.e. axis=0).
 
         :param values: A three-dimensional array with dimensions (time, row, column).
