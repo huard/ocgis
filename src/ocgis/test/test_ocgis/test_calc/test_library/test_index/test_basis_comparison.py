@@ -8,20 +8,9 @@ class TestBasisFunction(AbstractTestField):
     def test_init(self):
         bc = BasisFunction()
 
-    def test_get_basis(self):
-        rd = self.test_data.get_rd('cancm4_tas')
-        field = rd.get()
-
-        keywords = dict(
-            source=[
-                {(12, 30): np.array([[1, 2], [3, 4]])},
-                {(12, 30, 1945): np.array([[1, 2], [3, 4]])},
-                {(12,): np.array([[1, 2], [3, 4]])},
-                field,
-                rd
-            ],
-            match=[['month'], ['month', 'day'], ['month', 'day', 'year']]
-        )
+    #todo: test with different field alias
+    #todo: test with basis as field v. string
+    #todo: test with different time lengths
 
     def test_register(self):
         raise NotImplementedError

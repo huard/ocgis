@@ -461,14 +461,65 @@ class AbstractParameterizedFunction(AbstractFunction):
     @abc.abstractproperty
     def parms_definition(self):
         """
-        A dictionary describing the input parameters with keys corresponding to
-        parameter names and values to their types. Set the type to `None` for no
-        type checking.
+        A dictionary describing the input parameters with keys corresponding to parameter names and values to their
+        types. Set the type to ``None`` for no type checking:
 
-        >>> {'threshold':float,'operation':str,'basis':None}
+        >>> {'threshold': float, 'operation': str, 'array': None}
+
+        If one of the input parameters is an alias to a variable, it should be configured like:
+
+        >>> {'basis': '_variable_'}
+
+        The type for ``'_variable_'`` is assumed to be a string. There can be two forms for the parameterization of
+        ``'_variable_'``:
+
+        >>> # This assumes the field and variable alias are equivalent.
+        >>> {'basis': 'tas'}
+        >>> # This translates to use variable with alias ``'tas'`` from field with alias ``'foo'``.
+        >>> {'basis': 'foo:tas'}
         """
 
         pass
+
+    @staticmethod
+    def get_variable_from_collection(ugid, coll, alias):
+        """
+        Retrieve a variable from a collection.
+
+        :param int ugid: The geometry identifier.
+        :param coll: The collection containing the variable.
+        :type coll: :class:`ocgis.api.collection.SpatialCollection`
+        :param str alias: The variable alias to get from the collection. If the field alias differs, then the aliases
+         should be separated by a colon.
+
+        >>> # This assumes the field and variable alias are equivalent.
+        >>> alias = 'tas'
+        >>> # This translates to use variable with alias ``'tas'`` from field with alias ``'foo'``.
+        >>> alias = 'foo:tas'
+
+        :rtype: :class:`ocgis.interface.base.variable.Variable`
+        :raises: KeyError
+        """
+
+        def _raise_alias_keyerror_(alias_msg):
+            msg = 'The alias "{0}" could not be found in the input collection. Perhaps a field alias is needed?'.format(alias_msg)
+            raise KeyError(msg)
+
+        coll_ugid = coll[ugid]
+        try:
+            ret = coll_ugid[alias].variables[alias]
+        except KeyError:
+            try:
+                alias_field, alias_variable = alias.split(':')
+            except ValueError:
+                if alias not in coll_ugid:
+                    _raise_alias_keyerror_(alias)
+            else:
+                try:
+                    ret = coll_ugid[alias_field].variables[alias_variable]
+                except KeyError:
+                    _raise_alias_keyerror_(alias)
+        return ret
 
     def _format_parms_(self, values):
         ret = {}

@@ -7,7 +7,7 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
     description = ''
     dtype = constants.np_float
     key = 'basis_function'
-    long_name = 'Operations with Basis Time Series'
+    long_name = 'Operation with Basis Time Series'
     standard_name = 'basis_function'
     parms_definition = {'pyfunc': None, 'basis': None, 'match': None}
 
@@ -30,10 +30,6 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
             ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
 
         return ret
-
-    @staticmethod
-    def get_basis(source, match):
-        import ipdb;ipdb.set_trace()
 
     @staticmethod
     def _get_key_(dt, match):

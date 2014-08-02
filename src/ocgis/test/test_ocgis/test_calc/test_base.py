@@ -1,10 +1,15 @@
+from collections import OrderedDict
+from copy import deepcopy
+from ocgis.interface.base.variable import Variable
+from ocgis.test.base import TestBase
 from ocgis.test.test_ocgis.test_interface.test_base.test_field import AbstractTestField
 from ocgis.calc.base import AbstractUnivariateFunction,\
-    AbstractUnivariateSetFunction, AbstractFunction
-from ocgis import constants
+    AbstractUnivariateSetFunction, AbstractFunction, AbstractParameterizedFunction
+from ocgis import constants, SpatialCollection
 from cfunits.cfunits import Units
 from ocgis.exc import UnitsValidationError
 import numpy as np
+from ocgis.util.itester import itr_products_keywords
 
 
 class FooNeedsUnits(AbstractUnivariateFunction):
@@ -97,3 +102,37 @@ class TestAbstractUnivariateSetFunction(AbstractTestField):
         fnu = FooNeedsUnitsSet(field=field,tgd=tgd)
         with self.assertRaises(UnitsValidationError):
             fnu.execute()
+
+
+class TestAbstractParameterizedFunction(AbstractTestField):
+    _create_dir = False
+
+    def test_get_variable_from_collection(self):
+
+        field = self.get_field()
+        coll = SpatialCollection()
+        coll.add_field(2, None, field)
+
+        keywords = dict(alias=[
+            'tmax',
+            'foo:tmax'],
+                        coll_field_alias=[
+                            'tmax',
+                            'foo'
+                        ])
+
+        func = AbstractParameterizedFunction.get_variable_from_collection
+
+        for k in itr_products_keywords(keywords, as_namedtuple=True):
+            coll_deepcopy = deepcopy(coll)
+            coll_deepcopy[2][k.coll_field_alias] = coll_deepcopy[2].pop('tmax')
+            try:
+                ret = func(2, coll_deepcopy, k.alias)
+                self.assertIsInstance(ret, Variable)
+            except KeyError:
+                if k._asdict() == OrderedDict([('alias', 'tmax'), ('coll_field_alias', 'foo')]):
+                    continue
+                elif k._asdict() == OrderedDict([('alias', 'foo:tmax'), ('coll_field_alias', 'tmax')]):
+                    continue
+                else:
+                    raise
