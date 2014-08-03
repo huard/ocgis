@@ -16,12 +16,12 @@ from ocgis.util.logging_ocgis import ocgis_lh
         
 
 class Field(object):
-    _axis_map = {'realization':0,'temporal':1,'level':2}
-    _axes = ['R','T','Z','Y','X']
-    _value_dimension_names = ('realization','temporal','level','row','column')
-    
-    def __init__(self,variables=None,realization=None,temporal=None,level=None,
-                 spatial=None,meta=None,uid=None,name=None):
+    _axis_map = {'realization': 0, 'temporal': 1, 'level': 2}
+    _axes = ['R', 'T', 'Z', 'Y', 'X']
+    _value_dimension_names = ('realization', 'temporal', 'level', 'row', 'column')
+
+    def __init__(self, variables=None, realization=None, temporal=None, level=None, spatial=None, meta=None, uid=None,
+                 name=None):
 
         self.realization = realization
         self.temporal = temporal
@@ -34,18 +34,18 @@ class Field(object):
         ## add variables - dimensions are needed first for shape checking
         self.variables = variables
         self._name = name
-                        
-    def __getitem__(self,slc):
-        slc = get_formatted_slice(slc,5)
+
+    def __getitem__(self, slc):
+        slc = get_formatted_slice(slc, 5)
         ret = copy(self)
-        ret.realization = get_none_or_slice(self.realization,slc[0])
-        ret.temporal = get_none_or_slice(self.temporal,slc[1])
-        ret.level = get_none_or_slice(self.level,slc[2])
-        ret.spatial = get_none_or_slice(self.spatial,(slc[3],slc[4]))
-        
+        ret.realization = get_none_or_slice(self.realization, slc[0])
+        ret.temporal = get_none_or_slice(self.temporal, slc[1])
+        ret.level = get_none_or_slice(self.level, slc[2])
+        ret.spatial = get_none_or_slice(self.spatial, (slc[3], slc[4]))
+
         ret.variables = self.variables.get_sliced_variables(slc)
 
-        return(ret)
+        return ret
 
     @property
     def name(self):
@@ -53,16 +53,16 @@ class Field(object):
             ret = '_'.join([v.alias for v in self.variables.itervalues()])
         else:
             ret = self._name
-        return(ret)
-    
+        return ret
+
     @property
     def shape(self):
-        shape_realization = get_default_or_apply(self.realization,len,1)
-        shape_temporal = get_default_or_apply(self.temporal,len,1)
-        shape_level = get_default_or_apply(self.level,len,1)
-        shape_spatial = get_default_or_apply(self.spatial,lambda x: x.shape,(1,1))
-        ret = (shape_realization,shape_temporal,shape_level,shape_spatial[0],shape_spatial[1])
-        return(ret)
+        shape_realization = get_default_or_apply(self.realization, len, 1)
+        shape_temporal = get_default_or_apply(self.temporal, len, 1)
+        shape_level = get_default_or_apply(self.level, len, 1)
+        shape_spatial = get_default_or_apply(self.spatial, lambda x: x.shape, (1, 1))
+        ret = (shape_realization, shape_temporal, shape_level, shape_spatial[0], shape_spatial[1])
+        return ret
     
     @property
     def shape_as_dict(self):
