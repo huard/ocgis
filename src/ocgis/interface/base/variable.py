@@ -182,18 +182,16 @@ class Variable(AbstractSourcedVariable):
     :param conform_units_to: Target units for conversion.
     :type conform_units_to: str convertible to :class:`cfunits.Units`
     '''
-    
-    def __init__(self,name=None,alias=None,units=None,meta=None,uid=None,
-                 value=None,did=None,data=None,debug=False,conform_units_to=None,
-                 dtype=None,fill_value=None):
+
+    def __init__(self, name=None, alias=None, units=None, meta=None, uid=None, value=None, did=None, data=None,
+                 debug=False, conform_units_to=None, dtype=None, fill_value=None):
         self.alias = alias or name
         self.meta = meta or {}
         self.uid = uid
         self._conform_units_to = conform_units_to
-        
-        super(Variable,self).__init__(value=value,data=data,debug=debug,did=did,
-                                      units=units,dtype=dtype,fill_value=fill_value,
-                                      name=name)
+
+        super(Variable, self).__init__(value=value, data=data, debug=debug, did=did, units=units, dtype=dtype,
+                                       fill_value=fill_value, name=name)
         
     def __getitem__(self,slc):
         ret = copy(self)
@@ -202,7 +200,7 @@ class Variable(AbstractSourcedVariable):
         return(ret)
                 
     def __repr__(self):
-        ret = '{0}(alias="{1}",name="{2}",units="{3}")'.format(self.__class__.__name__,self.alias,self.name,self.units)
+        ret = '{0}(alias="{1}", name="{2}", units="{3}")'.format(self.__class__.__name__,self.alias,self.name,self.units)
         return(ret)
     
     def _format_private_value_(self,value):
