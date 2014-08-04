@@ -165,3 +165,7 @@ class OcgCalculationEngine(object):
                                   uid=field.uid,name=field.name)
                 coll[ugid][alias_field] = new_field
         return(coll)
+
+    @staticmethod
+    def _get_parms_for_function_(ugid, dct, coll):
+        pass
