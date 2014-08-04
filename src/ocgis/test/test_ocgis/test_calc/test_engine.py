@@ -1,4 +1,5 @@
 from ocgis.calc.library.index.basis_comparison import BasisFunction
+from ocgis.interface.base.variable import Variable
 from ocgis.test.base import TestBase
 from ocgis.calc.library.statistics import Mean
 from ocgis.calc.engine import OcgCalculationEngine
@@ -31,7 +32,7 @@ class TestOcgCalculationEngine(AbstractTestField):
 
     def test_get_parms_for_function(self):
         ugid = 2
-        dct = {'func': 'foo_basis', 'name': 'foo_basis', 'kwds': {'basis': 'tmax'}}
+        dct = {'func': 'foo_basis', 'name': 'foo_basis', 'kwds': {'basis': 'tmax', 'hugs': 'are_pleasant'}}
         klass = BasisFunction
 
         field = self.get_field()
@@ -41,8 +42,11 @@ class TestOcgCalculationEngine(AbstractTestField):
         func = OcgCalculationEngine._get_parms_for_function_
 
         ret = func(klass, ugid, dct, coll)
-        import ipdb;ipdb.set_trace()
-    
+
+        self.assertEqual(set(ret.keys()), set(['hugs', 'basis']))
+        self.assertEqual(ret['hugs'], 'are_pleasant')
+        self.assertIsInstance(ret['basis'], Variable)
+
     def test_with_eval_function_one_variable(self):
         funcs = [{'func':'tas2=tas+4','ref':EvalFunction}]
         engine = self.get_engine(funcs=funcs,grouping=None)

@@ -123,10 +123,14 @@ class OcgCalculationEngine(object):
 
                     try:
                         ocgis_lh('Calculating: {0}'.format(f['func']),logger='calc.engine')
-                        
+
+                        # retrieve the parameters for the function. this only does something in the case where one of
+                        # the requested parameters is a variable.
+                        parms = self._get_parms_for_function_(f['ref'], ugid, f, coll)
+
                         ## initialize the function
                         function = f['ref'](alias=f['name'],dtype=dtype,field=field,file_only=file_only,vc=out_vc,
-                             parms=f['kwds'],tgd=new_temporal,use_raw_values=self.use_raw_values,
+                             parms=parms,tgd=new_temporal,use_raw_values=self.use_raw_values,
                              calc_sample_size=self.calc_sample_size,meta_attrs=f.get('meta_attrs'))
                     except KeyError:
                         ## likely an eval function which does not have the name
@@ -169,10 +173,13 @@ class OcgCalculationEngine(object):
     @staticmethod
     def _get_parms_for_function_(klass, ugid, dct, coll):
         try:
-            import ipdb;ipdb.set_trace()
             variable_parameter_definition_string = AbstractParameterizedFunction._variable_parameter_definition_string
             for k, v in klass.parms_definition.iteritems():
                 if v == variable_parameter_definition_string:
-                    import ipdb;ipdb.set_trace()
+                    alias = dct['kwds'][k]
+                    variable = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
+                    dct['kwds'][k] = variable
+                    ret = dct['kwds']
         except AttributeError:
-            NotImplementedError
+            ret = dct['kwds']
+        return ret
