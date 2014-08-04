@@ -70,17 +70,20 @@ class Field(object):
     
     @property
     def variables(self):
-        return(self._variables)
+        return self._variables
+
     @variables.setter
-    def variables(self,value):
-        if isinstance(value,Variable):
+    def variables(self, value):
+        if isinstance(value, Variable):
             value = VariableCollection(variables=[value])
-        assert_raise(isinstance(value,VariableCollection),exc=ValueError('The "variables" keyword must be a Variable object.'))
+        value.field = self
+        assert_raise(isinstance(value, VariableCollection),
+                     exc=ValueError('The "variables" keyword must be a Variable object.'))
         self._variables = value
         for v in value.itervalues():
-            v._field = self
+            v.field = self
             if v._value is not None:
-                assert(v._value.shape == self.shape)
+                assert v._value.shape == self.shape
     
     def get_between(self,dim,lower,upper):
         pos = self._axis_map[dim]

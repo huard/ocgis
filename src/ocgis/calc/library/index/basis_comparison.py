@@ -12,13 +12,14 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
     parms_definition = {'pyfunc': None, 'basis': None, 'match': None}
 
     def calculate(self, values, basis=None, pyfunc=None, match=None):
-        assert(len(values.shape) == 5)
+        assert(basis.field is not None)
+        assert(values.ndim == 5)
         assert(len(basis.variables.keys()) == 1)
 
         ret = np.empty_like(values)
 
         basis_dict = {}
-        for ii, dt in enumerate(basis.temporal._get_datetime_value_().flat):
+        for ii, dt in enumerate(basis.field.temporal._get_datetime_value_().flat):
             basis_dict[self._get_key_(dt, match)] = ii
 
         for it in range(self.field.temporal.shape[0]):

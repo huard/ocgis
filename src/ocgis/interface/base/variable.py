@@ -1,10 +1,8 @@
 from ocgis.api.collection import AbstractCollection
 from ocgis.util.logging_ocgis import ocgis_lh
 import abc
-from collections import OrderedDict
 from ocgis.util.helpers import get_iter
 import numpy as np
-from ocgis import constants
 from ocgis.exc import NoUnitsError, VariableInCollectionError
 from copy import copy
 
@@ -157,7 +155,7 @@ class AbstractSourcedVariable(AbstractValueVariable):
 
 
 class Variable(AbstractSourcedVariable):
-    '''
+    """
     :param name: Representative name for the variable.
     :type name: str
     :param alias: Optional unique name for the variable.
@@ -181,18 +179,27 @@ class Variable(AbstractSourcedVariable):
     :type fill_value: int or float
     :param conform_units_to: Target units for conversion.
     :type conform_units_to: str convertible to :class:`cfunits.Units`
-    '''
+    :param field: The parent field object for the variable.
+    :type field: :class:`ocgis.interface.base.field.Field`
+    """
 
     def __init__(self, name=None, alias=None, units=None, meta=None, uid=None, value=None, did=None, data=None,
-                 debug=False, conform_units_to=None, dtype=None, fill_value=None):
+                 debug=False, conform_units_to=None, dtype=None, fill_value=None, field=None):
+
         self.alias = alias or name
         self.meta = meta or {}
         self.uid = uid
+        self.field = field
         self._conform_units_to = conform_units_to
 
         super(Variable, self).__init__(value=value, data=data, debug=debug, did=did, units=units, dtype=dtype,
                                        fill_value=fill_value, name=name)
-        
+
+    @property
+    def _field(self):
+        #todo: remove this property - meant for cleaning up old _field usages
+        raise NotImplementedError
+
     def __getitem__(self,slc):
         ret = copy(self)
         if ret._value is not None:
@@ -221,18 +228,26 @@ class Variable(AbstractSourcedVariable):
     
     def _set_value_from_source_(self):
         ## load the value from source using the referenced field
-        self._value = self._field._get_value_from_source_(self._data,self.name)
+        self._value = self.field._get_value_from_source_(self._data,self.name)
         ## ensure the new value has the geometry masked applied
-        self._field._set_new_value_mask_(self._field,self._field.spatial.get_mask())
+        self.field._set_new_value_mask_(self.field,self.field.spatial.get_mask())
         ## if there are units to conform to, execute this now
         if self._conform_units_to:
             self.cfunits_conform(self._conform_units_to,self.value)
     
     
 class VariableCollection(AbstractCollection):
+    """
+    :param variables: A sequence of variables to add to the collection.
+    :type variables: sequence of :class:`ocgis.interface.base.variable.Variable`
+    :param field: The parent field object for the variable.
+    :type field: :class:`ocgis.interface.base.field.Field`
+    """
     
-    def __init__(self, variables=None):
+    def __init__(self, variables=None, field=None):
         super(VariableCollection, self).__init__()
+
+        self.field = field
 
         if variables is not None:
             for variable in get_iter(variables, dtype=Variable):
@@ -244,11 +259,15 @@ class VariableCollection(AbstractCollection):
         :param bool assign_new_uid: If ``True``, assign a new unique identifier to the incoming variable. This will
          modify the variable inplace.
         """
+
         assert(isinstance(variable, Variable))
         try:
             assert(variable.alias not in self)
         except AssertionError:
             raise VariableInCollectionError(variable)
+
+        # always set the field object based on the variable collection's.
+        variable.field = self.field
 
         if assign_new_uid:
             variable.uid = None
@@ -258,6 +277,7 @@ class VariableCollection(AbstractCollection):
         else:
             assert(variable.uid not in self._storage_id)
         self._storage_id.append(variable.uid)
+
         self.update({variable.alias: variable})
         
     def get_sliced_variables(self, slc):

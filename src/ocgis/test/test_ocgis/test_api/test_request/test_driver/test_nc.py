@@ -177,7 +177,7 @@ class TestDriverNetcdf(TestBase):
         to_test = ds.variables['tas'][2898,5,101]
         to_test = np.ma.array(to_test.reshape(1,1,1,1,1),mask=False)
         with self.assertRaises(AttributeError):
-            slced.variables['tas']._field._value
+            slced.variables['tas'].field._value
         self.assertNumpyAll(slced.variables['tas'].value,to_test)
 
         ds.close()
