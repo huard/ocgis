@@ -9,7 +9,7 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
     key = 'basis_function'
     long_name = 'Operation with Basis Time Series'
     standard_name = 'basis_function'
-    parms_definition = {'pyfunc': None, 'basis': None, 'match': None}
+    parms_definition = {'pyfunc': None, 'basis': '_variable_', 'match': None}
 
     def calculate(self, values, basis=None, pyfunc=None, match=None):
         assert(basis.field is not None)

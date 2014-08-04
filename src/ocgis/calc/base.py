@@ -455,7 +455,7 @@ class AbstractParameterizedFunction(AbstractFunction):
     """
     Base class for functions accepting parameters.
     """
-
+    _variable_parameter_definition_string = '_variable_'
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractproperty

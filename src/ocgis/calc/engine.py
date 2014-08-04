@@ -2,7 +2,7 @@ from copy import deepcopy
 from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.interface.base.variable import VariableCollection
 from ocgis.interface.base.field import DerivedMultivariateField, DerivedField
-from ocgis.calc.base import AbstractMultivariateFunction
+from ocgis.calc.base import AbstractMultivariateFunction, AbstractParameterizedFunction
 import logging
 from ocgis.calc.eval_function import EvalFunction
 import numpy as np
@@ -167,5 +167,12 @@ class OcgCalculationEngine(object):
         return(coll)
 
     @staticmethod
-    def _get_parms_for_function_(ugid, dct, coll):
-        pass
+    def _get_parms_for_function_(klass, ugid, dct, coll):
+        try:
+            import ipdb;ipdb.set_trace()
+            variable_parameter_definition_string = AbstractParameterizedFunction._variable_parameter_definition_string
+            for k, v in klass.parms_definition.iteritems():
+                if v == variable_parameter_definition_string:
+                    import ipdb;ipdb.set_trace()
+        except AttributeError:
+            NotImplementedError

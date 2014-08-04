@@ -1,16 +1,18 @@
+from ocgis.calc.library.index.basis_comparison import BasisFunction
 from ocgis.test.base import TestBase
 from ocgis.calc.library.statistics import Mean
 from ocgis.calc.engine import OcgCalculationEngine
 import ocgis
 from copy import deepcopy
 import numpy as np
+from ocgis.test.test_ocgis.test_interface.test_base.test_field import AbstractTestField
 from ocgis.util.logging_ocgis import ProgressOcgOperations
 from ocgis.api.collection import SpatialCollection
 from ocgis.interface.base.field import DerivedMultivariateField
 from ocgis.calc.eval_function import EvalFunction
 
 
-class TestOcgCalculationEngine(TestBase):
+class TestOcgCalculationEngine(AbstractTestField):
     
     @property
     def funcs(self):
@@ -26,6 +28,20 @@ class TestOcgCalculationEngine(TestBase):
         if grouping == 'None':
             grouping = self.grouping
         return(OcgCalculationEngine(grouping,funcs,**kwds))
+
+    def test_get_parms_for_function(self):
+        ugid = 2
+        dct = {'func': 'foo_basis', 'name': 'foo_basis', 'kwds': {'basis': 'tmax'}}
+        klass = BasisFunction
+
+        field = self.get_field()
+        coll = SpatialCollection()
+        coll.add_field(ugid, None, field)
+
+        func = OcgCalculationEngine._get_parms_for_function_
+
+        ret = func(klass, ugid, dct, coll)
+        import ipdb;ipdb.set_trace()
     
     def test_with_eval_function_one_variable(self):
         funcs = [{'func':'tas2=tas+4','ref':EvalFunction}]
