@@ -32,7 +32,7 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
             curr_datetime = self.field.temporal._get_datetime_value_()[it]
             key = self._get_key_(curr_datetime, match)
             basis_index = basis_dict[key]
-            basis_slice = basis.variables.first().value[:, basis_index, :, :, :]
+            basis_slice = basis.value[:, basis_index, :, :, :]
             values_slice = values[:, it, :, :, :]
             ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
 

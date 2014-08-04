@@ -1,4 +1,5 @@
 import math
+from ocgis.calc.library import basis_function
 import statistics
 import thresholds
 from ocgis.calc.library.index import dynamic_kernel_percentile, heat_index, duration
@@ -17,6 +18,7 @@ class FunctionRegistry(dict):
         self.reg += [thresholds.Between,thresholds.Threshold]
         self.reg += [dynamic_kernel_percentile.DynamicDailyKernelPercentileThreshold,
                      heat_index.HeatIndex,duration.Duration,duration.FrequencyDuration]
+        self.reg += [basis_function.BasisFunction]
         
         for cc in self.reg:
             self.update({cc.key:cc})

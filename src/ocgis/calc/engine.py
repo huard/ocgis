@@ -1,4 +1,5 @@
 from copy import deepcopy
+import itertools
 from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.interface.base.variable import VariableCollection
 from ocgis.interface.base.field import DerivedMultivariateField, DerivedField
@@ -62,7 +63,7 @@ class OcgCalculationEngine(object):
         :param bool file_only:
         :param dict tgds: {'field_alias': :class:`ocgis.interface.base.dimension.temporal.TemporalGroupDimension`,...}
         '''
-        
+
         ## switch field type based on the types of calculations present
         if self._check_calculation_members_(self.funcs,AbstractMultivariateFunction):
             klass = DerivedMultivariateField
@@ -99,8 +100,23 @@ class OcgCalculationEngine(object):
                             tgds_to_use[k2] = v2.temporal.get_grouping(self.grouping)
 
         ## iterate over functions
+        alias_fields_to_remove = {}
         for ugid,dct in coll.iteritems():
             for alias_field,field in dct.iteritems():
+                # retrieve the parameters for the function. this only does something in the case where one of the
+                # requested parameters is a variable.
+                parms = [None]*len(self.funcs)
+                process_field = True
+                for ii, f in enumerate(self.funcs):
+                    parms[ii], alias_field_for_parms = self._get_parms_for_function_(f['ref'], ugid, f, coll)
+                    if alias_field_for_parms == alias_field:
+                        process_field = False
+                        # collect the ugid/fields to remove from the output collection
+                        alias_fields_to_remove[ugid] = alias_field_for_parms
+                        break
+                if not process_field:
+                    continue
+
                 ## choose a representative data type based on the first variable
                 dtype = field.variables.values()[0].dtype
                 
@@ -119,18 +135,14 @@ class OcgCalculationEngine(object):
                         ocgis_lh(logger='calc.engine',exc=ValueError(msg))
                 
                 out_vc = VariableCollection()
-                for f in self.funcs:
+                for f, p in itertools.izip(self.funcs, parms):
 
                     try:
                         ocgis_lh('Calculating: {0}'.format(f['func']),logger='calc.engine')
 
-                        # retrieve the parameters for the function. this only does something in the case where one of
-                        # the requested parameters is a variable.
-                        parms = self._get_parms_for_function_(f['ref'], ugid, f, coll)
-
                         ## initialize the function
                         function = f['ref'](alias=f['name'],dtype=dtype,field=field,file_only=file_only,vc=out_vc,
-                             parms=parms,tgd=new_temporal,use_raw_values=self.use_raw_values,
+                             parms=p,tgd=new_temporal,use_raw_values=self.use_raw_values,
                              calc_sample_size=self.calc_sample_size,meta_attrs=f.get('meta_attrs'))
                     except KeyError:
                         ## likely an eval function which does not have the name
@@ -168,7 +180,12 @@ class OcgCalculationEngine(object):
                                   level=field.level,realization=field.realization,meta=field.meta,
                                   uid=field.uid,name=field.name)
                 coll[ugid][alias_field] = new_field
-        return(coll)
+
+        # if there was nothing computed for the alias, remove it from the output collection
+        for k, v in alias_fields_to_remove.iteritems():
+            coll[ugid].pop(v)
+
+        return coll
 
     @staticmethod
     def _get_parms_for_function_(klass, ugid, dct, coll):
@@ -177,9 +194,10 @@ class OcgCalculationEngine(object):
             for k, v in klass.parms_definition.iteritems():
                 if v == variable_parameter_definition_string:
                     alias = dct['kwds'][k]
-                    variable = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
+                    variable, alias_field = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
                     dct['kwds'][k] = variable
                     ret = dct['kwds']
         except AttributeError:
             ret = dct['kwds']
-        return ret
+            alias_field = None
+        return ret, alias_field

@@ -482,9 +482,9 @@ class AbstractParameterizedFunction(AbstractFunction):
         pass
 
     @staticmethod
-    def get_variable_from_collection(ugid, coll, alias):
+    def get_variable_from_collection(ugid, coll, alias, remove=False):
         """
-        Retrieve a variable from a collection.
+        Retrieve a variable from a collection with the string alias for the field containing it on the input collection.
 
         :param int ugid: The geometry identifier.
         :param coll: The collection containing the variable.
@@ -497,7 +497,7 @@ class AbstractParameterizedFunction(AbstractFunction):
         >>> # This translates to use variable with alias ``'tas'`` from field with alias ``'foo'``.
         >>> alias = 'foo:tas'
 
-        :rtype: :class:`ocgis.interface.base.variable.Variable`
+        :rtype: tuple(:class:`ocgis.interface.base.variable.Variable`, str)
         :raises: KeyError
         """
 
@@ -508,6 +508,7 @@ class AbstractParameterizedFunction(AbstractFunction):
         coll_ugid = coll[ugid]
         try:
             ret = coll_ugid[alias].variables[alias]
+            alias_field = alias
         except KeyError:
             try:
                 alias_field, alias_variable = alias.split(':')
@@ -519,16 +520,18 @@ class AbstractParameterizedFunction(AbstractFunction):
                     ret = coll_ugid[alias_field].variables[alias_variable]
                 except KeyError:
                     _raise_alias_keyerror_(alias)
-        return ret
+        return ret, alias_field
 
     def _format_parms_(self, values):
         ret = {}
         for k, v in values.iteritems():
             try:
                 formatted = self.parms_definition[k](v)
-            # likely a nonetype
+            # likely a nonetype or flag for type handling
             except TypeError as e:
                 if self.parms_definition[k] is None:
+                    formatted = v
+                elif self.parms_definition[k] == self._variable_parameter_definition_string:
                     formatted = v
                 else:
                     ocgis_lh(exc=e, logger='calc.base')

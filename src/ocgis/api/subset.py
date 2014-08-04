@@ -1,10 +1,9 @@
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis import env, constants
-from ocgis.calc.library.index.basis_comparison import BasisFunction
+from ocgis.calc.library.basis_function import BasisFunction
 from ocgis.conv.numpy_ import NumpyConverter
 from ocgis.exc import EmptyData, ExtentError, MaskedDataError, EmptySubsetError,\
     ImproperPolygonBoundsError, VariableInCollectionError
-from ocgis.util.spatial.wrap import Wrapper
 from ocgis.util.logging_ocgis import ocgis_lh, ProgressOcgOperations
 import logging
 from ocgis.api.collection import SpatialCollection
