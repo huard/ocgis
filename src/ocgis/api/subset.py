@@ -1,5 +1,6 @@
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis import env, constants
+from ocgis.calc.library.index.basis_comparison import BasisFunction
 from ocgis.conv.numpy_ import NumpyConverter
 from ocgis.exc import EmptyData, ExtentError, MaskedDataError, EmptySubsetError,\
     ImproperPolygonBoundsError, VariableInCollectionError
@@ -52,6 +53,11 @@ class SubsetOperation(object):
                                            progress=self._progress)
             self._has_multivariate_calculations = any([self.cengine._check_calculation_members_(self.cengine.funcs,k) \
              for k in [AbstractMultivariateFunction,MultivariateEvalFunction]])
+
+            # some functions require merged collections
+            for element in self.ops.calc:
+                if element['ref'] in [BasisFunction]:
+                    self.merge_collections = True
             
         # in the case of netcdf output, geometries must be unioned. this is also true for the case of the selection
         # geometry being requested as aggregated.
