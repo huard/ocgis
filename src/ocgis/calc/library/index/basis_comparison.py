@@ -12,9 +12,15 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
     parms_definition = {'pyfunc': None, 'basis': '_variable_', 'match': None}
 
     def calculate(self, values, basis=None, pyfunc=None, match=None):
+        """
+        :param values: ndarray
+        :param basis: string or Variable
+        :param pyfunc: execute python function
+        :param match: level of matching for datetime objects
+        """
         assert(basis.field is not None)
         assert(values.ndim == 5)
-        assert(len(basis.variables.keys()) == 1)
+        assert(len(match) >= 1)
 
         ret = np.empty_like(values)
 
