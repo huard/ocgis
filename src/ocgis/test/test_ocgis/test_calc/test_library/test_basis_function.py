@@ -26,6 +26,7 @@ class TestBasisFunction(AbstractTestField):
         coll.add_field(1, None, field)
         conv = NcConverter([coll], self._test_dir, 'all_time')
         path_field = conv.write()
+
         sub = field.get_time_region({'year': [2010]})
         sub.variables['tas'].value[:] = 3
         coll = SpatialCollection()
@@ -33,6 +34,23 @@ class TestBasisFunction(AbstractTestField):
         conv = NcConverter([coll], self._test_dir, 'subsetted_time')
         path_sub = conv.write()
         return path_field, path_sub
+
+    def test_in_operations_complex(self):
+        """Test a more complicated operations involving geometry subsets and different time selections."""
+
+        geom = 'state_boundaries'
+        select_ugid = [15, 24]
+
+        def pyfunc(a, b):
+            return a-b
+
+        rd1 = self.test_data.get_rd('cancm4_tas')
+        rd2 = self.test_data.get_rd('cancm4_tas', kwds={'alias': 'sub_tas', 'time_region': {'year': [2001]}})
+        calc_kwds = {'pyfunc': pyfunc, 'basis': 'sub_tas', 'match': ['month', 'day']}
+        calc = [{'func': 'basis_function', 'name': 'basis', 'kwds': calc_kwds}]
+        ops = OcgOperations(calc=calc, dataset=[rd1, rd2], geom=geom, select_ugid=select_ugid)
+        ret = ops.execute()
+        import ipdb;ipdb.set_trace()
 
     def test_in_operations(self):
 
@@ -42,7 +60,8 @@ class TestBasisFunction(AbstractTestField):
             return a*b
 
         keywords = dict(rd2_name=[None, 'rd2'],
-                        basis_alias=['rd2:sub_tas', 'sub_tas'])
+                        basis_alias=['rd2:sub_tas', 'sub_tas'],
+                        geom=[None, [23, 12]])
 
         for ctr, k in enumerate(itr_products_keywords(keywords, as_namedtuple=True)):
 

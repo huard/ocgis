@@ -201,7 +201,7 @@ class OcgCalculationEngine(object):
         :type coll: :class:`ocgis.api.collection.SpatialCollection`
         :rtype: tuple(dict|None, str|None)
         """
-        
+
         alias_field = None
         try:
             ret = dct['kwds']
