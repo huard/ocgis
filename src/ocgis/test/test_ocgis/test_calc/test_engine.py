@@ -1,6 +1,6 @@
-from ocgis.calc.library.index.basis_comparison import BasisFunction
+from ocgis.calc.library.basis_function import BasisFunction
+from ocgis.calc.library.thresholds import Threshold
 from ocgis.interface.base.variable import Variable
-from ocgis.test.base import TestBase
 from ocgis.calc.library.statistics import Mean
 from ocgis.calc.engine import OcgCalculationEngine
 import ocgis
@@ -30,7 +30,25 @@ class TestOcgCalculationEngine(AbstractTestField):
             grouping = self.grouping
         return(OcgCalculationEngine(grouping,funcs,**kwds))
 
+    def test_get_parms_for_function_with_eval_function(self):
+        """Test with an evaluated function."""
+
+        ugid = 2
+        dct = {'func': 'foo_basis', 'name': 'foo_basis'}
+        klass = EvalFunction
+
+        field = self.get_field()
+        coll = SpatialCollection()
+        coll.add_field(ugid, None, field)
+
+        func = OcgCalculationEngine._get_parms_for_function_
+
+        ret = func(klass, ugid, dct, coll)
+        self.assertEqual(ret, (None, None))
+
     def test_get_parms_for_function(self):
+        """Test a function class with a variable-based parameter."""
+
         ugid = 2
         dct = {'func': 'foo_basis', 'name': 'foo_basis', 'kwds': {'basis': 'tmax', 'hugs': 'are_pleasant'}}
         klass = BasisFunction
@@ -41,11 +59,31 @@ class TestOcgCalculationEngine(AbstractTestField):
 
         func = OcgCalculationEngine._get_parms_for_function_
 
-        ret = func(klass, ugid, dct, coll)
+        ret, alias_field = func(klass, ugid, dct, coll)
 
         self.assertEqual(set(ret.keys()), set(['hugs', 'basis']))
         self.assertEqual(ret['hugs'], 'are_pleasant')
         self.assertIsInstance(ret['basis'], Variable)
+        self.assertEqual(alias_field, 'tmax')
+
+    def test_get_parms_for_function_no_variable(self):
+        """Test a function class that does not use a variable-based overload."""
+
+        ugid = 2
+        dct = {'func': 'foo_basis', 'name': 'foo_basis', 'kwds': {'threshold': 5, 'operation': 'gte'}}
+        klass = Threshold
+
+        field = self.get_field()
+        coll = SpatialCollection()
+        coll.add_field(ugid, None, field)
+
+        func = OcgCalculationEngine._get_parms_for_function_
+
+        ret, alias_field = func(klass, ugid, dct, coll)
+
+        self.assertEqual(set(ret.keys()), set(['threshold', 'operation']))
+        self.assertEqual(ret['threshold'], 5)
+        self.assertEqual(alias_field, None)
 
     def test_with_eval_function_one_variable(self):
         funcs = [{'func':'tas2=tas+4','ref':EvalFunction}]

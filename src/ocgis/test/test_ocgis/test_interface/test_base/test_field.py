@@ -375,6 +375,8 @@ class TestField(AbstractTestField):
             self.assertEqual(ret.temporal.value[-1],dt(2000,1,30,12))
     
     def test_empty(self):
+        """Test that spatial and temporal dimensions are required to construct a field object."""
+
         with self.assertRaises(ValueError):
             Field()
     

@@ -127,8 +127,13 @@ class TestAbstractParameterizedFunction(AbstractTestField):
             coll_deepcopy = deepcopy(coll)
             coll_deepcopy[2][k.coll_field_alias] = coll_deepcopy[2].pop('tmax')
             try:
-                ret = func(2, coll_deepcopy, k.alias)
+                ret, alias_field = func(2, coll_deepcopy, k.alias)
                 self.assertIsInstance(ret, Variable)
+                try:
+                    self.assertEqual(alias_field, 'tmax')
+                except AssertionError:
+                    if k.alias.startswith('foo'):
+                        self.assertEqual(alias_field, 'foo')
             except KeyError:
                 if k._asdict() == OrderedDict([('alias', 'tmax'), ('coll_field_alias', 'foo')]):
                     continue

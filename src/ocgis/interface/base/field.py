@@ -23,6 +23,10 @@ class Field(object):
     def __init__(self, variables=None, realization=None, temporal=None, level=None, spatial=None, meta=None, uid=None,
                  name=None):
 
+        if temporal is None and spatial is None and level is None:
+            msg = 'A temporal, spatial, or level dimension is required to construct a field.'
+            raise ValueError(msg)
+
         self.realization = realization
         self.temporal = temporal
         self.uid = uid
@@ -74,16 +78,21 @@ class Field(object):
 
     @variables.setter
     def variables(self, value):
-        if isinstance(value, Variable):
-            value = VariableCollection(variables=[value])
-        value.field = self
-        assert_raise(isinstance(value, VariableCollection),
-                     exc=ValueError('The "variables" keyword must be a Variable object.'))
+        if value is not None:
+            # variables are always stored as collections
+            if isinstance(value, Variable):
+                value = VariableCollection(variables=[value])
+            # the variable collection should also hold a reference to the field object
+            value.field = self
+            assert_raise(isinstance(value, VariableCollection),
+                         exc=ValueError('The "variables" keyword must be a Variable object.'))
+            # reference the variable with its containing field
+            for v in value.itervalues():
+                v.field = self
+                # variables must have the same shape as the containing field.
+                if v._value is not None:
+                    assert v._value.shape == self.shape
         self._variables = value
-        for v in value.itervalues():
-            v.field = self
-            if v._value is not None:
-                assert v._value.shape == self.shape
     
     def get_between(self,dim,lower,upper):
         pos = self._axis_map[dim]

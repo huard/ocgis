@@ -103,6 +103,7 @@ class OcgCalculationEngine(object):
         alias_fields_to_remove = {}
         for ugid,dct in coll.iteritems():
             for alias_field,field in dct.iteritems():
+
                 # retrieve the parameters for the function. this only does something in the case where one of the
                 # requested parameters is a variable.
                 parms = [None]*len(self.funcs)
@@ -189,15 +190,21 @@ class OcgCalculationEngine(object):
 
     @staticmethod
     def _get_parms_for_function_(klass, ugid, dct, coll):
+        alias_field = None
         try:
-            variable_parameter_definition_string = AbstractParameterizedFunction._variable_parameter_definition_string
-            for k, v in klass.parms_definition.iteritems():
-                if v == variable_parameter_definition_string:
-                    alias = dct['kwds'][k]
-                    variable, alias_field = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
-                    dct['kwds'][k] = variable
-                    ret = dct['kwds']
-        except AttributeError:
             ret = dct['kwds']
-            alias_field = None
+        except KeyError:
+            # likely an eval function - return...
+            ret = None
+        else:
+            try:
+                variable_parameter_definition_string = AbstractParameterizedFunction._variable_parameter_definition_string
+                for k, v in klass.parms_definition.iteritems():
+                    if v == variable_parameter_definition_string:
+                        alias = dct['kwds'][k]
+                        variable, alias_field = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
+                        dct['kwds'][k] = variable
+            except AttributeError:
+                # likely not a parameterized function, so just return the defaults.
+                pass
         return ret, alias_field

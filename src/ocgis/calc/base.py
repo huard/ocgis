@@ -482,7 +482,7 @@ class AbstractParameterizedFunction(AbstractFunction):
         pass
 
     @staticmethod
-    def get_variable_from_collection(ugid, coll, alias, remove=False):
+    def get_variable_from_collection(ugid, coll, alias):
         """
         Retrieve a variable from a collection with the string alias for the field containing it on the input collection.
 
