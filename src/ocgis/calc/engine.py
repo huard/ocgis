@@ -190,6 +190,18 @@ class OcgCalculationEngine(object):
 
     @staticmethod
     def _get_parms_for_function_(klass, ugid, dct, coll):
+        """
+        Return the parameters for an input function. If there are no parameters, return ``None``.
+
+        :param klass: The input function class.
+        :type klass: :class:`ocgis.calc.base.AbstractFunction`
+        :param int ugid: The corresponding geometry for which this is calculated.
+        :param dict dct: The function definition dictionary.
+        :param coll: The input collection that a special parameter may need to be extracted from.
+        :type coll: :class:`ocgis.api.collection.SpatialCollection`
+        :rtype: tuple(dict|None, str|None)
+        """
+        
         alias_field = None
         try:
             ret = dct['kwds']

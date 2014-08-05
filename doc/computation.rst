@@ -158,6 +158,11 @@ Mathematical Operations
    :members: calculate
    :undoc-members:
 
+.. autoclass:: ocgis.calc.library.basis_function.BasisFunction
+   :show-inheritance:
+   :members: calculate
+   :undoc-members:
+
 Basic Statistics
 ----------------
 
