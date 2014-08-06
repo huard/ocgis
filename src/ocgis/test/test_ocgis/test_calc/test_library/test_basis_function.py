@@ -50,7 +50,9 @@ class TestBasisFunction(AbstractTestField):
         calc = [{'func': 'basis_function', 'name': 'basis', 'kwds': calc_kwds}]
         ops = OcgOperations(calc=calc, dataset=[rd1, rd2], geom=geom, select_ugid=select_ugid)
         ret = ops.execute()
-        import ipdb;ipdb.set_trace()
+        self.assertEqual(ret.keys(), [15, 24])
+        for ugid, field_dict in ret.iteritems():
+            self.assertEqual(field_dict.keys(), ['tas'])
 
     def test_in_operations(self):
 
@@ -60,8 +62,7 @@ class TestBasisFunction(AbstractTestField):
             return a*b
 
         keywords = dict(rd2_name=[None, 'rd2'],
-                        basis_alias=['rd2:sub_tas', 'sub_tas'],
-                        geom=[None, [23, 12]])
+                        basis_alias=['rd2:sub_tas', 'sub_tas'])
 
         for ctr, k in enumerate(itr_products_keywords(keywords, as_namedtuple=True)):
 
@@ -75,9 +76,10 @@ class TestBasisFunction(AbstractTestField):
             try:
                 ret = ops.execute()
             except KeyError:
-                if k._asdict() == OrderedDict([('basis_alias', 'rd2:sub_tas'), ('rd2_name', None)]):
+                to_test = k._asdict()
+                if to_test == OrderedDict([('basis_alias', 'rd2:sub_tas'), ('rd2_name', None)]):
                     continue
-                elif k._asdict() == OrderedDict([('basis_alias', 'sub_tas'), ('rd2_name', 'rd2')]):
+                elif to_test == OrderedDict([('basis_alias', 'sub_tas'), ('rd2_name', 'rd2')]):
                     continue
                 else:
                     raise

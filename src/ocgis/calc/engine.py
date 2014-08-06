@@ -184,7 +184,7 @@ class OcgCalculationEngine(object):
 
         # if there was nothing computed for the alias, remove it from the output collection
         for k, v in alias_fields_to_remove.iteritems():
-            coll[ugid].pop(v)
+            coll[k].pop(v)
 
         return coll
 
@@ -215,7 +215,8 @@ class OcgCalculationEngine(object):
                     if v == variable_parameter_definition_string:
                         alias = dct['kwds'][k]
                         variable, alias_field = AbstractParameterizedFunction.get_variable_from_collection(ugid, coll, alias)
-                        dct['kwds'][k] = variable
+                        ret = deepcopy(ret)
+                        ret[k] = variable
             except AttributeError:
                 # likely not a parameterized function, so just return the defaults.
                 pass
