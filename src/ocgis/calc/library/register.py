@@ -12,9 +12,9 @@ class FunctionRegistry(dict):
     def __init__(self):
         super(FunctionRegistry,self).__init__()
         
-        self.reg += [math.Divide,math.NaturalLogarithm,math.Sum]
+        self.reg += [math.Divide,math.NaturalLogarithm,math.Sum,math.Convolve1D]
         self.reg += [statistics.FrequencyPercentile,statistics.Mean,statistics.StandardDeviation,
-                     statistics.Max,statistics.Median,statistics.Min]
+                     statistics.Max,statistics.Median,statistics.Min,statistics.MovingWindow]
         self.reg += [thresholds.Between,thresholds.Threshold]
         self.reg += [dynamic_kernel_percentile.DynamicDailyKernelPercentileThreshold,
                      heat_index.HeatIndex,duration.Duration,duration.FrequencyDuration]

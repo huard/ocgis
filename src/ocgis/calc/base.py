@@ -478,7 +478,6 @@ class AbstractParameterizedFunction(AbstractFunction):
         >>> # This translates to use variable with alias ``'tas'`` from field with alias ``'foo'``.
         >>> {'basis': 'foo:tas'}
         """
-
         pass
 
     @staticmethod
@@ -523,11 +522,19 @@ class AbstractParameterizedFunction(AbstractFunction):
         return ret, alias_field
 
     def _format_parms_(self, values):
+        """
+        :param values: A dictionary containing the parameter values to check.
+        :type values: dict[str, type]
+        """
+
         ret = {}
         for k, v in values.iteritems():
             try:
-                formatted = self.parms_definition[k](v)
-            # likely a nonetype or flag for type handling
+                if isinstance(v, self.parms_definition[k]):
+                    formatted = v
+                else:
+                    formatted = self.parms_definition[k](v)
+            # likely a nonetype
             except TypeError as e:
                 if self.parms_definition[k] is None:
                     formatted = v
