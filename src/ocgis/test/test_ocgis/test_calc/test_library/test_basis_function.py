@@ -3,8 +3,10 @@ from ocgis import SpatialCollection, OcgOperations, RequestDataset
 from ocgis.api.parms.definition import Calc
 from ocgis.calc.library.basis_function import BasisFunction
 from ocgis.conv.nc import NcConverter
+from ocgis.exc import DefinitionValidationError
 from ocgis.test.test_ocgis.test_interface.test_base.test_field import AbstractTestField
 import numpy as np
+from ocgis.test.test_simple.test_simple import nc_scope
 from ocgis.util.helpers import iter_array
 from ocgis.util.itester import itr_products_keywords
 
@@ -35,6 +37,20 @@ class TestBasisFunction(AbstractTestField):
         path_sub = conv.write()
         return path_field, path_sub
 
+    def test_in_operations_multiple_calc(self):
+        """Test only one calculation allowed when using a basis function."""
+
+        def pyfunc(a, b):
+            return a-b
+
+        rd1 = self.test_data.get_rd('cancm4_tas')
+        rd2 = self.test_data.get_rd('cancm4_tas', kwds={'alias': 'tas2'})
+        calc_kwds = {'pyfunc': pyfunc, 'basis': 'sub_tas', 'match': ['month', 'day']}
+        calc = [{'func': 'basis_function', 'name': 'basis', 'kwds': calc_kwds},
+                {'func': 'mean', 'name': 'mean'}]
+        with self.assertRaises(DefinitionValidationError):
+            OcgOperations(calc=calc, dataset=[rd1, rd2], calc_grouping=['month', 'year'])
+
     def test_in_operations_complex(self):
         """Test a more complicated operations involving geometry subsets and different time selections."""
 
@@ -62,7 +78,8 @@ class TestBasisFunction(AbstractTestField):
             return a*b
 
         keywords = dict(rd2_name=[None, 'rd2'],
-                        basis_alias=['rd2:sub_tas', 'sub_tas'])
+                        basis_alias=['rd2:sub_tas', 'sub_tas'],
+                        output_format=['numpy', 'nc'])
 
         for ctr, k in enumerate(itr_products_keywords(keywords, as_namedtuple=True)):
 
@@ -71,26 +88,33 @@ class TestBasisFunction(AbstractTestField):
 
             rd1 = RequestDataset(uri=path_field, variable='tas')
             rd2 = RequestDataset(uri=path_sub, variable='tas', alias='sub_tas', name=k.rd2_name)
-            ops = OcgOperations(dataset=[rd1, rd2], calc=calc, prefix=str(ctr))
+            ops = OcgOperations(dataset=[rd1, rd2], calc=calc, prefix=str(ctr), output_format=k.output_format)
 
             try:
                 ret = ops.execute()
             except KeyError:
-                to_test = k._asdict()
-                if to_test == OrderedDict([('basis_alias', 'rd2:sub_tas'), ('rd2_name', None)]):
+                if k.basis_alias == 'rd2:sub_tas' and k.rd2_name is None:
                     continue
-                elif to_test == OrderedDict([('basis_alias', 'sub_tas'), ('rd2_name', 'rd2')]):
+                if k.basis_alias == 'sub_tas' and k.rd2_name == 'rd2':
                     continue
                 else:
                     raise
 
-            ref = ret[1]['tas'].variables['basis']
-            self.assertEqual(ref.value.min(), 6.0)
-            self.assertEqual(ref.value.max(), 6.0)
-            self.assertEqual(ref.value.shape, (1, 3650, 1, 2, 2))
-            self.assertEqual(ret.keys(), [1])
-            self.assertEqual(ret[1].keys(), ['tas'])
-            self.assertEqual(ret[1]['tas'].variables.keys(), ['basis'])
+            if k.output_format == 'numpy':
+                ref = ret[1]['tas'].variables['basis']
+                self.assertEqual(ref.value.min(), 6.0)
+                self.assertEqual(ref.value.max(), 6.0)
+                self.assertEqual(ref.value.shape, (1, 3650, 1, 2, 2))
+                self.assertEqual(ret.keys(), [1])
+                self.assertEqual(ret[1].keys(), ['tas'])
+                self.assertEqual(ret[1]['tas'].variables.keys(), ['basis'])
+            else:
+                with nc_scope(ret) as ds:
+                    variable = ds.variables['basis']
+                    value = variable[:]
+                    self.assertEqual(value.min(), 6.0)
+                    self.assertEqual(value.max(), 6.0)
+                    self.assertEqual(value.shape, (3650, 2, 2))
 
     def test_execute(self):
 

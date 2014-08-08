@@ -2,6 +2,7 @@ from ocgis.api.parms.definition import *  # @UnusedWildImport
 from ocgis.api.interpreter import OcgInterpreter
 from ocgis import env
 from ocgis.api.parms.base import OcgParameter
+from ocgis.calc.library.basis_function import BasisFunction
 from ocgis.conv.meta import MetaConverter
 from ocgis.calc.base import AbstractMultivariateFunction,\
     AbstractKeyedOutputFunction
@@ -358,7 +359,7 @@ class OcgOperations(object):
                 if self.calc is not None and len(self.dataset) > 1:
                     ## count the occurrences of these classes in the calculation
                     ## list.
-                    klasses_to_check = [AbstractMultivariateFunction,MultivariateEvalFunction]
+                    klasses_to_check = [AbstractMultivariateFunction,MultivariateEvalFunction,BasisFunction]
                     multivariate_checks = []
                     for klass in klasses_to_check:
                         for calc in self.calc:

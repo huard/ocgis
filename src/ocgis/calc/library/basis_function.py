@@ -1,6 +1,7 @@
 from ocgis import constants
 from ocgis.calc.base import AbstractParameterizedFunction, AbstractUnivariateFunction
 import numpy as np
+from ocgis.exc import DefinitionValidationError
 
 
 class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
@@ -89,6 +90,12 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
             ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
 
         return ret
+
+    @classmethod
+    def validate(cls, ops):
+        if len(ops.calc) > 1:
+            msg = 'Only one calculation allowed with "{0}".'.format(cls.key)
+            raise DefinitionValidationError('calc', msg)
 
     @staticmethod
     def _get_key_(dt, match):
