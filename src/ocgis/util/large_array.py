@@ -1,6 +1,7 @@
 import ocgis
 from ocgis.calc import tile
 import netCDF4 as nc
+from ocgis.calc.library.basis_function import BasisFunction
 from ocgis.util.helpers import ProgressBar
 import numpy as np
 from ocgis.api.operations import OcgOperations
@@ -58,8 +59,11 @@ def compute(ops, tile_dimension, verbose=False, use_optimizations=True):
         assert (len(ops.calc) == 1)
         has_multivariate = True
     else:
-        ## only one calculation allowed
-        assert (len(ops.dataset) == 1)
+        if OcgCalculationEngine._check_calculation_members_(ops.calc, BasisFunction):
+            assert len(ops.dataset) == 2
+        else:
+            ## only one dataset allowed
+            assert len(ops.dataset) == 1
         has_multivariate = False
 
     ## work on a copy of the operations to create the template file

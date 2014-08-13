@@ -9,6 +9,7 @@ import numpy as np
 from ocgis.test.test_simple.test_simple import nc_scope
 from ocgis.util.helpers import iter_array
 from ocgis.util.itester import itr_products_keywords
+from ocgis.util.large_array import compute
 
 
 class TestBasisFunction(AbstractTestField):
@@ -36,6 +37,23 @@ class TestBasisFunction(AbstractTestField):
         conv = NcConverter([coll], self._test_dir, 'subsetted_time')
         path_sub = conv.write()
         return path_field, path_sub
+
+    def test_compute(self):
+        """Test calculation using large array compute."""
+
+        def pyfunc(a, b):
+            return a-b
+
+        rd1 = self.test_data.get_rd('cancm4_tas')
+        rd2 = self.test_data.get_rd('cancm4_tas', kwds={'alias': 'tas2'})
+        calc_kwds = {'pyfunc': pyfunc, 'basis': 'tas2', 'match': ['month', 'day']}
+        calc = [{'func': 'basis_function', 'name': 'basis', 'kwds': calc_kwds}]
+        ops = OcgOperations(calc=calc, dataset=[rd1, rd2], output_format='nc', geom='state_boundaries',
+                            select_ugid=[23])
+        ret = compute(ops, 2)
+
+        with nc_scope(ret) as ds:
+            self.assertAlmostEqual(ds.variables['basis'][:].mean(), -0.39869825556506849)
 
     def test_in_operations_multiple_calc(self):
         """Test only one calculation allowed when using a basis function."""
