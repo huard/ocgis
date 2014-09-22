@@ -148,6 +148,22 @@ class TestBasisFunction(AbstractTestField):
         actual = actual.astype(BasisFunction.dtype)
         self.assertNumpyAll(ret.first().value, actual)
 
+    def test_execute_match_none(self):
+        """Test calculation execution using a match value of None."""
+
+        def pyfunc(a, b):
+            # the entire slice should come into the basis function
+            self.assertEqual(b.shape, (1, 1, 1, 3, 4))
+            return a+b
+
+        field = self.get_field(with_value=True)
+        basis = self.get_field(with_value=True)[0, 1, 0, :, :]
+        parms = dict(basis=basis.variables['tmax'], pyfunc=pyfunc, match=None)
+        bc = BasisFunction(field=field, parms=parms)
+        ret = bc.execute()
+        actual = (field.variables.first().value + basis.variables.first().value).astype(BasisFunction.dtype)
+        self.assertNumpyAll(ret.first().value, actual)
+
     def test_execute_missing_dates(self):
         """Test missing dates are appropriately masked in the data output."""
 

@@ -44,7 +44,7 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
         >>> pyfunc = my_func
 
         :param match: The :class:`datetime.datetime` attributes to use for date joining.
-        :type match: list[str, ...]
+        :type match: list[str, ...] or ``None``
 
         Match ``values`` and ``basis`` by month and year.
 
@@ -55,39 +55,47 @@ class BasisFunction(AbstractUnivariateFunction, AbstractParameterizedFunction):
 
         >>> match = ['month']
 
+        If match is ``None``, then the entire basis slice will be passed to ``pyfunc``. This is useful if there is
+        no logical time relationship between the input time coordinates and the basis time coordinates.
+
         :raises: AssertionError
         :rtype: :class:`numpy.ma.core.MaskedArray`
         """
 
         assert(basis.field is not None)
         assert(values.ndim == 5)
-        assert(len(match) >= 1)
+        if match is not None:
+            assert(len(match) >= 1)
 
         # the returned array is masked unless the value is set during date matching. it is possible that not all dates
         # have a match. if they do not, they should remain masked.
         ret = np.ma.array(np.zeros(values.shape), mask=True, dtype=values.dtype)
 
         # construct a dictionary matching datetime keys to the corresponding index on the basis field. this is used to
-        # select the value from the basis when it is time to execute the python function.
-        basis_dict = {}
-        _get_key_ = self._get_key_
-        for ii, dt in enumerate(basis.field.temporal._get_datetime_value_().flat):
-            basis_dict[_get_key_(dt, match)] = ii
+        # select the value from the basis when it is time to execute the python function. if the match is None, then
+        # all the values from the basis are used and the loop may be bypassed as there are not multiple joins.
+        if match is None:
+            ret = pyfunc(values, basis.value)
+        else:
+            basis_dict = {}
+            _get_key_ = self._get_key_
+            for ii, dt in enumerate(basis.field.temporal._get_datetime_value_().flat):
+                basis_dict[_get_key_(dt, match)] = ii
 
-        # for each time step, look up the corresponding matching value and execute the python function.
-        value_datetime = self.field.temporal._get_datetime_value_()
-        for it in range(self.field.temporal.shape[0]):
-            curr_datetime = value_datetime[it]
-            key = _get_key_(curr_datetime, match)
-            try:
-                basis_index = basis_dict[key]
-            except KeyError:
-                # if the date match is not available leave it as masked
-                continue
-            # extract the time slices from the input values and basis and execute the python function.
-            basis_slice = basis.value[:, basis_index, :, :, :]
-            values_slice = values[:, it, :, :, :]
-            ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
+            # for each time step, look up the corresponding matching value and execute the python function.
+            value_datetime = self.field.temporal._get_datetime_value_()
+            for it in range(self.field.temporal.shape[0]):
+                curr_datetime = value_datetime[it]
+                key = _get_key_(curr_datetime, match)
+                try:
+                    basis_index = basis_dict[key]
+                except KeyError:
+                    # if the date match is not available leave it as masked
+                    continue
+                # extract the time slices from the input values and basis and execute the python function.
+                basis_slice = basis.value[:, basis_index, :, :, :]
+                values_slice = values[:, it, :, :, :]
+                ret[:, it, :, :, :] = pyfunc(values_slice, basis_slice)
 
         return ret
 
