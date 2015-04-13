@@ -322,6 +322,10 @@ class DriverNetcdf(AbstractDriver):
         return name_bounds_suffix
 
 
+class DriverNetcdfUgrid(AbstractDriver):
+    key = 'netCDF-ugrid'
+
+
 def get_axis(dimvar, dims, dim):
     try:
         axis = dimvar['attrs']['axis']

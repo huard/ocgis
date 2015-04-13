@@ -2,9 +2,12 @@ from csv import DictReader
 import os
 
 import fiona
+from shapely import wkt
+import numpy as np
 
-from ocgis import constants
+from ocgis import constants, SpatialGeometryPolygonDimension
 from ocgis import ShpCabinet, RequestDataset, OcgOperations, env
+from ocgis.api.request.driver.nc import DriverNetcdfUgrid
 from ocgis.test.base import TestBase
 
 
@@ -107,3 +110,20 @@ class Test20150327(TestBase):
         ops = OcgOperations(dataset=rd, geom=path, geom_select_sql_where=s, geom_uid='ID')
         ret = ops.execute()
         self.assertEqual(ret.keys(), [13, 15])
+
+
+class Test20150413(TestBase):
+    def test(self):
+        """Test reading data from a UGRID Mesh NetCDF file."""
+
+        driver = DriverNetcdfUgrid.key
+        polygons = [wkt.loads(xx) for xx in self.test_data_ugrid_polygons]
+        polygons = np.atleast_2d(np.array(polygons))
+        spoly = SpatialGeometryPolygonDimension(value=polygons)
+
+        path = os.path.join(self.current_dir_output, 'foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            spoly.write_to_netcdf_dataset_ugrid(ds)
+
+        rd = RequestDataset(path, driver=driver)
+        self.assertIsInstance(rd.source_metadata, dict)
