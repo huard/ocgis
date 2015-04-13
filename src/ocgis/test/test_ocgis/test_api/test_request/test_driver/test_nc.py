@@ -3,20 +3,22 @@ import os
 import shutil
 import netCDF4 as nc
 from collections import OrderedDict
-import numpy as np
 from datetime import datetime as dt
 import datetime
 
+from shapely import wkt
+import numpy as np
 from cfunits import Units
 import fiona
 from shapely.geometry.geo import shape
 
+from ocgis import Field
 from ocgis import env
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis import constants
 from ocgis import RequestDataset
-from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map
+from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map, DriverNetcdfUgrid
 from ocgis.interface.metadata import NcMetadata
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal
@@ -576,6 +578,28 @@ class TestDriverNetcdf(TestBase):
             driver.open()
         with self.assertRaises(KeyError):
             rd.source_metadata
+
+
+class TestDriverNetcdfUgrid(TestBase):
+    def test_get_field(self):
+        uri = self.get_netcdf_path_ugrid()
+        rd = RequestDataset(uri=uri)
+        driver = DriverNetcdfUgrid(rd)
+        field = driver._get_field_()
+        self.assertIsInstance(field, Field)
+        self.assertEqual(field.shape, (1, 1, 1, 1, 4))
+        self.assertEqual(field.spatial.crs, env.DEFAULT_COORDSYS)
+
+        polygons = [wkt.loads(w) for w in self.test_data_ugrid_polygons]
+        for polygon in polygons:
+            fail = True
+            for polygon2 in field.spatial.geom.polygon.value.flat:
+                if polygon.centroid.almost_equals(polygon2.centroid):
+                    fail = False
+                else:
+                    continue
+            if fail:
+                raise AssertionError('polygon not found')
 
 
 class Test(TestBase):

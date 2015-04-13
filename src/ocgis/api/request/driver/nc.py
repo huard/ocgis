@@ -8,7 +8,7 @@ import numpy as np
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
-from ocgis.exc import ProjectionDoesNotMatch, VariableNotFoundError, DimensionNotFound, NoDimensionedVariablesFound
+from ocgis.exc import ProjectionDoesNotMatch, VariableNotFoundError, DimensionNotFound
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.variable import VariableCollection, Variable
@@ -18,6 +18,7 @@ from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.temporal import NcTemporalDimension
 from ocgis.util.helpers import itersubclasses, get_iter, get_tuple
 from ocgis.util.logging_ocgis import ocgis_lh
+from ocgis.util.ugrid.convert import mesh2_nc_to_fiona_iter
 
 
 class DriverNetcdf(AbstractDriver):
@@ -108,11 +109,9 @@ class DriverNetcdf(AbstractDriver):
         return self.raw_metadata.get_lines()
 
     def get_source_metadata(self):
+        # tdk: test with a "None" variable, i.e. no dimensioned variables in the dataset
         metadata = self.raw_metadata
-        try:
-            variables = get_tuple(self.rd.variable)
-        except NoDimensionedVariablesFound:
-            variables = None
+        variables = self.rd.variable
 
         try:
             var = metadata['variables'][variables[0]]
@@ -323,7 +322,15 @@ class DriverNetcdf(AbstractDriver):
 
 
 class DriverNetcdfUgrid(DriverNetcdf):
+    variable_required = False
     key = 'netCDF-ugrid'
+
+    def _get_field_(self, **kwargs):
+        from ocgis import Field
+
+        sdim = SpatialDimension.from_records(mesh2_nc_to_fiona_iter(self.rd.uri), self.rd.crs, uid=None)
+        field = Field(spatial=sdim)
+        return field
 
 
 def get_axis(dimvar, dims, dim):

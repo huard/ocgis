@@ -5,7 +5,7 @@ import fiona
 from shapely import wkt
 import numpy as np
 
-from ocgis import constants, SpatialGeometryPolygonDimension
+from ocgis import constants, SpatialGeometryPolygonDimension, Field
 from ocgis import ShpCabinet, RequestDataset, OcgOperations, env
 from ocgis.api.request.driver.nc import DriverNetcdfUgrid
 from ocgis.test.base import TestBase
@@ -128,5 +128,7 @@ class Test20150413(TestBase):
         rd = RequestDataset(path, driver=driver)
         self.assertIsInstance(rd.source_metadata, dict)
         self.assertTrue(len(rd.source_metadata) > 1)
+        self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
+        self.assertIsNone(rd._crs)
 
-        print rd.crs
+        self.assertIsInstance(rd.get(), Field)

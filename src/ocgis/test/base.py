@@ -15,6 +15,7 @@ import warnings
 
 import numpy as np
 import fiona
+from shapely import wkt
 
 from ocgis.util.shp_cabinet import ShpCabinet
 from ocgis.api.collection import SpatialCollection
@@ -417,6 +418,23 @@ class TestBase(unittest.TestCase):
         path = os.path.join(self.current_dir_output, 'foo.nc')
         with self.nc_scope(path, 'w') as ds:
             field.write_to_netcdf_dataset(ds)
+        return path
+
+    def get_netcdf_path_ugrid(self, filename='foo.nc'):
+        """
+        :returns: Path to a netCDF UGRID file.
+        :rtype: str
+        """
+
+        from ocgis import SpatialGeometryPolygonDimension
+
+        polygons = [wkt.loads(xx) for xx in self.test_data_ugrid_polygons]
+        polygons = np.atleast_2d(np.array(polygons))
+        spoly = SpatialGeometryPolygonDimension(value=polygons)
+
+        path = os.path.join(self.current_dir_output, filename)
+        with self.nc_scope(path, 'w') as ds:
+            spoly.write_to_netcdf_dataset_ugrid(ds)
         return path
 
     def get_shapefile_path_with_no_ugid(self):

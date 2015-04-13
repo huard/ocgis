@@ -1,8 +1,8 @@
 from collections import deque, OrderedDict
 import itertools
 from copy import copy
-import numpy as np
 
+import numpy as np
 from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
 from shapely.prepared import prep
@@ -266,15 +266,19 @@ class SpatialDimension(base.AbstractUidDimension):
                 else:
                     has_uid = False
 
-                for k, v in record['properties'].iteritems():
-                    the_type = type(v)
-                    if the_type == unicode:
-                        the_type = object
-                    if isinstance(v, basestring):
-                        the_type = object
-                    dtype.append((str(k), the_type))
-                properties = np.empty(0, dtype=dtype)
-                property_order = record['properties'].keys()
+                # tdk: test with no properties
+                if len(record['properties']) > 0:
+                    for k, v in record['properties'].iteritems():
+                        the_type = type(v)
+                        if the_type == unicode:
+                            the_type = object
+                        if isinstance(v, basestring):
+                            the_type = object
+                        dtype.append((str(k), the_type))
+                    properties = np.empty(0, dtype=dtype)
+                    property_order = record['properties'].keys()
+                else:
+                    properties = None
 
             # the UGID may be present as a property. otherwise the enumeration counter is used for the identifier.
             if has_uid:
@@ -283,10 +287,11 @@ class SpatialDimension(base.AbstractUidDimension):
                 to_append = ctr
             deque_uid.append(to_append)
 
-            # append to the properties array
-            properties_new = np.empty(1, dtype=dtype)
-            properties_new[0] = tuple([record['properties'][key] for key in property_order])
-            properties = np.append(properties, properties_new)
+            if properties is not None:
+                # append to the properties array
+                properties_new = np.empty(1, dtype=dtype)
+                properties_new[0] = tuple([record['properties'][key] for key in property_order])
+                properties = np.append(properties, properties_new)
 
         # fill the geometry array. to avoid having the geometry objects turned into coordinates, fill by index...
         geoms = np.empty((1, len(deque_geoms)), dtype=object)

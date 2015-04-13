@@ -5,13 +5,13 @@ import logging
 import os
 import itertools
 import re
+import time
 
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.interface.base.field import Field
 from ocgis.api.collection import AbstractCollection
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfUgrid
 from ocgis.exc import RequestValidationError, NoUnitsError, NoDimensionedVariablesFound
-from ocgis.interface.base.crs import CFWGS84
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple
 from ocgis import env
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -238,8 +238,12 @@ class RequestDataset(object):
 
     @property
     def alias(self):
+        # tdk: test with a nonetype variable
         if self._alias is None:
-            ret = get_tuple(self.variable)
+            if self.variable is not None:
+                ret = get_tuple(self.variable)
+            else:
+                ret = (None,)
         else:
             ret = self._alias
         return get_first_or_sequence(ret)
@@ -272,12 +276,16 @@ class RequestDataset(object):
 
     @property
     def crs(self):
+        #tdk: test with a "None" variable i.e. no dimensioned variables
         if self._crs is None:
-            ret = self.driver.get_crs()
+            if self.variable is not None:
+                ret = self.driver.get_crs()
+            else:
+                ret = None
             if ret is None:
-                ocgis_lh('No "grid_mapping" attribute available assuming WGS84: {0}'.format(self.uri),
+                ocgis_lh('No "grid_mapping" attribute available. Using env.DEFAULT_COORDSYS: {0}'.format(self.uri),
                          'request', logging.WARN)
-                ret = CFWGS84()
+                ret = env.DEFAULT_COORDSYS
         else:
             ret = self._crs
         return ret
@@ -295,7 +303,11 @@ class RequestDataset(object):
     @property
     def name(self):
         if self._name is None:
-            ret = '_'.join(get_tuple(self.alias))
+            if self.alias is not None:
+                ret = '_'.join(get_tuple(self.alias))
+            else:
+                # tdk: test name with no variable
+                ret = 'rd-{0}'.format(time.time())
         else:
             ret = self._name
         return ret
@@ -371,7 +383,8 @@ class RequestDataset(object):
         try:
             ret = get_first_or_sequence(self._variable)
         except IndexError:
-            raise NoDimensionedVariablesFound
+            # tdk: test with a none variable
+            ret = None
         return ret
 
     def get(self, **kwargs):
