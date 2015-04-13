@@ -322,7 +322,7 @@ class DriverNetcdf(AbstractDriver):
         return name_bounds_suffix
 
 
-class DriverNetcdfUgrid(AbstractDriver):
+class DriverNetcdfUgrid(DriverNetcdf):
     key = 'netCDF-ugrid'
 
 

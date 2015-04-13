@@ -4,13 +4,13 @@ import itertools
 import os
 import pickle
 import shutil
-import numpy as np
 from datetime import datetime as dt
 import datetime
 
+import numpy as np
 from cfunits.cfunits import Units
 
-from ocgis.api.request.driver.nc import DriverNetcdf
+from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfUgrid
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.util.shp_cabinet import ShpCabinet
 from ocgis.interface.base.field import Field
@@ -307,6 +307,7 @@ class TestRequestDataset(TestBase):
         # always test for netcdf first
         self.assertIsInstance(RequestDataset._Drivers, OrderedDict)
         self.assertEqual(RequestDataset._Drivers.values()[0], DriverNetcdf)
+        self.assertIn(DriverNetcdfUgrid.key, RequestDataset._Drivers)
 
     def test_env_dir_data(self):
         """Test setting the data directory to a single directory."""

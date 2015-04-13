@@ -127,3 +127,6 @@ class Test20150413(TestBase):
 
         rd = RequestDataset(path, driver=driver)
         self.assertIsInstance(rd.source_metadata, dict)
+        self.assertTrue(len(rd.source_metadata) > 1)
+
+        print rd.crs
