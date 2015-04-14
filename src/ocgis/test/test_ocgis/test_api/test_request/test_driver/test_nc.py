@@ -583,9 +583,10 @@ class TestDriverNetcdf(TestBase):
 class TestDriverNetcdfUgrid(TestBase):
     def test_get_field(self):
         uri = self.get_netcdf_path_ugrid()
-        rd = RequestDataset(uri=uri)
+        rd = RequestDataset(uri=uri, name='one')
         driver = DriverNetcdfUgrid(rd)
         field = driver._get_field_()
+        self.assertEqual(field.name, 'one')
         self.assertIsInstance(field, Field)
         self.assertEqual(field.shape, (1, 1, 1, 1, 4))
         self.assertEqual(field.spatial.crs, env.DEFAULT_COORDSYS)

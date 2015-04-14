@@ -36,8 +36,8 @@ class AbstractDriver(object):
     @abc.abstractproperty
     def output_formats(self):
         """
-        :returns: A list of acceptable output formats for the driver. If this is `'all'`, then the driver's data may be
-         converted to all output formats.
+        :returns: A list of acceptable output formats for the driver. If this is ``'all'``, then the driver's data may
+         be converted to all output formats. If an ``'!'`` is the before the format name, then it will be excluded.
         :rtype: list[str, ...]
         """
 
@@ -105,9 +105,17 @@ class AbstractDriver(object):
         """
 
         if cls.output_formats != 'all':
-            if ops.output_format not in cls.output_formats:
-                msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'.format(cls.key, cls.output_formats)
-                raise DefinitionValidationError('output_format', msg)
+            exclude = filter(lambda x: x.startswith('!'), cls.output_formats)
+            if len(exclude) > 0:
+                for e in exclude:
+                    if e[1:] == ops.output_format:
+                        msg = 'The output format "{0}" is not supported.'.format(ops.output_format)
+                        raise DefinitionValidationError('output_format', msg)
+            else:
+                if ops.output_format not in cls.output_formats:
+                    msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'
+                    msg = msg.format(cls.key, cls.output_formats)
+                    raise DefinitionValidationError('output_format', msg)
 
     @abc.abstractmethod
     def _get_field_(self, **kwargs):

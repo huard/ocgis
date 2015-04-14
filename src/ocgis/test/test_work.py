@@ -1,11 +1,12 @@
 from csv import DictReader
 import os
+import webbrowser
 
 import fiona
 from shapely import wkt
 import numpy as np
 
-from ocgis import constants, SpatialGeometryPolygonDimension, Field
+from ocgis import constants, SpatialGeometryPolygonDimension, Field, SpatialCollection
 from ocgis import ShpCabinet, RequestDataset, OcgOperations, env
 from ocgis.api.request.driver.nc import DriverNetcdfUgrid
 from ocgis.test.base import TestBase
@@ -125,10 +126,28 @@ class Test20150413(TestBase):
         with self.nc_scope(path, 'w') as ds:
             spoly.write_to_netcdf_dataset_ugrid(ds)
 
-        rd = RequestDataset(path, driver=driver)
+        rd_name = 'hello_dude'
+        rd = RequestDataset(path, driver=driver, name=rd_name)
         self.assertIsInstance(rd.source_metadata, dict)
         self.assertTrue(len(rd.source_metadata) > 1)
         self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
         self.assertIsNone(rd._crs)
-
         self.assertIsInstance(rd.get(), Field)
+
+        coll = OcgOperations(dataset=rd).execute()
+        self.assertIsInstance(coll, SpatialCollection)
+        self.assertEqual(coll[1].keys(), [rd_name])
+
+        path = OcgOperations(dataset=rd, output_format='shp').execute()
+        with fiona.open(path) as source:
+            ugid = [r['properties'][constants.OCGIS_UNIQUE_GEOMETRY_IDENTIFIER] for r in source]
+        self.assertEqual(ugid, [1, 1, 1, 1])
+
+        for output_format in ['shp', 'csv-shp', 'numpy', 'geojson', 'csv', 'nc']:
+            print output_format
+            print OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
+        webbrowser.open(path)
+        import ipdb;
+
+        ipdb.set_trace()
+        tdk - test - work

@@ -482,15 +482,7 @@ class Dataset(base.OcgParameter):
         raise NotImplementedError
 
     def _validate_(self, value):
-        # at least one dimensioned variable must be available
         assert isinstance(value, RequestDatasetCollection)
-        for rd in value.iter_request_datasets():
-            try:
-                assert rd.variable
-            except NoDimensionedVariablesFound as e:
-                msg = 'No dimensioned variables for request dataset with uri "{0}". Original exception message: {1}'
-                msg = msg.format(rd.uri, e)
-                raise DefinitionValidationError(self, msg)
 
 
 class DirOutput(base.StringParameter):

@@ -259,6 +259,12 @@ class AbstractConverter(object):
                                     writer.writerow(row)
                             else:
                                 raise
+                        except KeyError:
+                            # tdk: test with a request dataset having a "None" variable
+                            if d['variable'] is None:
+                                continue
+                            else:
+                                raise
 
             # add source metadata if requested
             if self._add_source_meta:

@@ -113,28 +113,31 @@ class DriverNetcdf(AbstractDriver):
         metadata = self.raw_metadata
         variables = self.rd.variable
 
-        try:
-            var = metadata['variables'][variables[0]]
-        except KeyError:
-            raise VariableNotFoundError(self.rd.uri, variables[0])
-        except TypeError:
-            # if there are no dimensioned variables available, the dimension map should not be set
-            if variables is not None:
-                raise
-        else:
-            if self.rd.dimension_map is None:
-                metadata['dim_map'] = get_dimension_map(var['name'], metadata)
+        # fill the dimensions for the requested variables
+        if variables is not None:
+            variables = get_tuple(variables)
+            try:
+                var = metadata['variables'][variables[0]]
+            except KeyError:
+                raise VariableNotFoundError(self.rd.uri, variables[0])
+            except TypeError:
+                # if there are no dimensioned variables available, the dimension map should not be set
+                if variables is not None:
+                    raise
             else:
-                for k, v in self.rd.dimension_map.iteritems():
-                    if not isinstance(v, dict):
-                        try:
-                            variable_name = metadata['variables'][v]['name']
-                        except KeyError:
-                            variable_name = None
-                        self.rd.dimension_map[k] = {'variable': variable_name,
-                                                    'dimension': v,
-                                                    'pos': var['dimensions'].index(v)}
-                    metadata['dim_map'] = self.rd.dimension_map
+                if self.rd.dimension_map is None:
+                    metadata['dim_map'] = get_dimension_map(var['name'], metadata)
+                else:
+                    for k, v in self.rd.dimension_map.iteritems():
+                        if not isinstance(v, dict):
+                            try:
+                                variable_name = metadata['variables'][v]['name']
+                            except KeyError:
+                                variable_name = None
+                            self.rd.dimension_map[k] = {'variable': variable_name,
+                                                        'dimension': v,
+                                                        'pos': var['dimensions'].index(v)}
+                        metadata['dim_map'] = self.rd.dimension_map
 
         return metadata
 
@@ -323,13 +326,13 @@ class DriverNetcdf(AbstractDriver):
 
 class DriverNetcdfUgrid(DriverNetcdf):
     variable_required = False
-    key = 'netCDF-ugrid'
+    key = 'netCDF-ugrid-mesh2'
 
     def _get_field_(self, **kwargs):
         from ocgis import Field
 
         sdim = SpatialDimension.from_records(mesh2_nc_to_fiona_iter(self.rd.uri), self.rd.crs, uid=None)
-        field = Field(spatial=sdim)
+        field = Field(spatial=sdim, name=self.rd.name)
         return field
 
 

@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+from ocgis import constants
 from ocgis import OcgOperations
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.nc import DriverNetcdf
@@ -32,6 +33,10 @@ class FakeAbstractDriver(AbstractDriver):
 
     def close(self, obj):
         pass
+
+
+class FakeAbstractDriverExcludeOutputFormat(FakeAbstractDriver):
+    output_formats = ['!' + constants.OUTPUT_FORMAT_NETCDF]
 
 
 class TestAbstractDriver(TestBase):
@@ -86,3 +91,8 @@ class TestAbstractDriver(TestBase):
             FakeAbstractDriver.validate_ops(ops)
         finally:
             FakeAbstractDriver.output_formats = prev
+
+        # test using the exclude string flag
+        ops = OcgOperations(dataset=rd, output_format=constants.OUTPUT_FORMAT_NETCDF)
+        with self.assertRaises(DefinitionValidationError):
+            FakeAbstractDriverExcludeOutputFormat.validate_ops(ops)
