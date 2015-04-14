@@ -21,7 +21,7 @@ from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84, CFWGS84, 
     WrappableCoordinateReferenceSystem, Spherical
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.util.itester import itr_products_keywords
-from ocgis.util.ugrid.convert import mesh2_nc_to_shapefile
+from ocgis.util.ugrid.convert import mesh2_nc_to_fiona
 
 
 class AbstractTestSpatialDimension(TestBase):
@@ -1290,7 +1290,7 @@ class TestSpatialGeometryPolygonDimension(AbstractTestSpatialDimension):
             self.assertEqual(len(ds.dimensions['nMesh2_face']), 4)
 
         shp_path = os.path.join(self.current_dir_output, 'ugrid.shp')
-        mesh2_nc_to_shapefile(path, shp_path)
+        mesh2_nc_to_fiona(path, shp_path)
         with fiona.open(shp_path) as source:
             for record in source:
                 geom = shape(record['geometry'])

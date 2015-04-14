@@ -144,3 +144,5 @@ class Test20150413(TestBase):
 
         for output_format in ['shp', 'csv-shp', 'numpy', 'geojson', 'csv', 'nc-ugrid-2d-flexible-mesh']:
             OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
+
+            # tdk: test with a different output coordinate system
