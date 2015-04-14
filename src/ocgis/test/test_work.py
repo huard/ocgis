@@ -1,6 +1,5 @@
 from csv import DictReader
 import os
-import webbrowser
 
 import fiona
 from shapely import wkt
@@ -143,11 +142,5 @@ class Test20150413(TestBase):
             ugid = [r['properties'][constants.OCGIS_UNIQUE_GEOMETRY_IDENTIFIER] for r in source]
         self.assertEqual(ugid, [1, 1, 1, 1])
 
-        for output_format in ['shp', 'csv-shp', 'numpy', 'geojson', 'csv', 'nc']:
-            print output_format
-            print OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
-        webbrowser.open(path)
-        import ipdb;
-
-        ipdb.set_trace()
-        tdk - test - work
+        for output_format in ['shp', 'csv-shp', 'numpy', 'geojson', 'csv', 'nc-ugrid-2d-flexible-mesh']:
+            OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()

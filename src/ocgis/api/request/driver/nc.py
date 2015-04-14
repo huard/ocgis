@@ -327,6 +327,7 @@ class DriverNetcdf(AbstractDriver):
 class DriverNetcdfUgrid(DriverNetcdf):
     variable_required = False
     key = 'netCDF-ugrid-mesh2'
+    output_formats = ['!' + constants.OUTPUT_FORMAT_NETCDF]
 
     def _get_field_(self, **kwargs):
         from ocgis import Field
