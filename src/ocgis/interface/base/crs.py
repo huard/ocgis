@@ -2,8 +2,8 @@ from copy import copy, deepcopy
 import tempfile
 import itertools
 import abc
-import numpy as np
 
+import numpy as np
 from fiona.crs import from_string, to_string
 from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseMultipartGeometry
@@ -511,11 +511,11 @@ class CFWGS84(WGS84, CFCoordinateReferenceSystem, ):
         try:
             r_grid_mapping = meta['variables'][var]['attrs']['grid_mapping']
             if r_grid_mapping == cls.grid_mapping_name:
-                return (cls())
+                return cls()
             else:
-                raise (ProjectionDoesNotMatch)
+                raise ProjectionDoesNotMatch
         except KeyError:
-            raise (ProjectionDoesNotMatch)
+            raise ProjectionDoesNotMatch
 
 
 class CFAlbersEqualArea(CFCoordinateReferenceSystem):
