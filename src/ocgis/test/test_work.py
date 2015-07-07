@@ -146,3 +146,10 @@ class Test20150413(TestBase):
             OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
 
             # tdk: test with a different output coordinate system
+
+    def test_mesh(self):
+        #tdk: remove this test
+        import ESMF
+        path = '/home/benkoziol/htmp/small-ugrid.nc'
+        dstgrid = ESMF.Mesh(filename=path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
+
