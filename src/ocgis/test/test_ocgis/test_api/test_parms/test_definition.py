@@ -547,7 +547,6 @@ class TestDataset(TestBase):
             dd = Dataset(iv)
             self.assertIsInstance(dd.value, RequestDatasetCollection)
 
-    def test_man(self):
         # test with no dimensioned variables
         path = self.get_netcdf_path_no_dimensioned_variables()
         keywords = dict(name=['aname', None])
@@ -555,8 +554,7 @@ class TestDataset(TestBase):
             rd = RequestDataset(uri=path, name=k.name)
             if k.name is not None:
                 self.assertEqual(rd.name, k.name)
-            with self.assertRaises(DefinitionValidationError):
-                Dataset(rd)
+            Dataset(rd)
 
 
 class TestGeom(TestBase):
