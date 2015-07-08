@@ -1,5 +1,5 @@
-import os
 import time
+import os
 
 from fabric.contrib.project import rsync_project
 from fabric.decorators import task
@@ -207,24 +207,18 @@ r = RunAwsTests()
 
 
 @task
-def test_node_launch(run_tests='false'):
+def test_node_launch(instance_type='m3.xlarge'):
     am = AwsManager()
     instance_name = 'ocgis-test-node'
-    image_id = 'ami-878aa5b7'
+    image_id = 'ami-3bb8820b'
     # instance_type = 't2.micro'
-    instance_type = 'm3.xlarge'
     ebs_snapshot_id = 'snap-310873bc'
     ebs_mount_dir = '~/data'
     ebs_mount_name = '/dev/xvdg'
     instance = am.launch_new_instance(instance_name, image_id=image_id, instance_type=instance_type,
                                       ebs_snapshot_id=ebs_snapshot_id, ebs_mount_name=ebs_mount_name)
     test_node_ebs_mount(instance_name=instance_name, ebs_mount_name=ebs_mount_name, ebs_mount_dir=ebs_mount_dir)
-    ssh_cmd = am.get_ssh_command(instance=instance)
-    print ssh_cmd
-    if run_tests == 'true':
-        test_node_run_tests()
-    print ssh_cmd
-
+    print am.get_ssh_command(instance=instance)
 
 @task
 def test_node_ebs_mount(instance_name='ocgis-test-node', ebs_mount_name='/dev/xvdg', ebs_mount_dir='~/data'):
@@ -235,10 +229,9 @@ def test_node_ebs_mount(instance_name='ocgis-test-node', ebs_mount_name='/dev/xv
 
 
 @task
-def test_node_run_tests(instance_name='ocgis-test-node'):
+def test_node_run_tests(instance_name='ocgis-test-node', branch='next', failed='false'):
     am = AwsManager()
     instance = am.get_instance_by_name(instance_name)
-    tbranch = 'next'
     tcenv = 'test_ocgis'
     texclude = '!slow,!remote,!esmpy7'
     tgdal_data = '/home/ubuntu/anaconda/envs/{0}/share/gdal'.format(tcenv)
@@ -252,9 +245,13 @@ def test_node_run_tests(instance_name='ocgis-test-node'):
         with shell_env(**senv):
             with prefix('source activate {0}'.format(tcenv)):
                 with cd(tsrc):
+                    run('git checkout next')
                     run('git pull')
-                    cmd = 'cp .noseids /tmp; rm .noseids; git checkout {tbranch}; git pull; nosetests --with-id -a {texclude} ocgis/test'
-                    cmd = cmd.format(tbranch=tbranch, texclude=texclude)
+                    if failed == 'true':
+                        cmd = 'cp .noseids /tmp; git checkout {tbranch}; git pull; nosetests -vs --failed --with-id -a {texclude} ocgis/test'
+                    else:
+                        cmd = 'cp .noseids /tmp; rm .noseids; git checkout {tbranch}; git pull; nosetests -vs --with-id -a {texclude} ocgis/test'
+                    cmd = cmd.format(tbranch=branch, texclude=texclude)
                     run(cmd)
 
     am.do_task(_run_, instance=instance)

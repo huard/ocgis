@@ -1,12 +1,13 @@
 from copy import deepcopy
+import json
 import logging
 # noinspection PyPep8Naming
 import netCDF4 as nc
 from warnings import warn
 import numpy as np
+from ocgis import messages
 
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
-from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, VariableNotFoundError, DimensionNotFound
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
@@ -141,6 +142,24 @@ class DriverNetcdf(AbstractDriver):
 
         return metadata
 
+    def get_source_metadata_as_json(self):
+
+        def _jsonformat_(d):
+            for k, v in d.iteritems():
+                if isinstance(v, dict):
+                    _jsonformat_(v)
+                else:
+                    try:
+                        v = v.tolist()
+                    except AttributeError:
+                        # NumPy arrays need to be converted to lists.
+                        pass
+                d[k] = v
+
+        meta = deepcopy(self.get_source_metadata())
+        _jsonformat_(meta)
+        return json.dumps(meta)
+
     def _get_vector_dimension_(self, k, v, source_metadata):
         """
         :param str k: The string name/key of the dimension to load.
@@ -176,7 +195,7 @@ class DriverNetcdf(AbstractDriver):
 
             # extract the data length to use when creating the source index arrays.
             length = source_metadata['dimensions'][ref_axis['dimension']]['len']
-            src_idx = np.arange(0, length, dtype=constants.NP_INT)
+            src_idx = np.arange(0, length, dtype=np.int32)
 
             # get the target data type for the dimension
             try:
@@ -257,8 +276,8 @@ class DriverNetcdf(AbstractDriver):
             kwds_grid = {'row': loaded['row'], 'col': loaded['col']}
         else:
             shape_src_idx = [source_metadata['dimensions'][xx]['len'] for xx in kwds_grid['row']['dimensions']]
-            src_idx = {'row': np.arange(0, shape_src_idx[0], dtype=constants.NP_INT),
-                       'col': np.arange(0, shape_src_idx[1], dtype=constants.NP_INT)}
+            src_idx = {'row': np.arange(0, shape_src_idx[0], dtype=np.int32),
+                       'col': np.arange(0, shape_src_idx[1], dtype=np.int32)}
             name_row = kwds_grid['row']['name']
             name_col = kwds_grid['col']['name']
             kwds_grid = {'name_row': name_row, 'name_col': name_col, 'data': self.rd, 'src_idx': src_idx}
@@ -282,19 +301,20 @@ class DriverNetcdf(AbstractDriver):
                       realization=loaded['realization'], meta=source_metadata.copy(), uid=self.rd.did,
                       name=self.rd.name, attrs=source_metadata['dataset'].copy())
 
-        # apply any subset parameters after the field is loaded
+        # Apply any subset parameters after the field is loaded.
         if self.rd.time_range is not None:
             ret = ret.get_between('temporal', min(self.rd.time_range), max(self.rd.time_range))
         if self.rd.time_region is not None:
             ret = ret.get_time_region(self.rd.time_region)
+        if self.rd.time_subset_func is not None:
+            ret = ret.get_time_subset_by_function(self.rd.time_subset_func)
         if self.rd.level_range is not None:
             try:
                 ret = ret.get_between('level', min(self.rd.level_range), max(self.rd.level_range))
             except AttributeError:
                 # there may be no level dimension
                 if ret.level is None:
-                    msg = ("A level subset was requested but the target dataset does not have a level dimension. The "
-                           "dataset's alias is: {0}".format(self.rd.alias))
+                    msg = messages.M4.format(self.rd.alias)
                     raise ValueError(msg)
                 else:
                     raise

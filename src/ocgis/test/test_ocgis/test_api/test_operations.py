@@ -3,10 +3,10 @@ import itertools
 import os
 from datetime import datetime as dt
 import datetime
+from types import FunctionType
 
 from numpy import dtype
 import numpy as np
-import ESMF
 
 from ocgis import env
 from ocgis.api.request.base import RequestDataset
@@ -212,7 +212,7 @@ class TestOcgOperations(TestBase):
             # spatial operations on rotated pole require the output crs be wgs84
             self.assertEqual(ops.output_crs, CFWGS84())
             ret = ops.execute()
-            if output_format == 'numpy':
+            if output_format == constants.OUTPUT_FORMAT_NUMPY:
                 field = ret[1]['pr']
                 self.assertEqual(field.shape, (1, 10, 1, 1, 1))
                 value = ret.gvu(1, 'pr')
@@ -266,7 +266,7 @@ class TestOcgOperations(TestBase):
         ret = ops.execute()
         rd2 = ocgis.RequestDataset(uri=ret, variable='mean')
         field = rd2.get()
-        self.assertNotEqual(field.temporal.bounds, None)
+        self.assertIsNotNone(field.temporal.bounds)
         self.assertEqual(field.temporal.bounds_datetime.tolist(),
                          [[datetime.datetime(2001, 12, 1, 12, 0), datetime.datetime(2002, 2, 28, 12, 0)],
                           [datetime.datetime(2002, 12, 1, 12, 0), datetime.datetime(2003, 2, 28, 12, 0)],
@@ -338,7 +338,7 @@ class TestOcgOperations(TestBase):
         with self.assertRaises(RequestValidationError):
             OcgOperations(dataset=rd, conform_units_to='crap')
 
-    @attr('esmpy7')
+    @attr('esmpy7', 'esmf')
     def test_keyword_dataset_esmf(self):
         """Test with operations on an ESMF Field."""
 
@@ -419,16 +419,17 @@ class TestOcgOperations(TestBase):
     def test_keyword_prefix(self):
         # the meta output format should not create an output directory
         rd = self.test_data.get_rd('cancm4_tas')
-        ops = OcgOperations(dataset=rd, output_format='meta')
+        ops = OcgOperations(dataset=rd, output_format=constants.OUTPUT_FORMAT_METADATA_OCGIS)
         ops.execute()
         self.assertEqual(len(os.listdir(self.current_dir_output)), 0)
 
-    @attr('esmpy7')
+    @attr('esmpy7', 'esmf')
     def test_keyword_output_format_esmpy(self):
         """Test with the ESMPy output format."""
+        import ESMF
 
         # todo: test spatial subsetting
-        #todo: test calculations
+        # todo: test calculations
         slc = [None, None, None, [0, 10], [0, 10]]
         kwds = dict(as_field=[False, True],
                     with_slice=[True, False])
@@ -473,6 +474,7 @@ class TestOcgOperations(TestBase):
         with self.assertRaises(DefinitionValidationError):
             OcgOperations(dataset=rd, regrid_destination=rd, spatial_operation='clip')
 
+    @attr('esmf')
     def test_keyword_regrid_destination_to_nc(self):
         """Write regridded data to netCDF."""
 
@@ -487,6 +489,7 @@ class TestOcgOperations(TestBase):
         self.assertIsNotNone(field.spatial.grid.corners)
         self.assertTrue(np.any(field.variables.first().value.mask))
 
+    @attr('esmf')
     def test_keyword_regrid_destination_to_shp_vector_wrap(self):
         """Test writing to shapefile with different vector wrap options."""
 
@@ -565,6 +568,34 @@ class TestOcgOperations(TestBase):
         ops.time_region = tr
         for r in ops.dataset.itervalues():
             self.assertEqual(r.time_region, tr)
+
+    def test_keyword_time_subset_func(self):
+
+        def _func_(value, bounds=None):
+            indices = []
+            for ii, v in enumerate(value.flat):
+                if v.month == 6:
+                    indices.append(ii)
+            return indices
+
+        rd = self.test_data.get_rd('cancm4_tas')
+        ops = OcgOperations(dataset=rd, time_subset_func=_func_, geom='state_boundaries', geom_select_uid=[20])
+        ret = ops.execute()
+        for v in ret[20]['tas'].temporal.value_datetime:
+            self.assertEqual(v.month, 6)
+
+        rd = self.test_data.get_rd('cancm4_tas')
+        ops = OcgOperations(dataset=rd, time_subset_func=_func_, geom='state_boundaries', geom_select_uid=[20],
+                            output_format=constants.OUTPUT_FORMAT_NETCDF)
+        ret = ops.execute()
+        rd_out = RequestDataset(ret)
+        for v in rd_out.get().temporal.value_datetime:
+            self.assertEqual(v.month, 6)
+
+    def test_update_dependents(self):
+        rd = self.test_data.get_rd('cancm4_tas')
+        ops = OcgOperations(dataset=rd, time_subset_func=lambda x, y: [1, 2])
+        self.assertIsInstance(ops.dataset.first().time_subset_func, FunctionType)
 
     def test_validate(self):
         # snippets should be allowed for field objects

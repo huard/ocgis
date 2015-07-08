@@ -1,7 +1,7 @@
 from collections import OrderedDict
+
 from numpy.ma import MaskedArray
 import numpy as np
-
 from cfunits import Units
 
 from ocgis.constants import NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE
@@ -73,6 +73,12 @@ class TestAbstractValueVariable(TestBase):
 
         fav = FakeAbstractValueVariable(name='foo')
         self.assertEqual(fav.alias, 'foo')
+
+        # Test data types also pulled from value if present.
+        dtype = float
+        fav = FakeAbstractValueVariable(value=self.value, dtype=dtype)
+        self.assertEqual(fav.dtype, self.value.dtype)
+        self.assertIsNone(fav._dtype)
 
     def test_init_conform_units_to(self):
         """Test using the conform_units_to keyword argument."""
@@ -176,10 +182,8 @@ class TestAbstractValueVariable(TestBase):
         self.assertEqual(av.dtype, av.value.dtype)
 
         # calendar can be finicky - those need to be stripped from the string conversion
-        conform_units_to = Units('days since 1949-1-1')
-        conform_units_to.calendar = 'standard'
-        units = Units('days since 1900-1-1')
-        units.calendar = 'standard'
+        conform_units_to = Units('days since 1949-1-1', calendar='standard')
+        units = Units('days since 1900-1-1', calendar='standard')
         av = FakeAbstractValueVariable(value=np.array([4000, 5000, 6000]), units=units,
                                        conform_units_to=conform_units_to)
         self.assertEqual(av.units, 'days since 1949-1-1')
@@ -247,10 +251,19 @@ class TestVariable(TestBase):
         self.assertEqual(var.name, 'tas')
         self.assertEqual(var.alias, 'foo')
 
+        # Test fill value handled appropriately.
+        value = [4, 5, 6]
+        var = Variable(value=value, fill_value=100)
+        self.assertEqual(np.ma.array(value).fill_value, var.fill_value)
+        self.assertIsNone(var._fill_value)
+        var = Variable(fill_value=100)
+        self.assertEqual(var.fill_value, 100)
+
     def test_init_with_value_with_dtype_fill_value(self):
-        var = Variable(data='foo', dtype=np.float, fill_value=9, value=np.array([1, 2, 3, 4]))
-        self.assertEqual(var.dtype, np.float)
-        self.assertEqual(var.fill_value, 9)
+        value = np.array([1, 2, 3, 4])
+        var = Variable(data='foo', dtype=np.float, fill_value=9, value=value)
+        self.assertEqual(var.dtype, value.dtype)
+        self.assertEqual(var.fill_value, var.value.fill_value)
 
     def test_init_with_value_without_dtype_fill_value(self):
         value = np.array([1, 2, 3, 4])

@@ -1,14 +1,23 @@
 import os
 from importlib import import_module
+import numpy as np
 import subprocess
 from warnings import warn
 
 from ocgis import constants
 
 
+# HACK!! on some systems, there are issues with loading a parallel ESMF installation if this import occurs in a
+# different location. it is unclear what mechanism causes the import issue. ESMF is not a required package, so a failed
+# import is okay (if it is not installed).
+
+try:
+    import ESMF
+except ImportError:
+    pass
 
 
-# the gdal data is often not read correctly by the osgeo installation. remove the necessity for users to set this
+# HACK!! the gdal data is often not read correctly by the osgeo installation. remove the necessity for users to set this
 # variable when installing.
 if 'GDAL_DATA' not in os.environ:
     try:
@@ -50,6 +59,9 @@ class Environment(object):
         self.CONF_PATH = EnvParm('CONF_PATH', os.path.expanduser('~/.config/ocgis.conf'))
         self.SUPPRESS_WARNINGS = EnvParm('SUPPRESS_WARNINGS', True, formatter=self._format_bool_)
         self.DEFAULT_GEOM_UID = EnvParm('DEFAULT_GEOM_UID', constants.OCGIS_UNIQUE_GEOMETRY_IDENTIFIER, formatter=str)
+        self.NETCDF_FILE_FORMAT = EnvParm('NETCDF_FILE_FORMAT', constants.NETCDF_DEFAULT_DATA_MODEL, formatter=str)
+        self.NP_INT = EnvParm('NP_INT', constants.DEFAULT_NP_INT)
+        self.NP_FLOAT = EnvParm('NP_FLOAT', constants.DEFAULT_NP_FLOAT)
 
         from ocgis.interface.base.crs import CFWGS84
 
@@ -75,11 +87,13 @@ class Environment(object):
         return ret
 
     def __setattr__(self, name, value):
-        if isinstance(value, EnvParm) or name in ['ops', '_optimize_store']:
+        if isinstance(value, EnvParm) or name in ['ops'] or name.startswith('_'):
             object.__setattr__(self, name, value)
         else:
             attr = object.__getattribute__(self, name)
             attr.value = value
+            if attr.on_change is not None:
+                attr.on_change()
 
     def reset(self):
         """
@@ -106,13 +120,23 @@ class Environment(object):
 
         return format_bool(value)
 
+    def _get_property_dtype_(self, name_private, name_dtype):
+        attr_value = getattr(self, name_private)
+        if attr_value is None:
+            netcdf_file_format = self.NETCDF_FILE_FORMAT
+            """:type netcdf_file_format: str"""
+            dtype = get_dtype(name_dtype, netcdf_file_format=netcdf_file_format)
+            setattr(self, name_private, EnvParm(name_private[1:], dtype))
+        return object.__getattribute__(self, name_private)
+
 
 class EnvParm(object):
-    def __init__(self, name, default, formatter=None):
+    def __init__(self, name, default, formatter=None, on_change=None):
         self.name = name.upper()
         self.env_name = 'OCGIS_{0}'.format(self.name)
         self.formatter = formatter
         self.default = default
+        self.on_change = on_change
         self._value = 'use_env'
 
     def __str__(self):
@@ -174,6 +198,24 @@ class EnvParmImport(EnvParm):
         except ImportError:
             ret = False
         return ret
-
-
 env = Environment()
+
+
+def get_dtype(string_name, netcdf_file_format=None):
+    """
+    :param string_name: The name of the data type: ``'int'`` or ``'float'``.
+    :type string_name: str
+    :param netcdf_file_format: The target NetCDF file format.
+    :type netcdf_file_format: str
+    :return: The appropriate data type for the ``string_name`` and ``netcdf_file_format``.
+    :rtype: type
+    """
+
+    # The classic format does not support 64-bit data.
+    if netcdf_file_format == 'NETCDF3_CLASSIC':
+        mp = {'int': np.int32,
+              'float': np.float32}
+    else:
+        mp = {'int': constants.DEFAULT_NP_INT,
+              'float': constants.DEFAULT_NP_FLOAT}
+    return mp[string_name]

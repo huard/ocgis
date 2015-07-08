@@ -1,22 +1,23 @@
 from copy import deepcopy
 import os
 import shutil
-import netCDF4 as nc
 from collections import OrderedDict
 from datetime import datetime as dt
 import datetime
 
 from shapely import wkt
 import numpy as np
+import netCDF4 as nc
+import numpy as np
 from cfunits import Units
 import fiona
+
 from shapely.geometry.geo import shape
 
 from ocgis import Field
 from ocgis import env
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.interface.base.dimension.base import VectorDimension
-from ocgis import constants
 from ocgis import RequestDataset
 from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map, DriverNetcdfUgrid
 from ocgis.interface.metadata import NcMetadata
@@ -143,8 +144,7 @@ class TestDriverNetcdf(TestBase):
         """
 
         uri = self.test_data.get_uri('cancm4_tas')
-        target = Units('days since 1949-1-1')
-        target.calendar = '365_day'
+        target = Units('days since 1949-1-1', calendar='365_day')
         rd = RequestDataset(uri=uri, t_conform_units_to=target)
         field = rd.get()
         self.assertEqual(field.temporal.conform_units_to, target)
@@ -278,7 +278,7 @@ class TestDriverNetcdf(TestBase):
         var = ds.variables['time']
         real_temporal = nc.num2date(var[:], var.units, var.calendar)
         select = [True if x.month == 8 else False for x in real_temporal]
-        indices = np.arange(0, var.shape[0], dtype=constants.NP_INT)[np.array(select)]
+        indices = np.arange(0, var.shape[0], dtype=np.int32)[np.array(select)]
         self.assertNumpyAll(indices, field.temporal._src_idx)
         self.assertNumpyAll(field.temporal.value_datetime, real_temporal[indices])
         self.assertNumpyAll(field.variables['tas'].value.data.squeeze(), ds.variables['tas'][indices, :, :])
@@ -300,7 +300,7 @@ class TestDriverNetcdf(TestBase):
         var = ds.variables['time']
         real_temporal = nc.num2date(var[:], var.units, var.calendar)
         select = [True if x.month == 8 and x.year in [2008, 2010] else False for x in real_temporal]
-        indices = np.arange(0, var.shape[0], dtype=constants.NP_INT)[np.array(select)]
+        indices = np.arange(0, var.shape[0], dtype=np.int32)[np.array(select)]
         self.assertNumpyAll(indices, field.temporal._src_idx)
         self.assertNumpyAll(field.temporal.value_datetime, real_temporal[indices])
         self.assertNumpyAll(field.variables['tas'].value.data.squeeze(), ds.variables['tas'][indices, :, :])
@@ -401,14 +401,14 @@ class TestDriverNetcdf(TestBase):
         rd = RequestDataset(uri, variable)
         with self.assertRaises(DimensionNotFound):
             rd.get()
-        rd = RequestDataset(uri, variable,
-                            dimension_map={'R': 'projection', 'T': 'time', 'X': 'longitude', 'Y': 'latitude'})
+        rd = RequestDataset(uri, variable, dimension_map={'R': 'projection', 'T': 'time', 'X': 'longitude',
+                                                          'Y': 'latitude'})
         field = rd.get()
         self.assertEqual(field.shape, (36, 1800, 1, 7, 12))
         self.assertEqual(field.temporal.value_datetime[0], datetime.datetime(1950, 1, 16, 0, 0))
         self.assertEqual(field.temporal.value_datetime[-1], datetime.datetime(2099, 12, 15, 0, 0))
         self.assertEqual(field.level, None)
-        self.assertNumpyAll(field.realization.value, np.arange(1, 37, dtype=constants.NP_INT))
+        self.assertNumpyAll(field.realization.value, np.arange(1, 37, dtype=np.int32))
 
         ds = nc.Dataset(uri, 'r')
         to_test = ds.variables['Tavg']
@@ -536,6 +536,13 @@ class TestDriverNetcdf(TestBase):
         with self.assertRaises(KeyError):
             meta['dim_map']
 
+    def test_source_metadata_as_json(self):
+        rd = self.test_data.get_rd('cancm4_tas')
+        driver = DriverNetcdf(rd)
+        js = driver.get_source_metadata_as_json()
+        self.assertIsInstance(js, basestring)
+        self.assertTrue(len(js) > 100)
+
     def test_get_vector_dimension(self):
         # test exception raised with no row and column
         path = self.get_netcdf_path_no_row_column()
@@ -560,7 +567,7 @@ class TestDriverNetcdf(TestBase):
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('foo')
             var = ds.createVariable('foovar', int, dimensions=('foo',))
-            var.name = 'a name'
+            var.a_name = 'a name'
         rd = RequestDataset(uri=path)
         driver = DriverNetcdf(rd)
         with self.print_scope() as ps:

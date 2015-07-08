@@ -8,7 +8,7 @@ from ocgis.test.test_simple.make_test_data import SimpleNcNoLevel
 from ocgis.test.test_simple.test_simple import TestSimpleBase
 
 
-@attr('simple')
+@attr('simple', 'optional')
 class TestOptionalDependencies(TestSimpleBase):
     nc_factory = SimpleNcNoLevel
     fn = 'test_simple_spatial_no_level_01.nc'
@@ -19,6 +19,7 @@ class TestOptionalDependencies(TestSimpleBase):
         units = Units('K')
         self.assertEqual(str(units), 'K')
 
+    @attr('esmf')
     def test_esmf(self):
         rd1 = RequestDataset(**self.get_dataset())
         rd2 = deepcopy(rd1)

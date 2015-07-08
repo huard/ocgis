@@ -2,6 +2,7 @@ import abc
 from collections import OrderedDict
 from copy import copy, deepcopy
 from operator import mul
+
 import numpy as np
 
 from ocgis import constants
@@ -128,26 +129,27 @@ class AbstractUidDimension(AbstractDimension):
             ret = None
         else:
             n = reduce(mul, self.value.shape)
-            ret = np.arange(1, n + 1, dtype=constants.NP_INT).reshape(self.value.shape)
+            # The unique identifier is set to 32-bit to decrease memory.
+            ret = np.arange(1, n + 1, dtype=np.int32).reshape(self.value.shape)
             ret = np.ma.array(ret, mask=False)
         return ret
 
 
 class AbstractUidValueDimension(AbstractValueDimension, AbstractUidDimension):
-    def __init__(self, *args, **kwds):
-        kwds_value = ['value', 'name_value', 'units', 'name', 'dtype', 'fill_value', 'attrs', 'conform_units_to']
+    def __init__(self, *args, **kwargs):
+        kwds_value = ['value', 'name_value', 'units', 'name', 'dtype', 'attrs', 'conform_units_to']
         kwds_uid = ['uid', 'name_uid', 'meta', 'properties', 'name']
 
         kwds_all = kwds_value + kwds_uid
-        for key in kwds.keys():
+        for key in kwargs.keys():
             try:
-                assert (key in kwds_all)
+                assert key in kwds_all
             except AssertionError:
-                raise ValueError(
-                    '"{0}" is not a valid keyword argument for "{1}".'.format(key, self.__class__.__name__))
+                msg = '"{0}" is not a valid keyword argument for "{1}".'
+                raise ValueError(msg.format(key, self.__class__.__name__))
 
-        kwds_value = {key: kwds.get(key, None) for key in kwds_value}
-        kwds_uid = {key: kwds.get(key, None) for key in kwds_uid}
+        kwds_value = {key: kwargs.get(key, None) for key in kwds_value}
+        kwds_uid = {key: kwargs.get(key, None) for key in kwds_uid}
 
         AbstractValueDimension.__init__(self, *args, **kwds_value)
         AbstractUidDimension.__init__(self, *args, **kwds_uid)
@@ -469,13 +471,13 @@ class VectorDimension(AbstractSourcedVariable, AbstractUidValueDimension):
             shp = self._value.shape[0]
         else:
             shp = self._src_idx.shape[0]
-        ret = np.arange(1, shp + 1, dtype=constants.NP_INT)
+        ret = np.arange(1, shp + 1, dtype=np.int32)
         ret = np.atleast_1d(ret)
-        return (ret)
+        return ret
 
     def _set_value_from_source_(self):
         if self._value is None:
-            raise (NotImplementedError)
+            raise NotImplementedError
         else:
             self._value = self._value
 

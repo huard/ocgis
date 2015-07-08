@@ -6,6 +6,7 @@ import pickle
 import shutil
 from datetime import datetime as dt
 import datetime
+from types import FunctionType
 
 import numpy as np
 from cfunits.cfunits import Units
@@ -398,7 +399,7 @@ class TestRequestDataset(TestBase):
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('foo')
             var = ds.createVariable('foovar', int, dimensions=('foo',))
-            var.name = 'a name'
+            var.a_name = 'a name'
         rd = RequestDataset(uri=path)
         with self.print_scope() as ps:
             rd.inspect()
@@ -483,7 +484,7 @@ class TestRequestDataset(TestBase):
     def test_source_index_matches_constant_value(self):
         rd = self.test_data.get_rd('cancm4_tas')
         field = rd.get()
-        self.assertEqual(field.temporal._src_idx.dtype, constants.NP_INT)
+        self.assertEqual(field.temporal._src_idx.dtype, np.int32)
 
     def test_str(self):
         rd = self.test_data.get_rd('cancm4_tas')
@@ -491,6 +492,13 @@ class TestRequestDataset(TestBase):
         self.assertTrue(ss.startswith('RequestDataset'))
         self.assertTrue('crs' in ss)
         self.assertGreater(len(ss), 400)
+
+    def test_time_subset_func(self):
+        rd = self.test_data.get_rd('cancm4_tas')
+        self.assertIsNone(rd.time_subset_func)
+
+        rd.time_subset_func = lambda x, y: [1, 2, 3]
+        self.assertIsInstance(rd.time_subset_func, FunctionType)
 
     def test_units(self):
         rd = self.test_data.get_rd('cancm4_tas')

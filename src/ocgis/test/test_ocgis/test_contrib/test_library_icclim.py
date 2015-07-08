@@ -1,11 +1,12 @@
-from netCDF4 import date2num
 import json
 from collections import OrderedDict
 from copy import deepcopy
-from numpy.ma import MaskedArray
-import numpy as np
 from datetime import datetime
 from unittest import SkipTest
+
+from netCDF4 import date2num
+from numpy.ma import MaskedArray
+import numpy as np
 
 from icclim.percentile_dict import get_percentile_dict
 
@@ -17,6 +18,7 @@ from ocgis.interface.base.field import Field
 from ocgis.interface.base.dimension.spatial import SpatialGridDimension, SpatialDimension
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.interface.nc.temporal import NcTemporalDimension
+from ocgis.test import strings
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.contrib.library_icclim import IcclimTG, IcclimSU, AbstractIcclimFunction, IcclimDTR, IcclimETR, IcclimTN, \
     IcclimTX, AbstractIcclimUnivariateSetFunction, AbstractIcclimMultivariateFunction, IcclimTG10p, \
@@ -141,12 +143,10 @@ class TestLibraryIcclim(TestBase):
                                 to_test = shape[1]
                         with nc_scope(ret) as ds:
                             var = ds.variables[calc[0]['name']]
-                            self.assertEqual(var.dtype, subclass.dtype)
                             if to_test is not None:
                                 self.assertEqual(var.shape, (to_test, 3, 3))
                     except DefinitionValidationError as e:
-                        msg = '''OcgOperations validation raised an exception on the argument/operation "calc_grouping" with the message: The following temporal groupings are supported for ICCLIM: [('month',), ('month', 'year'), ('year',)]. The requested temporal group is:'''
-                        if e.message.startswith(msg):
+                        if e.message.startswith(strings.S4):
                             pass
                         else:
                             raise e
@@ -301,13 +301,7 @@ class TestTG10p(TestBase):
         ret = compute(ops, 5, verbose=False)
 
         with nc_scope(ret) as ds:
-            try:
-                self.assertAlmostEqual(ds.variables['itg'][:].mean(), np.float32(29.518518))
-            except Exception as e:
-                import ipdb;
-
-                ipdb.set_trace()
-                pass
+            self.assertAlmostEqual(ds.variables['itg'][:].mean(), 29.518518, 6)
 
     @attr('remote')
     def test_large_array_compute_remote(self):
@@ -353,16 +347,14 @@ class TestDTR(TestBase):
                                 output_format='nc')
 
     def test_calculation_operations(self):
-        # # note the kwds must contain a map of the required variables to their
-        # # associated aliases.
+        # note the kwds must contain a map of the required variables to their associated aliases.
         calc = [{'func': 'icclim_DTR', 'name': 'DTR', 'kwds': {'tasmin': 'tasmin', 'tasmax': 'tasmax'}}]
         tasmin = self.test_data.get_rd('cancm4_tasmin_2001')
         tasmin.time_region = {'year': [2002]}
         tasmax = self.test_data.get_rd('cancm4_tasmax_2001')
         tasmax.time_region = {'year': [2002]}
         rds = [tasmin, tasmax]
-        ops = ocgis.OcgOperations(dataset=rds, calc=calc, calc_grouping=['month'],
-                                  output_format='nc')
+        ops = ocgis.OcgOperations(dataset=rds, calc=calc, calc_grouping=['month'], output_format='nc')
         ops.execute()
 
 
@@ -432,8 +424,7 @@ class TestTx(TestBase):
             actual = {'_FillValue': np.float32(1e20), u'units': u'K', 'grid_mapping': 'latitude_longitude',
                       u'standard_name': AbstractIcclimFunction.standard_name,
                       u'long_name': u'Mean of daily mean temperature'}
-            self.assertEqual(dict(var.__dict__),
-                             actual)
+            self.assertEqual(dict(var.__dict__), actual)
 
     def test_calculate(self):
         rd = self.test_data.get_rd('cancm4_tas')
@@ -490,7 +481,8 @@ class TestSU(TestBase):
             self.assertDictEqual(to_test, actual)
             var = ds.variables['SU']
             to_test = dict(var.__dict__)
-            self.assertEqual(to_test, {'_FillValue': 999999, u'units': u'days',
+            dtype_cmp = rd.get().variables['tasmax'].dtype
+            self.assertEqual(to_test, {'_FillValue': np.array(1e20, dtype=dtype_cmp), u'units': u'days',
                                        u'standard_name': AbstractIcclimFunction.standard_name,
                                        u'long_name': 'Summer days (number of days where daily maximum temperature > 25 degrees)',
                                        'grid_mapping': 'latitude_longitude'})

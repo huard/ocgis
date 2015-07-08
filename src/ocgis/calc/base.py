@@ -3,8 +3,10 @@ from copy import deepcopy
 import abc
 import itertools
 import logging
+
 import numpy as np
 
+from ocgis import env
 from ocgis.interface.base.variable import DerivedVariable, VariableCollection
 from ocgis.util.helpers import get_default_or_apply
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -18,16 +20,16 @@ class AbstractFunction(object):
     Required class attributes to overload:
 
     * **description** (str): A arbitrary length string describing the calculation.
-    * **dtype** (type): The output data type for this function. Use 32-bit when possible to avoid conversion issues
-      (e.g. netCDF-3). When possible, the input data type will be used for the output data type.
     * **key** (str): The function's unique string identifier.
     * **standard_name** (str): Standard name to store in output metadata.
     * **long_name** (str): Long name description to store in output metadata.
 
     :param alias: The string identifier to use for the calculation.
     :type alias: str
-    :param dtype: The output data type.
-    :type dtype: :class:`numpy.core.multiarray.dtype`
+    :param dtype: The output data type. Set this to ``'int'`` or ``'float'`` to use the default datatype for the output
+     format and NumPy installation (recommended). If a specific NumPy type is needed, provide the string representation
+     of the type (i.e. ``'int32'``).
+    :type dtype: str or :class:`numpy.core.multiarray.dtype`
     :param field: The field object over which the calculation is applied.
     :type field: :class:`ocgis.interface.base.Field`
     :param file_only: If ``True`` pass through but compute output sizes, etc.
@@ -45,12 +47,8 @@ class AbstractFunction(object):
     :type agg: bool
     :param calc_sample_size: If ``True``, also compute sample sizes for the calculation.
     :type calc_sample_size: bool
-    :param meta_attrs: Dictionary with keys as attribute and names with arbitrary values. This will overload default
-     metadata attributes from the calculation.
-
-    >>> meta_attrs = {'standard_name': 'the_real', 'long_name': 'The Real Long Name', 'note_count': 55}
-
-    :type meta_attrs: dict
+    :param meta_attrs: Contains overloads for variable and/or field attribute values.
+    :type meta_attrs: :class:`ocgis.api.parms.definition_helpers.MetadataAttributes`
     :param bool add_parents: If ``True``, maintain parent variables following a calculation.
     """
 
@@ -58,27 +56,26 @@ class AbstractFunction(object):
 
     @abc.abstractproperty
     def description(self):
-        str
-
-    @abc.abstractproperty
-    def dtype(self):
-        None
+        pass
 
     Group = None
 
     @abc.abstractproperty
     def key(self):
-        str
+        pass
 
     # : The calculation's long name.
     @abc.abstractproperty
     def long_name(self):
-        str
+        pass
 
     #: The calculation's standard name.
     @abc.abstractproperty
     def standard_name(self):
-        str
+        pass
+
+    #: The output data type is NumPy's default float representation. This may be overloaded by subclasses.
+    dtype_default = 'float'
 
     #: The calculation's output units. Modify :meth:`get_output_units` for more complex units calculations. If the units
     #: are left as the default '_input' then the input variable units are maintained. Otherwise, they will be set to
@@ -90,8 +87,9 @@ class AbstractFunction(object):
 
     def __init__(self, alias=None, dtype=None, field=None, file_only=False, vc=None, parms=None, tgd=None,
                  use_raw_values=False, calc_sample_size=False, fill_value=None, meta_attrs=None, add_parents=False):
+
+        self._dtype = self.get_dtype(overload=dtype)
         self.alias = alias or self.key
-        self.dtype = dtype or self.dtype
         self.fill_value = fill_value
         self.vc = vc or VariableCollection()
         self.field = field
@@ -102,6 +100,10 @@ class AbstractFunction(object):
         self.calc_sample_size = calc_sample_size
         self.meta_attrs = deepcopy(meta_attrs)
         self.add_parents = add_parents
+
+    @property
+    def dtype(self):
+        return self._dtype
 
     def aggregate_spatial(self, values, weights):
         """
@@ -153,6 +155,27 @@ class AbstractFunction(object):
         # allow the field metadata to be modified
         self.set_field_metadata()
         return self.vc
+
+    @classmethod
+    def get_dtype(cls, overload=None):
+        """
+        :param overload: The overload is always returned by the function if it is provided.
+        :type overload: type
+        :returns: The data type for the calculation.
+        :rtype: type
+        """
+
+        if overload is None:
+            cls_dtype = cls.dtype_default
+            if cls_dtype == 'int':
+                ret = env.NP_INT
+            elif cls_dtype == 'float':
+                ret = env.NP_FLOAT
+            else:
+                ret = cls_dtype
+        else:
+            ret = overload
+        return ret
 
     def get_function_definition(self):
         """
@@ -274,7 +297,7 @@ class AbstractFunction(object):
         """
 
         # dtype should come in with each new variable
-        assert (dtype is not None)
+        assert dtype is not None
         # if there is no fill value, use the default for the data type
         if fill_value is None:
             fill_value = np.ma.array([], dtype=dtype).fill_value
@@ -314,20 +337,19 @@ class AbstractFunction(object):
         self.set_variable_metadata(dv)
         # overload the metadata attributes with any provided
         if self.meta_attrs is not None:
-            # dv.meta['attrs'].update(self.meta_attrs)
-            dv.attrs.update(self.meta_attrs)
+            dv.attrs.update(self.meta_attrs.value['variable'])
+            self.field.attrs.update(self.meta_attrs.value['field'])
         # add the variable to the variable collection
         self._set_derived_variable_alias_(dv, parent_variables)
         self.vc.add_variable(dv)
 
         # add the sample size if it is present in the fill dictionary
         if sample_size is not None:
-            # meta = {'attrs': {'standard_name': 'sample_size', 'long_name': 'Statistical Sample Size'}}
             attrs = OrderedDict()
             attrs['standard_name'] = constants.DEFAULT_SAMPLE_SIZE_STANDARD_NAME
             attrs['long_name'] = constants.DEFAULT_SAMPLE_SIZE_LONG_NAME
             dv = DerivedVariable(name=None, alias='n_' + dv.alias, units=None, value=sample_size, fdef=None,
-                                 parents=parents, dtype=constants.NP_INT, fill_value=fill_value, attrs=attrs)
+                                 parents=parents, dtype=np.int32, fill_value=fill_value, attrs=attrs)
             self.vc.add_variable(dv)
 
     @abc.abstractmethod
@@ -344,7 +366,7 @@ class AbstractFunction(object):
         # subset the values by the current temporal group
         values = value[ir, self._curr_group, il, :, :]
         # only 3-d data should be sent to the temporal aggregation method
-        assert (len(values.shape) == 3)
+        assert len(values.shape) == 3
         # execute the temporal aggregation or calculation
         cc = f(values, **parms)
         return cc, values
@@ -352,17 +374,20 @@ class AbstractFunction(object):
     def _get_temporal_agg_fill_(self, value=None, f=None, parms=None, shp_fill=None):
         # if a default data type was provided at initialization, use this value otherwise use the data type from the
         # input value.
-        dtype = self.dtype or value.dtype
+        if self.dtype is None:
+            dtype = value.dtype
+        else:
+            dtype = self.dtype
 
-        ## if no shape is provided for the fill array, create it.
+        # if no shape is provided for the fill array, create it.
         if shp_fill is None:
             shp_fill = list(self.field.shape)
             shp_fill[1] = len(self.tgd.dgroups)
         fill = np.ma.array(np.zeros(shp_fill, dtype=dtype))
 
-        ## this array holds output from the sample size computations
+        # this array holds output from the sample size computations
         if self.calc_sample_size:
-            fill_sample_size = np.ma.zeros(fill.shape, dtype=constants.NP_INT)
+            fill_sample_size = np.ma.zeros(fill.shape, dtype=np.int32)
         else:
             fill_sample_size = None
 
@@ -485,9 +510,8 @@ class AbstractUnivariateFunction(AbstractFunction):
 
             units = self.get_output_units(variable)
 
-            self._add_to_collection_(value=fill, parent_variables=[variable],
-                                     dtype=self.dtype, fill_value=self.fill_value,
-                                     units=units)
+            self._add_to_collection_(value=fill, parent_variables=[variable], dtype=self.dtype,
+                                     fill_value=self.fill_value, units=units)
 
 
 class AbstractParameterizedFunction(AbstractFunction):

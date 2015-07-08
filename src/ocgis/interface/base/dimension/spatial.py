@@ -14,14 +14,13 @@ from shapely.geometry.geo import mapping, shape
 
 from ocgis.util.environment import ogr
 import base
-from ocgis.interface.base.crs import CFWGS84, CoordinateReferenceSystem, WGS84
+from ocgis.interface.base.crs import CFWGS84, CoordinateReferenceSystem, WGS84, CFRotatedPole
 from ocgis.util.helpers import iter_array, get_formatted_slice, get_reduced_slice, get_trimmed_array_by_mask, \
     get_added_slice, make_poly, set_name_attributes, get_extrapolated_corners_esmf, get_ocgis_corners_from_esmf_corners, \
     get_none_or_2d
 from ocgis import constants, env
 from ocgis.exc import EmptySubsetError, SpatialWrappingError, MultipleElementsFound, BoundsAlreadyAvailableError
 from ocgis.util.ugrid.helpers import get_update_feature, write_to_netcdf_dataset
-
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -578,11 +577,11 @@ class SpatialDimension(base.AbstractUidDimension):
 
         assert self.crs is not None
 
-        try:
+        # Rotated pole transformations are a special case.
+        if not isinstance(self.crs, CFRotatedPole) and not isinstance(to_crs, CFRotatedPole):
             # if the crs values are the same, pass through
             if to_crs != self.crs:
                 to_sr = to_crs.sr
-                from_sr = self.crs.sr
 
                 if self.grid is not None:
                     # update grid values
@@ -608,12 +607,10 @@ class SpatialDimension(base.AbstractUidDimension):
                         self.geom.polygon.update_crs(to_crs, self.crs)
 
                 self.crs = to_crs
-
-        # likely a rotated pole coordinate system.
-        except RuntimeError as e:
+        else:
+            _crs = self.crs
             try:
-                _crs = self.crs
-                """:type: ocgis.interface.base.crs.CFRotatedPole"""
+                """:type _crs: ocgis.interface.base.crs.CFRotatedPole"""
                 new_spatial = _crs.get_rotated_pole_transformation(self)
             # likely an inverse transformation if the destination crs is rotated pole.
             except AttributeError:
@@ -1003,7 +1000,7 @@ class SpatialGridDimension(base.AbstractUidValueDimension):
                 shp = len(self.row), len(self.col)
             else:
                 shp = self._value.shape[1], self._value.shape[2]
-        ret = np.arange(1, (shp[0] * shp[1]) + 1, dtype=constants.NP_INT).reshape(shp)
+        ret = np.arange(1, (shp[0] * shp[1]) + 1, dtype=np.int32).reshape(shp)
         ret = np.ma.array(ret, mask=False)
         return ret
 
@@ -1155,7 +1152,7 @@ class SpatialGeometryPointDimension(base.AbstractUidValueDimension):
 
     @property
     def weights(self):
-        ret = np.ones(self.value.shape, dtype=constants.NP_FLOAT)
+        ret = np.ones(self.value.shape, dtype=env.NP_FLOAT)
         ret = np.ma.array(ret, mask=self.value.mask)
         return ret
 
@@ -1330,7 +1327,7 @@ class SpatialGeometryPolygonDimension(SpatialGeometryPointDimension):
     @property
     def area(self):
         r_value = self.value
-        fill = np.ones(r_value.shape, dtype=constants.NP_FLOAT)
+        fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
         fill = np.ma.array(fill, mask=r_value.mask)
         for (ii, jj), geom in iter_array(r_value, return_value=True):
             fill[ii, jj] = geom.area

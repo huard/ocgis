@@ -2,24 +2,26 @@ import logging
 import netCDF4 as nc
 import datetime
 
+
+from ocgis import env
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.calc.base import AbstractMultivariateFunction, AbstractKeyedOutputFunction
 import ocgis
-from ocgis.api.parms.definition import OutputFormat
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis.calc.eval_function import MultivariateEvalFunction
-from ocgis.conv.base import AbstractConverter
+from ocgis.conv.base import AbstractFileConverter, AbstractCollectionConverter
 from ocgis import constants
 from ocgis.exc import DefinitionValidationError
 from ocgis.interface.base.crs import CFWGS84
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
-class NcConverter(AbstractConverter):
+class NcConverter(AbstractCollectionConverter):
     _ext = 'nc'
 
     @classmethod
     def validate_ops(cls, ops):
+        from ocgis.api.parms.definition import OutputFormat
 
         def _raise_(msg, ocg_arugument=OutputFormat):
             raise DefinitionValidationError(ocg_arugument, msg)
@@ -149,13 +151,15 @@ class NcConverter(AbstractConverter):
         if self.ops is not None:
             history_str += ': {0}'.format(self.ops)
         original_history_str = ds.__dict__.get('history', '')
-        setattr(ds, 'history', original_history_str+history_str)
+        setattr(ds, 'history', original_history_str + history_str)
 
 
 class NcUgrid2DFlexibleMeshConverter(NcConverter):
 
     @classmethod
     def validate_ops(cls, ops):
+        from ocgis.api.parms.definition import OutputFormat
+
         NcConverter.validate_ops(ops)
 
         if ops.output_crs is not None:

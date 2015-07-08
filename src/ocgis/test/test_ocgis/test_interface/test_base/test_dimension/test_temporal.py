@@ -1,11 +1,12 @@
 from copy import deepcopy
-from netCDF4 import num2date, date2num
 import os
 from collections import deque
 import itertools
-import numpy as np
 from datetime import datetime as dt
 import datetime
+
+from netCDF4 import num2date, date2num
+import numpy as np
 
 from cfunits import Units
 import netcdftime
@@ -26,6 +27,10 @@ class AbstractTestTemporal(TestBase):
     @property
     def value_template_units(self):
         return np.array([19710101.9375, 19710102.9375, 19710103.9375, 19710104.9375, 19710105.9375])
+
+    @property
+    def value_template_units_no_decimal(self):
+        return np.array([20000101., 20000102., 20000103., 20000104., 20000105., 20000106.])
 
 
 class TestFunctions(AbstractTestTemporal):
@@ -66,6 +71,10 @@ class TestFunctions(AbstractTestTemporal):
         ret = get_datetime_from_template_time_units(self.value_template_units)
         self.assertEqual(ret.shape, self.value_template_units.shape)
         self.assertEqual(ret[2], datetime.datetime(1971, 1, 3, 22, 30))
+
+        ret = get_datetime_from_template_time_units(self.value_template_units_no_decimal)
+        self.assertEqual(ret.shape, self.value_template_units_no_decimal.shape)
+        self.assertEqual(ret[2], datetime.datetime(2000, 1, 3))
 
     def test_get_difference_in_months(self):
         distance = get_difference_in_months(datetime.datetime(1978, 12, 1), datetime.datetime(1979, 3, 1))
@@ -217,8 +226,7 @@ class TestTemporalDimension(AbstractTestTemporal):
             temporal = field.temporal
             return temporal
 
-        target = Units('days since 1949-1-1')
-        target.calendar = '365_day'
+        target = Units('days since 1949-1-1', calendar='365_day')
         kwds = {'t_conform_units_to': target}
         temporal = _get_temporal_(kwds)
         temporal_orig = _get_temporal_()
@@ -228,8 +236,7 @@ class TestTemporalDimension(AbstractTestTemporal):
     def test_conform_units_to(self):
         d = 'days since 1949-1-1'
         td = TemporalDimension(value=[4, 5, 6], conform_units_to=d)
-        actual = Units(d)
-        actual.calendar = constants.DEFAULT_TEMPORAL_CALENDAR
+        actual = Units(d, calendar=constants.DEFAULT_TEMPORAL_CALENDAR)
         self.assertTrue(td.cfunits.equals(actual))
 
         td = TemporalDimension(value=[4, 5, 6])
@@ -617,6 +624,30 @@ class TestTemporalDimension(AbstractTestTemporal):
         target = tdim.get_report()
         self.assertTrue(len(target) > 5)
 
+    def test_get_subset_by_function(self):
+
+        def _func_(value, bounds=None):
+            months = [6, 7]
+            indices = []
+            for ii, dt in enumerate(value.flat):
+                if dt.month in months:
+                    if dt.month == 6 and dt.day >= 15:
+                        indices.append(ii)
+                    elif dt.month == 7 and dt.day <= 15:
+                        indices.append(ii)
+            return indices
+
+        dates = get_date_list(dt(2002, 1, 31), dt(2003, 12, 31), 1)
+        td = TemporalDimension(value=dates)
+
+        ret = td.get_subset_by_function(_func_)
+        self.assertEqual(ret.shape, (62,))
+        for v in ret.value_datetime:
+            self.assertIn(v.month, [6, 7])
+
+        ret2 = td.get_subset_by_function(_func_, return_indices=True)
+        self.assertNumpyAll(td[ret2[1]].value_datetime, ret.value_datetime)
+
     def test_get_time_region_value_only(self):
         dates = get_date_list(dt(2002, 1, 31), dt(2009, 12, 31), 1)
         td = TemporalDimension(value=dates)
@@ -665,7 +696,7 @@ class TestTemporalDimension(AbstractTestTemporal):
         units = "months since 1978-12"
         vec = range(0, 36)
         calendar = "standard"
-        with self.assertRaises(ValueError):
+        with self.assertRaises((TypeError, ValueError)):
             num2date(vec, units, calendar=calendar)
 
     def test_months_in_time_units_between(self):
@@ -829,7 +860,7 @@ class TestTemporalGroupDimension(TestBase):
         tgd = td.get_grouping(['month'])
         self.assertEqual(tuple(tgd.date_parts[0]), (None, 1, None, None, None, None))
         self.assertTrue(tgd.dgroups[0].all())
-        self.assertNumpyAll(tgd.uid, np.array([1], dtype=constants.NP_INT))
+        self.assertNumpyAll(tgd.uid, np.array([1], dtype=np.int32))
 
     def test_write_to_netcdf_dataset(self):
         tgd = self.get_tgd()

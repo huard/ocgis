@@ -1,8 +1,9 @@
 from ocgis.api.parms.definition import *
 from ocgis.api.interpreter import OcgInterpreter
 from ocgis import env
-from ocgis.api.parms.base import OcgParameter
-from ocgis.conv.meta import MetaConverter
+from ocgis.api.parms.base import AbstractParameter
+from ocgis.conv.base import get_converter
+from ocgis.conv.meta import MetaOCGISConverter
 from ocgis.interface.base.crs import CFRotatedPole, WGS84
 from ocgis.api.subset import SubsetOperation
 
@@ -49,7 +50,7 @@ class OcgOperations(object):
     :param calc: Calculations to be performed on the dataset subset.
     :type calc: list of dictionaries or string-based function
     :param calc_grouping: Temporal grouping to apply for calculations.
-    :type calc_grouping: list of str or int
+    :type calc_grouping: list(str), int , None
     :param calc_raw: If ``True``, perform calculations on the "raw" data regardless of ``aggregation`` flag.
     :type calc_raw: bool
     :param abstraction: The geometric abstraction to use for the dataset geometries. If `None` (the default), use the
@@ -103,7 +104,10 @@ class OcgOperations(object):
         
     >>> time_region = {'month':[6,7],'year':[2010,2011]}
     >>> time_region = {'year':[2010]}
-    
+
+    :param time_subset_func: See :meth:`ocgis.interface.base.dimension.temporal.TemporalDimension.get_subset_by_function`
+     for usage instructions.
+    :type time_subset_func: :class:`FunctionType`
     :param level_range: Upper and lower bounds for level dimension subsetting. If `None`, return all levels. Using this
      argument will overload all :class:`~ocgis.RequestDataset` ``level_range`` values.
     :type level_range: [int/float, int/float]
@@ -131,9 +135,9 @@ class OcgOperations(object):
                  agg_selection=False, select_ugid=None, vector_wrap=True, allow_empty=False, dir_output=None,
                  slice=None, file_only=False, headers=None, format_time=True, calc_sample_size=False,
                  search_radius_mult=2.0, output_crs=None, interpolate_spatial_bounds=False, add_auxiliary_files=True,
-                 optimizations=None, callback=None, time_range=None, time_region=None, level_range=None,
-                 conform_units_to=None, select_nearest=False, regrid_destination=None, regrid_options=None,
-                 melted=False):
+                 optimizations=None, callback=None, time_range=None, time_region=None, time_subset_func=None,
+                 level_range=None, conform_units_to=None, select_nearest=False, regrid_destination=None,
+                 regrid_options=None, melted=False):
 
         # tells "__setattr__" to not perform global validation until all values are set initially
         self._is_init = True
@@ -171,6 +175,7 @@ class OcgOperations(object):
         self.callback = Callback(callback)
         self.time_range = TimeRange(time_range)
         self.time_region = TimeRegion(time_region)
+        self.time_subset_func = TimeSubsetFunction(time_subset_func)
         self.level_range = LevelRange(level_range)
         self.conform_units_to = ConformUnitsTo(conform_units_to)
         self.select_nearest = SelectNearest(select_nearest)
@@ -199,14 +204,14 @@ class OcgOperations(object):
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
-        if isinstance(attr, OcgParameter):
+        if isinstance(attr, AbstractParameter):
             ret = attr.value
         else:
             ret = attr
         return ret
 
     def __setattr__(self, name, value):
-        if isinstance(value, OcgParameter):
+        if isinstance(value, AbstractParameter):
             object.__setattr__(self, name, value)
         else:
             try:
@@ -290,7 +295,7 @@ class OcgOperations(object):
         return ret
 
     def get_meta(self):
-        meta_converter = MetaConverter(self)
+        meta_converter = MetaOCGISConverter(self)
         rows = meta_converter.get_rows()
         return '\n'.join(rows)
 
@@ -323,7 +328,7 @@ class OcgOperations(object):
         geom.select_ugid = svalue
 
         # time and/or level subsets must be applied to the request datasets individually. if they are not none.
-        for attr in ['time_range', 'time_region', 'level_range']:
+        for attr in ['time_range', 'time_region', 'time_subset_func', 'level_range']:
             if getattr(self, attr) is not None:
                 for rd in self.dataset.itervalues():
                     setattr(rd, attr, getattr(self, attr))
@@ -335,7 +340,7 @@ class OcgOperations(object):
                     rd.conform_units_to = self.conform_units_to
                 except ValueError as e:
                     msg = '"{0}: {1}"'.format(e.__class__.__name__, e.message)
-                    raise (DefinitionValidationError(Dataset, msg))
+                    raise DefinitionValidationError(Dataset, msg)
 
     def _validate_(self):
         ocgis_lh(logger='operations', msg='validating operations')
@@ -349,7 +354,7 @@ class OcgOperations(object):
             rd.driver.validate_ops(self)
 
         # validate the converter
-        converter_klass = AbstractConverter.get_converter(self.output_format)
+        converter_klass = get_converter(self.output_format)
         converter_klass.validate_ops(self)
 
         # no regridding with a spatial operation of clip

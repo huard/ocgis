@@ -1,11 +1,11 @@
 from collections import deque
 import itertools
 from copy import deepcopy
-import netCDF4 as nc
-import numpy as np
 import datetime
 from decimal import Decimal
 
+import netCDF4 as nc
+import numpy as np
 import netcdftime
 
 import base
@@ -44,10 +44,15 @@ class TemporalDimension(base.VectorDimension):
         kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
 
         if kwargs['units'] == 'day as %Y%m%d.%f':
-            td = TemporalDimension(value=kwargs.get('value'))
-            td.units = kwargs['units']
-            kwargs['value'] = td.value_datetime
+            from ocgis.interface.nc.temporal import NcTemporalDimension
+
+            units_original = kwargs['units']
+            units_conform_units_to = kwargs.pop('conform_units_to', None)
             kwargs['units'] = constants.DEFAULT_TEMPORAL_UNITS
+            td = NcTemporalDimension(*args, **kwargs)
+            td.units = units_original
+            kwargs['value'] = td.value_datetime
+            kwargs['conform_units_to'] = units_conform_units_to
 
         super(TemporalDimension, self).__init__(*args, **kwargs)
 
@@ -77,12 +82,13 @@ class TemporalDimension(base.VectorDimension):
     def conform_units_to(self, value):
         base.VectorDimension._conform_units_to_setter_(self, value)
         if self._conform_units_to is not None:
-            self._conform_units_to.calendar = self.calendar
+            self._conform_units_to = self._conform_units_to.__class__(self._conform_units_to.units,
+                                                                      calendar=self.calendar)
 
     @property
     def cfunits(self):
         ret = super(TemporalDimension, self).cfunits
-        ret.calendar = self.calendar
+        ret = ret.__class__(ret.units, calendar=self.calendar)
         return ret
 
     @property
@@ -156,7 +162,7 @@ class TemporalDimension(base.VectorDimension):
             try:
                 arr = np.atleast_1d(nc.num2date(arr, self.units, calendar=self.calendar))
             except ValueError:
-                # this may be cause by template units
+                # this may be caused by template units
                 if self._has_template_units:
                     arr = get_datetime_from_template_time_units(arr)
                 else:
@@ -219,7 +225,7 @@ class TemporalDimension(base.VectorDimension):
 
         try:
             ret = np.atleast_1d(nc.date2num(arr, self.units, calendar=self.calendar))
-        except ValueError:
+        except (ValueError, TypeError):
             # special behavior for conversion of time units with months
             if self._has_months_units:
                 ret = get_num_from_months_time_units(arr, self.units, dtype=None)
@@ -236,8 +242,9 @@ class TemporalDimension(base.VectorDimension):
                 try:
                     start_date, end_date = self.extent_datetime
                 # the times may not be formattable
-                except ValueError as e:
-                    if e.message == 'year is out of range' or e.message == 'month must be in 1..12':
+                except (ValueError, OverflowError) as e:
+                    messages = ('year is out of range', 'month must be in 1..12', 'date value out of range')
+                    if e.message in messages:
                         start_date, end_date = self.extent
                     else:
                         raise
@@ -256,6 +263,37 @@ class TemporalDimension(base.VectorDimension):
                   'Resolution (Days) = {0}'.format(res)]
 
         return lines
+
+    def get_subset_by_function(self, func, return_indices=False):
+        """
+        Subset the temporal dimension by an arbitrary function. The functions must take one argument and one keyword.
+        The argument is a vector of ``datetime`` objects. The keyword argument should be called "bounds" and may be
+        ``None``. If the bounds value is not ``None``, it should expect a n-by-2 array of ``datetime`` objects. The
+        function must return an integer sequence suitable for indexing. For example:
+
+        >>> def subset_func(value, bounds=None):
+        >>>     indices = []
+        >>>     for ii, v in enumerate(value):
+        >>>         if v.month == 6:
+        >>>             indices.append(ii)
+        >>>     return indices
+        >>> td = TemporalDimension(...)
+        >>>
+        >>> td_subset = td.get_subset_by_function(subset_func)
+
+        :param func: The function to use for subsetting.
+        :type func: :class:`FunctionType`
+        :param return_indices: If ``True``, return the index integers used for slicing/subsetting of the target object.
+        :type return_indices: sequence of integers
+        :returns: A temporal dimension object that has been subset using the supplied function.
+        :rtype: :class:`ocgis.interface.base.dimension.temporal.TemporalDimension`
+        """
+
+        indices = np.array(func(self.value_datetime, bounds=self.bounds_datetime))
+        ret = self[indices]
+        if return_indices:
+            ret = (ret, indices)
+        return ret
 
     def get_time_region(self, time_region, return_indices=False):
         assert isinstance(time_region, dict)
@@ -709,12 +747,11 @@ def get_datetime_from_template_time_units(vec):
     dt = datetime.datetime
     fill = np.empty_like(vec, dtype=object)
     for idx, element in enumerate(vec.flat):
-        s = str(element)
-        year = int(s[0:4])
-        month = int(s[4:6])
-        day = int(s[6:8])
-        f = float(s[-5:])
-        hour = 24 * f
+        ymd, hm = str(int(element)), element - int(element)
+        year = int(ymd[0:4])
+        month = int(ymd[4:6])
+        day = int(ymd[6:8])
+        hour = 24 * hm
         minute = int((Decimal(hour) % 1) * 60)
         hour = int(hour)
         fill[idx] = dt(year, month, day, hour=hour, minute=minute)
