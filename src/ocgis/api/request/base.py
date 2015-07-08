@@ -244,7 +244,6 @@ class RequestDataset(object):
 
     @property
     def alias(self):
-        # tdk: test with a nonetype variable
         if self._alias is None:
             if self.variable is not None:
                 ret = get_tuple(self.variable)
@@ -282,7 +281,6 @@ class RequestDataset(object):
 
     @property
     def crs(self):
-        #tdk: test with a "None" variable i.e. no dimensioned variables
         if self._crs is None:
             if self.variable is not None:
                 ret = self.driver.get_crs()
@@ -312,7 +310,6 @@ class RequestDataset(object):
             if self.alias is not None:
                 ret = '_'.join(get_tuple(self.alias))
             else:
-                # tdk: test name with no variable
                 ret = 'rd-{0}'.format(time.time())
         else:
             ret = self._name
@@ -399,7 +396,6 @@ class RequestDataset(object):
         try:
             ret = get_first_or_sequence(self._variable)
         except IndexError:
-            # tdk: test with a none variable
             ret = None
         return ret
 

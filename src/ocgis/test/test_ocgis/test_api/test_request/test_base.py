@@ -237,6 +237,11 @@ class TestRequestDataset(TestBase):
         rd.alias = 'temperature'
         self.assertEqual(rd.alias, 'temperature')
 
+        # Test with no dimensioned variables.
+        path = self.get_netcdf_path_no_dimensioned_variables()
+        rd = RequestDataset(path)
+        self.assertIsNone(rd.alias)
+
     def test_alias_change_after_init_one_variable(self):
         rd = self.test_data.get_rd('cancm4_tas')
         self.assertEqual(rd.name, 'tas')
@@ -284,6 +289,12 @@ class TestRequestDataset(TestBase):
         for p in poss:
             rd = RequestDataset(uri=self.uri, variable=['one', 'two'], conform_units_to=p)
             self.assertEqual(rd.conform_units_to, tuple(target))
+
+    def test_crs(self):
+        # Test the coordinate system is the default with no dimensioned variables.
+        path = self.get_netcdf_path_no_dimensioned_variables()
+        rd = RequestDataset(path)
+        self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
 
     def test_crs_overload(self):
         kwds = {'crs': CoordinateReferenceSystem(epsg=4362)}
@@ -438,7 +449,7 @@ class TestRequestDataset(TestBase):
     def test_len(self):
         path = self.get_netcdf_path_no_dimensioned_variables()
         rd = RequestDataset(uri=path)
-        self.assertEqual(len(rd), 0)
+        self.assertEqual(len(rd), 1)
 
         rd = self.test_data.get_rd('cancm4_tas')
         self.assertEqual(len(rd), 1)
@@ -459,6 +470,11 @@ class TestRequestDataset(TestBase):
         self.assertEqual(rd.name, 'states')
         field = rd.get()
         self.assertEqual(field.name, 'states')
+
+        # Test with no dimensioned variables.
+        path = self.get_netcdf_path_no_dimensioned_variables()
+        rd = RequestDataset(path)
+        self.assertIsNotNone(rd.name)
 
     def test_nonsense_units(self):
         with self.assertRaises(RequestValidationError):
@@ -526,8 +542,7 @@ class TestRequestDataset(TestBase):
         # test with no dimensioned variables
         path = self.get_netcdf_path_no_dimensioned_variables()
         rd = RequestDataset(uri=path)
-        with self.assertRaises(RequestValidationError):
-            rd.variable
+        self.assertIsNone(rd.variable)
 
     def test_with_bad_units_attempting_conform(self):
         # pass bad units to the init and an attempt a conform. values from the source dataset are not used for overload.
