@@ -1,12 +1,12 @@
 from copy import deepcopy
 import json
 import logging
-# noinspection PyPep8Naming
 import netCDF4 as nc
 from warnings import warn
 import numpy as np
-from ocgis import messages
 
+from ocgis import constants
+from ocgis import messages
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, VariableNotFoundError, DimensionNotFound
