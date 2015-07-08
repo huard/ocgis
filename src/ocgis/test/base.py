@@ -12,8 +12,8 @@ import netCDF4 as nc
 import datetime
 import sys
 import warnings
-
 import numpy as np
+
 import fiona
 from shapely import wkt
 
@@ -30,7 +30,6 @@ from ocgis.interface.base.variable import Variable
 from ocgis.util.helpers import get_iter
 from ocgis.util.itester import itr_products_keywords
 from ocgis.util.logging_ocgis import ocgis_lh
-
 
 """
 Definitions for various "attrs":
@@ -327,11 +326,18 @@ class TestBase(unittest.TestCase):
         else:
             raise AssertionError('Arrays are equivalent within precision.')
 
-    def assertWarns(self, warning, meth):
-        with warnings.catch_warnings(record=True) as warning_list:
-            warnings.simplefilter('always')
-            meth()
-            self.assertTrue(any(item.category == warning for item in warning_list))
+    def assertWarns(self, warning, meth, suppress=None):
+        if suppress is not None:
+            prev_suppress_warnings = env.SUPPRESS_WARNINGS
+            env.SUPPRESS_WARNINGS = suppress
+        try:
+            with warnings.catch_warnings(record=True) as warning_list:
+                warnings.simplefilter('always')
+                meth()
+                self.assertTrue(any(item.category == warning for item in warning_list))
+        finally:
+            if suppress is not None:
+                env.SUPPRESS_WARNINGS = prev_suppress_warnings
 
     def get_esmf_field(self, **kwargs):
         """

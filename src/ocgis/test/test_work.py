@@ -1,15 +1,20 @@
 from csv import DictReader
 import os
-
-import fiona
-from shapely import wkt
 import numpy as np
 
-from ocgis import constants, SpatialGeometryPolygonDimension, Field, SpatialCollection
+import ESMF
+import fiona
+from shapely import wkt
+
+from shapely.geometry import Polygon
+
+from ocgis import constants, SpatialGeometryPolygonDimension, Field, SpatialCollection, SpatialGeometryDimension, \
+    SpatialDimension
 from ocgis import ShpCabinet, RequestDataset, OcgOperations, env
 from ocgis.api.request.driver.nc import DriverNetcdfUgrid
+from ocgis.exc import OcgWarning
+from ocgis.interface.base.crs import Spherical, CFWGS84
 from ocgis.test.base import TestBase
-
 
 """
 These tests written to guide bug fixing or issue development. Theses tests are typically high-level and block-specific
@@ -113,7 +118,72 @@ class Test20150327(TestBase):
 
 
 class Test20150413(TestBase):
-    def test(self):
+    @staticmethod
+    def mesh_create_5():
+        '''
+        PRECONDITIONS: None
+        POSTCONDITIONS: A 5 element Mesh has been created.
+        RETURN VALUES: \n Mesh :: mesh \n
+
+          4.0   31 ------ 32 ------ 33
+                |         |  22  /   |
+                |    21   |     /    |
+                |         |   /  23  |
+          2.0   21 ------ 22 ------ 23
+                |         |          |
+                |    11   |    12    |
+                |         |          |
+          0.0   11 ------ 12 ------ 13
+
+               0.0       2.0        4.0
+
+              Node Ids at corners
+              Element Ids in centers
+
+        Note: This mesh is not parallel, it can only be used in serial
+        '''
+        # Two parametric dimensions, and two spatial dimensions
+        mesh = ESMF.Mesh(parametric_dim=2, spatial_dim=2)
+
+        num_node = 9
+        num_elem = 5
+        nodeId = np.array([11, 12, 13, 21, 22, 23, 31, 32, 33])
+        nodeCoord = np.array([0.0, 0.0,  # node 11
+                              2.0, 0.0,  # node 12
+                              4.0, 0.0,  # node 13
+                              0.0, 2.0,  # node 21
+                              2.0, 2.0,  # node 22
+                              4.0, 2.0,  # node 23
+                              0.0, 4.0,  # node 31
+                              2.0, 4.0,  # node 32
+                              4.0, 4.0])  # node 33
+        # If this example were parallel, this indicates which PET owns node.
+        nodeOwner = np.zeros(num_node)
+
+        elemId = np.array([11, 12, 21, 22, 23])
+        elemType = np.array([ESMF.MeshElemType.QUAD,
+                             ESMF.MeshElemType.QUAD,
+                             ESMF.MeshElemType.QUAD,
+                             ESMF.MeshElemType.TRI,
+                             ESMF.MeshElemType.TRI])
+        elemConn = np.array([0, 1, 4, 3,  # element 11
+                             1, 2, 5, 4,  # element 12
+                             3, 4, 7, 6,  # element 21
+                             4, 8, 7,  # element 22
+                             4, 5, 8])  # element 23
+        elemCoord = np.array([1.0, 1.0,
+                              3.0, 1.0,
+                              1.0, 3.0,
+                              2.5, 3.5,
+                              3.5, 2.5])
+
+        mesh.add_nodes(num_node, nodeId, nodeCoord, nodeOwner)
+
+        mesh.add_elements(num_elem, elemId, elemType, elemConn, element_coords=elemCoord)
+
+        return mesh, nodeCoord, nodeOwner, elemType, elemConn, elemCoord, nodeId, elemId
+
+    def test_ugrid_read(self):
         """Test reading data from a UGRID Mesh NetCDF file."""
 
         driver = DriverNetcdfUgrid.key
@@ -143,13 +213,88 @@ class Test20150413(TestBase):
         self.assertEqual(ugid, [1, 1, 1, 1])
 
         for output_format in ['shp', 'csv-shp', 'numpy', 'geojson', 'csv', 'nc-ugrid-2d-flexible-mesh']:
-            OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
+            ret = OcgOperations(dataset=rd, output_format=output_format, prefix=output_format).execute()
+            if output_format == 'nc-ugrid-2d-flexible-mesh':
+                self.assertNcEqual(rd.uri, ret, ignore_attributes={'global': ['history']})
 
-            # tdk: test with a different output coordinate system
+        # Test warning is raised with UGRID outputs and an output coordinate system.
+        def _warning_function_():
+            output_format = constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH
+            ops = OcgOperations(dataset=rd, output_format=output_format, prefix='warning_test', output_crs=CFWGS84())
+            ops.execute()
+
+        self.assertWarns(OcgWarning, _warning_function_, suppress=False)
+
+    def test_ocgis_field_to_esmpy_mesh(self):
+        """Test creating an ESMF mesh from an OCGIS field."""
+
+        # tdk: need to handle parametric_dim=2 and spatial_dim=3 - mesh on a spherical surface
+        mesh, nodeCoord, nodeOwner, elemType, elemConn, elemCoord, nodeId, elemId = self.mesh_create_5()
+        # mesh._write_(self.get_temporary_file_path('vtk'))
+        parametric_dim = 2
+
+        polygons = np.zeros((elemType.shape[0], 1), dtype=object)
+
+        idx_curr_elemConn = 0
+        for idx in range(elemType.shape[0]):
+            number_of_nodes_in_element = elemType[idx]
+            polygon_coords = np.zeros((number_of_nodes_in_element, parametric_dim))
+            node_coordinate_indices = elemConn[idx_curr_elemConn:idx_curr_elemConn + number_of_nodes_in_element]
+            node_coordinate_indices_shift = 2 * node_coordinate_indices
+            polygon_coords[:, 0] = nodeCoord[node_coordinate_indices_shift]
+            polygon_coords[:, 1] = nodeCoord[node_coordinate_indices_shift + 1]
+            polygon = Polygon(polygon_coords)
+            polygons[idx] = polygon
+            idx_curr_elemConn += number_of_nodes_in_element
+
+        poly = SpatialGeometryPolygonDimension(value=polygons)
+        geom = SpatialGeometryDimension(polygon=poly)
+        sdim = SpatialDimension(geom=geom)
+        # shp_path = self.get_temporary_file_path('polygons.shp')
+        # poly.write_fiona(shp_path, None)
+
+        # tdk: if this is on a sphere the spatial_dim needs to be three
+        if isinstance(sdim.crs, Spherical):
+            # tdk: test
+            spatial_dim = 3
+        else:
+            spatial_dim = 2
+        mesh = ESMF.Mesh(parametric_dim=2, spatial_dim=spatial_dim)
+        # tdk: continue writing mesh from spatial dimension - need support for parallel?
 
     def test_mesh(self):
         #tdk: remove this test
         import ESMF
-        path = '/home/benkoziol/htmp/small-ugrid.nc'
-        dstgrid = ESMF.Mesh(filename=path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
 
+        ESMF.Manager(debug=True)
+        path = '/home/benkoziol/Dropbox/Share/RK-Share/FVCOM_grid2d_20130228.nc'
+        # path = self.get_netcdf_path_ugrid('flavor.nc')
+        #
+        # with self.nc_scope(path) as ds:
+        #     x = ds.variables['Mesh2_node_x'][:]
+        #     y = ds.variables['Mesh2_node_y'][:]
+        # import matplotlib.pyplot as plt
+        # print x[:]
+        # print y[:]
+        # plt.plot(x[:], y[:])
+        # plt.show()
+        #
+        # with self.nc_scope(path, 'a') as ds:
+        #     var = ds.variables['Mesh2']
+        #     for attr in ['face_face_connectivity', 'face_edge_connectivity', 'face_coordinates']:
+        #         try:
+        #             var.delncattr(attr)
+        #         except RuntimeError:
+        #             pass
+
+        dstgrid = ESMF.Mesh(filename=path, filetype=ESMF.FileFormat.UGRID, meshname="fvcom_mesh")
+        nodes = dstgrid.coords[0]
+        coords_x, coords_y = nodes
+        # The number of coordinate dimensions (i.e. x, y).
+        ndims = len(nodes)
+        # This is the number of faces in the UGRID file.
+        nfaces = dstgrid.size[1]
+        self.assertEqual(nfaces, len(dstgrid.coords[1][1]))
+        import ipdb;
+
+        ipdb.set_trace()

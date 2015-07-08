@@ -1,6 +1,7 @@
+import logging
 import netCDF4 as nc
-
 import datetime
+
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.calc.base import AbstractMultivariateFunction, AbstractKeyedOutputFunction
 import ocgis
@@ -11,6 +12,7 @@ from ocgis.conv.base import AbstractConverter
 from ocgis import constants
 from ocgis.exc import DefinitionValidationError
 from ocgis.interface.base.crs import CFWGS84
+from ocgis.util.logging_ocgis import ocgis_lh
 
 
 class NcConverter(AbstractConverter):
@@ -155,7 +157,13 @@ class NcUgrid2DFlexibleMeshConverter(NcConverter):
     @classmethod
     def validate_ops(cls, ops):
         NcConverter.validate_ops(ops)
+
+        if ops.output_crs is not None:
+            msg = 'No coordinate system information is currently written to UGRID.'
+            ocgis_lh(msg=msg, level=logging.WARN)
+
         should_raise = False
+        # Only polygons may be written to this format.
         if ops.abstraction == 'point':
             should_raise = True
         else:
@@ -168,7 +176,6 @@ class NcUgrid2DFlexibleMeshConverter(NcConverter):
                 if abstraction == 'point':
                     should_raise = True
                     break
-
         if should_raise:
             msg = 'Only polygons may be written to "{0}"'.\
                 format(constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH, ops.abstraction)
