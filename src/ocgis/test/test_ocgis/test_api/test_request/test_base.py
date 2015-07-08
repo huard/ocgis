@@ -9,7 +9,8 @@ import datetime
 from types import FunctionType
 
 import numpy as np
-from cfunits.cfunits import Units
+
+from cfunits import Units
 
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfUgrid
 from ocgis.api.request.driver.vector import DriverVector
