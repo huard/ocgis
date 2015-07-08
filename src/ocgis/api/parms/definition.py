@@ -12,15 +12,12 @@ import numpy as np
 from shapely.geometry import MultiPoint
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.polygon import Polygon
-
 from shapely.geometry.multipolygon import MultiPolygon
-
 from shapely.geometry.point import Point
 
-from ocgis import messages
 from ocgis.conv.base import AbstractTabularConverter, get_converter, get_converter_map
 from ocgis.api.parms import base
-from ocgis.exc import DefinitionValidationError, NoDimensionedVariablesFound
+from ocgis.exc import DefinitionValidationError
 from ocgis.api.request.base import RequestDataset, RequestDatasetCollection
 import ocgis
 from ocgis import constants
@@ -456,16 +453,10 @@ class Dataset(base.AbstractParameter):
                             raise DefinitionValidationError(self, 'Type not accepted: {0}'.format(type(init_value)))
                     rdc = RequestDatasetCollection()
                     for rd in itr:
+                        # Do not deep copy field objects. Data payloads may be very large.
                         if not isinstance(rd, Field):
                             rd = deepcopy(rd)
-                        try:
-                            rdc.update(rd)
-                        except NoDimensionedVariablesFound:
-                            if rd._name is None:
-                                msg = messages.M2.format(rd.uri)
-                                raise DefinitionValidationError(self, msg)
-                            else:
-                                raise
+                        rdc.update(rd)
                     init_value = rdc
             else:
                 init_value = init_value
