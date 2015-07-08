@@ -265,7 +265,6 @@ class SpatialDimension(base.AbstractUidDimension):
                 else:
                     has_uid = False
 
-                # tdk: test with no properties
                 if len(record['properties']) > 0:
                     for k, v in record['properties'].iteritems():
                         the_type = type(v)

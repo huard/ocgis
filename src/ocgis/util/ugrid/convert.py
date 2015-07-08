@@ -26,7 +26,6 @@ def mesh2_nc_to_fiona(in_nc, out_path, crs=None, driver='ESRI Shapefile'):
 
 
 def mesh2_nc_to_fiona_iter(in_nc):
-    # tdk:doc
 
     ds = nc.Dataset(in_nc, 'r')
     try:

@@ -1,13 +1,14 @@
-from ocgis import messages
 import os.path
 import abc
 import csv
 import logging
 
 from shapely.geometry.multipolygon import MultiPolygon
+
 from shapely.geometry.polygon import Polygon
 import fiona
 
+from ocgis import messages
 from ocgis import constants
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.interface.base.field import Field
@@ -307,7 +308,6 @@ class AbstractCollectionConverter(AbstractFileConverter):
                             else:
                                 raise
                         except KeyError:
-                            # tdk: test with a request dataset having a "None" variable
                             if d['variable'] is None:
                                 continue
                             else:

@@ -1,8 +1,9 @@
 from copy import deepcopy
 import json
 import logging
-import netCDF4 as nc
 from warnings import warn
+
+import netCDF4 as nc
 import numpy as np
 
 from ocgis import constants
@@ -110,7 +111,6 @@ class DriverNetcdf(AbstractDriver):
         return self.raw_metadata.get_lines()
 
     def get_source_metadata(self):
-        # tdk: test with a "None" variable, i.e. no dimensioned variables in the dataset
         metadata = self.raw_metadata
         variables = self.rd.variable
 
