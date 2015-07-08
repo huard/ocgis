@@ -1,7 +1,7 @@
 import logging
-import netCDF4 as nc
 import datetime
 
+import netCDF4 as nc
 
 from ocgis import env
 from ocgis.api.request.driver.vector import DriverVector
@@ -9,7 +9,7 @@ from ocgis.calc.base import AbstractMultivariateFunction, AbstractKeyedOutputFun
 import ocgis
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis.calc.eval_function import MultivariateEvalFunction
-from ocgis.conv.base import AbstractFileConverter, AbstractCollectionConverter
+from ocgis.conv.base import AbstractCollectionConverter
 from ocgis import constants
 from ocgis.exc import DefinitionValidationError
 from ocgis.interface.base.crs import CFWGS84
@@ -83,7 +83,7 @@ class NcConverter(AbstractCollectionConverter):
         file_format = set()
         # if no operations are present, use the default data model
         if self.ops is None:
-            ret = constants.NETCDF_DEFAULT_DATA_MODEL
+            ret = env.NETCDF_FILE_FORMAT
         else:
             for rd in self.ops.dataset.iter_request_datasets():
                 try:
@@ -106,7 +106,7 @@ class NcConverter(AbstractCollectionConverter):
                     ret = list(file_format)[0]
                 except IndexError:
                     # likely all field objects in the dataset. use the default netcdf data model
-                    ret = constants.NETCDF_DEFAULT_DATA_MODEL
+                    ret = env.NETCDF_FILE_FORMAT
         return ret
 
     @staticmethod

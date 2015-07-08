@@ -1,25 +1,22 @@
 from csv import DictReader
 import os
-import numpy as np
 
+import numpy as np
 import ESMF
 import fiona
 from shapely import wkt
-
 from shapely.geometry import Polygon
-
-from ocgis import constants, SpatialGeometryPolygonDimension, Field, SpatialCollection, SpatialGeometryDimension, \
-    SpatialDimension
 from shapely.geometry import Point
-
 from shapely.geometry.multipoint import MultiPoint
 
+from ocgis import SpatialGeometryPolygonDimension, Field, SpatialCollection, SpatialGeometryDimension, \
+    SpatialDimension
 from ocgis import constants
 from ocgis import ShpCabinet, RequestDataset, OcgOperations, env
 from ocgis.api.request.driver.nc import DriverNetcdfUgrid
 from ocgis.exc import OcgWarning
 from ocgis.interface.base.crs import Spherical, CFWGS84
-from ocgis.test.base import TestBase
+from ocgis.test.base import TestBase, attr
 
 """
 These tests written to guide bug fixing or issue development. Theses tests are typically high-level and block-specific
@@ -122,6 +119,7 @@ class Test20150327(TestBase):
         self.assertEqual(ret.keys(), [13, 15])
 
 
+@attr('esmpy7')
 class Test20150413(TestBase):
     @staticmethod
     def mesh_create_5():
