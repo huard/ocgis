@@ -6,6 +6,7 @@ import ESMF
 import fiona
 from shapely import wkt
 from shapely.geometry import Polygon
+
 from shapely.geometry import Point
 
 from shapely.geometry.multipoint import MultiPoint
@@ -238,51 +239,47 @@ class Test20150709(TestBase):
         """
         ESMF.Manager(debug=True)
 
-        # Write polygons to UGRID file.
-        ccw_wkt = [
-            'POLYGON((-0.53064516129032269 0.53817204301075283,0.14301075268817209 -0.73763440860215057,-1.25698924731182804 -0.73010752688172054,-0.53064516129032269 0.53817204301075283))',
-            'POLYGON((-0.53064516129032269 0.53817204301075283,0.54253642039542171 0.7357162677766218,1.19552983003815516 -0.34940513354144986,0.14301075268817209 -0.73763440860215057,-0.53064516129032269 0.53817204301075283))']
-        polygons = [wkt.loads(cw) for cw in ccw_wkt]
-        polygons = np.atleast_2d(np.array(polygons))
-        spoly = SpatialGeometryPolygonDimension(value=polygons)
-        ugrid_path = os.path.join(self.current_dir_output, 'foo.nc')
-        with self.nc_scope(ugrid_path, 'w') as ds:
-            spoly.write_to_netcdf_dataset_ugrid(ds)
+        # # Write polygons to UGRID file.
+        # ccw_wkt = [
+        #     'POLYGON((-0.53064516129032269 0.53817204301075283,0.14301075268817209 -0.73763440860215057,-1.25698924731182804 -0.73010752688172054,-0.53064516129032269 0.53817204301075283))',
+        #     'POLYGON((-0.53064516129032269 0.53817204301075283,0.54253642039542171 0.7357162677766218,1.19552983003815516 -0.34940513354144986,0.14301075268817209 -0.73763440860215057,-0.53064516129032269 0.53817204301075283))']
+        # polygons = [wkt.loads(cw) for cw in ccw_wkt]
+        # polygons = np.atleast_2d(np.array(polygons))
+        # spoly = SpatialGeometryPolygonDimension(value=polygons)
+        # ugrid_path = os.path.join(self.current_dir_output, 'foo.nc')
+        # with self.nc_scope(ugrid_path, 'w') as ds:
+        #     spoly.write_to_netcdf_dataset_ugrid(ds)
 
-        # path = '/home/benkoziol/Downloads/NFIE_shapefile_ugrid_regrid/catchment_San_Guad_3reaches/catchment_San_Guad_3reaches.shp'
-        # rd = RequestDataset(uri=path)
-        # ops = OcgOperations(dataset=rd, output_format=constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH)
-        # ugrid_path = ops.execute()
+        path = '/home/benkoziol/Downloads/NFIE_shapefile_ugrid_regrid/catchment_San_Guad_3reaches/catchment_San_Guad_3reaches.shp'
+        rd = RequestDataset(uri=path)
+        ops = OcgOperations(dataset=rd, output_format=constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH)
+        ugrid_path = ops.execute()
 
         # Read the UGRID file into an ESMF mesh.
         mesh = ESMF.Mesh(filename=ugrid_path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
-        # tdk: only allow field build with meshloc of ELEMENT
-        efield = ESMF.Field(mesh, meshloc=ESMF.MeshLoc.ELEMENT)
-        efield[:] = 15
+        import ipdb;
 
-        nodeCoord = mesh._connectivity
-        elemType = mesh._num_nodes_per_elem
-        # elemConn = mesh._element_conn
-        parametric_dim = mesh.parametric_dim
+        ipdb.set_trace()
+        efield = ESMF.Field(mesh, meshloc=ESMF.MeshLoc.ELEMENT, name='tas')
+        efield[:] = [15, 16]
 
-        assert parametric_dim == 2
+        # tdk: add method to specify the coordinate system of the ESMF field
+        ops = OcgOperations(dataset=efield, output_format=constants.OUTPUT_FORMAT_SHAPEFILE)
+        ofield = ops.dataset.first()
+        shape = (1, 1, 1, 2, 1)
+        self.assertEqual(ofield.shape, shape)
+        self.assertEqual(ofield.variables['tas'].value.shape, shape)
+        path_shp = ops.execute()
 
-        polygons = np.zeros((elemType.shape[0], 1), dtype=object)
-        idx_curr_elemConn = 0
-        for idx in range(elemType.shape[0]):
-            number_of_nodes_in_element = elemType[idx]
-            polygon_coords = np.zeros((number_of_nodes_in_element, parametric_dim))
-            step = number_of_nodes_in_element * parametric_dim
-            polygon_coords[:, 0] = nodeCoord[idx_curr_elemConn:step:parametric_dim]
-            polygon_coords[:, 1] = nodeCoord[idx_curr_elemConn + 1:step:parametric_dim]
-            polygon = Polygon(polygon_coords)
-            polygons[idx] = polygon
-            idx_curr_elemConn += step
+        with fiona.open(path_shp) as source:
+            records = list(source)
+        values = np.array([r['properties']['TAS'] for r in records])
+        self.assertNumpyAll(values, np.array([15., 16.]))
+        self.assertEqual(len(records), 2)
 
-        poly = SpatialGeometryPolygonDimension(value=polygons)
-        geom = SpatialGeometryDimension(polygon=poly)
-        sdim = SpatialDimension(geom=geom, crs=CFWGS84())
-        sdim.write_fiona('/tmp/foo.shp')
+        import ipdb;
+
+        ipdb.set_trace()
 
     def test_ocgis_field_to_esmpy_mesh(self):
         """Test creating an ESMF mesh from an OCGIS field."""

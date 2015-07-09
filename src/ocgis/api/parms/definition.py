@@ -7,8 +7,8 @@ from copy import deepcopy
 from types import FunctionType
 import itertools
 import datetime
-
 import numpy as np
+
 from shapely.geometry import MultiPoint
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.polygon import Polygon
@@ -445,8 +445,11 @@ class Dataset(base.AbstractParameter):
                         else:
                             if isinstance(init_value, ESMF.Field):
                                 from ocgis.regrid.base import get_ocgis_field_from_esmpy_field
+                                from ocgis.interface.base.crs import Spherical
 
-                                field = get_ocgis_field_from_esmpy_field(init_value)
+                                # tdk: need a method to specify the ESMF Field crs
+                                # tdk: this should be automatically determined based on spatial_dim and parameteric_dim
+                                field = get_ocgis_field_from_esmpy_field(init_value, crs=Spherical())
                                 itr = [field]
                                 should_raise = False
                         if should_raise:

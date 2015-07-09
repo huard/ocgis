@@ -101,12 +101,13 @@ def get_sdim_from_esmf_mesh(emesh, crs=None):
     for idx in range(elemType.shape[0]):
         number_of_nodes_in_element = elemType[idx]
         polygon_coords = np.zeros((number_of_nodes_in_element, parametric_dim))
-        step = number_of_nodes_in_element * parametric_dim
-        polygon_coords[:, 0] = nodeCoord[idx_curr_elemConn:step:parametric_dim]
-        polygon_coords[:, 1] = nodeCoord[idx_curr_elemConn + 1:step:parametric_dim]
+        nelement_coords = number_of_nodes_in_element * parametric_dim
+        stop = nelement_coords + idx_curr_elemConn
+        polygon_coords[:, 0] = nodeCoord[idx_curr_elemConn:stop:parametric_dim]
+        polygon_coords[:, 1] = nodeCoord[idx_curr_elemConn + 1:stop:parametric_dim]
         polygon = Polygon(polygon_coords)
         polygons[idx] = polygon
-        idx_curr_elemConn += step
+        idx_curr_elemConn += nelement_coords
 
     poly = SpatialGeometryPolygonDimension(value=polygons)
     geom = SpatialGeometryDimension(polygon=poly)
@@ -136,6 +137,8 @@ def get_ocgis_field_from_esmpy_field(efield, crs=None, dimensions=None):
     efield_name = efield.name
     if len(efield.shape) == 1:
         efield = efield.reshape(1, 1, 1, efield.shape[0], 1)
+        # tdk: remove this copy when ESMF is updated to maintain attributes
+        efield = np.array(efield)
     else:
         efield = efield
     assert len(efield.shape) == 5
