@@ -7,6 +7,7 @@ import fiona
 from shapely import wkt
 from shapely.geometry import Polygon
 from shapely.geometry import Point
+
 from shapely.geometry.multipoint import MultiPoint
 
 from ocgis import SpatialGeometryPolygonDimension, Field, SpatialCollection, SpatialGeometryDimension, \
@@ -262,10 +263,9 @@ class Test20150709(TestBase):
         nodeCoord = mesh._connectivity
         elemType = mesh._num_nodes_per_elem
         # elemConn = mesh._element_conn
-        parametric_dim = 2
+        parametric_dim = mesh.parametric_dim
 
-        print nodeCoord
-        print elemType
+        assert parametric_dim == 2
 
         polygons = np.zeros((elemType.shape[0], 1), dtype=object)
         idx_curr_elemConn = 0

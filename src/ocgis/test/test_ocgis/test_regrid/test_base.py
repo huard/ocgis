@@ -1,9 +1,10 @@
 from copy import deepcopy
 import itertools
+import numpy as np
 
 import ESMF
+from shapely import wkt
 from shapely.geometry import Polygon, MultiPolygon
-import numpy as np
 
 from ocgis.conv.esmpy import ESMPyConverter
 from ocgis.api.collection import SpatialCollection
@@ -11,12 +12,13 @@ from ocgis.interface.base.dimension.temporal import TemporalDimension
 from ocgis.interface.base.dimension.base import VectorDimension
 import ocgis
 from ocgis.exc import RegriddingError, CornersInconsistentError, CannotFormatTimeError
-from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84, Spherical
-from ocgis.interface.base.dimension.spatial import SpatialGridDimension, SpatialDimension
+from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84, Spherical, CFWGS84
+from ocgis.interface.base.dimension.spatial import SpatialGridDimension, SpatialDimension, \
+    SpatialGeometryPolygonDimension
 from ocgis.interface.base.field import Field
 from ocgis.interface.base.variable import VariableCollection, Variable
 from ocgis.regrid.base import check_fields_for_regridding, iter_regridded_fields, get_esmf_grid_from_sdim, \
-    iter_esmf_fields, get_sdim_from_esmf_grid, get_ocgis_field_from_esmpy_field
+    iter_esmf_fields, get_sdim_from_esmf_grid, get_ocgis_field_from_esmpy_field, get_sdim_from_esmf_mesh
 from ocgis.test.base import attr
 from ocgis.test.test_simple.make_test_data import SimpleNc
 from ocgis.test.test_simple.test_simple import TestSimpleBase
@@ -449,6 +451,26 @@ class TestRegrid(TestSimpleBase):
                 self.assertNumpyAll(sdim.grid.corners, nsdim.grid.corners)
             else:
                 self.assertIsNone(nsdim.grid.corners)
+
+    def test_get_sdim_from_esmf_mesh(self):
+        # Write polygons to UGRID file.
+        ccw_wkt = [
+            'POLYGON((-0.53064516129032269 0.53817204301075283,0.14301075268817209 -0.73763440860215057,-1.25698924731182804 -0.73010752688172054,-0.53064516129032269 0.53817204301075283))',
+            'POLYGON((-0.53064516129032269 0.53817204301075283,0.54253642039542171 0.7357162677766218,1.19552983003815516 -0.34940513354144986,0.14301075268817209 -0.73763440860215057,-0.53064516129032269 0.53817204301075283))']
+        polygons = [wkt.loads(cw) for cw in ccw_wkt]
+        polygons = np.atleast_2d(np.array(polygons))
+        spoly = SpatialGeometryPolygonDimension(value=polygons)
+        ugrid_path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(ugrid_path, 'w') as ds:
+            spoly.write_to_netcdf_dataset_ugrid(ds)
+
+        # Read the UGRID file into an ESMF mesh.
+        emesh = ESMF.Mesh(filename=ugrid_path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
+
+        crs = CFWGS84()
+        sdim = get_sdim_from_esmf_mesh(emesh, crs=crs)
+        self.assertEqual(sdim.shape, (2, 1))
+        self.assertEqual(sdim.crs, crs)
 
     def test_get_esmf_grid_from_sdim_with_mask(self):
         """Test with masked data."""

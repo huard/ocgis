@@ -1,7 +1,11 @@
 from copy import deepcopy
-import ESMF
 import numpy as np
-from ocgis import TemporalDimension, Field
+
+import ESMF
+
+from shapely.geometry import Polygon
+
+from ocgis import TemporalDimension, Field, SpatialGeometryPolygonDimension, SpatialGeometryDimension
 from ocgis.exc import RegriddingError, CornersInconsistentError
 from ocgis.interface.base.crs import Spherical
 from ocgis.interface.base.dimension.base import VectorDimension
@@ -72,6 +76,41 @@ def get_sdim_from_esmf_grid(egrid, crs=None):
     # make the spatial dimension object
     ogrid = SpatialGridDimension(value=grid_value, corners=grid_corners)
     sdim = SpatialDimension(grid=ogrid, crs=crs)
+
+    return sdim
+
+
+def get_sdim_from_esmf_mesh(emesh, crs=None):
+    """
+    Create an OCGIS :class:`~ocgis.interface.base.dimension.spatial.SpatialDimension` object from an ESMF
+    :class:`~ESMF.api.grid.Grid`.
+
+    :type egrid: :class:`ESMF.api.grid.Grid`
+    :param crs: The coordinate system to attach to the output spatial dimension.
+    :type crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
+    :rtype: :class:`~ocgis.interface.base.dimension.spatial.SpatialDimension`
+    """
+    # tdk: update docstring
+
+    nodeCoord = emesh._connectivity
+    elemType = emesh._num_nodes_per_elem
+    parametric_dim = emesh.parametric_dim
+
+    polygons = np.zeros((elemType.shape[0], 1), dtype=object)
+    idx_curr_elemConn = 0
+    for idx in range(elemType.shape[0]):
+        number_of_nodes_in_element = elemType[idx]
+        polygon_coords = np.zeros((number_of_nodes_in_element, parametric_dim))
+        step = number_of_nodes_in_element * parametric_dim
+        polygon_coords[:, 0] = nodeCoord[idx_curr_elemConn:step:parametric_dim]
+        polygon_coords[:, 1] = nodeCoord[idx_curr_elemConn + 1:step:parametric_dim]
+        polygon = Polygon(polygon_coords)
+        polygons[idx] = polygon
+        idx_curr_elemConn += step
+
+    poly = SpatialGeometryPolygonDimension(value=polygons)
+    geom = SpatialGeometryDimension(polygon=poly)
+    sdim = SpatialDimension(geom=geom, crs=crs)
 
     return sdim
 
