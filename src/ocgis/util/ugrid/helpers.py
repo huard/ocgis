@@ -1,6 +1,6 @@
 from collections import deque
-
 import numpy as np
+
 import fiona
 from shapely.geometry import shape, Polygon, mapping
 from shapely.geometry.base import BaseMultipartGeometry
@@ -291,9 +291,9 @@ def write_to_netcdf_dataset(ds, features):
     vMesh2.face_node_connectivity = "Mesh2_face_nodes"
     vMesh2.edge_node_connectivity = "Mesh2_edge_nodes"
     vMesh2.edge_coordinates = "Mesh2_edge_x Mesh2_edge_y"
-    vMesh2.face_coordinates = "Mesh2_face_x Mesh2_face_y"
-    vMesh2.face_edge_connectivity = "Mesh2_face_edges"
-    vMesh2.face_face_connectivity = "Mesh2_face_links"
+    # vMesh2.face_coordinates = "Mesh2_face_x Mesh2_face_y"
+    # vMesh2.face_edge_connectivity = "Mesh2_face_edges"
+    # vMesh2.face_face_connectivity = "Mesh2_face_links"
     vMesh2_face_nodes = ds.createVariable('Mesh2_face_nodes',
                                           Mesh2_face_nodes.dtype,
                                           dimensions=(nMesh2_face._name, nMaxMesh2_face_nodes._name),
