@@ -30,6 +30,22 @@ class TestRegrid(TestSimpleBase):
     nc_factory = SimpleNc
     fn = 'test_simple_spatial_01.nc'
 
+    def get_esmf_mesh(self):
+        # Write polygons to UGRID file.
+        ccw_wkt = [
+            'POLYGON((-0.53064516129032269 0.53817204301075283,0.14301075268817209 -0.73763440860215057,-1.25698924731182804 -0.73010752688172054,-0.53064516129032269 0.53817204301075283))',
+            'POLYGON((-0.53064516129032269 0.53817204301075283,0.54253642039542171 0.7357162677766218,1.19552983003815516 -0.34940513354144986,0.14301075268817209 -0.73763440860215057,-0.53064516129032269 0.53817204301075283))']
+        polygons = [wkt.loads(cw) for cw in ccw_wkt]
+        polygons = np.atleast_2d(np.array(polygons))
+        spoly = SpatialGeometryPolygonDimension(value=polygons)
+        ugrid_path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(ugrid_path, 'w') as ds:
+            spoly.write_to_netcdf_dataset_ugrid(ds)
+
+        # Read the UGRID file into an ESMF mesh.
+        emesh = ESMF.Mesh(filename=ugrid_path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
+        return emesh
+
     def get_ofield(self):
         rd = ocgis.RequestDataset(**self.get_dataset())
         # create a field composed of two variables
@@ -452,20 +468,9 @@ class TestRegrid(TestSimpleBase):
             else:
                 self.assertIsNone(nsdim.grid.corners)
 
+    @attr('esmpy7')
     def test_get_sdim_from_esmf_mesh(self):
-        # Write polygons to UGRID file.
-        ccw_wkt = [
-            'POLYGON((-0.53064516129032269 0.53817204301075283,0.14301075268817209 -0.73763440860215057,-1.25698924731182804 -0.73010752688172054,-0.53064516129032269 0.53817204301075283))',
-            'POLYGON((-0.53064516129032269 0.53817204301075283,0.54253642039542171 0.7357162677766218,1.19552983003815516 -0.34940513354144986,0.14301075268817209 -0.73763440860215057,-0.53064516129032269 0.53817204301075283))']
-        polygons = [wkt.loads(cw) for cw in ccw_wkt]
-        polygons = np.atleast_2d(np.array(polygons))
-        spoly = SpatialGeometryPolygonDimension(value=polygons)
-        ugrid_path = self.get_temporary_file_path('foo.nc')
-        with self.nc_scope(ugrid_path, 'w') as ds:
-            spoly.write_to_netcdf_dataset_ugrid(ds)
-
-        # Read the UGRID file into an ESMF mesh.
-        emesh = ESMF.Mesh(filename=ugrid_path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
+        emesh = self.get_esmf_mesh()
 
         crs = CFWGS84()
         sdim = get_sdim_from_esmf_mesh(emesh, crs=crs)
@@ -642,7 +647,7 @@ class TestRegrid(TestSimpleBase):
 
     @attr('esmpy7')
     def test_get_ocgis_field_from_esmpy_field(self):
-        #todo: return spherical crs if none is passed. check something on the grid
+        # todo: return spherical crs if none is passed?
         np.random.seed(1)
         temporal = TemporalDimension(value=[3000., 4000., 5000.])
         level = VectorDimension(value=[10, 20, 30, 40])
@@ -759,6 +764,19 @@ class TestRegrid(TestSimpleBase):
         ofield = get_ocgis_field_from_esmpy_field(efield)
         for attr in ['realization', 'temporal', 'level']:
             self.assertIsNone(getattr(ofield, attr))
+
+    @attr('esmpy7')
+    def test_get_ocgis_field_from_esmpy_with_mesh(self):
+        """Test creating an OCGIS field from ESMF field built on a mesh."""
+
+        emesh = self.get_esmf_mesh()
+        efield = ESMF.Field(emesh, meshloc=ESMF.MeshLoc.ELEMENT, name='tas')
+        efield[:] = [15, 16]
+
+        ofield = get_ocgis_field_from_esmpy_field(efield)
+        value_var = ofield.variables['tas'].value.flatten()
+        self.assertNumpyAll(value_var, efield)
+        self.assertEqual(ofield.spatial.geom.polygon.shape, (2, 1))
 
     def test_get_esmf_grid_from_sdim_with_corners(self):
         """Test with the with_corners option set to False."""

@@ -116,8 +116,6 @@ def get_sdim_from_esmf_mesh(emesh, crs=None):
 
 
 def get_ocgis_field_from_esmpy_field(efield, crs=None, dimensions=None):
-    #todo: doc dimensions
-    #todo: doc behavior for singleton dimension
     """
     :param efield: The ESMPy field object to convert to an OCGIS field.
     :type efield: :class:`ESMF.api.field.Field`
@@ -126,7 +124,20 @@ def get_ocgis_field_from_esmpy_field(efield, crs=None, dimensions=None):
     :returns: An OCGIS field object.
     :rtype: :class:`~ocgis.Field`
     """
+    # todo: doc dimensions
+    # todo: doc behavior for singleton dimension
 
+    if isinstance(efield.grid, ESMF.Mesh):
+        # This is hard-coded as mesh stagger locations are a special case of one-based indexing.
+        assert efield.staggerloc == 1
+
+    # This ensures compatibility with the 5-d internal data representation of OCGIS.
+    efield_grid = efield.grid
+    efield_name = efield.name
+    if len(efield.shape) == 1:
+        efield = efield.reshape(1, 1, 1, efield.shape[0], 1)
+    else:
+        efield = efield
     assert len(efield.shape) == 5
 
     dimensions = dimensions or {}
@@ -153,13 +164,20 @@ def get_ocgis_field_from_esmpy_field(efield, crs=None, dimensions=None):
         level = dimensions['level']
     except KeyError:
         if efield.shape[2] > 1:
-            level_values = np.arange(1, efield.shape[2]+1)
+            level_values = np.arange(1, efield.shape[2] + 1)
             level = VectorDimension(value=level_values)
         else:
             level = None
 
-    variable = Variable(name=efield.name, value=efield)
-    sdim = get_sdim_from_esmf_grid(efield.grid, crs=crs)
+    variable = Variable(name=efield_name, value=efield)
+
+    if isinstance(efield_grid, ESMF.Grid):
+        sdim = get_sdim_from_esmf_grid(efield_grid, crs=crs)
+    elif isinstance(efield_grid, ESMF.Mesh):
+        sdim = get_sdim_from_esmf_mesh(efield_grid, crs=crs)
+    else:
+        raise NotImplementedError(efield_grid)
+
     field = Field(variables=variable, realization=realization, temporal=temporal, level=level, spatial=sdim)
 
     return field
