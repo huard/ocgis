@@ -318,3 +318,4 @@ class Test20150608(TestBase):
             var = ds.variables['tas']
             mu2 = var[:].mean()
         self.assertEqual(mu1, mu2)
+
