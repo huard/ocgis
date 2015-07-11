@@ -15,7 +15,7 @@ from ocgis.util.inspect import Inspect
 from ocgis.util.shp_cabinet import ShpCabinet, ShpCabinetIterator
 from ocgis.util.zipper import format_return
 from ocgis.interface.base.dimension.temporal import TemporalDimension
-from ocgis.interface.base.variable import Variable
+from ocgis.interface.base.variable import Variable, VariableCollection
 from ocgis.interface.base.dimension.base import VectorDimension
 
 

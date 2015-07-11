@@ -50,6 +50,37 @@ def get_ugridnc_and_subsetnc():
 
     return ugridnc, subset_nc, srcfield
 
+
+def write_regridded_data_to_shapefile(dstfield):
+    """
+    :param dstfield: The ESMF field object containing a mesh to write to shapefile.
+    :type dstfield: :class:`ESMF.api.field.Field`
+    :returns: Path to the output shapefile.
+    :rtype: str
+    """
+    # turn the shapefile into an OCGIS field and get the spatial information
+    ofield = ocgis.RequestDataset(PATH_SHP).get()
+    # get the time dimension from the original netCDF file
+    otime = ocgis.RequestDataset(PATH_PR).get().temporal
+    # create an OCGIS variable from the regridded data values
+    pr = ocgis.Variable(name='pr', value=np.array(dstfield.reshape(1, otime.shape[0], 1, 1, ofield.shape[-1])))
+    # this holds our variables
+    vc = ocgis.VariableCollection([pr])
+    # we want to maintain the original shapefile data, but it needs to reshaped to account for the new time dimension.
+    for var in ofield.variables.itervalues():
+        newvalue = np.zeros(pr.shape, dtype=var.dtype)
+        newvalue[:] = var.value
+        newvar = ocgis.Variable(name=var.name, value=newvalue)
+        vc[newvar.name] = newvar
+    # combine the spatial data with time and the regridded values
+    ofield2 = ocgis.Field(temporal=otime, spatial=ofield.spatial, variables=vc)
+    # write this to shapefile
+    path_out_shp = ocgis.OcgOperations(dataset=ofield2, output_format='shp', prefix='pr_catchments',
+                                       add_auxiliary_files=False).execute()
+
+    return path_out_shp
+
+
 # create a manager object with multiprocessor logging in debug mode
 # ESMF.Manager(logkind=ESMF.LogKind.MULTI, debug=True)
 
@@ -68,14 +99,5 @@ regrid = ESMF.Regrid(srcfield, dstfield, regrid_method=ESMF.RegridMethod.CONSERV
 # do the regridding from source to destination field
 dstfield = regrid(srcfield, dstfield)
 
-# turn the shapefile into an OCGIS field
-ofield = ocgis.RequestDataset(PATH_SHP).get()
-# get the time dimension from the original netCDF file
-otime = ocgis.RequestDataset(PATH_PR).get().temporal
-# create an OCGIS variable from the regridded data values
-variable = ocgis.Variable(name='pr', value=np.array(dstfield.reshape(1, otime.shape[0], 1, 1, ofield.shape[-1])))
-# combine the spatial data with time and the regridded values
-ofield2 = ocgis.Field(temporal=otime, spatial=ofield.spatial, variables=variable)
-# write this to shapefile
-path_out_shp = ocgis.OcgOperations(dataset=ofield2, output_format='shp', prefix='pr_catchments',
-                                   add_auxiliary_files=False).execute()
+# write the regridded data to shapefile
+path_out_shp = write_regridded_data_to_shapefile(dstfield)
