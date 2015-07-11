@@ -93,8 +93,11 @@ def get_sdim_from_esmf_mesh(emesh, crs=None):
     # tdk: update docstring
 
     nodeCoord = emesh._connectivity
-    elemType = emesh._num_nodes_per_elem
+    elemType = emesh._nodes_per_elem
     parametric_dim = emesh.parametric_dim
+
+    # Remove the trailing zeroes.
+    elemType = elemType[elemType != 0]
 
     polygons = np.zeros((elemType.shape[0], 1), dtype=object)
     idx_curr_elemConn = 0

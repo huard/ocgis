@@ -6,7 +6,6 @@ import ESMF
 import fiona
 from shapely import wkt
 from shapely.geometry import Polygon
-
 from shapely.geometry import Point
 
 from shapely.geometry.multipoint import MultiPoint
@@ -237,7 +236,8 @@ class Test20150709(TestBase):
         """
         Test a UGRID file written by OCGIS may be read by ESMF.
         """
-        ESMF.Manager(debug=True)
+        # tdk: test needs to be finished
+        # ESMF.Manager(debug=True)
 
         # # Write polygons to UGRID file.
         # ccw_wkt = [
@@ -257,16 +257,13 @@ class Test20150709(TestBase):
 
         # Read the UGRID file into an ESMF mesh.
         mesh = ESMF.Mesh(filename=ugrid_path, filetype=ESMF.FileFormat.UGRID, meshname="Mesh2")
-        import ipdb;
-
-        ipdb.set_trace()
         efield = ESMF.Field(mesh, meshloc=ESMF.MeshLoc.ELEMENT, name='tas')
-        efield[:] = [15, 16]
+        efield[:] = [15, 16, 17]
 
         # tdk: add method to specify the coordinate system of the ESMF field
         ops = OcgOperations(dataset=efield, output_format=constants.OUTPUT_FORMAT_SHAPEFILE)
         ofield = ops.dataset.first()
-        shape = (1, 1, 1, 2, 1)
+        shape = (1, 1, 1, 3, 1)
         self.assertEqual(ofield.shape, shape)
         self.assertEqual(ofield.variables['tas'].value.shape, shape)
         path_shp = ops.execute()
@@ -274,12 +271,8 @@ class Test20150709(TestBase):
         with fiona.open(path_shp) as source:
             records = list(source)
         values = np.array([r['properties']['TAS'] for r in records])
-        self.assertNumpyAll(values, np.array([15., 16.]))
-        self.assertEqual(len(records), 2)
-
-        import ipdb;
-
-        ipdb.set_trace()
+        self.assertNumpyAll(values, np.array([15., 16., 17.]))
+        self.assertEqual(len(records), 3)
 
     def test_ocgis_field_to_esmpy_mesh(self):
         """Test creating an ESMF mesh from an OCGIS field."""
