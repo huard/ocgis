@@ -101,4 +101,5 @@ dstfield = regrid(srcfield, dstfield)
 
 # write the regridded data to shapefile
 path_out_shp = write_regridded_data_to_shapefile(dstfield)
-print path_out_shp
+
+print "The output shapefile path is: {0}".format(path_out_shp)
