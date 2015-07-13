@@ -6,11 +6,12 @@ contact: esmf_support@list.woc.noaa.gov
 
 import os
 import tempfile
-
-import ESMF
 import numpy as np
 
+import ESMF
+
 import ocgis
+
 
 
 # path to a small catchments shapefile
@@ -38,13 +39,12 @@ def get_ugridnc_and_subsetnc():
     ugridnc = ocgis.OcgOperations(dataset={'uri': PATH_SHP}, output_format='nc-ugrid-2d-flexible-mesh',
                                   add_auxiliary_files=False).execute()
 
-    # select_ugid = [xx['properties']['UGID'] for xx in ShpCabinetIterator(path=path_ugid_shp)]
     rd = ocgis.RequestDataset(uri=PATH_PR)
     ops = ocgis.OcgOperations(dataset=rd, geom=PATH_SHP, agg_selection=True, prefix='subset_nc', output_format='nc',
                               add_auxiliary_files=False)
     subset_nc = ops.execute()
 
-    # convert the subsetted NetCDF file to and ESMPy field object
+    # convert the subsetted NetCDF file to an ESMPy field object
     ops = ocgis.OcgOperations(dataset={'uri': subset_nc}, output_format='esmpy')
     srcfield = ops.execute()
 
@@ -101,3 +101,4 @@ dstfield = regrid(srcfield, dstfield)
 
 # write the regridded data to shapefile
 path_out_shp = write_regridded_data_to_shapefile(dstfield)
+print path_out_shp

@@ -1,9 +1,9 @@
-from setuptools import setup, Command, find_packages
 import sys
 from subprocess import check_call
 import os
 import tempfile
 
+from setuptools import setup, Command, find_packages
 
 VERSION = '1.1.0n'
 
@@ -166,5 +166,5 @@ setup(
     cmdclass={'uninstall': UninstallCommand,
               'install_dependencies_ubuntu': InstallDependenciesUbuntu,
               'test': SimpleTestCommand},
-    install_requires=['numpy', 'netCDF4', 'fiona', 'shapely'],
+    install_requires=['numpy', 'netCDF4<=1.1.7', 'fiona', 'shapely'],
 )
