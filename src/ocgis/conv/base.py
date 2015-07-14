@@ -4,7 +4,6 @@ import csv
 import logging
 
 from shapely.geometry.multipolygon import MultiPolygon
-
 from shapely.geometry.polygon import Polygon
 import fiona
 
@@ -379,7 +378,11 @@ def get_converter_map():
     from ocgis.conv.numpy_ import NumpyConverter
     from ocgis.conv.nc import NcConverter, NcUgrid2DFlexibleMeshConverter
     from ocgis.conv.meta import MetaOCGISConverter, MetaJSONConverter
-    from ocgis.conv.esmpy import ESMPyConverter
+
+    try:
+        from ocgis.conv.esmpy import ESMPyConverter
+    except ImportError:
+        pass
 
     mmap = {constants.OUTPUT_FORMAT_SHAPEFILE: ShpConverter,
             constants.OUTPUT_FORMAT_CSV: CsvConverter,
