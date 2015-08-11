@@ -604,7 +604,7 @@ class TestOcgOperations(TestBase):
         self.assertTrue(ops.snippet)
 
         # test driver validation is called appropriately
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(path)
         with self.assertRaises(DefinitionValidationError):
             OcgOperations(dataset=rd, output_format='csv')

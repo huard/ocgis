@@ -31,7 +31,7 @@ class TestDriverNetcdf(TestBase):
         geoms = []
         build = True
         sc = GeomCabinet()
-        path = sc.get_shp_path('state_boundaries')
+        path = sc.get_path('state_boundaries')
         with fiona.open(path, 'r') as source:
             for ii, row in enumerate(source):
                 if build:

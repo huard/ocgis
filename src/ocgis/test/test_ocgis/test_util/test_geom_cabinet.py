@@ -99,7 +99,7 @@ class TestGeomCabinetIterator(TestBase):
             self.assertNotIn('geom', geom)
 
     def test_len(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         sci = GeomCabinetIterator(path=path)
         self.assertEqual(len(sci), 51)
         sci = GeomCabinetIterator(path=path, select_uid=[16, 19])
@@ -110,7 +110,7 @@ class TestGeomCabinetIterator(TestBase):
 
     def test_iteration_by_path(self):
         # test that a shapefile may be retrieved by passing a full path to the file
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         ocgis.env.DIR_GEOMCABINET = None
         sci = GeomCabinetIterator(path=path)
         self.assertEqual(len(list(sci)), 51)
@@ -174,7 +174,7 @@ class TestGeomCabinet(TestBase):
                 ds.Destroy()
 
         # test on a shapefile having the default unique geometry identifier
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         ds = ogr.Open(path)
         try:
             obj = GeomCabinet._get_features_object_(ds, select_uid=[8, 11, 13])
@@ -183,7 +183,7 @@ class TestGeomCabinet(TestBase):
             ds.Destroy()
 
     def test_get_features_object_select_sql_where(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
 
         def _run_(s, func):
             try:
@@ -233,7 +233,7 @@ class TestGeomCabinet(TestBase):
         """Test number in shapefile name."""
 
         sc = GeomCabinet()
-        path = sc.get_shp_path('state_boundaries')
+        path = sc.get_path('state_boundaries')
         out_path = os.path.join(self.current_dir_output, '51_states.shp')
         with fiona.open(path) as source:
             with fiona.open(out_path, mode='w', driver='ESRI Shapefile', schema=source.meta['schema'],
@@ -307,7 +307,7 @@ class TestGeomCabinet(TestBase):
 
     def test_sql_subset(self):
         sc = GeomCabinet()
-        path = sc.get_shp_path('state_boundaries')
+        path = sc.get_path('state_boundaries')
         ds = ogr.Open(path)
         ret = ds.ExecuteSQL('select * from state_boundaries where state_name = "New Jersey"')
         ret.ResetReading()
@@ -330,5 +330,5 @@ class TestGeomCabinet(TestBase):
         self.test_get_keys(dir_shpcabinet=self.current_dir_output)
 
         sc = GeomCabinet(path=self.current_dir_output)
-        path = sc.get_shp_path('world_countries')
+        path = sc.get_path('world_countries')
         self.assertEqual(path, os.path.join(self.current_dir_output, 'world_countries.shp'))

@@ -13,7 +13,7 @@ class TestDriverVector(TestBase):
         return driver
 
     def get_rd(self, variable=None):
-        uri = GeomCabinet().get_shp_path('state_boundaries')
+        uri = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri=uri, driver='vector', variable=variable)
         return rd
 

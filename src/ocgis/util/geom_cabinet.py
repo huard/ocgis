@@ -54,11 +54,11 @@ class GeomCabinet(object):
         return ret
 
     def get_meta(self, key=None, path=None):
-        path = path or self.get_shp_path(key)
+        path = path or self.get_path(key)
         with fiona.open(path, 'r') as source:
             return source.meta
 
-    def get_shp_path(self, key):
+    def get_path(self, key):
         return self._get_path_(key, ext='shp')
 
     def get_cfg_path(self, key):
@@ -148,7 +148,7 @@ class GeomCabinet(object):
                 raise ValueError('If no key is passed, then a path must be provided.')
             shp_path = path
         else:
-            shp_path = self.get_shp_path(key)
+            shp_path = self.get_path(key)
         # make sure requested geometry exists
         if not os.path.exists(shp_path):
             msg = 'Requested geometry with path "{0}" does not exist in the file system.'.format(shp_path)

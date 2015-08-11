@@ -72,7 +72,7 @@ class TestNcConverter(AbstractTestConverter):
             self.assertEqual(file_format, ds.file_format)
 
         # use a shapefile as the input format
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri=path)
         of = constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH
         ops = OcgOperations(dataset=rd, output_format=of)
@@ -159,7 +159,7 @@ class TestNcUgrid2DFlexibleMeshConverter(AbstractTestConverter):
     def test_write_archetype_from_shapefile(self):
         """Test writing from a shapefile."""
 
-        uri = GeomCabinet().get_shp_path('state_boundaries')
+        uri = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri)
         field = rd.get()
         sub = field[0, 0, 0, 0, [15, 33]]

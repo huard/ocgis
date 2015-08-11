@@ -708,7 +708,7 @@ class TestGeom(TestBase):
 
     def test_using_shp_path(self):
         # pass a path to a shapefile as opposed to a key
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         ocgis.env.set_geomcabinet_path(None)
         # make sure there is path associated with the GeomCabinet
         with self.assertRaises(ValueError):

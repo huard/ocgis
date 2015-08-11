@@ -185,7 +185,7 @@ class TestRequestDataset(TestBase):
                 raise
 
     def test_init_driver(self):
-        uri = GeomCabinet().get_shp_path('state_boundaries')
+        uri = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri=uri, driver='vector')
         self.assertIsNotNone(rd.variable)
         self.assertIsInstance(rd.get(), Field)
@@ -387,7 +387,7 @@ class TestRequestDataset(TestBase):
             rd.inspect()
         self.assertTrue(len(ps.storage) >= 1)
 
-        uri = GeomCabinet().get_shp_path('state_boundaries')
+        uri = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri=uri, driver='vector')
         with self.print_scope() as ps:
             rd.inspect()
@@ -450,7 +450,7 @@ class TestRequestDataset(TestBase):
             rd.get()
 
     def test_name(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(uri=path, driver='vector')
         self.assertIsNotNone(rd.name)
 

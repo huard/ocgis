@@ -415,7 +415,7 @@ class TestBase(unittest.TestCase):
         :rtype: str
         """
 
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         new = self.get_temporary_file_path('state_boundaries_without_ugid.shp')
         with fiona.open(path) as source:
             meta = source.meta.copy()

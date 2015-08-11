@@ -1,12 +1,15 @@
 from csv import DictReader
 import os
 
+import numpy as np
 import fiona
+from shapely import wkt
 from shapely.geometry import Point
 from shapely.geometry.multipoint import MultiPoint
 
-from ocgis import constants
+from ocgis import constants, SpatialGeometryDimension, SpatialDimension, Field, Variable
 from ocgis import GeomCabinet, RequestDataset, OcgOperations, env
+from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension
 from ocgis.test.base import TestBase
 
 """
@@ -18,7 +21,7 @@ package hierarchy. Hence, these tests in theory may be removed...
 
 class Test20150119(TestBase):
     def test_shapefile_through_operations_subset(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(path)
         field = rd.get()
         self.assertIsNone(field.spatial.properties)
@@ -30,7 +33,7 @@ class Test20150119(TestBase):
         self.assertEqual(tuple([1] * 5), field2.shape)
 
     def test_shapefile_through_operations(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(path)
         field = rd.get()
         self.assertIsNone(field.spatial.properties)
@@ -125,3 +128,27 @@ class Test20150608(TestBase):
             var = ds.variables['tas']
             mu2 = var[:].mean()
         self.assertEqual(mu1, mu2)
+
+
+class Test20150811(TestBase):
+    def test_write_field_with_ugrid_to_cf_convention(self):
+        # tdk: comment
+        # tdk: add appropriate convention attribute
+
+        ugrid_polygons = [
+            'POLYGON((-1.5019011406844105 0.18377693282636276,-1.25475285171102646 0.02534854245880869,-1.35614702154626099 -0.28517110266159684,-1.68567807351077303 -0.50697084917617241,-1.99619771863117879 -0.41191381495564006,-2.08491761723700897 -0.24714828897338403,-1.9264892268694549 -0.03802281368821281,-1.88212927756653992 0.13307984790874539,-1.5019011406844105 0.18377693282636276))',
+            'POLYGON((-2.25602027883396694 0.63371356147021585,-1.76172370088719887 0.51330798479087481,-1.88212927756653992 0.13307984790874539,-1.9264892268694549 -0.03802281368821281,-2.30671736375158432 0.01901140684410674,-2.51584283903675532 0.27249683143219272,-2.52217997465145771 0.48795944233206612,-2.25602027883396694 0.63371356147021585))',
+            'POLYGON((-1.55893536121673004 0.86818757921419554,-1.03929024081115307 0.65906210392902409,-1.07097591888466415 0.46261089987325743,-1.5019011406844105 0.18377693282636276,-1.88212927756653992 0.13307984790874539,-1.76172370088719887 0.51330798479087481,-1.55893536121673004 0.86818757921419554))',
+            'POLYGON((-2.13561470215462634 0.87452471482889749,-1.83143219264892276 0.98225602027883419,-1.83143219264892276 0.98225602027883419,-1.55893536121673004 0.86818757921419554,-1.58428390367553851 0.66539923954372648,-1.76172370088719887 0.51330798479087481,-2.12294043092522156 0.44993662864385309,-2.25602027883396694 0.63371356147021585,-2.13561470215462634 0.87452471482889749))'
+        ]
+
+        polygons = np.array([wkt.loads(xx) for xx in ugrid_polygons]).reshape(-1, 1)
+
+        poly = SpatialGeometryPolygonDimension(value=polygons)
+        geom = SpatialGeometryDimension(polygon=poly)
+        sdim = SpatialDimension(geom=geom)
+        field = Field(spatial=sdim)
+        var = Variable(name='tas', value=np.random.rand(*field.shape))
+        field.variables.add_variable(var)
+        out_path = self.get_temporary_file_path('out.nc')
+        print field.shape

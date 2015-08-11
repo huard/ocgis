@@ -163,7 +163,7 @@ class TestSingleElementRetriever(AbstractTestSpatialDimension):
 class TestSpatialDimension(AbstractTestSpatialDimension):
     def get_records(self):
         sc = GeomCabinet()
-        path = sc.get_shp_path('state_boundaries')
+        path = sc.get_path('state_boundaries')
         with fiona.open(path, 'r') as source:
             records = list(source)
             meta = source.meta
@@ -608,7 +608,7 @@ class TestSpatialDimension(AbstractTestSpatialDimension):
 
         poly = strings.S2
         poly = wkt.loads(poly)
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         field = RequestDataset(path).get()
         sdim = field.spatial
         """:type sdim: :class:`ocgis.SpatialDimension`"""
@@ -968,7 +968,7 @@ class TestSpatialDimension(AbstractTestSpatialDimension):
     def test_geoms_only(self):
         geoms = []
         sc = GeomCabinet()
-        path = sc.get_shp_path('state_boundaries')
+        path = sc.get_path('state_boundaries')
         with fiona.open(path, 'r') as source:
             for row in source:
                 geoms.append(shape(row['geometry']))

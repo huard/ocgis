@@ -411,7 +411,7 @@ class TestField(AbstractTestField):
 
     def test_get_intersects(self):
         # test with vector geometries
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(path)
         field = rd.get()
         polygon = wkb.loads(
@@ -660,7 +660,7 @@ class TestField(AbstractTestField):
             field.write_fiona(path, fobject=Nothing())
 
         # test all geometries are accounted for as well as properties
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = GeomCabinet().get_path('state_boundaries')
         rd = RequestDataset(path)
         field = rd.get()
         out = self.get_temporary_file_path('foo.shp')

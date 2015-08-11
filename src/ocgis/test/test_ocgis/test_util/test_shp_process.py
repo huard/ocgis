@@ -14,7 +14,7 @@ class TestShpProcess(TestBase):
     def test_shp_process(self):
         copy_path = os.path.join(self.current_dir_output, 'test_shp_process')
         sc = GeomCabinet()
-        test_path = os.path.split(sc.get_shp_path('wc_4326'))[0]
+        test_path = os.path.split(sc.get_path('wc_4326'))[0]
         shutil.copytree(test_path, copy_path)
 
         shp_path = os.path.join(copy_path, 'wc_4326.shp')
@@ -32,7 +32,7 @@ class TestShpProcess(TestBase):
     def test_process_name(self):
         copy_path = os.path.join(self.current_dir_output, 'test_shp_process')
         sc = GeomCabinet()
-        test_path = os.path.split(sc.get_shp_path('wc_4326'))[0]
+        test_path = os.path.split(sc.get_path('wc_4326'))[0]
         shutil.copytree(test_path, copy_path)
 
         shp_path = os.path.join(copy_path, 'wc_4326.shp')
