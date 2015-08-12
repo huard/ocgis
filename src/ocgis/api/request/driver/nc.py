@@ -22,8 +22,8 @@ from ocgis.util.logging_ocgis import ocgis_lh
 
 
 class DriverNetcdf(AbstractDriver):
-    extensions = ('.*\.nc', 'http.*')
-    key = 'netCDF'
+    extensions = ('.*\.nc', 'http.*', '.*\.nc4')
+    key = 'netcdf-cf'
     output_formats = 'all'
 
     def __init__(self, *args, **kwargs):

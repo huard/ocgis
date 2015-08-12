@@ -1,13 +1,15 @@
 from csv import DictReader
 import os
+import datetime
 
 import numpy as np
 import fiona
 from shapely import wkt
 from shapely.geometry import Point
+
 from shapely.geometry.multipoint import MultiPoint
 
-from ocgis import constants, SpatialGeometryDimension, SpatialDimension, Field, Variable
+from ocgis import constants, SpatialGeometryDimension, SpatialDimension, Field, Variable, TemporalDimension
 from ocgis import GeomCabinet, RequestDataset, OcgOperations, env
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension
 from ocgis.test.base import TestBase
@@ -133,7 +135,11 @@ class Test20150608(TestBase):
 class Test20150811(TestBase):
     def test_write_field_with_ugrid_to_cf_convention(self):
         # tdk: comment
-        # tdk: add appropriate convention attribute
+        # tdk: add appropriate convention attribute to output cf-ugrid file
+        # tdk: change converter?
+        # tdk: we should be able to read this file as well
+        # tdk: deal with multipolygons
+        # tdk: move to tests
 
         ugrid_polygons = [
             'POLYGON((-1.5019011406844105 0.18377693282636276,-1.25475285171102646 0.02534854245880869,-1.35614702154626099 -0.28517110266159684,-1.68567807351077303 -0.50697084917617241,-1.99619771863117879 -0.41191381495564006,-2.08491761723700897 -0.24714828897338403,-1.9264892268694549 -0.03802281368821281,-1.88212927756653992 0.13307984790874539,-1.5019011406844105 0.18377693282636276))',
@@ -147,8 +153,19 @@ class Test20150811(TestBase):
         poly = SpatialGeometryPolygonDimension(value=polygons)
         geom = SpatialGeometryDimension(polygon=poly)
         sdim = SpatialDimension(geom=geom)
-        field = Field(spatial=sdim)
+        temporal = TemporalDimension(value=self.get_time_series(datetime.datetime(2000, 1, 1),
+                                                                datetime.datetime(2000, 3, 1)))
+        field = Field(spatial=sdim, temporal=temporal)
+
         var = Variable(name='tas', value=np.random.rand(*field.shape))
         field.variables.add_variable(var)
+        var = Variable(name='rhs', value=np.random.rand(*field.shape))
+        field.variables.add_variable(var)
+
         out_path = self.get_temporary_file_path('out.nc')
-        print field.shape
+        with self.nc_scope(out_path, 'w') as ds:
+            field.write_netcdf(ds, convention='cf-ugrid')
+        rd = RequestDataset(out_path)
+        rd.inspect()
+        print rd.driver
+        print rd.variable

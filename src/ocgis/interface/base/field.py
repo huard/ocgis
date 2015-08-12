@@ -504,7 +504,7 @@ class Field(Attributes):
             if should_close and fobject is not None:
                 fobject.close()
 
-    def write_netcdf(self, dataset, file_only=False, **kwargs):
+    def write_netcdf(self, dataset, file_only=False, convention='cf', **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
@@ -516,7 +516,7 @@ class Field(Attributes):
          http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         :raises: ValueError
         """
-
+        # tdk: doc "convention"
         if self.realization is not None:
             msg = 'Fields with a realization dimension may not be written to netCDF.'
             raise ValueError(msg)
@@ -536,37 +536,42 @@ class Field(Attributes):
                 target.axis = previous_axis
 
         value_dimensions = []
-        try:
+        if self.temporal is not None:
             with name_scope(self.temporal, 'time', 'T'):
                 self.temporal.write_netcdf(dataset, **kwargs)
                 value_dimensions.append(self.temporal.name)
-        except AttributeError:
-            if self.temporal is not None:
-                raise
 
-        try:
+        if self.level is not None:
             with name_scope(self.level, 'level', 'Z'):
                 self.level.write_netcdf(dataset, **kwargs)
                 if self.level is not None:
                     value_dimensions.append(self.level.name)
-        except AttributeError:
-            if self.level is not None:
-                raise
 
-        try:
-            with name_scope(self.spatial.grid.row, 'yc', 'Y'):
-                with name_scope(self.spatial.grid.col, 'xc', 'X'):
+        if convention == 'cf':
+            try:
+                with name_scope(self.spatial.grid.row, 'yc', 'Y'):
+                    with name_scope(self.spatial.grid.col, 'xc', 'X'):
+                        self.spatial.grid.write_netcdf(dataset, **kwargs)
+                        value_dimensions.append(self.spatial.grid.row.name)
+                        value_dimensions.append(self.spatial.grid.col.name)
+            except AttributeError:
+                # write the grid.value directly
+                if self.spatial.grid.row is None or self.spatial.grid.col is None:
                     self.spatial.grid.write_netcdf(dataset, **kwargs)
-                    value_dimensions.append(self.spatial.grid.row.name)
-                    value_dimensions.append(self.spatial.grid.col.name)
-        except AttributeError:
-            # write the grid.value directly
-            if self.spatial.grid.row is None or self.spatial.grid.col is None:
-                self.spatial.grid.write_netcdf(dataset, **kwargs)
-                value_dimensions.append(self.spatial.grid.name_row)
-                value_dimensions.append(self.spatial.grid.name_col)
-            else:
-                raise
+                    value_dimensions.append(self.spatial.grid.name_row)
+                    value_dimensions.append(self.spatial.grid.name_col)
+                else:
+                    raise
+        elif convention == 'cf-ugrid':
+            # tdk: test
+            self.spatial.geom.polygon.write_to_netcdf_dataset_ugrid(dataset)
+            # tdk: this dimension name should not be hard-coded
+            value_dimensions.append('nMesh2_face')
+            # tdk: conventions should not be hard-coded
+            self.attrs['Conventions'] = 'CF-1.6, UGRID-0.9'
+            # tdk: /test
+        else:
+            raise NotImplementedError(convention)
 
         try:
             variable_crs = self.spatial.crs.write_to_rootgrp(dataset)
