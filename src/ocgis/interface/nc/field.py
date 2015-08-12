@@ -8,8 +8,8 @@ from ocgis.interface.base.field import Field
 class NcField(Field):
     def _get_value_from_source_(self, data, variable_name):
         """
-        :param data: The netCDF driver object.
-        :type data: :class:`ocgis.api.request.driver.nc.DriverNetcdf`
+        :param data: The netCDF request dataset object.
+        :type data: :class:`ocgis.RequestDataset`
         :param variable_name: Name of the target variable to load.
         :type variable_name: str
         :returns: A NumPy masked array object.
