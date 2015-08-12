@@ -47,7 +47,7 @@ class NcField(Field):
         try:
             try:
                 raw = ds.variables[variable_name].__getitem__(slc)
-            # If the slc list are all single element numpy vectors, convert to slice objects to avoid index errors.
+            # If the slice list are all single element numpy vectors, convert to slice objects to avoid index errors.
             except IndexError:
                 if all([len(a) == 1 for a in slc]):
                     slc2 = [slice(a[0], a[0] + 1) for a in slc]
