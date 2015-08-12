@@ -4,6 +4,7 @@ import datetime
 
 import numpy as np
 import fiona
+
 from shapely import wkt
 
 from shapely.geometry import Point
@@ -167,7 +168,7 @@ class Test20150811(TestBase):
         out_path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(out_path, 'w') as ds:
             field.write_netcdf(ds, convention='cf-ugrid')
-        rd = RequestDataset(out_path)
+        rd = RequestDataset(out_path, driver='netcdf-cf-ugrid', variable=['tas', 'rhs'])
         rd.inspect()
         print rd.driver
         print rd.variable

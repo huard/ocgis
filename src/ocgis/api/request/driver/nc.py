@@ -158,6 +158,37 @@ class DriverNetcdf(AbstractDriver):
         _jsonformat_(meta)
         return json.dumps(meta)
 
+    def _get_spatial_dimension_(self, source_metadata):
+        # tdk: doc
+        # tdk: order
+        to_load = {'row': {'cls': NcVectorDimension, 'adds': None, 'axis': 'Y', 'name_uid': 'yc_id', 'name': 'yc'},
+                   'col': {'cls': NcVectorDimension, 'adds': None, 'axis': 'X', 'name_uid': 'xc_id', 'name': 'xc'}}
+        kwds_grid = {}
+        loaded = {}
+        has_row_column = True
+        for k, v in to_load.iteritems():
+            fill = self._get_vector_dimension_(k, v, source_metadata)
+            # If spatial data is stored as two-dimensional variables (i.e. no row and column vectors), then the method
+            # for creating the spatial dimension changes.
+            if not isinstance(fill, NcVectorDimension) and fill is not None:
+                has_row_column = False
+                kwds_grid[k] = fill
+            loaded[k] = fill
+
+        if has_row_column:
+            kwds_grid = {'row': loaded['row'], 'col': loaded['col']}
+        else:
+            shape_src_idx = [source_metadata['dimensions'][xx]['len'] for xx in kwds_grid['row']['dimensions']]
+            src_idx = {'row': np.arange(0, shape_src_idx[0], dtype=np.int32),
+                       'col': np.arange(0, shape_src_idx[1], dtype=np.int32)}
+            name_row = kwds_grid['row']['name']
+            name_col = kwds_grid['col']['name']
+            kwds_grid = {'name_row': name_row, 'name_col': name_col, 'data': self.rd, 'src_idx': src_idx}
+
+        grid = NcSpatialGridDimension(**kwds_grid)
+        spatial = SpatialDimension(name_uid='gid', grid=grid, crs=self.rd.crs, abstraction=self.rd.s_abstraction)
+        return spatial
+
     def _get_field_(self, format_time=True):
         """
         :param bool format_time:
@@ -174,43 +205,21 @@ class DriverNetcdf(AbstractDriver):
             return {'units': self.rd.t_units or ref_attrs['units'], 'calendar': calendar, 'format_time': format_time,
                     'conform_units_to': self.rd.t_conform_units_to}
 
-        # parameters for the loading loop
+        # Configuration dictionary for dimension loading.
         to_load = {'temporal': {'cls': NcTemporalDimension, 'adds': _get_temporal_adds_, 'axis': 'T', 'name_uid': 'tid',
                                 'name': 'time'},
                    'level': {'cls': NcVectorDimension, 'adds': None, 'axis': 'Z', 'name_uid': 'lid', 'name': 'level'},
-                   'row': {'cls': NcVectorDimension, 'adds': None, 'axis': 'Y', 'name_uid': 'yc_id', 'name': 'yc'},
-                   'col': {'cls': NcVectorDimension, 'adds': None, 'axis': 'X', 'name_uid': 'xc_id', 'name': 'xc'},
                    'realization': {'cls': NcVectorDimension, 'adds': None, 'axis': 'R', 'name_uid': 'rlz_id',
                                    'name_value': 'rlz'}}
 
+        # Load non-spatial dimensions.
         loaded = {}
-        kwds_grid = {}
-        has_row_column = True
         for k, v in to_load.iteritems():
             fill = self._get_vector_dimension_(k, v, source_metadata)
-            # If spatial data is stored as two-dimensional variables (i.e. no row and column vectors), then the method
-            # for creating the spatial dimension changes.
-            if k != 'realization' and not isinstance(fill, NcVectorDimension) and fill is not None:
-                assert k in ('row', 'col')
-                has_row_column = False
-                kwds_grid[k] = fill
             loaded[k] = fill
 
-        loaded_keys = set([k for k, v in loaded.iteritems() if v is not None])
-        if has_row_column:
-            if not {'temporal', 'row', 'col'}.issubset(loaded_keys):
-                raise ValueError('Target variable must at least have temporal, row, and column dimensions.')
-            kwds_grid = {'row': loaded['row'], 'col': loaded['col']}
-        else:
-            shape_src_idx = [source_metadata['dimensions'][xx]['len'] for xx in kwds_grid['row']['dimensions']]
-            src_idx = {'row': np.arange(0, shape_src_idx[0], dtype=np.int32),
-                       'col': np.arange(0, shape_src_idx[1], dtype=np.int32)}
-            name_row = kwds_grid['row']['name']
-            name_col = kwds_grid['col']['name']
-            kwds_grid = {'name_row': name_row, 'name_col': name_col, 'data': self.rd, 'src_idx': src_idx}
-
-        grid = NcSpatialGridDimension(**kwds_grid)
-        spatial = SpatialDimension(name_uid='gid', grid=grid, crs=self.rd.crs, abstraction=self.rd.s_abstraction)
+        # Get the spatial dimension from file.
+        spatial = self._get_spatial_dimension_(source_metadata)
 
         vc = VariableCollection()
         for vdict in self.rd:
@@ -341,6 +350,16 @@ class DriverNetcdf(AbstractDriver):
             fill = v['cls'](**kwds)
 
         return fill
+
+
+class DriverNetcdfUgrid(DriverNetcdf):
+    key = 'netcdf-cf-ugrid'
+    # tdk: limit output formats
+
+    def _get_spatial_dimension_(self, source_metadata):
+        import ipdb;
+
+        ipdb.set_trace()
 
 
 def get_axis(dimvar, dims, dim):

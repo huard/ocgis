@@ -9,7 +9,7 @@ import re
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.interface.base.field import Field
 from ocgis.api.collection import AbstractCollection
-from ocgis.api.request.driver.nc import DriverNetcdf
+from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfUgrid
 from ocgis.exc import RequestValidationError, NoUnitsError, NoDimensionedVariablesFound
 from ocgis.interface.base.crs import CFWGS84
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple
@@ -128,6 +128,7 @@ class RequestDataset(object):
     # contains key-value links to drivers. as new drivers are added, this dictionary must be updated.
     _Drivers = OrderedDict()
     _Drivers[DriverNetcdf.key] = DriverNetcdf
+    _Drivers[DriverNetcdfUgrid.key] = DriverNetcdfUgrid
     _Drivers[DriverVector.key] = DriverVector
 
     def __init__(self, uri=None, variable=None, alias=None, units=None, time_range=None, time_region=None,
