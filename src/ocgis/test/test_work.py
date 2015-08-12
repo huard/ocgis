@@ -169,6 +169,11 @@ class Test20150811(TestBase):
         with self.nc_scope(out_path, 'w') as ds:
             field.write_netcdf(ds, convention='cf-ugrid')
         rd = RequestDataset(out_path, driver='netcdf-cf-ugrid', variable=['tas', 'rhs'])
-        rd.inspect()
-        print rd.driver
-        print rd.variable
+        # rd.inspect()
+        # print rd.driver
+        # print rd.variable
+        ufield = rd.get()
+        print ufield.variables['tas'].value
+        import ipdb;
+
+        ipdb.set_trace()

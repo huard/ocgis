@@ -224,7 +224,7 @@ class SpatialDimension(base.AbstractUidDimension):
         :returns: A spatial dimension object constructed from the records.
         :rtype: :class:`ocgis.interface.base.dimension.SpatialDimension`
         """
-
+        # tdk: test with no properties
         if uid is None:
             uid = env.DEFAULT_GEOM_UID
 
@@ -265,15 +265,18 @@ class SpatialDimension(base.AbstractUidDimension):
                 else:
                     has_uid = False
 
-                for k, v in record['properties'].iteritems():
-                    the_type = type(v)
-                    if the_type == unicode:
-                        the_type = object
-                    if isinstance(v, basestring):
-                        the_type = object
-                    dtype.append((str(k), the_type))
-                properties = np.empty(0, dtype=dtype)
-                property_order = record['properties'].keys()
+                if len(record['properties']) > 0:
+                    for k, v in record['properties'].iteritems():
+                        the_type = type(v)
+                        if the_type == unicode:
+                            the_type = object
+                        if isinstance(v, basestring):
+                            the_type = object
+                        dtype.append((str(k), the_type))
+                    properties = np.empty(0, dtype=dtype)
+                    property_order = record['properties'].keys()
+                else:
+                    properties = None
 
             # the UGID may be present as a property. otherwise the enumeration counter is used for the identifier.
             if has_uid:
@@ -282,10 +285,11 @@ class SpatialDimension(base.AbstractUidDimension):
                 to_append = ctr
             deque_uid.append(to_append)
 
-            # append to the properties array
-            properties_new = np.empty(1, dtype=dtype)
-            properties_new[0] = tuple([record['properties'][key] for key in property_order])
-            properties = np.append(properties, properties_new)
+            if properties is not None:
+                # Append to the properties array.
+                properties_new = np.empty(1, dtype=dtype)
+                properties_new[0] = tuple([record['properties'][key] for key in property_order])
+                properties = np.append(properties, properties_new)
 
         # fill the geometry array. to avoid having the geometry objects turned into coordinates, fill by index...
         geoms = np.empty((1, len(deque_geoms)), dtype=object)

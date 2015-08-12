@@ -19,6 +19,7 @@ from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.temporal import NcTemporalDimension
 from ocgis.util.helpers import itersubclasses, get_iter, get_tuple
 from ocgis.util.logging_ocgis import ocgis_lh
+from ocgis.util.ugrid.convert import mesh2_nc_to_fiona_iter
 
 
 class DriverNetcdf(AbstractDriver):
@@ -108,7 +109,8 @@ class DriverNetcdf(AbstractDriver):
     def get_dump_report(self):
         return self.raw_metadata.get_lines()
 
-    def get_source_metadata(self):
+    def get_source_metadata(self, allow_orphan_dimensions=False):
+        # tdk: doc
         metadata = self.raw_metadata
         try:
             variables = get_tuple(self.rd.variable)
@@ -125,8 +127,10 @@ class DriverNetcdf(AbstractDriver):
                 raise
         else:
             if self.rd.dimension_map is None:
-                metadata['dim_map'] = get_dimension_map(var['name'], metadata)
+                metadata['dim_map'] = get_dimension_map(var['name'], metadata,
+                                                        allow_orphan_dimensions=allow_orphan_dimensions)
             else:
+                # Check the formatting of the supplied dimension map, adding the variable position if necessary.
                 for k, v in self.rd.dimension_map.iteritems():
                     if not isinstance(v, dict):
                         try:
@@ -136,7 +140,7 @@ class DriverNetcdf(AbstractDriver):
                         self.rd.dimension_map[k] = {'variable': variable_name,
                                                     'dimension': v,
                                                     'pos': var['dimensions'].index(v)}
-                    metadata['dim_map'] = self.rd.dimension_map
+                metadata['dim_map'] = self.rd.dimension_map
 
         return metadata
 
@@ -356,10 +360,17 @@ class DriverNetcdfUgrid(DriverNetcdf):
     key = 'netcdf-cf-ugrid'
     # tdk: limit output formats
 
-    def _get_spatial_dimension_(self, source_metadata):
-        import ipdb;
+    def get_source_metadata(self, allow_orphan_dimensions=True):
+        # tdk: doc - note allowing orphan dimensions
+        # tdk: test
+        return super(DriverNetcdfUgrid, self).get_source_metadata(allow_orphan_dimensions=allow_orphan_dimensions)
 
-        ipdb.set_trace()
+    def _get_spatial_dimension_(self, source_metadata):
+        # tdk: doc
+        # tdk: test
+        records = mesh2_nc_to_fiona_iter(self.rd.uri)
+        sdim = SpatialDimension.from_records(records)
+        return sdim
 
 
 def get_axis(dimvar, dims, dim):
@@ -373,14 +384,15 @@ def get_axis(dimvar, dims, dim):
     return axis
 
 
-def get_dimension_map(variable, metadata):
+def get_dimension_map(variable, metadata, allow_orphan_dimensions=False):
     """
     :param str variable: The target variable of the dimension mapping procedure.
     :param dict metadata: The meta dictionary to add the dimension map to.
     :returns: The dimension mapping for the target variable.
     :rtype: dict
     """
-
+    # tdk: doc allow_orphan_dimensions
+    #tdk: doc raises
     dims = metadata['variables'][variable]['dimensions']
     mp = dict.fromkeys(['T', 'Z', 'X', 'Y'])
 
@@ -396,8 +408,12 @@ def get_dimension_map(variable, metadata):
                     dimvar = metadata['variables'][key]
                     break
         # the dimension variable may not exist
-        if dimvar is None:
+        # tdk: test
+        if dimvar is None and not allow_orphan_dimensions:
             raise DimensionNotFound(dim)
+        elif dimvar is None and allow_orphan_dimensions:
+            continue
+        #tdk: /test
         axis = get_axis(dimvar, dims, dim)
         # pull metadata information the variable and dimension names
         mp[axis] = {'variable': dimvar['name'], 'dimension': dim}
@@ -412,14 +428,14 @@ def get_dimension_map(variable, metadata):
     for key, value in mp.iteritems():
 
         if value is None:
-            # this occurs for such things as levels or realizations where the dimensions is not present. the value is
-            # set to none and should not be processed.
+            # This occurs for such things as levels or realizations where the dimensions is not present. The value
+            # is set to none and should not be processed.
             continue
 
         # if the dimension is found, search for the bounds by various approaches.
 
-        # try to get the bounds attribute from the variable directly. if the attribute is not present in the metadata
-        # dictionary, continue looking for other options.
+        # Try to get the bounds attribute from the variable directly. If the attribute is not present in the
+        # metadata dictionary, continue looking for other options.
         bounds_var = metadata['variables'][value['variable']]['attrs'].get('bounds')
         var = metadata['variables'][variable]
 
@@ -430,8 +446,8 @@ def get_dimension_map(variable, metadata):
             if key == 'T':
                 try:
                     bounds_var = metadata['variables'][value['variable']]['attrs']['climatology']
-                    ocgis_lh('Climatological bounds found for variable: {0}'.format(var['name']), logger='request.nc',
-                             level=logging.INFO)
+                    ocgis_lh('Climatological bounds found for variable: {0}'.format(var['name']),
+                             logger='request.nc', level=logging.INFO)
                 # climatology is not found on time axis
                 except KeyError:
                     pass
@@ -443,12 +459,12 @@ def get_dimension_map(variable, metadata):
             ocgis_lh(msg, logger='nc.driver', level=logging.WARNING)
             bounds_var = None
 
-        # bounds variables sometime appear oddly, if it is not none and not a string, display what the value is, raise a
-        # warning and continue setting the bounds variable to None.
+        # Bounds variables sometime appear oddly, if it is not none and not a string, display what the value is,
+        # raise a warning and continue setting the bounds variable to None.
         if not isinstance(bounds_var, basestring):
             if bounds_var is not None:
-                msg = 'Bounds variable is not a string and is not None. The value is "{0}". Setting bounds to None.'. \
-                    format(bounds_var)
+                msg = ('Bounds variable is not a string and is not None. The value is "{0}".'
+                       'Setting bounds to None.').format(bounds_var)
                 warn(msg)
                 bounds_var = None
 
