@@ -98,7 +98,6 @@ class AbstractValueVariable(Attributes):
         """
         Conform units of value variable in-place using :mod:`cfunits`. If there are an scale or offset parameters in the
         attribute dictionary, they will be removed.
-
         :param to_units: Target conform units.
         :type t_units: str or :class:`cfunits.Units`
         :param value: Optional value array to use in place of the object's value.
@@ -267,12 +266,9 @@ class Variable(AbstractSourcedVariable, AbstractValueVariable):
         """
         Create a variable with an empty value array. The ``data`` object is not copied. Otherwise, all attributes are
         copied. This is useful for cases when the variable needs to be reshaped with all attributes maintained.
-
         :param shape: If provided, allocate a masked array with the given shape.
         :type shape: tuple of five ints
-
         >>> shape = (2, 10, 3, 5, 6)
-
         :rtype: :class:`ocgis.interface.base.variable.Variable`
         """
 
@@ -338,37 +334,17 @@ class VariableCollection(AbstractCollection):
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-        # Holds a reference to the containing field object.
-        self._field = None
-
-    def __getitem__(self, item):
-        ret = super(VariableCollection, self).__getitem__(item)
-        ret._field = self._field
-        return ret
-
-    def __setitem__(self, key, value):
-        # tdk: test
-        value._field = self._field
-        super(VariableCollection, self).__setitem__(key, value)
-
     def add_variable(self, variable, assign_new_uid=False):
         """
         :param :class:`ocgis.interface.base.variable.Variable` :
         :param bool assign_new_uid: If ``True``, assign a new unique identifier to the incoming variable. This will
          modify the variable inplace.
-        :raises: VariableInCollectionError
         """
-
-        assert isinstance(variable, Variable)
+        assert (isinstance(variable, Variable))
         try:
-            assert variable.alias not in self
+            assert (variable.alias not in self)
         except AssertionError:
             raise VariableInCollectionError(variable)
-
-        # Assert shapes of variables are identical.
-        for v in self.itervalues():
-            if v._value is not None:
-                assert v.shape == variable.shape
 
         if assign_new_uid:
             variable.uid = None
@@ -376,9 +352,9 @@ class VariableCollection(AbstractCollection):
         if variable.uid is None:
             variable.uid = self._storage_id_next
         else:
-            assert variable.uid not in self._storage_id
+            assert (variable.uid not in self._storage_id)
         self._storage_id.append(variable.uid)
-        self[variable.alias] = variable
+        self.update({variable.alias: variable})
 
     def get_sliced_variables(self, slc):
         variables = [v.__getitem__(slc) for v in self.itervalues()]
@@ -411,20 +387,12 @@ class VariableCollection(AbstractCollection):
             for row in variable.iter_melted(**kwargs):
                 yield row
 
-    def update(self, dictionary):
-        # tdk: test
-        for k, v in dictionary.iteritems():
-            self.__setitem__(k, v)
-
 
 class DerivedVariable(Variable):
     """
     Variable class for derived variables.
-
     :param dict fdef: The function definition dictionary.
-
     >>> fdef = {'name': 'mean', 'func': 'mean'}
-
     :param parents: The parent variables used to derive the current variable.
     :type parents: :class:`ocgis.interface.base.variable.VariableCollection`
     """

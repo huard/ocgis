@@ -413,6 +413,7 @@ def get_dimension_map(variable, metadata, allow_orphan_dimensions=False):
         if dimvar is None and not allow_orphan_dimensions:
             raise DimensionNotFound(dim)
         elif dimvar is None and allow_orphan_dimensions:
+            mp[dim] = {'variable': None, 'dimension': dim, 'pos': dims.index(dim)}
             continue
         #tdk: /test
         axis = get_axis(dimvar, dims, dim)
@@ -424,13 +425,15 @@ def get_dimension_map(variable, metadata, allow_orphan_dimensions=False):
             # variable name may differ from the dimension name
             mp[axis].update({'pos': dims.index(dim)})
 
-    # look for bounds variables
-    # bounds_names = set(constants.name_bounds)
+    # Look for bounds variables associated with the dimension variables.
     for key, value in mp.iteritems():
 
         if value is None:
             # This occurs for such things as levels or realizations where the dimensions is not present. The value
             # is set to none and should not be processed.
+            continue
+        elif allow_orphan_dimensions and value['variable'] is None:
+            # No need to look for bounds variables on an orphan dimension. It has not variable associated with it.
             continue
 
         # if the dimension is found, search for the bounds by various approaches.

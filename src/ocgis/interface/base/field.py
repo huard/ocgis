@@ -151,7 +151,10 @@ class Field(Attributes):
             raise ValueError('The value must be a Variable or VariableCollection object.')
 
         self._variables = value
-        self._variables._field = self
+        for v in value.itervalues():
+            v._field = self
+            if v._value is not None:
+                assert v._value.shape == self.shape
 
     def as_spatial_collection(self, **kwargs):
         """
