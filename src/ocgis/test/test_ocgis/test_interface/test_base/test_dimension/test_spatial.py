@@ -161,6 +161,7 @@ class TestSingleElementRetriever(AbstractTestSpatialDimension):
 
 
 class TestSpatialDimension(AbstractTestSpatialDimension):
+    # tdk: test slicing with numpy index arrays of different lengths
     def get_records(self):
         sc = GeomCabinet()
         path = sc.get_path('state_boundaries')

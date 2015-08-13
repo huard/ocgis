@@ -15,7 +15,7 @@ from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.variable import VariableCollection, Variable
 from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.dimension import NcVectorDimension
-from ocgis.interface.nc.field import NcField
+from ocgis.interface.nc.field import NcField, NcUgridField
 from ocgis.interface.nc.temporal import NcTemporalDimension
 from ocgis.util.helpers import itersubclasses, get_iter, get_tuple
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -26,6 +26,8 @@ class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*', '.*\.nc4')
     key = 'netcdf-cf'
     output_formats = 'all'
+
+    _klass_field = NcField
 
     def __init__(self, *args, **kwargs):
         AbstractDriver.__init__(self, *args, **kwargs)
@@ -236,9 +238,9 @@ class DriverNetcdf(AbstractDriver):
                                 fill_value=fill_value, attrs=variable_meta['attrs'].copy())
             vc.add_variable(variable)
 
-        ret = NcField(variables=vc, spatial=spatial, temporal=loaded['temporal'], level=loaded['level'],
-                      realization=loaded['realization'], meta=source_metadata.copy(), uid=self.rd.did,
-                      name=self.rd.name, attrs=source_metadata['dataset'].copy())
+        ret = self._klass_field(variables=vc, spatial=spatial, temporal=loaded['temporal'], level=loaded['level'],
+                                realization=loaded['realization'], meta=source_metadata.copy(), uid=self.rd.did,
+                                name=self.rd.name, attrs=source_metadata['dataset'].copy())
 
         # Apply any subset parameters after the field is loaded.
         if self.rd.time_range is not None:
@@ -358,6 +360,8 @@ class DriverNetcdf(AbstractDriver):
 
 class DriverNetcdfUgrid(DriverNetcdf):
     key = 'netcdf-cf-ugrid'
+
+    _klass_field = NcUgridField
     # tdk: limit output formats
 
     def get_source_metadata(self, allow_orphan_dimensions=True):

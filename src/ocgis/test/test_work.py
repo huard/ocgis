@@ -4,16 +4,14 @@ import datetime
 
 import numpy as np
 import fiona
-
 from shapely import wkt
-
 from shapely.geometry import Point
-
 from shapely.geometry.multipoint import MultiPoint
 
 from ocgis import constants, SpatialGeometryDimension, SpatialDimension, Field, Variable, TemporalDimension
 from ocgis import GeomCabinet, RequestDataset, OcgOperations, env
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension
+from ocgis.interface.nc.field import NcUgridField
 from ocgis.test.base import TestBase
 
 """
@@ -151,7 +149,7 @@ class Test20150811(TestBase):
             'POLYGON((-2.13561470215462634 0.87452471482889749,-1.83143219264892276 0.98225602027883419,-1.83143219264892276 0.98225602027883419,-1.55893536121673004 0.86818757921419554,-1.58428390367553851 0.66539923954372648,-1.76172370088719887 0.51330798479087481,-2.12294043092522156 0.44993662864385309,-2.25602027883396694 0.63371356147021585,-2.13561470215462634 0.87452471482889749))'
         ]
 
-        polygons = np.array([wkt.loads(xx) for xx in ugrid_polygons]).reshape(-1, 1)
+        polygons = np.array([wkt.loads(xx) for xx in ugrid_polygons]).reshape(1, -1)
 
         poly = SpatialGeometryPolygonDimension(value=polygons)
         geom = SpatialGeometryDimension(polygon=poly)
@@ -160,9 +158,11 @@ class Test20150811(TestBase):
                                                                 datetime.datetime(2000, 3, 1)))
         field = Field(spatial=sdim, temporal=temporal)
 
-        var = Variable(name='tas', value=np.random.rand(*field.shape))
+        tas_value = np.random.rand(*field.shape)
+        var = Variable(name='tas', value=tas_value)
         field.variables.add_variable(var)
-        var = Variable(name='rhs', value=np.random.rand(*field.shape))
+        rhs_value = np.random.rand(*field.shape)
+        var = Variable(name='rhs', value=rhs_value)
         field.variables.add_variable(var)
 
         out_path = self.get_temporary_file_path('out.nc')
@@ -173,7 +173,9 @@ class Test20150811(TestBase):
         # print rd.driver
         # print rd.variable
         ufield = rd.get()
-        print ufield.variables['tas'].value
-        import ipdb;
-
-        ipdb.set_trace()
+        self.assertIsInstance(ufield, NcUgridField)
+        ufield_tas_value = ufield.variables['tas'].value
+        ufield_rhs_value = ufield.variables['rhs'].value
+        self.assertNumpyAll(tas_value, ufield_tas_value.data)
+        self.assertNumpyAll(rhs_value, ufield_rhs_value.data)
+        raise
