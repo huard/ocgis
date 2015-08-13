@@ -5,6 +5,7 @@ import datetime
 import numpy as np
 import fiona
 from shapely import wkt
+
 from shapely.geometry import Point
 
 from shapely.geometry.multipoint import MultiPoint
@@ -143,6 +144,8 @@ class Test20150811(TestBase):
         # tdk: move to tests
         # tdk: to autodiscover, check for cf_role attribute
         # tdk: test using a dimension map with the new slicing approach
+        # tdk: do a search for SpatialDimension to make sure they are appropriately named in documentation
+        # tdk: ensure ocgis/test/test_ocgis/test_interface/test_base/test_dimension is appropriately mapped to code
 
         ugrid_polygons = [
             'POLYGON((-1.5019011406844105 0.18377693282636276,-1.25475285171102646 0.02534854245880869,-1.35614702154626099 -0.28517110266159684,-1.68567807351077303 -0.50697084917617241,-1.99619771863117879 -0.41191381495564006,-2.08491761723700897 -0.24714828897338403,-1.9264892268694549 -0.03802281368821281,-1.88212927756653992 0.13307984790874539,-1.5019011406844105 0.18377693282636276))',
