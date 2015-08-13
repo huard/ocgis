@@ -1250,6 +1250,15 @@ class TestSpatialGeometryPointDimension(AbstractTestSpatialDimension):
         sgpd = SpatialGeometryPointDimension(value=value, geom_type='auto')
         self.assertEqual(sgpd.geom_type, 'MultiPoint')
 
+    def test_getitem(self):
+        # Test source index is appropriately sliced.
+        sdim = self.get_sdim()
+        point_value = sdim.geom.point.value
+        src_idx = np.arange(0, point_value.shape[0] * point_value.shape[1]).reshape(*point_value.shape)
+        sgpd = SpatialGeometryPointDimension(value=point_value, src_idx=src_idx)
+        sub = sgpd[1, 1:3]
+        self.assertNumpyAll(sub._src_idx, np.array([[5, 6]]))
+
     def test_get_intersects_masked(self):
         sdim = self.get_sdim(crs=WGS84())
         self.assertIsNotNone(sdim.grid)

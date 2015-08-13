@@ -1,4 +1,5 @@
 from itertools import izip
+
 import numpy as np
 
 from ocgis.util.helpers import get_formatted_slice
@@ -55,7 +56,7 @@ class NcSpatialGridDimension(AbstractSourcedVariable, SpatialGridDimension):
 
                     value_row = np.atleast_2d(variable_row[slice_row, slice_col])
                     value_col = np.atleast_2d(variable_col[slice_row, slice_col])
-                    fill = np.zeros([2]+list(value_row.shape), dtype=value_row.dtype)
+                    fill = np.zeros([2] + list(value_row.shape), dtype=value_row.dtype)
                     try:
                         fill_value = value_row.fill_value
                     except AttributeError:

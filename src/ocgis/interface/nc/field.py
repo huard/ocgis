@@ -6,6 +6,7 @@ from ocgis.interface.base.field import Field
 
 
 class NcField(Field):
+
     def _get_value_from_source_(self, data, variable_name):
         """
         :param data: The netCDF request dataset object.

@@ -1122,7 +1122,7 @@ class SpatialGeometryPointDimension(base.AbstractUidValueDimension):
     """
 
     _ndims = 2
-    _attrs_slice = ('uid', '_value', 'grid')
+    _attrs_slice = ('uid', '_value', 'grid', '_src_idx')
     _geom_type_default = 'Point'
 
     def __init__(self, *args, **kwargs):
@@ -1130,6 +1130,9 @@ class SpatialGeometryPointDimension(base.AbstractUidValueDimension):
 
         self.grid = kwargs.pop('grid', None)
         self.geom_type = kwargs.pop('geom_type', None) or self._geom_type_default
+        # tdk: doc
+        # tdk: test
+        self._src_idx = kwargs.pop('src_idx', None)
 
         super(SpatialGeometryPointDimension, self).__init__(*args, **kwargs)
 

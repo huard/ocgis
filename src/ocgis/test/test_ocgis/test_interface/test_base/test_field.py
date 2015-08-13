@@ -125,6 +125,7 @@ class TestField(AbstractTestField):
     def test_init(self):
         for b, wv in itertools.product([True, False], [True, False]):
             field = self.get_field(with_bounds=b, with_value=wv, with_dimension_names=False)
+            self.assertEqual(id(field.variables._field), id(field))
             self.assertEqual(field.name_uid, NAME_UID_FIELD)
             self.assertEqual(field.level.name, 'level')
             self.assertEqual(field.level.name_uid, NAME_UID_DIMENSION_LEVEL)

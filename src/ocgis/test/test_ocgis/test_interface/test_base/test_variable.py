@@ -381,6 +381,7 @@ class TestVariableCollection(TestBase):
     def test_init_variable_none(self):
         vc = VariableCollection()
         self.assertEqual(len(vc), 0)
+        self.assertIsNone(vc._field)
 
     def test_init_variable_not_none(self):
         variables = [self.get_variable(), [self.get_variable(), self.get_variable('tas_foo2')]]
@@ -403,6 +404,11 @@ class TestVariableCollection(TestBase):
         vc.add_variable(var)
         self.assertEqual(vc._storage_id, [1, 100])
 
+        # Test variables must be the same shape.
+        var2 = Variable(name='rhs', value=[5, 6])
+        with self.assertRaises(AssertionError):
+            vc.add_variable(var2)
+
     def test_add_variable_already_in_collection(self):
         vc = VariableCollection()
         var = self.get_variable()
@@ -419,6 +425,13 @@ class TestVariableCollection(TestBase):
         vc.add_variable(var, assign_new_uid=True)
         self.assertEqual(var.uid, 2)
         self.assertEqual(vc._storage_id, [1, 2])
+
+    def test_getitem(self):
+        var = self.get_variable()
+        vc = VariableCollection(variables=[var])
+        vc._field = 'foobar'
+        var2 = vc[var.alias]
+        self.assertEqual(var2._field, 'foobar')
 
     def test_get_sliced_variables(self):
         variables = [self.get_variable(), self.get_variable('tas_foo2')]
