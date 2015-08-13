@@ -211,7 +211,7 @@ class SpatialDimension(base.AbstractUidDimension):
                     assert not to_check.any()
 
     @classmethod
-    def from_records(cls, records, crs=None, uid=None):
+    def from_records(cls, records, crs=None, uid=None, add_src_idx=False):
         """
         Create a :class:`ocgis.interface.base.dimension.SpatialDimension` from Fiona-like records.
 
@@ -225,6 +225,8 @@ class SpatialDimension(base.AbstractUidDimension):
         :rtype: :class:`ocgis.interface.base.dimension.SpatialDimension`
         """
         # tdk: test with no properties
+        # tdk: doc add_src_idx
+        # tdk: test add_src_idx
         if uid is None:
             uid = env.DEFAULT_GEOM_UID
 
@@ -306,8 +308,12 @@ class SpatialDimension(base.AbstractUidDimension):
                 klass = k
                 break
 
-        # this constructs the geometry dimension
-        dim_geom_type = klass(value=geoms)
+        # The constructs the geometry type dimension.
+        if add_src_idx:
+            src_idx = np.arange(0, reduce(lambda x, y: x * y, geoms.shape)).reshape(*geoms.shape)
+        else:
+            src_idx = None
+        dim_geom_type = klass(value=geoms, src_idx=src_idx)
         # arguments to geometry dimension
         kwds = {mapping_kwds[klass]: dim_geom_type}
         dim_geom = SpatialGeometryDimension(**kwds)

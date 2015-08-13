@@ -368,8 +368,9 @@ class DriverNetcdfUgrid(DriverNetcdf):
     def _get_spatial_dimension_(self, source_metadata):
         # tdk: doc
         # tdk: test
+        # tdk: coordinate system?
         records = mesh2_nc_to_fiona_iter(self.rd.uri)
-        sdim = SpatialDimension.from_records(records)
+        sdim = SpatialDimension.from_records(records, add_src_idx=True)
         return sdim
 
 
