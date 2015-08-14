@@ -58,8 +58,8 @@ class AbstractCollection(object):
         return self.__repr__()
 
     def first(self):
-        for key in self.iterkeys():
-            return self._storage[key]
+        for value in self.itervalues():
+            return value
 
     def items(self):
         return self._storage.items()

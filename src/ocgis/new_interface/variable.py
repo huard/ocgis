@@ -5,7 +5,7 @@ from copy import copy
 from numpy.ma import MaskedArray
 import numpy as np
 
-from ocgis.exc import VariableInCollectionError
+from ocgis.exc import VariableInCollectionError, VariableShapeMismatch
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.util.helpers import get_iter, get_formatted_slice
 from ocgis.api.collection import AbstractCollection
@@ -189,20 +189,24 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection):
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
+    def __getitem__(self, slc):
+        variables = [v.__getitem__(slc) for v in self.itervalues()]
+        return VariableCollection(variables=variables)
+
+    @property
+    def shape(self):
+        return self.first().shape
+
     def add_variable(self, variable):
         """
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
         assert isinstance(variable, Variable)
-        try:
-            assert variable.alias not in self
-        except AssertionError:
+        if variable.alias in self:
             raise VariableInCollectionError(variable)
+        if len(self) > 0:
+            if variable.shape != self.shape:
+                raise VariableShapeMismatch(variable, self.shape)
 
         self[variable.alias] = variable
-
-    def get_sliced_variables(self, slc):
-        variables = [v.__getitem__(slc) for v in self.itervalues()]
-        ret = VariableCollection(variables=variables)
-        return ret

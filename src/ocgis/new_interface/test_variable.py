@@ -1,41 +1,15 @@
 import numpy as np
 
+from ocgis.exc import VariableInCollectionError, VariableShapeMismatch
+
+from ocgis.api.collection import AbstractCollection
+
 from ocgis import RequestDataset
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable
-
-
-class TestVariable(AbstractTestNewInterface):
-    def test_bases(self):
-        self.assertEqual(Variable.__bases__, (AbstractInterfaceObject, Attributes))
-
-    def test_init(self):
-        value = [2, 3, 4, 5, 6, 7]
-        time = Dimension('time', length=len(value))
-
-        var = Variable('time_value', value=value, dimensions=time)
-        self.assertEqual(var.dimensions, (time,))
-        self.assertEqual(id(time), id(var.dimensions[0]))
-        self.assertEqual(var.name, 'time_value')
-        self.assertEqual(var.alias, var.name)
-        self.assertEqual(var.shape, (len(value),))
-        self.assertNumpyAll(var.value, np.ma.array(value))
-        sub = var[2:4]
-        self.assertIsInstance(sub, Variable)
-        self.assertEqual(sub.shape, (2,))
-
-        dtype = np.float32
-        fill_value = 33.0
-        var = Variable('foo', value=value, dimensions=time, dtype=dtype, fill_value=fill_value)
-        self.assertEqual(var.dtype, dtype)
-        self.assertEqual(var.value.dtype, dtype)
-        self.assertEqual(var.value.fill_value, fill_value)
-
-        var = Variable('foo')
-        self.assertEqual(var.shape, tuple())
+from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
@@ -63,8 +37,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_getitem(self):
         sv = self.get()
         sub = sv[10:20, 5, 6]
-        self.assertIsNone(sub._value)
         self.assertEqual(sub.shape, (10, 1, 1))
+        self.assertIsNone(sub._value)
         self.assertIsNone(sub.dimensions[0].length)
         self.assertEqual(sub.dimensions[0].length_current, 10)
 
@@ -101,3 +75,72 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get()
         sub = sv[5:11, 3:6, 5:8]
         self.assertEqual(sub.value.shape, (6, 3, 3))
+
+
+class TestVariable(AbstractTestNewInterface):
+    def test_bases(self):
+        self.assertEqual(Variable.__bases__, (AbstractInterfaceObject, Attributes))
+
+    def test_init(self):
+        value = [2, 3, 4, 5, 6, 7]
+        time = Dimension('time', length=len(value))
+
+        var = Variable('time_value', value=value, dimensions=time)
+        self.assertEqual(var.dimensions, (time,))
+        self.assertEqual(id(time), id(var.dimensions[0]))
+        self.assertEqual(var.name, 'time_value')
+        self.assertEqual(var.alias, var.name)
+        self.assertEqual(var.shape, (len(value),))
+        self.assertNumpyAll(var.value, np.ma.array(value))
+        sub = var[2:4]
+        self.assertIsInstance(sub, Variable)
+        self.assertEqual(sub.shape, (2,))
+
+        dtype = np.float32
+        fill_value = 33.0
+        var = Variable('foo', value=value, dimensions=time, dtype=dtype, fill_value=fill_value)
+        self.assertEqual(var.dtype, dtype)
+        self.assertEqual(var.value.dtype, dtype)
+        self.assertEqual(var.value.fill_value, fill_value)
+
+        var = Variable('foo')
+        self.assertEqual(var.shape, tuple())
+
+
+class TestVariableCollection(AbstractTestNewInterface):
+    def get(self):
+        var1 = self.get_variable()
+        var2 = self.get_variable(alias='wunderbar')
+        vc = VariableCollection(variables=[var1, var2])
+        return vc
+
+    def get_variable(self, name='foo', alias='foobar'):
+        dim = Dimension('x', length=3)
+        value = [4, 5, 6]
+        return Variable(name=name, alias=alias, dimensions=dim, value=value)
+
+    def test_bases(self):
+        self.assertEqual(VariableCollection.__bases__, (AbstractInterfaceObject, AbstractCollection,))
+
+    def test_init(self):
+        var1 = self.get_variable()
+
+        vc = VariableCollection(variables=var1)
+        self.assertEqual(len(vc), 1)
+
+        var2 = self.get_variable()
+        with self.assertRaises(VariableInCollectionError):
+            VariableCollection(variables=[var1, var2])
+
+        var2 = self.get_variable(alias='wunderbar')
+        vc = VariableCollection(variables=[var1, var2])
+        self.assertEqual(vc.keys(), ['foobar', 'wunderbar'])
+
+        dim = Dimension('a', 4)
+        var3 = Variable('bye', dimensions=dim, value=[4, 5, 6, 7])
+        with self.assertRaises(VariableShapeMismatch):
+            vc.add_variable(var3)
+
+    def test_shape(self):
+        vc = self.get()
+        self.assertEqual(vc.shape, (3,))
