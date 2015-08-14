@@ -124,6 +124,13 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     ####################################################################################################################
 
+    def create_dimensions(self, names):
+        assert self.dimensions is None
+        new_dimensions = []
+        for name, shp in izip(get_iter(names), self.shape):
+            new_dimensions.append(Dimension(name, length=shp))
+        self.dimensions = new_dimensions
+
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
         self._data = kwargs.pop('data')

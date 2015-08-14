@@ -1,13 +1,19 @@
+from abc import abstractproperty
+
 from ocgis.util.helpers import get_bounds_from_1d, get_formatted_slice
 from ocgis.exc import BoundsAlreadyAvailableError
 from ocgis.new_interface.base import AbstractInterfaceObject
 
 
 class AbstractAdapter(AbstractInterfaceObject):
-    pass
+    @abstractproperty
+    def _variables(self):
+        """"""
 
 
 class BoundedVariable(AbstractAdapter):
+    _variables = ('variable', 'bounds')
+
     def __init__(self, variable, bounds=None):
         assert variable.ndim == 1
         if bounds is None:

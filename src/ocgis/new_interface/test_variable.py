@@ -118,6 +118,12 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
+    def test_create_dimensions(self):
+        var = Variable('tas', value=[4, 5, 6], dtype=float)
+        self.assertIsNone(var.dimensions)
+        var.create_dimensions('time')
+        self.assertIsNotNone(var.dimensions)
+        self.assertEqual(len(var.dimensions), 1)
 
 class TestVariableCollection(AbstractTestNewInterface):
     def get(self):
