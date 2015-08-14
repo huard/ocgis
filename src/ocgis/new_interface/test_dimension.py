@@ -32,8 +32,10 @@ class TestDimension(AbstractTestNewInterface):
 
 
 class TestSourcedDimension(AbstractTestNewInterface):
-    def get(self):
-        return SourcedDimension('foo', length=10)
+    def get(self, **kwargs):
+        name = kwargs.pop('name', 'foo')
+        kwargs['length'] = kwargs.get('length', 10)
+        return SourcedDimension(name, **kwargs)
 
     def test_bases(self):
         self.assertEqual(SourcedDimension.__bases__, (Dimension,))
@@ -42,6 +44,18 @@ class TestSourcedDimension(AbstractTestNewInterface):
         dim = self.get()
         self.assertNumpyAll(dim._src_idx, np.arange(0, 10, dtype=SourcedDimension._default_dtype))
         self.assertEqual(dim._src_idx.shape[0], 10)
+
+    def test_eq(self):
+        lhs = self.get()
+        rhs = self.get()
+        self.assertEqual(lhs, rhs)
+        self.assertIsNone(lhs.__src_idx__)
+        self.assertIsNone(rhs.__src_idx__)
+
+        # Test when source index is loaded.
+        lhs._src_idx
+        rhs._src_idx
+        self.assertEqual(lhs, rhs)
 
     def test_getitem(self):
         dim = self.get()

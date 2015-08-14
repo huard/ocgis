@@ -44,6 +44,9 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = SourcedVariable('tas', data=data)
         self.assertIsNone(sv._value)
         self.assertIsNone(sv._dimensions)
+        self.assertIsNone(sv._dtype)
+        self.assertIsNone(sv._fill_value)
+        self.assertIsNone(sv._attrs)
         return sv
 
     def get_data(self):
@@ -69,19 +72,23 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get()
         self.assertTrue(len(sv.dimensions), 3)
 
-    def test_get_dimensions_from_source_data(self):
+    def test_set_metadata_from_source_(self):
         sv = self.get()
-        dims = sv._get_dimensions_from_source_data_()
+        sv._set_metadata_from_source_()
+        self.assertEqual(sv.dtype, np.float32)
+        self.assertEqual(sv.fill_value, np.float32(1e20))
+        dims = sv.dimensions
         self.assertIsNone(dims[0].length)
         self.assertEqual(dims[0].length_current, 3650)
         self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
         for d in dims:
             self.assertIsNone(d.__src_idx__)
+        self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
-    def test_get_value_from_source_data(self):
+    def test_get_value_from_source_(self):
         sv = self.get()
         sub = sv[5:11, 3:6, 5:8]
-        res = sub._get_value_from_source_data_()
+        res = sub._get_value_from_source_()
         self.assertEqual(res.shape, (6, 3, 3))
 
         with self.nc_scope(self.get_data().uri, 'r') as ds:

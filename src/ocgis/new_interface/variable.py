@@ -86,6 +86,9 @@ class Variable(AbstractInterfaceObject, Attributes):
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
+        self._dtype = None
+        self._fill_value = None
+
         self._data = kwargs.pop('data')
 
         super(SourcedVariable, self).__init__(*args, **kwargs)
@@ -99,42 +102,73 @@ class SourcedVariable(Variable):
             ret = super(SourcedVariable, self).__getitem__(slc)
         return ret
 
+    @property
+    def dtype(self):
+        if self._dtype is None:
+            self._set_metadata_from_source_()
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value):
+        self._dtype = value
+
+    @property
+    def fill_value(self):
+        if self._fill_value is None:
+            self._set_metadata_from_source_()
+        return self._fill_value
+
+    @fill_value.setter
+    def fill_value(self, value):
+        self._fill_value = value
+
     def _get_dimensions_(self):
         if self._dimensions is None:
-            self._dimensions = self._get_dimensions_from_source_data_()
+            self._set_metadata_from_source_()
         return self._dimensions
 
     dimensions = property(_get_dimensions_, Variable._set_dimensions_)
 
-    def _get_dimensions_from_source_data_(self):
+    def _set_metadata_from_source_(self):
         ds = self._data.driver.open()
         try:
             var = ds.variables[self.name]
-            new_dimensions = []
-            for dim_name in var.dimensions:
-                dim = ds.dimensions[dim_name]
-                dim_length = len(dim)
-                if dim.isunlimited():
-                    length = None
-                    length_current = dim_length
-                else:
-                    length = dim_length
-                    length_current = None
-                new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
-                new_dimensions.append(new_dim)
-            return tuple(new_dimensions)
+
+            if self._dimensions is None:
+                new_dimensions = []
+                for dim_name in var.dimensions:
+                    dim = ds.dimensions[dim_name]
+                    dim_length = len(dim)
+                    if dim.isunlimited():
+                        length = None
+                        length_current = dim_length
+                    else:
+                        length = dim_length
+                        length_current = None
+                    new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
+                    new_dimensions.append(new_dim)
+                super(SourcedVariable, self)._set_dimensions_(new_dimensions)
+
+            if self._dtype is None:
+                self.dtype = var.dtype
+
+            if self._fill_value is None:
+                self.fill_value = var.missing_value
+
+            if self._attrs is None:
+                self.attrs = var.__dict__
         finally:
             ds.close()
 
     def _get_value_(self):
         if self._value is None:
-            value = self._get_value_from_source_data_()
+            value = self._get_value_from_source_()
             super(self.__class__, self)._set_value_(value)
         return super(self.__class__, self)._get_value_()
 
     value = property(_get_value_, Variable._set_value_)
 
-    def _get_value_from_source_data_(self):
+    def _get_value_from_source_(self):
         ds = self._data.driver.open()
         try:
             var = ds.variables[self.name]

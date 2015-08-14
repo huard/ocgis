@@ -60,6 +60,23 @@ class SourcedDimension(Dimension):
 
         super(SourcedDimension, self).__init__(*args, **kwargs)
 
+    def __eq__(self, other):
+        try:
+            ret = super(SourcedDimension, self).__eq__(other)
+        except ValueError:
+            # Likely the source index is loaded which requires using a numpy comparison.
+            ret = True
+            for k, v in self.__dict__.iteritems():
+                if k == '__src_idx__':
+                    if not np.all(v == other.__dict__[k]):
+                        ret = False
+                        break
+                else:
+                    if v != other.__dict__[k]:
+                        ret = False
+                        break
+        return ret
+
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)
         try:

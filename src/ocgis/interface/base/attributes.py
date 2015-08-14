@@ -9,6 +9,8 @@ class Attributes(object):
     """
 
     def __init__(self, attrs=None):
+        self._attrs = None
+
         self.attrs = attrs
 
     @property
@@ -17,9 +19,7 @@ class Attributes(object):
 
     @attrs.setter
     def attrs(self, value):
-        if value is None:
-            self._attrs = OrderedDict()
-        else:
+        if value is not None:
             self._attrs = OrderedDict(value)
 
     def write_attributes_to_netcdf_object(self, target):
