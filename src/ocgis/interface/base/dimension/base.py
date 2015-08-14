@@ -494,3 +494,4 @@ class VectorDimension(AbstractSourcedVariable, AbstractUidValueDimension):
                 self._bounds = np.array(self._bounds, dtype=self._value.dtype)
             except:
                 raise (ValueError('Value and bounds data types do not match and types could not be casted.'))
+
