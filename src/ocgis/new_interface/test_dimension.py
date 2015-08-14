@@ -75,3 +75,6 @@ class TestSourcedDimension(AbstractTestNewInterface):
         sub = dim[[2, 4, 6]]
         self.assertEqual(sub.length, 3)
         self.assertNumpyAll(sub._src_idx, dim._src_idx[[2, 4, 6]])
+
+        sub = dim[:]
+        self.assertEqual(len(sub), len(dim))

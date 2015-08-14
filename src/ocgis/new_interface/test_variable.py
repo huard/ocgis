@@ -1,9 +1,7 @@
 import numpy as np
 
 from ocgis.exc import VariableInCollectionError, VariableShapeMismatch
-
 from ocgis.api.collection import AbstractCollection
-
 from ocgis import RequestDataset
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -13,9 +11,9 @@ from ocgis.new_interface.variable import Variable, SourcedVariable, VariableColl
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
-    def get(self):
+    def get(self, name='tas'):
         data = self.get_data()
-        sv = SourcedVariable('tas', data=data)
+        sv = SourcedVariable(name, data=data)
         self.assertIsNone(sv._value)
         self.assertIsNone(sv._dimensions)
         self.assertIsNone(sv._dtype)
@@ -33,6 +31,12 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_init(self):
         sv = self.get()
         self.assertIsInstance(sv._data, RequestDataset)
+
+        sv = self.get(name='time_bnds')
+        self.assertIsNone(sv._value)
+        sub = sv[5:10, :]
+        self.assertIsNone(sv._value)
+        print sv.dimensions
 
     def test_getitem(self):
         sv = self.get()
@@ -105,6 +109,14 @@ class TestVariable(AbstractTestNewInterface):
 
         var = Variable('foo')
         self.assertEqual(var.shape, tuple())
+        self.assertIsNone(var.dimensions)
+
+        var = Variable('foo', value=[4, 5, 6])
+        self.assertEqual(var.shape, (3,))
+        self.assertEqual(var.dtype, var.value.dtype)
+        self.assertEqual(var.fill_value, var.value.fill_value)
+        sub = var[1]
+        self.assertEqual(sub.shape, (1,))
 
 
 class TestVariableCollection(AbstractTestNewInterface):

@@ -1,5 +1,4 @@
 from itertools import izip
-
 from copy import copy
 
 from numpy.ma import MaskedArray
@@ -21,11 +20,13 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._alias = None
         self._dimensions = None
         self._value = None
+        self._dtype = None
+        self._fill_value = None
 
         self.name = name
+
         self.dtype = dtype
         self.fill_value = fill_value
-
         self.alias = alias
         self.dimensions = dimensions
         self.value = value
@@ -36,7 +37,8 @@ class Variable(AbstractInterfaceObject, Attributes):
         ret = copy(self)
         slc = get_formatted_slice(slc, len(self.shape))
         value = self.value.__getitem__(slc)
-        ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
+        if self.dimensions is not None:
+            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         ret.value = value
         return ret
 
@@ -52,6 +54,20 @@ class Variable(AbstractInterfaceObject, Attributes):
     def alias(self, value):
         self._alias = value
 
+    @property
+    def dtype(self):
+        if self.value is not None:
+            ret = self.value.dtype
+        else:
+            ret = self._dtype
+        return ret
+
+    @dtype.setter
+    def dtype(self, value):
+        self._dtype = value
+
+    # property(dimensions) #############################################################################################
+
     def _get_dimensions_(self):
         return self._dimensions
 
@@ -62,13 +78,36 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     dimensions = property(_get_dimensions_, _set_dimensions_)
 
+    ####################################################################################################################
+
+    @property
+    def fill_value(self):
+        if self.value is not None:
+            ret = self.value.fill_value
+        else:
+            ret = self._fill_value
+        return ret
+
+    @fill_value.setter
+    def fill_value(self, value):
+        self._fill_value = value
+
+    @property
+    def ndim(self):
+        return len(self.shape)
+
     @property
     def shape(self):
         if self.dimensions is None:
-            ret = tuple()
+            if self.value is None:
+                ret = tuple()
+            else:
+                ret = self.value.shape
         else:
             ret = tuple([len(d) for d in self.dimensions])
         return ret
+
+    # property(value) ##################################################################################################
 
     def _get_value_(self):
         return self._value
@@ -83,12 +122,10 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     value = property(_get_value_, _set_value_)
 
+    ####################################################################################################################
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
-        self._dtype = None
-        self._fill_value = None
-
         self._data = kwargs.pop('data')
 
         super(SourcedVariable, self).__init__(*args, **kwargs)
@@ -153,7 +190,7 @@ class SourcedVariable(Variable):
                 self.dtype = var.dtype
 
             if self._fill_value is None:
-                self.fill_value = var.missing_value
+                self.fill_value = var.__dict__.get('_Fill_Value')
 
             if self._attrs is None:
                 self.attrs = var.__dict__
@@ -179,8 +216,7 @@ class SourcedVariable(Variable):
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection):
-    # tdk: doc
-    # tdk: test
+    # tdk: should test for equivalence of dimensions on variables
 
     def __init__(self, variables=None):
         super(VariableCollection, self).__init__()

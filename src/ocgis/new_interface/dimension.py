@@ -26,7 +26,14 @@ class Dimension(AbstractInterfaceObject):
             length = len(slc)
         except TypeError:
             # Likely a slice object.
-            length = slc.stop - slc.start
+            try:
+                length = slc.stop - slc.start
+            except TypeError:
+                # Likely a NoneType slice.
+                if slc.start is None:
+                    length = len(self)
+                else:
+                    raise
         if self.length is None:
             ret = self.__class__(self.name, length_current=length)
         else:
@@ -78,17 +85,8 @@ class SourcedDimension(Dimension):
         return ret
 
     def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, 1)
-        try:
-            length = len(slc)
-        except TypeError:
-            # Likely a slice object.
-            length = slc.stop - slc.start
-        src_idx = self._src_idx.__getitem__(slc)
-        if self.length is None:
-            ret = self.__class__(self.name, length_current=length, src_idx=src_idx)
-        else:
-            ret = self.__class__(self.name, length=length, src_idx=src_idx)
+        ret = super(SourcedDimension, self).__getitem__(slc)
+        ret._src_idx = self._src_idx.__getitem__(slc)
         return ret
 
     @property
