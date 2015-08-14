@@ -40,11 +40,15 @@ class TestVariable(AbstractTestNewInterface):
 
 class TestSourcedVariable(AbstractTestNewInterface):
     def get(self):
-        data = self.test_data.get_rd('cancm4_tas')
+        data = self.get_data()
         sv = SourcedVariable('tas', data=data)
         self.assertIsNone(sv._value)
         self.assertIsNone(sv._dimensions)
         return sv
+
+    def get_data(self):
+        data = self.test_data.get_rd('cancm4_tas')
+        return data
 
     def test_bases(self):
         self.assertEqual(SourcedVariable.__bases__, (Variable,))
@@ -56,6 +60,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_getitem(self):
         sv = self.get()
         sub = sv[10:20, 5, 6]
+        self.assertIsNone(sub._value)
         self.assertEqual(sub.shape, (10, 1, 1))
         self.assertIsNone(sub.dimensions[0].length)
         self.assertEqual(sub.dimensions[0].length_current, 10)
@@ -72,3 +77,20 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
         for d in dims:
             self.assertIsNone(d.__src_idx__)
+
+    def test_get_value_from_source_data(self):
+        sv = self.get()
+        sub = sv[5:11, 3:6, 5:8]
+        res = sub._get_value_from_source_data_()
+        self.assertEqual(res.shape, (6, 3, 3))
+
+        with self.nc_scope(self.get_data().uri, 'r') as ds:
+            var = ds.variables[sv.name]
+            actual = var[5:11, 3:6, 5:8]
+
+        self.assertNumpyAll(res, actual)
+
+    def test_value(self):
+        sv = self.get()
+        sub = sv[5:11, 3:6, 5:8]
+        self.assertEqual(sub.value.shape, (6, 3, 3))

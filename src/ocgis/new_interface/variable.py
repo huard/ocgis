@@ -70,18 +70,18 @@ class Variable(AbstractInterfaceObject, Attributes):
             ret = tuple([len(d) for d in self.dimensions])
         return ret
 
-    @property
-    def value(self):
+    def _get_value_(self):
         return self._value
 
-    @value.setter
-    def value(self, value):
+    def _set_value_(self, value):
         if value is not None:
             if not isinstance(value, MaskedArray):
                 value = np.ma.array(value, dtype=self.dtype, fill_value=self.fill_value)
             if self.dimensions is not None:
                 assert value.shape == self.shape
         self._value = value
+
+    value = property(_get_value_, _set_value_)
 
 
 class SourcedVariable(Variable):
@@ -126,8 +126,22 @@ class SourcedVariable(Variable):
         finally:
             ds.close()
 
+    def _get_value_(self):
+        if self._value is None:
+            value = self._get_value_from_source_data_()
+            super(self.__class__, self)._set_value_(value)
+        return super(self.__class__, self)._get_value_()
+
+    value = property(_get_value_, Variable._set_value_)
+
     def _get_value_from_source_data_(self):
-        pass
+        ds = self._data.driver.open()
+        try:
+            var = ds.variables[self.name]
+            slc = get_formatted_slice([d._src_idx for d in self.dimensions], len(self.shape))
+            return var.__getitem__(slc)
+        finally:
+            ds.close()
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection):
