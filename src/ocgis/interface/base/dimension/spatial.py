@@ -687,7 +687,6 @@ class SpatialGridDimension(base.AbstractUidValueDimension):
     _attrs_slice = None
     _name_row = None
 
-
     def __init__(self, *args, **kwargs):
         self._corners = None
 
