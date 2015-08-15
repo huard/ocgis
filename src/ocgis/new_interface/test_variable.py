@@ -85,11 +85,18 @@ class TestVariable(AbstractTestNewInterface):
     def test_bases(self):
         self.assertEqual(Variable.__bases__, (AbstractInterfaceObject, Attributes))
 
-    def test_init(self):
+    def get(self, return_original_data=True):
         value = [2, 3, 4, 5, 6, 7]
         time = Dimension('time', length=len(value))
-
         var = Variable('time_value', value=value, dimensions=time)
+        if return_original_data:
+            return time, value, var
+        else:
+            return var
+
+    def test_init(self):
+        time, value, var = self.get()
+
         self.assertEqual(var.dimensions, (time,))
         self.assertEqual(id(time), id(var.dimensions[0]))
         self.assertEqual(var.name, 'time_value')
@@ -124,6 +131,20 @@ class TestVariable(AbstractTestNewInterface):
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
+
+    def test_write_netcdf(self):
+        var = self.get(return_original_data=False)
+        var.value.mask[1] = True
+        var.attrs['axis'] = 'not_an_ally'
+        path = self.get_temporary_file_path('out.nc')
+        with self.nc_scope(path, 'w') as ds:
+            var.write_netcdf(ds)
+        with self.nc_scope(path) as ds:
+            ncvar = ds.variables[var.name]
+            self.assertEqual(ncvar.dtype, var.dtype)
+            self.assertEqual(ncvar[:].fill_value, var.fill_value)
+            self.assertEqual(ncvar.axis, 'not_an_ally')
+
 
 class TestVariableCollection(AbstractTestNewInterface):
     def get(self):

@@ -115,7 +115,7 @@ class Variable(AbstractInterfaceObject, Attributes):
     def _set_value_(self, value):
         if value is not None:
             if not isinstance(value, MaskedArray):
-                value = np.ma.array(value, dtype=self.dtype, fill_value=self.fill_value)
+                value = np.ma.array(value, dtype=self.dtype, fill_value=self.fill_value, mask=False)
             if self.dimensions is not None:
                 assert value.shape == self.shape
         self._value = value
@@ -124,12 +124,39 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     ####################################################################################################################
 
-    def create_dimensions(self, names):
+    def create_dimensions(self, names=None):
         assert self.dimensions is None
+        if names is None:
+            names = [self.name]
+            for ii in range(1, self.ndim):
+                names.append('{0}_{1}'.format(self.name, ii))
         new_dimensions = []
         for name, shp in izip(get_iter(names), self.shape):
             new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
+
+    def write_netcdf(self, dataset, file_only=False, **kwargs):
+        """
+        Write the field object to an open netCDF dataset object.
+
+        :param dataset: The open dataset object.
+        :type dataset: :class:`netCDF4.Dataset`
+        :param bool file_only: If ``True``, we are not filling the value variables. Only the file schema and dimension
+         values will be written.
+        :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
+         ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
+        """
+
+        if self.dimensions is None:
+            self.create_dimensions()
+        for dim in self.dimensions:
+            create_dimension_or_pass(dim, dataset)
+        dimensions = [d.name for d in self.dimensions]
+        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=self.fill_value, **kwargs)
+        if not file_only:
+            var[:] = self.value
+        self.write_attributes_to_netcdf_object(var)
+
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
@@ -253,3 +280,8 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection):
                 raise VariableShapeMismatch(variable, self.shape)
 
         self[variable.alias] = variable
+
+
+def create_dimension_or_pass(dim, dataset):
+    if dim.name not in dataset.dimensions:
+        dataset.createDimension(dim.name, dim.length)

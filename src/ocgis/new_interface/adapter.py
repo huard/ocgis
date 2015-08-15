@@ -1,4 +1,4 @@
-from abc import abstractproperty, abstractmethod
+from abc import abstractmethod
 
 from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_bounds_from_1d, get_formatted_slice
@@ -7,17 +7,16 @@ from ocgis.new_interface.base import AbstractInterfaceObject
 
 
 class AbstractAdapter(AbstractInterfaceObject):
-    @abstractproperty
-    def _variables(self):
-        """"""
+    def write_netcdf(self, dataset, **kwargs):
+        for var in self._iter_variables_():
+            var.write_netcdf(dataset, **kwargs)
 
     @abstractmethod
-    def write_netcdf(self, dataset):
+    def _iter_variables_(self):
         """"""
 
 
 class BoundedVariable(AbstractAdapter):
-    _variables = ('variable', 'bounds')
 
     def __init__(self, variable, bounds=None):
         assert variable.ndim == 1
@@ -47,3 +46,13 @@ class BoundedVariable(AbstractAdapter):
         bounds_value = get_bounds_from_1d(self.variable.value)
         self.bounds = Variable(name, value=bounds_value)
         self._has_extrapolated_bounds = True
+
+    def write_netcdf(self, dataset, **kwargs):
+        super(BoundedVariable, self).write_netcdf(dataset, **kwargs)
+        if self.bounds is not None:
+            var = dataset.variables[self.variable.name]
+            var.bounds = self.bounds.name
+
+    def _iter_variables_(self):
+        for attr in ['variable', 'bounds']:
+            yield getattr(self, attr)

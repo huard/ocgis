@@ -15,6 +15,8 @@ class Attributes(object):
 
     @property
     def attrs(self):
+        if self._attrs is None:
+            self._attrs = OrderedDict()
         return self._attrs
 
     @attrs.setter
