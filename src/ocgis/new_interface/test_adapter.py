@@ -7,11 +7,14 @@ from ocgis.util.helpers import get_bounds_from_1d
 
 
 class TestBoundedVariable(AbstractTestNewInterface):
-    def get(self):
+    def get(self, with_bounds=True):
         value = np.array([4, 5, 6], dtype=float)
-        value_bounds = get_bounds_from_1d(value)
         var = Variable('x', value=value)
-        bounds = Variable('x_bounds', value=value_bounds)
+        if with_bounds:
+            value_bounds = get_bounds_from_1d(value)
+            bounds = Variable('x_bounds', value=value_bounds)
+        else:
+            bounds = None
         bv = BoundedVariable(var, bounds=bounds)
         return bv
 
@@ -27,3 +30,10 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bv = self.get()
         sub = bv[1]
         self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
+
+    def test_set_extrapolated_bounds(self):
+        bv = self.get(with_bounds=False)
+        self.assertIsNone(bv.bounds)
+        bv.set_extrapolated_bounds()
+        self.assertEqual(bv.bounds.name, 'x_bounds')
+        self.assertEqual(bv.bounds.ndim, 2)

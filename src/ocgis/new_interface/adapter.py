@@ -1,5 +1,6 @@
-from abc import abstractproperty
+from abc import abstractproperty, abstractmethod
 
+from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_bounds_from_1d, get_formatted_slice
 from ocgis.exc import BoundsAlreadyAvailableError
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -10,14 +11,18 @@ class AbstractAdapter(AbstractInterfaceObject):
     def _variables(self):
         """"""
 
+    @abstractmethod
+    def write_netcdf(self, dataset):
+        """"""
+
 
 class BoundedVariable(AbstractAdapter):
     _variables = ('variable', 'bounds')
 
     def __init__(self, variable, bounds=None):
         assert variable.ndim == 1
-        if bounds is None:
-            assert variable.ndim == 2
+        if bounds is not None:
+            assert bounds.ndim == 2
 
         self._has_extrapolated_bounds = False
 
@@ -33,10 +38,12 @@ class BoundedVariable(AbstractAdapter):
             bounds = None
         return BoundedVariable(variable, bounds=bounds)
 
-    def set_extrapolated_bounds(self):
+    def set_extrapolated_bounds(self, name=None):
         """Set the bounds variable using extrapolation."""
 
         if self.bounds is not None:
             raise BoundsAlreadyAvailableError
-        self.bounds = get_bounds_from_1d(self.value)
+        name = name or '{0}_{1}'.format(self.variable.name, 'bounds')
+        bounds_value = get_bounds_from_1d(self.variable.value)
+        self.bounds = Variable(name, value=bounds_value)
         self._has_extrapolated_bounds = True
