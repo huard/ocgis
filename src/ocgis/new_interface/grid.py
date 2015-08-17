@@ -35,8 +35,8 @@ class Grid(Variable):
             ret = [len(self.y), len(self.x)]
             if self.z is not None:
                 ret.append(len(self.z))
-            ret = tuple(ret)
         else:
             # tdk:test
-            raise NotImplementedError
+            return self.value.shape[1:]
+        ret = tuple(ret)
         return ret
