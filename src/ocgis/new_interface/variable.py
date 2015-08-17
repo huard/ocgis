@@ -73,6 +73,14 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     # property(dimensions) #############################################################################################
 
+    @property
+    def dimensions(self):
+        return self._get_dimensions_()
+
+    @dimensions.setter
+    def dimensions(self, value):
+        self._set_dimensions_(value)
+
     def _get_dimensions_(self):
         return self._dimensions
 
@@ -80,8 +88,6 @@ class Variable(AbstractInterfaceObject, Attributes):
         if value is not None:
             value = tuple(get_iter(value, dtype=Dimension))
         self._dimensions = value
-
-    dimensions = property(_get_dimensions_, _set_dimensions_)
 
     ####################################################################################################################
 
@@ -125,6 +131,14 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     # property(value) ##################################################################################################
 
+    @property
+    def value(self):
+        return self._get_value_()
+
+    @value.setter
+    def value(self, value):
+        self._set_value_(value)
+
     def _get_value_(self):
         return self._value
 
@@ -135,8 +149,6 @@ class Variable(AbstractInterfaceObject, Attributes):
             if self.dimensions is not None:
                 assert value.shape == self.shape
         self._value = value
-
-    value = property(_get_value_, _set_value_)
 
     ####################################################################################################################
 
@@ -334,8 +346,6 @@ class SourcedVariable(Variable):
             self._set_metadata_from_source_()
         return self._dimensions
 
-    dimensions = property(_get_dimensions_, Variable._set_dimensions_)
-
     def _set_metadata_from_source_(self):
         ds = self._data.driver.open()
         try:
@@ -360,7 +370,7 @@ class SourcedVariable(Variable):
                 self.dtype = var.dtype
 
             if self._fill_value is None:
-                self.fill_value = var.__dict__.get('_Fill_Value')
+                self.fill_value = var.__dict__.get('_FillValue')
 
             if self._attrs is None:
                 self.attrs = var.__dict__
@@ -370,10 +380,8 @@ class SourcedVariable(Variable):
     def _get_value_(self):
         if self._value is None:
             value = self._get_value_from_source_()
-            super(self.__class__, self)._set_value_(value)
-        return super(self.__class__, self)._get_value_()
-
-    value = property(_get_value_, Variable._set_value_)
+            super(SourcedVariable, self)._set_value_(value)
+        return super(SourcedVariable, self)._get_value_()
 
     def _get_value_from_source_(self):
         ds = self._data.driver.open()
