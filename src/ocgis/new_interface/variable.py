@@ -4,7 +4,9 @@ from copy import copy
 from numpy.ma import MaskedArray
 import numpy as np
 
-from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError
+from ocgis import constants
+from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError, \
+    ResolutionError
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.api.collection import AbstractCollection
@@ -41,6 +43,9 @@ class Variable(AbstractInterfaceObject, Attributes):
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         ret.value = value
         return ret
+
+    def __len__(self):
+        return self.shape[0]
 
     @property
     def alias(self):
@@ -95,6 +100,17 @@ class Variable(AbstractInterfaceObject, Attributes):
     @property
     def ndim(self):
         return len(self.shape)
+
+    @property
+    def resolution(self):
+        # tdk: test
+        # tdk: not sure where this belongs exactly. maybe on a value dimension?
+        if self.value.shape[0] < 2:
+            msg = 'With only a single coordinate, approximate resolution may not be determined.'
+            raise ResolutionError(msg)
+        res_array = np.diff(self.value[0:constants.RESOLUTION_LIMIT])
+        ret = np.abs(res_array).mean()
+        return ret
 
     @property
     def shape(self):
@@ -180,6 +196,20 @@ class BoundedVariable(Variable):
         ret.bounds = bounds
         return ret
 
+    @property
+    def resolution(self):
+        # tdk: test
+        if self.bounds is None and self.value.shape[0] < 2:
+            msg = 'With no bounds and a single coordinate, approximate resolution may not be determined.'
+            raise ResolutionError(msg)
+        if self.bounds is None:
+            ret = super(BoundedVariable, self).resolution
+        if self.bounds is not None:
+            res_bounds = self.bounds.value[0:constants.RESOLUTION_LIMIT]
+            res_array = res_bounds[:, 1] - res_bounds[:, 0]
+            ret = np.abs(res_array).mean()
+        return ret
+
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         assert (lower <= upper)
 
@@ -187,12 +217,13 @@ class BoundedVariable(Variable):
         # row.
         is_contiguous = False
         if self.bounds is not None:
+            bounds_value = self.bounds.value
             try:
-                if len(set(self.bounds[0, :]).intersection(set(self.bounds[1, :]))) > 0:
+                if len(set(bounds_value[0, :]).intersection(set(bounds_value[1, :]))) > 0:
                     is_contiguous = True
             except IndexError:
                 # There is likely not a second row.
-                if self.bounds.shape[0] == 1:
+                if bounds_value.shape[0] == 1:
                     pass
                 else:
                     raise
@@ -207,15 +238,15 @@ class BoundedVariable(Variable):
         # Subset operation in the presence of bounds.
         else:
             # Determine which bound column contains the minimum.
-            if self.bounds[0, 0] <= self.bounds[0, 1]:
+            if bounds_value[0, 0] <= bounds_value[0, 1]:
                 lower_index = 0
                 upper_index = 1
             else:
                 lower_index = 1
                 upper_index = 0
             # Reference the minimum and maximum bounds.
-            bounds_min = self.bounds[:, lower_index]
-            bounds_max = self.bounds[:, upper_index]
+            bounds_min = bounds_value[:, lower_index]
+            bounds_max = bounds_value[:, upper_index]
 
             # If closed is True, then we are working on a closed interval and are not concerned if the values at the
             # bounds are equivalent. It does not matter if the bounds are contiguous.
