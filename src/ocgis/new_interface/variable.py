@@ -4,9 +4,9 @@ from copy import copy
 from numpy.ma import MaskedArray
 import numpy as np
 
-from ocgis.exc import VariableInCollectionError, VariableShapeMismatch
+from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
-from ocgis.util.helpers import get_iter, get_formatted_slice
+from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.api.collection import AbstractCollection
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -158,7 +158,112 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.write_attributes_to_netcdf_object(var)
 
 
+class BoundedVariable(Variable):
+    def __init__(self, *args, **kwargs):
+        self.bounds = kwargs.pop('bounds', None)
+        self._has_extrapolated_bounds = False
+
+        if self.bounds is not None:
+            assert self.bounds.ndim == 2
+
+        super(BoundedVariable, self).__init__(*args, **kwargs)
+
+        assert self.ndim == 1
+
+    def __getitem__(self, slc):
+        slc = get_formatted_slice(slc, 1)
+        ret = super(BoundedVariable, self).__getitem__(slc)
+        if self.bounds is not None:
+            bounds = self.bounds[slc, :]
+        else:
+            bounds = None
+        ret.bounds = bounds
+        return ret
+
+    def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
+        assert (lower <= upper)
+
+        # Determine if data bounds are contiguous (if bounds exists for the data). Bounds must also have more than one
+        # row.
+        is_contiguous = False
+        if self.bounds is not None:
+            try:
+                if len(set(self.bounds[0, :]).intersection(set(self.bounds[1, :]))) > 0:
+                    is_contiguous = True
+            except IndexError:
+                # There is likely not a second row.
+                if self.bounds.shape[0] == 1:
+                    pass
+                else:
+                    raise
+
+        # Subset operation when bounds are not present.
+        if self.bounds is None or use_bounds == False:
+            value = self.value
+            if closed:
+                select = np.logical_and(value > lower, value < upper)
+            else:
+                select = np.logical_and(value >= lower, value <= upper)
+        # Subset operation in the presence of bounds.
+        else:
+            # Determine which bound column contains the minimum.
+            if self.bounds[0, 0] <= self.bounds[0, 1]:
+                lower_index = 0
+                upper_index = 1
+            else:
+                lower_index = 1
+                upper_index = 0
+            # Reference the minimum and maximum bounds.
+            bounds_min = self.bounds[:, lower_index]
+            bounds_max = self.bounds[:, upper_index]
+
+            # If closed is True, then we are working on a closed interval and are not concerned if the values at the
+            # bounds are equivalent. It does not matter if the bounds are contiguous.
+            if closed:
+                select_lower = np.logical_or(bounds_min > lower, bounds_max > lower)
+                select_upper = np.logical_or(bounds_min < upper, bounds_max < upper)
+            else:
+                # If the bounds are contiguous, then preference is given to the lower bound to avoid duplicate
+                # containers (contiguous bounds share a coordinate).
+                if is_contiguous:
+                    select_lower = np.logical_or(bounds_min >= lower, bounds_max > lower)
+                    select_upper = np.logical_or(bounds_min <= upper, bounds_max < upper)
+                else:
+                    select_lower = np.logical_or(bounds_min >= lower, bounds_max >= lower)
+                    select_upper = np.logical_or(bounds_min <= upper, bounds_max <= upper)
+            select = np.logical_and(select_lower, select_upper)
+
+        if select.any() == False:
+            raise EmptySubsetError(origin=self.name)
+
+        ret = self[select]
+
+        if return_indices:
+            indices = np.arange(select.shape[0])
+            ret = (ret, indices[select])
+
+        return ret
+
+    def set_extrapolated_bounds(self, name=None):
+        """Set the bounds variable using extrapolation."""
+
+        if self.bounds is not None:
+            raise BoundsAlreadyAvailableError
+        name = name or '{0}_{1}'.format(self.name, 'bounds')
+        bounds_value = get_bounds_from_1d(self.value)
+        self.bounds = Variable(name, value=bounds_value)
+        self._has_extrapolated_bounds = True
+
+    def write_netcdf(self, dataset, **kwargs):
+        super(BoundedVariable, self).write_netcdf(dataset, **kwargs)
+        if self.bounds is not None:
+            self.bounds.write_netcdf(dataset, **kwargs)
+            var = dataset.variables[self.name]
+            var.bounds = self.bounds.name
+
+
 class SourcedVariable(Variable):
+    # tdk: allow multiple variables to be opened with a single dataset open call
     def __init__(self, *args, **kwargs):
         self._data = kwargs.pop('data')
 
