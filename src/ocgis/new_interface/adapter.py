@@ -122,3 +122,4 @@ class BoundedVariable(AbstractAdapter):
     def _iter_variables_(self):
         for attr in ['variable', 'bounds']:
             yield getattr(self, attr)
+
