@@ -7,7 +7,7 @@ from ocgis.new_interface.variable import Variable
 
 
 class TestGrid(AbstractTestNewInterface):
-    def get(self, name=None, with_value=False):
+    def get(self, name=None, with_value=False, with_z=True):
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
         z = [100, 200]
@@ -28,8 +28,10 @@ class TestGrid(AbstractTestNewInterface):
         else:
             vx = Variable('x', value=x, dtype=float)
             vy = Variable('y', value=y, dtype=float)
-            vz = Variable('z', value=z, dtype=float)
-            kwds.update(dict(x=vx, y=vy, z=vz))
+            kwds.update(dict(x=vx, y=vy))
+            if with_z:
+                vz = Variable('z', value=z, dtype=float)
+                kwds.update(dict(z=vz))
 
         grid = Grid(*args, **kwds)
         return grid
@@ -55,6 +57,20 @@ class TestGrid(AbstractTestNewInterface):
         self.assertEqual(sub.y.value, 42.)
         self.assertEqual(sub.z.value, 100.)
         self.assertIsNone(sub._value)
+
+    def test_get_value(self):
+        grid = self.get()
+        res = grid._get_value_()
+        self.assertIsInstance(res, MaskedArray)
+        self.assertEqual(res.shape, (3, 4, 3, 2))
+        print res
+
+        # Test with no z coordinate.
+        grid = self.get(with_z=False)
+        self.assertIsNone(grid.z)
+        self.assertEqual(grid.ndim, 2)
+        res = grid._get_value_()
+        self.assertEqual(res.shape, (2, 4, 3))
 
     def test_shape(self):
         grid = self.get()

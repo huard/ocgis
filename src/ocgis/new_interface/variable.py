@@ -61,8 +61,8 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def dtype(self):
-        if self.value is not None:
-            ret = self.value.dtype
+        if self._value is not None:
+            ret = self._value.dtype
         else:
             ret = self._dtype
         return ret
@@ -93,8 +93,8 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def fill_value(self):
-        if self.value is not None:
-            ret = self.value.fill_value
+        if self._value is not None:
+            ret = self._value.fill_value
         else:
             ret = self._fill_value
         return ret
