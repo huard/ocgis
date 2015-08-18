@@ -47,7 +47,7 @@ class TestGrid(AbstractTestNewInterface):
                     z_value[0, ...] = 100.
                     z_value[1, ...] = 200.
                     z_value[2, ...] = 300.
-                    z_dims = (z_dim, y_dim, x_dim)
+                    z_dims = (Dimension('x', length=3), y_dim, x_dim)
                 else:
                     z_value = np.zeros((4, 3))
                     z_value[:] = 150.
