@@ -1,7 +1,5 @@
 from copy import copy
 
-import numpy as np
-
 from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_formatted_slice
 
@@ -42,15 +40,6 @@ class Grid(Variable):
         ret = tuple(ret)
         return ret
 
-    def _get_value_(self):
-        if self._value is None:
-            args = [self.x.value.data, self.y.value.data]
-            if self.z is not None:
-                args.append([self.z.value.data])
-            ms = np.meshgrid(*args)
-            value = np.zeros([len(args)] + list(ms[0].shape))
-            for ii in range(value.shape[0]):
-                value[ii] = ms[ii]
-            self.value = value
-        return self._value
-
+    @property
+    def value(self):
+        raise AttributeError

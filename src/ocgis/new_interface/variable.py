@@ -114,7 +114,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         if self.value.shape[0] < 2:
             msg = 'With only a single coordinate, approximate resolution may not be determined.'
             raise ResolutionError(msg)
-        res_array = np.diff(self.value[0:constants.RESOLUTION_LIMIT])
+        res_array = np.diff(self.value.data[0:constants.RESOLUTION_LIMIT])
         ret = np.abs(res_array).mean()
         return ret
 

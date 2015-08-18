@@ -63,7 +63,6 @@ class TestGrid(AbstractTestNewInterface):
         res = grid._get_value_()
         self.assertIsInstance(res, MaskedArray)
         self.assertEqual(res.shape, (3, 4, 3, 2))
-        print res
 
         # Test with no z coordinate.
         grid = self.get(with_z=False)
