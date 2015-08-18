@@ -7,7 +7,9 @@ from ocgis.new_interface.variable import Variable
 
 
 class TestGrid(AbstractTestNewInterface):
-    def get(self, with_z=True, with_2d_variables=False):
+    def get(self, with_z=True, with_2d_variables=False, with_zndim=3):
+        assert with_zndim in (1, 3)
+
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
         z = [100, 200]
@@ -24,8 +26,18 @@ class TestGrid(AbstractTestNewInterface):
         kwds.update(dict(x=vx, y=vy))
 
         if with_z:
-            assert not with_2d_variables
-            vz = Variable('z', value=z, dtype=float)
+            if with_2d_variables:
+                if with_zndim == 3:
+                    z_value = np.zeros((3, 3, 4))
+                    z_value[0, ...] = 100.
+                    z_value[1, ...] = 200.
+                    z_value[2, ...] = 300.
+                else:
+                    z_value = np.zeros((3, 4))
+                    z_value[:] = 150.
+            else:
+                z_value = z
+            vz = Variable('z', value=z_value, dtype=float)
             kwds.update(dict(z=vz))
 
         grid = Grid(**kwds)
@@ -43,8 +55,8 @@ class TestGrid(AbstractTestNewInterface):
             Grid(x=x)
 
     def test_getitem(self):
-        # tdk: test with 2/3-d level
         grid = self.get()
+        self.assertEqual(grid.ndim, 3)
         sub = grid[1, 2, 0]
         self.assertEqual(sub.x.value, 102.)
         self.assertEqual(sub.y.value, 42.)
@@ -57,6 +69,18 @@ class TestGrid(AbstractTestNewInterface):
         self.assertEqual(sub.x.value.tolist(), actual_x)
         actual_y = [[41.0, 41.0], [42.0, 42.0]]
         self.assertEqual(sub.y.value.tolist(), actual_y)
+
+        # Test with a z-coordinate.
+        grid = self.get(with_2d_variables=True)
+        sub = grid[:, :, 1]
+        self.assertTrue(np.all(sub.z.value == 200.))
+
+        # Test with a z-coordinate having one 2-d level.
+        grid = self.get(with_2d_variables=True, with_zndim=1)
+        self.assertEqual(grid.ndim, 3)
+        self.assertEqual(grid.shape, (4, 3, 1))
+        sub = grid[1:3, :, :]
+        self.assertEqual(sub.shape, (2, 3, 1))
 
     def test_resolution(self):
         grid = self.get()
@@ -73,6 +97,23 @@ class TestGrid(AbstractTestNewInterface):
         # Test with two-dimensional x and y values.
         grid = self.get(with_2d_variables=True, with_z=False)
         self.assertEqual(grid.shape, (4, 3))
+
+        # Test with different 3-d configurations. ######################################################################
+        grid = self.get(with_2d_variables=True, with_z=False)
+        z = Variable('z', value=[100, 200])
+        grid.z = z
+        self.assertEqual(grid.shape, (4, 3, 2))
+
+        grid = self.get(with_2d_variables=True, with_z=False)
+        value = np.zeros(grid.shape)
+        value[:] = 100.
+        z = Variable('z', value=value)
+        grid.z = z
+        self.assertEqual(grid.shape, (4, 3, 1))
+
+        grid = self.get(with_2d_variables=True)
+        self.assertEqual(grid.shape, (4, 3, 3))
+        ################################################################################################################
 
     def test_write_netcdf(self):
         grid = self.get(with_z=True)

@@ -38,21 +38,26 @@ class Grid(AbstractInterfaceObject):
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
         if self.is_vectorized:
-            ret.x = self.x[slc]
-            ret.y = self.y[slc]
-        else:
             ret.x = self.x[slc[0]]
             ret.y = self.y[slc[1]]
-        if self.z is not None:
-            ret.z = self.z[slc[2]]
+            if self.z is not None:
+                ret.z = self.z[slc[2]]
+        else:
+            ret.x = self.x[slc[0], slc[1]]
+            ret.y = self.y[slc[0], slc[1]]
+            if self.z is not None:
+                if self.z.ndim == 2:
+                    ret.z = self.z[slc[0], slc[1]]
+                else:
+                    ret.z = self.z[slc[2], slc[0], slc[1]]
         return ret
 
     @property
     def is_vectorized(self):
         if len(self.x.shape) > 1:
-            ret = True
-        else:
             ret = False
+        else:
+            ret = True
         return ret
 
     @property
@@ -70,13 +75,21 @@ class Grid(AbstractInterfaceObject):
 
     @property
     def shape(self):
-        if not self.is_vectorized:
+        if self.is_vectorized:
             ret = [len(self.x), len(self.y)]
             if self.z is not None:
                 ret.append(len(self.z))
-            ret = tuple(ret)
         else:
-            ret = self.x.shape
+            ret = list(self.x.shape)
+            if self.z is not None:
+                if self.z.ndim == 1:
+                    zshp = self.z.shape[0]
+                elif self.z.ndim == 2:
+                    zshp = 1
+                else:
+                    zshp = self.z.shape[0]
+                ret.append(zshp)
+        ret = tuple(ret)
         return ret
 
     def write_netcdf(self, dataset, **kwargs):
