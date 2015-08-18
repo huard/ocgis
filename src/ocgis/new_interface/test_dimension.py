@@ -78,3 +78,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
         sub = dim[:]
         self.assertEqual(len(sub), len(dim))
+
+        dim = self.get()
+        sub = dim[2:]
+        self.assertEqual(len(sub), 8)

@@ -32,6 +32,8 @@ class Dimension(AbstractInterfaceObject):
                 # Likely a NoneType slice.
                 if slc.start is None:
                     length = len(self)
+                elif slc.stop is None:
+                    length = len(self) - slc.start
                 else:
                     raise
         if self.length is None:
