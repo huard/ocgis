@@ -1,45 +1,59 @@
 from copy import copy
 
-from ocgis.new_interface.variable import Variable
+import numpy as np
+
+from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.helpers import get_formatted_slice
 
 
-class Grid(Variable):
-    def __init__(self, *args, **kwargs):
-        if len(args) == 0:
-            args = (None,)
+class Grid(AbstractInterfaceObject):
+    def __init__(self, x=None, y=None, z=None):
+        self.x = x
+        self.y = y
+        self.z = z
 
-        self.x = kwargs.pop('x', None)
-        self.y = kwargs.pop('y', None)
-        self.z = kwargs.pop('z', None)
-
-        super(Grid, self).__init__(*args, **kwargs)
+        if self.x is None or self.y is None:
+            msg = 'At least "x" and "y" are required to make a grid.'
+            raise ValueError(msg)
 
     def __getitem__(self, slc):
+        """
+        :param slc: The slice sequence with indices corresponding to:
+
+         0 --> x-dimension
+         1 --> y-dimension
+         2 --> z-dimension (if present)
+
+        :type slc: sequence of slice-compatible arguments
+        :returns: Sliced grid components.
+        :rtype: :class:`ocgis.new_interface.grid.Grid`
+        """
+
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
-        if self._value is not None:
-            # tdk: test
-            raise NotImplementedError
-        if self.x is not None:
-            ret.x = self.x[slc[1]]
-        if self.y is not None:
-            ret.y = self.y[slc[0]]
+        ret.x = self.x[slc[1]]
+        ret.y = self.y[slc[0]]
         if self.z is not None:
             ret.z = self.z[slc[2]]
         return ret
 
     @property
-    def shape(self):
-        if self.x is not None:
-            ret = [len(self.y), len(self.x)]
-            if self.z is not None:
-                ret.append(len(self.z))
+    def ndim(self):
+        if self.z is None:
+            ret = 2
         else:
-            return self.value.shape[1:]
-        ret = tuple(ret)
+            ret = 3
         return ret
 
     @property
-    def value(self):
-        raise AttributeError
+    def resolution(self):
+        ret = np.mean([self.x.resolution, self.y.resolution])
+        return ret
+
+    @property
+    def shape(self):
+        ret = [len(self.x), len(self.y)]
+        if self.z is not None:
+            ret.append(len(self.z))
+        ret = tuple(ret)
+        return ret

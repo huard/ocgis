@@ -151,7 +151,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sv._value)
         sub = sv[5:10, :]
         self.assertIsNone(sv._value)
-        print sv.dimensions
 
     def test_getitem(self):
         sv = self.get()
