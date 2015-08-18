@@ -3,6 +3,7 @@ from copy import copy
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -76,7 +77,7 @@ class Grid(AbstractInterfaceObject):
     @property
     def shape(self):
         if self.is_vectorized:
-            ret = [len(self.x), len(self.y)]
+            ret = [len(self.y), len(self.x)]
             if self.z is not None:
                 ret.append(len(self.z))
         else:
@@ -91,6 +92,22 @@ class Grid(AbstractInterfaceObject):
                 ret.append(zshp)
         ret = tuple(ret)
         return ret
+
+    def expand(self):
+        # tdk: test dimensions are preserved
+        # tdk: test with z
+        assert self.x.ndim == 1
+        assert self.y.ndim == 1
+
+        new_x, new_y = np.meshgrid(self.x.value, self.y.value)
+
+        if self.x.dimensions is not None:
+            new_dims = (self.y.dimensions[0], self.x.dimensions[0])
+        else:
+            new_dims = None
+
+        self.x = Variable(self.x.name, value=new_x, dimensions=new_dims)
+        self.y = Variable(self.y.name, value=new_y, dimensions=new_dims)
 
     def write_netcdf(self, dataset, **kwargs):
         to_write = [self.x, self.y]

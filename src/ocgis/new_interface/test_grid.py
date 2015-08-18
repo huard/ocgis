@@ -1,43 +1,65 @@
+from copy import deepcopy
+
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import Grid
 from ocgis.new_interface.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
 
 
 class TestGrid(AbstractTestNewInterface):
-    def get(self, with_z=True, with_2d_variables=False, with_zndim=3):
+    def get(self, with_z=True, with_2d_variables=False, with_zndim=3, with_dimensions=False):
         assert with_zndim in (1, 3)
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
         z = [100, 200]
 
+        x_dim = Dimension('x', length=len(x))
+        y_dim = Dimension('y', length=len(y))
+        z_dim = Dimension('z', length=len(z))
+
         kwds = {}
 
         if with_2d_variables:
-            mx, my = np.meshgrid(x, y)
-            vx = Variable('x', value=mx, dtype=float)
-            vy = Variable('y', value=my, dtype=float)
+            x_value, y_value = np.meshgrid(x, y)
+            x_dims = (y_dim, x_dim)
+            y_dims = x_dims
         else:
-            vx = Variable('x', value=x, dtype=float)
-            vy = Variable('y', value=y, dtype=float)
+            x_value, y_value = x, y
+            x_dims = (x_dim,)
+            y_dims = (y_dim,)
+
+        if not with_dimensions:
+            x_dims = None
+            y_dims = None
+
+        vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
+        vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
         kwds.update(dict(x=vx, y=vy))
 
         if with_z:
             if with_2d_variables:
                 if with_zndim == 3:
-                    z_value = np.zeros((3, 3, 4))
+                    z_value = np.zeros((3, 4, 3))
                     z_value[0, ...] = 100.
                     z_value[1, ...] = 200.
                     z_value[2, ...] = 300.
+                    z_dims = (z_dim, y_dim, x_dim)
                 else:
-                    z_value = np.zeros((3, 4))
+                    z_value = np.zeros((4, 3))
                     z_value[:] = 150.
+                    z_dims = (y_dim, x_dim)
             else:
                 z_value = z
-            vz = Variable('z', value=z_value, dtype=float)
+                z_dims = (z_dim,)
+
+            if not with_dimensions:
+                z_dims = None
+
+            vz = Variable('z', value=z_value, dtype=float, dimensions=z_dims)
             kwds.update(dict(z=vz))
 
         grid = Grid(**kwds)
@@ -54,33 +76,50 @@ class TestGrid(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             Grid(x=x)
 
-    def test_getitem(self):
+    def test_expand(self):
         grid = self.get()
-        self.assertEqual(grid.ndim, 3)
-        sub = grid[1, 2, 0]
-        self.assertEqual(sub.x.value, 102.)
-        self.assertEqual(sub.y.value, 42.)
-        self.assertEqual(sub.z.value, 100.)
+        grid_orig = deepcopy(grid)
+        self.assertEqual(grid.x.ndim, 1)
+        self.assertTrue(grid.is_vectorized)
+        grid.expand()
+        self.assertEqual(grid.x.ndim, 2)
+        self.assertFalse(grid.is_vectorized)
+        self.assertEqual(grid.shape, grid_orig.shape)
 
-        # Test with two-dimensional x and y values.
-        grid = self.get(with_2d_variables=True, with_z=False)
-        sub = grid[1:3, 1:]
-        actual_x = [[102.0, 103.0], [102.0, 103.0]]
-        self.assertEqual(sub.x.value.tolist(), actual_x)
-        actual_y = [[41.0, 41.0], [42.0, 42.0]]
-        self.assertEqual(sub.y.value.tolist(), actual_y)
+        # Test dimensions are preserved.
+        grid = self.get(with_dimensions=True)
+        grid.expand()
+        for v in [grid.x, grid.y]:
+            self.assertEqual(v.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
 
-        # Test with a z-coordinate.
-        grid = self.get(with_2d_variables=True)
-        sub = grid[:, :, 1]
-        self.assertTrue(np.all(sub.z.value == 200.))
+    def test_getitem(self):
+        for with_dimensions in [False, True]:
+            grid = self.get(with_dimensions=with_dimensions)
+            self.assertEqual(grid.ndim, 3)
+            sub = grid[1, 2, 0]
+            self.assertEqual(sub.x.value, 102.)
+            self.assertEqual(sub.y.value, 42.)
+            self.assertEqual(sub.z.value, 100.)
 
-        # Test with a z-coordinate having one 2-d level.
-        grid = self.get(with_2d_variables=True, with_zndim=1)
-        self.assertEqual(grid.ndim, 3)
-        self.assertEqual(grid.shape, (4, 3, 1))
-        sub = grid[1:3, :, :]
-        self.assertEqual(sub.shape, (2, 3, 1))
+            # Test with two-dimensional x and y values.
+            grid = self.get(with_2d_variables=True, with_z=False, with_dimensions=with_dimensions)
+            sub = grid[1:3, 1:]
+            actual_x = [[102.0, 103.0], [102.0, 103.0]]
+            self.assertEqual(sub.x.value.tolist(), actual_x)
+            actual_y = [[41.0, 41.0], [42.0, 42.0]]
+            self.assertEqual(sub.y.value.tolist(), actual_y)
+
+            # Test with a z-coordinate.
+            grid = self.get(with_2d_variables=True, with_dimensions=with_dimensions)
+            sub = grid[:, :, 1]
+            self.assertTrue(np.all(sub.z.value == 200.))
+
+            # Test with a z-coordinate having one 2-d level.
+            grid = self.get(with_2d_variables=True, with_zndim=1, with_dimensions=with_dimensions)
+            self.assertEqual(grid.ndim, 3)
+            self.assertEqual(grid.shape, (4, 3, 1))
+            sub = grid[1:3, :, :]
+            self.assertEqual(sub.shape, (2, 3, 1))
 
     def test_resolution(self):
         grid = self.get()
@@ -88,7 +127,7 @@ class TestGrid(AbstractTestNewInterface):
 
     def test_shape(self):
         grid = self.get()
-        self.assertEqual(grid.shape, (3, 4, 2))
+        self.assertEqual(grid.shape, (4, 3, 2))
         self.assertEqual(grid.ndim, 3)
 
         grid = self.get(with_z=False)
