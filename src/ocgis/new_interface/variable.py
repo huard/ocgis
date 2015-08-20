@@ -146,9 +146,12 @@ class Variable(AbstractInterfaceObject, Attributes):
         if value is not None:
             if not isinstance(value, MaskedArray):
                 value = np.ma.array(value, dtype=self.dtype, fill_value=self.fill_value, mask=False)
-            if self.dimensions is not None:
-                assert value.shape == self.shape
+            self._validate_value_(value)
         self._value = value
+
+    def _validate_value_(self, value):
+        if self.dimensions is not None:
+            assert value.shape == self.shape
 
     ####################################################################################################################
 
