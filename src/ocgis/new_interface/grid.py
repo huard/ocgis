@@ -8,7 +8,10 @@ from ocgis.util.helpers import get_formatted_slice
 
 
 class Grid(AbstractInterfaceObject):
+    # tdk: consider how to handle 1-dimensional x, y, z when expanded
     def __init__(self, x=None, y=None, z=None):
+        self._mask = None
+
         self.x = x
         self.y = y
         self.z = z
@@ -62,6 +65,19 @@ class Grid(AbstractInterfaceObject):
         return ret
 
     @property
+    def mask(self):
+        if self.is_vectorized:
+            self.expand()
+        return self.x.value.mask
+
+    @mask.setter
+    def mask(self, value):
+        if self.is_vectorized:
+            self.expand()
+        self.x.mask = value
+        self.y.mask = value
+
+    @property
     def ndim(self):
         if self.z is None:
             ret = 2
@@ -94,7 +110,6 @@ class Grid(AbstractInterfaceObject):
         return ret
 
     def expand(self):
-        # tdk: test dimensions are preserved
         # tdk: test with z
         assert self.x.ndim == 1
         assert self.y.ndim == 1
@@ -109,9 +124,15 @@ class Grid(AbstractInterfaceObject):
         self.x = Variable(self.x.name, value=new_x, dimensions=new_dims)
         self.y = Variable(self.y.name, value=new_y, dimensions=new_dims)
 
+        self.x.value.mask = self.y.value.mask
+
     def write_netcdf(self, dataset, **kwargs):
         to_write = [self.x, self.y]
         if self.z is not None:
             to_write.append(self.z)
         for tw in to_write:
             tw.write_netcdf(dataset, **kwargs)
+
+    def validate_mask(self):
+        # tdk: implement
+        raise NotImplementedError

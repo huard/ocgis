@@ -47,7 +47,7 @@ class TestGrid(AbstractTestNewInterface):
                     z_value[0, ...] = 100.
                     z_value[1, ...] = 200.
                     z_value[2, ...] = 300.
-                    z_dims = (Dimension('x', length=3), y_dim, x_dim)
+                    z_dims = (Dimension('z', length=3), y_dim, x_dim)
                 else:
                     z_value = np.zeros((4, 3))
                     z_value[:] = 150.
@@ -92,6 +92,13 @@ class TestGrid(AbstractTestNewInterface):
         for v in [grid.x, grid.y]:
             self.assertEqual(v.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
 
+        # Test with a single row and column.
+        x = Variable('x', value=[1], dimensions=Dimension('x', length=1))
+        y = Variable('y', value=[2], dimensions=Dimension('y', length=1))
+        grid = Grid(x=x, y=y)
+        grid.expand()
+        self.assertEqual(grid.shape, (1, 1))
+
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get(with_dimensions=with_dimensions)
@@ -120,6 +127,14 @@ class TestGrid(AbstractTestNewInterface):
             self.assertEqual(grid.shape, (4, 3, 1))
             sub = grid[1:3, :, :]
             self.assertEqual(sub.shape, (2, 3, 1))
+
+    def test_mask(self):
+        grid = self.get()
+        print grid.mask
+        grid.mask[3] = True
+        print grid.mask
+        print grid.x.value.mask
+        print grid.y.value.mask
 
     def test_resolution(self):
         grid = self.get()
@@ -162,3 +177,14 @@ class TestGrid(AbstractTestNewInterface):
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
             self.assertNumpyAll(var[:], grid.y.value.data)
+
+        # Test with 2-d x and y arrays.
+        grid = self.get(with_z=True, with_2d_variables=True, with_dimensions=True)
+        path = self.get_temporary_file_path('out.nc')
+        with self.nc_scope(path, 'w') as ds:
+            grid.write_netcdf(ds)
+        with self.nc_scope(path) as ds:
+            var = ds.variables['y']
+            self.assertNumpyAll(var[:], grid.y.value.data)
+            var_z = ds.variables['z']
+            self.assertEqual(len(var_z.dimensions), 3)

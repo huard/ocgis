@@ -5,10 +5,8 @@ from ocgis.util.helpers import get_formatted_slice
 
 
 class Dimension(AbstractInterfaceObject):
-    # tdk:doc
 
     def __init__(self, name, length=None, length_current=None):
-        # tdk:test
         self.name = name
         self.length = length
         self.length_current = length_current
