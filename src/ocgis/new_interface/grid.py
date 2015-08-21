@@ -38,14 +38,14 @@ class GridXY(Variable):
 
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
-        if self._value is None:
+        if self.y is not None:
             if self.is_vectorized:
                 ret.y = self.y[slc[0]]
                 ret.x = self.x[slc[1]]
             else:
-                ret.y = self.y[:, slc[0], slc[1]]
-                ret.x = self.x[:, slc[0], slc[1]]
-        else:
+                ret.y = self.y[slc[0], slc[1]]
+                ret.x = self.x[slc[0], slc[1]]
+        if self._value is not None:
             ret._value = self._value[:, slc[0], slc[1]]
         return ret
 
@@ -56,19 +56,6 @@ class GridXY(Variable):
         else:
             ret = True
         return ret
-
-    @property
-    def mask(self):
-        if self.is_vectorized:
-            self.expand()
-        return self.x.value.mask
-
-    @mask.setter
-    def mask(self, value):
-        if self.is_vectorized:
-            self.expand()
-        self.x.mask = value
-        self.y.mask = value
 
     @property
     def ndim(self):

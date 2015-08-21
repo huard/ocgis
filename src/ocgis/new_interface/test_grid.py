@@ -118,31 +118,25 @@ class TestGridXY(AbstractTestNewInterface):
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get(with_dimensions=with_dimensions)
-            self.assertEqual(grid.ndim, 3)
-            sub = grid[1, 2, 0]
+            self.assertEqual(grid.ndim, 2)
+            sub = grid[2, 1]
             self.assertEqual(sub.x.value, 102.)
             self.assertEqual(sub.y.value, 42.)
-            self.assertEqual(sub.z.value, 100.)
+            self.assertIsNone(grid._value)
 
             # Test with two-dimensional x and y values.
-            grid = self.get(with_2d_variables=True, with_z=False, with_dimensions=with_dimensions)
-            sub = grid[1:3, 1:]
+            grid = self.get(with_2d_variables=True, with_dimensions=with_dimensions)
+            sub = grid[1:3, 1:3]
             actual_x = [[102.0, 103.0], [102.0, 103.0]]
             self.assertEqual(sub.x.value.tolist(), actual_x)
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
+            self.assertIsNone(grid._value)
 
-            # Test with a z-coordinate.
-            grid = self.get(with_2d_variables=True, with_dimensions=with_dimensions)
-            sub = grid[:, :, 1]
-            self.assertTrue(np.all(sub.z.value == 200.))
-
-            # Test with a z-coordinate having one 2-d level.
-            grid = self.get(with_2d_variables=True, with_zndim=1, with_dimensions=with_dimensions)
-            self.assertEqual(grid.ndim, 3)
-            self.assertEqual(grid.shape, (4, 3, 1))
-            sub = grid[1:3, :, :]
-            self.assertEqual(sub.shape, (2, 3, 1))
+        # Test with a value.
+        grid = self.get(with_value_only=True)
+        sub = grid[1, :]
+        self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
 
     def test_resolution(self):
         for grid in self.get_iter():
