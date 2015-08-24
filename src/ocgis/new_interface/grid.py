@@ -27,9 +27,8 @@ class GridXY(Variable):
         """
         :param slc: The slice sequence with indices corresponding to:
 
-         0 --> x-dimension
-         1 --> y-dimension
-         2 --> z-dimension (if present)
+         0 --> y-dimension
+         1 --> x-dimension
 
         :type slc: sequence of slice-compatible arguments
         :returns: Sliced grid components.
