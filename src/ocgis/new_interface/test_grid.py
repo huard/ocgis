@@ -1,5 +1,3 @@
-import subprocess
-
 import numpy as np
 
 from ocgis.new_interface.dimension import Dimension
@@ -152,7 +150,7 @@ class TestGridXY(AbstractTestNewInterface):
             try:
                 self.assertIsNone(grid._value)
             except AssertionError:
-                self.assertTrue(kwds['with_value'])
+                self.assertTrue(kwds['with_value'] or kwds['with_value_only'])
             value = grid.value
             self.assertEqual(value.shape, (2, 4, 3))
             self.assertTrue(np.all(grid.value[0, 1, :] == 41.))
@@ -198,6 +196,6 @@ class TestGridXY(AbstractTestNewInterface):
             yc = ds.variables['yc']
             self.assertEqual(['yy', 'xx'], [d for d in yc.dimensions])
             self.assertEqual(yc.axis, 'Y')
-        subprocess.check_call(['ncdump', '-h', path])
+            # subprocess.check_call(['ncdump', '-h', path])
 
         #tdk: test with no x or y

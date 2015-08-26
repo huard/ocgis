@@ -50,7 +50,11 @@ class GridXY(Variable):
 
     @property
     def is_vectorized(self):
-        if len(self.x.shape) > 1:
+        if self._value is None:
+            length = len(self.x.shape)
+        else:
+            length = len(self._value.shape)
+        if length > 1:
             ret = False
         else:
             ret = True
