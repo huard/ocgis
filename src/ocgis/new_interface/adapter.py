@@ -13,3 +13,4 @@ class SpatialAdapter(AbstractAdapter):
 
     def update_crs(self, to_crs):
         raise NotImplementedError
+
