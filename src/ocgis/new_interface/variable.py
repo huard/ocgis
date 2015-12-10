@@ -309,7 +309,8 @@ class BoundedVariable(Variable):
 
 
 class SourcedVariable(Variable):
-    # tdk: allow multiple variables to be opened with a single dataset open call
+    # tdk: allow multiple variables to be opened with a single dataset open call?
+    # tdk: rename 'data' to 'request_dataset'
     def __init__(self, *args, **kwargs):
         self._data = kwargs.pop('data')
 

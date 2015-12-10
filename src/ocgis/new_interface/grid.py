@@ -8,6 +8,8 @@ from ocgis.util.helpers import get_formatted_slice
 
 
 class GridXY(Variable):
+    ndim = 2
+
     def __init__(self, **kwargs):
 
         self.x = kwargs.pop('x', None)
@@ -61,10 +63,6 @@ class GridXY(Variable):
         return ret
 
     @property
-    def ndim(self):
-        return 2
-
-    @property
     def resolution(self):
         if self.is_vectorized:
             to_mean = [self.x.resolution, self.y.resolution]
@@ -88,23 +86,6 @@ class GridXY(Variable):
             ret = self.value.shape[1:]
         ret = tuple(ret)
         return ret
-
-    def expand(self):
-        # tdk: remove
-        assert self.x.ndim == 1
-        assert self.y.ndim == 1
-
-        new_x, new_y = np.meshgrid(self.x.value, self.y.value)
-
-        if self.x.dimensions is not None:
-            new_dims = (self.y.dimensions[0], self.x.dimensions[0])
-        else:
-            new_dims = None
-
-        self.x = Variable(self.x.name, value=new_x, dimensions=new_dims)
-        self.y = Variable(self.y.name, value=new_y, dimensions=new_dims)
-
-        self.x.value.mask = self.y.value.mask
 
     def write_netcdf(self, dataset, **kwargs):
         if self._value is None:
