@@ -2,7 +2,7 @@ import numpy as np
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
-from ocgis.new_interface.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
 
 
@@ -71,30 +71,6 @@ class TestGridXY(AbstractTestNewInterface):
 
         grid = self.get(with_value=True)
         self.assertIsNotNone(grid._value)
-
-    # tdk: remove
-    # def test_expand(self):
-    #     grid = self.get()
-    #     grid_orig = deepcopy(grid)
-    #     self.assertEqual(grid.x.ndim, 1)
-    #     self.assertTrue(grid.is_vectorized)
-    #     grid.expand()
-    #     self.assertEqual(grid.x.ndim, 2)
-    #     self.assertFalse(grid.is_vectorized)
-    #     self.assertEqual(grid.shape, grid_orig.shape)
-    #
-    #     # Test dimensions are preserved.
-    #     grid = self.get(with_dimensions=True)
-    #     grid.expand()
-    #     for v in [grid.x, grid.y]:
-    #         self.assertEqual(v.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
-    #
-    #     # Test with a single row and column.
-    #     x = Variable('x', value=[1], dimensions=Dimension('x', length=1))
-    #     y = Variable('y', value=[2], dimensions=Dimension('y', length=1))
-    #     grid = GridXY(x=x, y=y)
-    #     grid.expand()
-    #     self.assertEqual(grid.shape, (1, 1))
 
     def test_dimensions(self):
         grid = self.get()
@@ -196,6 +172,3 @@ class TestGridXY(AbstractTestNewInterface):
             yc = ds.variables['yc']
             self.assertEqual(['yy', 'xx'], [d for d in yc.dimensions])
             self.assertEqual(yc.axis, 'Y')
-            # subprocess.check_call(['ncdump', '-h', path])
-
-            # tdk: test with no x or y

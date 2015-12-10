@@ -2,7 +2,7 @@ import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
-from ocgis.new_interface.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 
 
 class TestDimension(AbstractTestNewInterface):

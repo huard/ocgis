@@ -8,7 +8,7 @@ from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, EmptySub
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
 from ocgis.util.helpers import get_bounds_from_1d
 
