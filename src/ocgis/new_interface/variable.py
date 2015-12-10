@@ -375,8 +375,7 @@ class SourcedVariable(Variable):
             if self._fill_value is None:
                 self.fill_value = var.__dict__.get('_FillValue')
 
-            if self._attrs is None:
-                self.attrs = var.__dict__
+            self.attrs.update(var.__dict__)
         finally:
             ds.close()
 

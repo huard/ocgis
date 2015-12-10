@@ -133,7 +133,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sv._dimensions)
         self.assertIsNone(sv._dtype)
         self.assertIsNone(sv._fill_value)
-        self.assertIsNone(sv._attrs)
         return sv
 
     def get_data(self):

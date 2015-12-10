@@ -89,6 +89,18 @@ class VariableInCollectionError(OcgException):
         return (msg)
 
 
+class VariableShapeMismatch(OcgException):
+    def __init__(self, variable, collection_shape):
+        self.variable = variable
+        self.collection_shape = collection_shape
+
+    def __str__(self):
+        msg = 'Variable with alias "{0}" has shape {1}. Collection shape is {2}'.format(self.variable.alias,
+                                                                                        self.variable.shape,
+                                                                                        self.collection_shape)
+        return msg
+
+
 class SampleSizeNotImplemented(CalculationException):
     pass
 
