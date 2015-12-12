@@ -7,44 +7,6 @@ from ocgis.new_interface.variable import Variable
 
 
 class TestGridXY(AbstractTestNewInterface):
-    def get(self, with_2d_variables=False, with_dimensions=False, with_value=False,
-            with_value_only=False):
-
-        x = [101, 102, 103]
-        y = [40, 41, 42, 43]
-
-        x_dim = Dimension('x', length=len(x))
-        y_dim = Dimension('y', length=len(y))
-
-        kwds = {}
-
-        if with_2d_variables:
-            x_value, y_value = np.meshgrid(x, y)
-            x_dims = (y_dim, x_dim)
-            y_dims = x_dims
-        else:
-            x_value, y_value = x, y
-            x_dims = (x_dim,)
-            y_dims = (y_dim,)
-
-        if not with_dimensions:
-            x_dims = None
-            y_dims = None
-
-        if not with_value_only:
-            vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
-            vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
-            kwds.update(dict(x=vx, y=vy))
-
-        if with_value or with_value_only:
-            new_x, new_y = np.meshgrid(x, y)
-            fill = np.zeros((2, len(y), len(x)))
-            fill[0, ...] = new_y
-            fill[1, ...] = new_x
-            kwds.update(dict(value=fill))
-
-        grid = GridXY(**kwds)
-        return grid
 
     def get_iter(self, return_kwargs=False):
         poss = [True, False]
@@ -53,7 +15,7 @@ class TestGridXY(AbstractTestNewInterface):
                     with_value=poss,
                     with_value_only=poss)
         for k in self.iter_product_keywords(kwds, as_namedtuple=False):
-            ret = self.get(**k)
+            ret = self.get_gridxy(**k)
             if return_kwargs:
                 ret = (ret, k)
             yield ret
@@ -62,36 +24,36 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(GridXY.__bases__, (Variable,))
 
     def test_init(self):
-        grid = self.get()
+        grid = self.get_gridxy()
         self.assertIsInstance(grid, GridXY)
 
         x = Variable('x', value=[1])
         with self.assertRaises(ValueError):
             GridXY(x=x)
 
-        grid = self.get(with_value=True)
+        grid = self.get_gridxy(with_value=True)
         self.assertIsNotNone(grid._value)
 
     def test_dimensions(self):
-        grid = self.get()
+        grid = self.get_gridxy()
         self.assertIsNone(grid.dimensions)
 
-        grid = self.get(with_dimensions=True)
+        grid = self.get_gridxy(with_dimensions=True)
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
-        grid = self.get(with_dimensions=True, with_2d_variables=True)
+        grid = self.get_gridxy(with_dimensions=True, with_2d_variables=True)
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
-        grid = self.get(with_value_only=True)
+        grid = self.get_gridxy(with_value_only=True)
         self.assertIsNone(grid.x)
         self.assertIsNone(grid.y)
         self.assertIsNone(grid.dimensions)
 
     def test_getitem(self):
         for with_dimensions in [False, True]:
-            grid = self.get(with_dimensions=with_dimensions)
+            grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
             self.assertEqual(sub.x.value, 102.)
@@ -99,7 +61,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertIsNone(grid._value)
 
             # Test with two-dimensional x and y values.
-            grid = self.get(with_2d_variables=True, with_dimensions=with_dimensions)
+            grid = self.get_gridxy(with_2d_variables=True, with_dimensions=with_dimensions)
             sub = grid[1:3, 1:3]
             actual_x = [[102.0, 103.0], [102.0, 103.0]]
             self.assertEqual(sub.x.value.tolist(), actual_x)
@@ -108,7 +70,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertIsNone(grid._value)
 
         # Test with a value.
-        grid = self.get(with_value_only=True)
+        grid = self.get_gridxy(with_value_only=True)
         sub = grid[1, :]
         self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
 
@@ -133,7 +95,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertTrue(np.all(grid.value[1, :, 1] == 102.))
 
     def test_write_netcdf(self):
-        grid = self.get()
+        grid = self.get_gridxy()
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
@@ -142,7 +104,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertNumpyAll(var[:], grid.y.value.data)
 
         # Test with 2-d x and y arrays.
-        grid = self.get(with_2d_variables=True, with_dimensions=True)
+        grid = self.get_gridxy(with_2d_variables=True, with_dimensions=True)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
@@ -151,7 +113,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertNumpyAll(var[:], grid.y.value.data)
 
         # Test when the value is loaded.
-        grid = self.get(with_dimensions=True)
+        grid = self.get_gridxy(with_dimensions=True)
         grid._get_value_()
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
@@ -160,7 +122,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertEqual(['y', 'x'], [d for d in ds.variables['y'].dimensions])
 
         # Test with a value only.
-        grid = self.get(with_value_only=True)
+        grid = self.get_gridxy(with_value_only=True)
         self.assertIsNone(grid.y)
         self.assertIsNone(grid.x)
         self.assertIsNone(grid.dimensions)

@@ -1226,6 +1226,7 @@ class TestSpatialGeometryDimension(TestBase):
             gdim2.get_highest_order_abstraction()
 
 
+# tdk: remove
 class TestSpatialGeometryPointDimension(AbstractTestSpatialDimension):
     def test_init(self):
         row = VectorDimension(value=[5])

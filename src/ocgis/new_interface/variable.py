@@ -18,7 +18,7 @@ class Variable(AbstractInterfaceObject, Attributes):
     # tdk:doc
     # tdk:support unlimited dimensions
 
-    def __init__(self, name, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None):
+    def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None):
         self._alias = None
         self._dimensions = None
         self._value = None
@@ -71,8 +71,6 @@ class Variable(AbstractInterfaceObject, Attributes):
     def dtype(self, value):
         self._dtype = value
 
-    # property(dimensions) #############################################################################################
-
     @property
     def dimensions(self):
         return self._get_dimensions_()
@@ -88,8 +86,6 @@ class Variable(AbstractInterfaceObject, Attributes):
         if value is not None:
             value = tuple(get_iter(value, dtype=Dimension))
         self._dimensions = value
-
-    ####################################################################################################################
 
     @property
     def fill_value(self):
@@ -133,7 +129,9 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def value(self):
-        return self._get_value_()
+        if self._value is None:
+            self._value = self._get_value_()
+        return self._value
 
     @value.setter
     def value(self, value):
