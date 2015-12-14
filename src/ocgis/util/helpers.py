@@ -441,6 +441,15 @@ def get_ocgis_corners_from_esmf_corners(ecorners):
     return grid_corners
 
 
+def get_optimal_slice_from_array(arr):
+    if np.any(np.diff(arr) > 1):
+        ret = arr
+    else:
+        arr_min, arr_max = arr.min(), arr.max()
+        ret = slice(arr_min, arr_max + 1)
+    return ret
+
+
 def get_ordered_dicts_from_records_array(arr):
     """
     Convert a NumPy records array to an ordered dictionary.

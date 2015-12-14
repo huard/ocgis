@@ -18,7 +18,7 @@ from ocgis.util.helpers import format_bool, iter_array, validate_time_subset,\
     get_added_slice, get_iter, get_ordered_dicts_from_records_array, get_sorted_uris_by_time_dimension, \
     get_bounds_from_1d, get_date_list, get_bounds_vector_from_centroids, get_extrapolated_corners_esmf, get_is_increasing, \
     get_extrapolated_corners_esmf_vector, set_name_attributes, get_ocgis_corners_from_esmf_corners, \
-    add_shapefile_unique_identifier, get_tuple, set_new_value_mask_for_field
+    add_shapefile_unique_identifier, get_tuple, set_new_value_mask_for_field, get_optimal_slice_from_array
 
 
 class Test1(AbstractTestSpatialDimension):
@@ -371,6 +371,15 @@ class Test2(TestBase):
         slice2 = slice(2,-3)
         with self.assertRaises(AssertionError):
             get_added_slice(slice1,slice2)
+
+    def test_get_optimal_slice_from_array(self):
+        arr = np.array([1, 3, 4])
+        res = get_optimal_slice_from_array(arr)
+        np.testing.assert_equal(arr, res)
+
+        arr = np.array([1, 2, 3, 4])
+        res = get_optimal_slice_from_array(arr)
+        self.assertEqual(res, slice(1, 5))
     
     def test_get_trimmed_array_by_mask_by_bool(self):
         arr = np.zeros((4,4),dtype=bool)

@@ -1,5 +1,6 @@
 import inspect
 from abc import ABCMeta
+from collections import deque
 from copy import copy
 
 import numpy as np
@@ -12,7 +13,7 @@ from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.adapter import SpatialAdapter
 from ocgis.new_interface.base import get_keyword_arguments_from_template_keys
 from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import iter_array, get_none_or_slice
+from ocgis.util.helpers import iter_array, get_none_or_slice, get_optimal_slice_from_array
 
 _KWARGS_SPATIAL_ADAPTER = inspect.getargspec(SpatialAdapter.__init__).args
 
@@ -56,7 +57,7 @@ class PointArray(AbstractSpatialVariable):
         ret = np.ma.array(ret, mask=self.value.mask)
         return ret
 
-    def get_intersects(self, polygon, use_spatial_index=True, keep_touches=False):
+    def get_intersects_masked(self, polygon, use_spatial_index=True, keep_touches=False, return_indices=False):
         """
         :param polygon: The Shapely geometry to use for subsetting.
         :type polygon: :class:`shapely.geometry.Polygon' or :class:`shapely.geometry.MultiPolygon'
@@ -68,6 +69,7 @@ class PointArray(AbstractSpatialVariable):
         :returns: A spatial variable the same geometry type.
         """
         # tdk: doc keep_touches
+        # tdk: doc return_indices
         # Only polygons are acceptable for subsetting.
         if type(polygon) not in (Polygon, MultiPolygon):
             raise NotImplementedError(type(polygon))
@@ -77,11 +79,17 @@ class PointArray(AbstractSpatialVariable):
         fill = np.ma.array(ret.value, mask=True)
         ref_fill_mask = fill.mask.reshape(-1)
 
+        # If we are return indices, create the indices container.
+        if return_indices:
+            ri = deque()
+
         if use_spatial_index:
             si = self.get_spatial_index()
             # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
             for idx in si.iter_intersects(polygon, self.value.reshape(-1), keep_touches=keep_touches):
                 ref_fill_mask[idx] = False
+                if return_indices:
+                    ri.append(idx)
         else:
             # Prepare the polygon for faster spatial operations.
             prepared = prep(polygon)
@@ -94,6 +102,8 @@ class PointArray(AbstractSpatialVariable):
                 else:
                     bool_value = True
                 ref_fill_mask[idx] = bool_value
+                if not bool_value and return_indices:
+                    ri.append(idx[0])
 
         # If everything is masked, this is an empty subset.
         if ref_fill_mask.all():
@@ -101,6 +111,40 @@ class PointArray(AbstractSpatialVariable):
 
         # Set the returned value to the fill array.
         ret._value = fill
+
+        if return_indices:
+            ri = np.array(ri, dtype=np.int32)
+            ri = get_optimal_slice_from_array(ri)
+            ret = (ri, ret)
+
+        return ret
+
+    def get_intersection_masked(self, *args, **kwargs):
+        # tdk: doc
+        should_return_indices = kwargs.pop('return_indices', False)
+        # Always return indices from the intersects method
+        kwargs['return_indices'] = True
+        ri, ret = self.get_intersects_masked(*args, **kwargs)
+
+        ref_value = ret.value
+        for idx, geom in iter_array(ref_value, return_value=True):
+            ref_value[idx] = geom.intersection(args[0])
+
+        if should_return_indices:
+            ret = (ri, ret)
+
+        return ret
+
+    def get_nearest(self, target, return_index=False):
+        target = target.centroid
+        distances = {}
+        for select_nearest_index, geom in iter_array(self.value, return_value=True):
+            distances[target.distance(geom)] = select_nearest_index
+        select_nearest_index = distances[min(distances.keys())]
+        ret = self.value[select_nearest_index]
+
+        if return_index:
+            ret = (select_nearest_index[0], ret)
 
         return ret
 

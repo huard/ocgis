@@ -66,9 +66,6 @@ class SpatialAdapter(AbstractAdapter):
             r_value[idx] = r_loads(ogr_geom.ExportToWkb())
         self._crs = to_crs
 
-    def get_intersection(self):
-        raise NotImplementedError
-
     def write_fiona(self, path, driver='ESRI Shapefile'):
         name_uid = constants.HEADERS.ID_GEOMETRY.upper()
         schema = {'geometry': self.geom_type,

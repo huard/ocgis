@@ -59,7 +59,7 @@ class TestPointArray(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             self.get_pointarray(value=value)
 
-    def test_get_intersects(self):
+    def test_get_intersects_masked(self):
         x = self.get_variable_x()
         y = self.get_variable_y()
         grid = GridXY(x=x, y=y)
@@ -68,8 +68,17 @@ class TestPointArray(AbstractTestNewInterface):
         poly = wkt.loads(
             'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
         actual_mask = np.array([[True, True, False, True], [True, False, True, True], [True, True, False, True]])
-        for use_spatial_index in [True, False]:
-            ret = pa.get_intersects(poly, use_spatial_index=use_spatial_index)
+
+        keywords = dict(use_spatial_index=[True, False],
+                        return_indices=[False, True])
+
+        for k in self.iter_product_keywords(keywords):
+            ret = pa.get_intersects_masked(poly, use_spatial_index=k.use_spatial_index, return_indices=k.return_indices)
+            if k.return_indices:
+                (ri, ret) = ret
+                self.assertEqual(ri.ndim, 1)
+                self.assertEqual((actual_mask == False).sum(), ri.shape[0])
+
             self.assertNumpyAll(actual_mask, ret.value.mask)
             for element in ret.value.data.flat:
                 self.assertIsInstance(element, Point)
@@ -80,8 +89,22 @@ class TestPointArray(AbstractTestNewInterface):
             value = np.ma.array(value, mask=[False, True, False], dtype=object)
             pa2 = PointArray(value=value)
             b = box(0, 0, 5, 5)
-            res = pa2.get_intersects(b, use_spatial_index=use_spatial_index)
+            res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
             self.assertNumpyAll(res.value.mask, value.mask)
+
+    def test_get_intersection_masked(self):
+        pa = self.get_pointarray()
+        polygon = box(0.9, 1.9, 1.5, 2.5)
+        lhs = pa.get_intersection_masked(polygon)
+        print lhs.value
+
+    def test_get_nearest(self):
+        target1 = Point(0.5, 0.75)
+        target2 = box(0.5, 0.75, 0.55, 0.755)
+        pa = self.get_pointarray()
+        for target in [target1, target2]:
+            res = pa.get_nearest(target, return_index=True)
+            self.assertEqual(res, (0, Point(1, 2)))
 
     def test_get_spatial_index(self):
         pa = self.get_pointarray()
