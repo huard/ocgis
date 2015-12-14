@@ -9,6 +9,7 @@ from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError, \
     ResolutionError
 from ocgis.interface.base.attributes import Attributes
+from ocgis.interface.base.dimension.base import get_none_or_array
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
@@ -189,11 +190,10 @@ class Variable(AbstractInterfaceObject, Attributes):
 
 class BoundedVariable(Variable):
     def __init__(self, *args, **kwargs):
+        self._bounds = None
+
         self.bounds = kwargs.pop('bounds', None)
         self._has_extrapolated_bounds = False
-
-        if self.bounds is not None:
-            assert self.bounds.ndim == 2
 
         super(BoundedVariable, self).__init__(*args, **kwargs)
 
@@ -208,6 +208,17 @@ class BoundedVariable(Variable):
             bounds = None
         ret.bounds = bounds
         return ret
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @bounds.setter
+    def bounds(self, value):
+        value = get_none_or_array(value, 2)
+        if value is not None:
+            assert value.ndim == 2
+        self._bounds = value
 
     @property
     def resolution(self):

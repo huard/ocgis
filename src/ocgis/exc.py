@@ -237,8 +237,8 @@ class EmptySubsetError(SubsetException):
         self.origin = origin
 
     def __str__(self):
-        msg = 'A subset operation on dimension "{0}" returned empty.'.format(self.origin)
-        return (msg)
+        msg = 'A subset operation on variable "{0}" returned empty.'.format(self.origin)
+        return msg
 
 
 class NoUnitsError(OcgException):

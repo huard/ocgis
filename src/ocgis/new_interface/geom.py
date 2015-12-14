@@ -1,11 +1,14 @@
 import inspect
 from abc import ABCMeta
+from copy import copy
 
 import numpy as np
 from numpy.core.multiarray import ndarray
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely.prepared import prep
 
 from ocgis import env
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.adapter import SpatialAdapter
 from ocgis.new_interface.base import get_keyword_arguments_from_template_keys
 from ocgis.new_interface.variable import Variable
@@ -53,7 +56,7 @@ class PointArray(AbstractSpatialVariable):
         ret = np.ma.array(ret, mask=self.value.mask)
         return ret
 
-    def get_intersects_masked(self, polygon, use_spatial_index=True):
+    def get_intersects(self, polygon, use_spatial_index=True, keep_touches=False):
         """
         :param polygon: The Shapely geometry to use for subsetting.
         :type polygon: :class:`shapely.geometry.Polygon' or :class:`shapely.geometry.MultiPolygon'
@@ -61,9 +64,10 @@ class PointArray(AbstractSpatialVariable):
          If the geometric case is simple, it may marginally improve execution times to turn this off. However, turning
          this off for a complex case will negatively impact (significantly) spatial operation execution times.
         :raises: NotImplementedError, EmptySubsetError
-        :returns: :class:`ocgis.interface.base.dimension.spatial.SpatialGeometryPointDimension`
+        :rtype: :class:`~ocgis.new_interface.geom.AbstractSpatialVariable`
+        :returns: A spatial variable the same geometry type.
         """
-        # tdk: move
+        # tdk: doc keep_touches
         # Only polygons are acceptable for subsetting.
         if type(polygon) not in (Polygon, MultiPolygon):
             raise NotImplementedError(type(polygon))
@@ -71,38 +75,25 @@ class PointArray(AbstractSpatialVariable):
         ret = copy(self)
         # Create the fill array and reference the mask. This is the output geometry value array.
         fill = np.ma.array(ret.value, mask=True)
-        ref_fill_mask = fill.mask
+        ref_fill_mask = fill.mask.reshape(-1)
 
         if use_spatial_index:
-            # Keep this as a local import as it is not a required dependency.
-            from ocgis.util.spatial.index import SpatialIndex
-            # Create the index object and reference import members.
-            si = SpatialIndex()
-            _add = si.add
-            _value = self.value
-            _uid = self.uid
-            # Add the geometries to the index.
-            for (ii, jj), v in iter_array(_value, return_value=True):
-                _add(_uid[ii, jj], v)
-            # This mapping simulates a dictionary for the item look-ups from two-dimensional arrays.
-            geom_mapping = GeomMapping(self.uid, self.value)
-            _uid = ret.uid
-            # Return the identifiers of the objects intersecting the target geometry and update the mask accordingly.
-            for intersect_id in si.iter_intersects(polygon, geom_mapping, keep_touches=False):
-                sel = _uid == intersect_id
-                ref_fill_mask[sel] = False
+            si = self.get_spatial_index()
+            # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
+            for idx in si.iter_intersects(polygon, self.value.reshape(-1), keep_touches=keep_touches):
+                ref_fill_mask[idx] = False
         else:
             # Prepare the polygon for faster spatial operations.
             prepared = prep(polygon)
             # We are not keeping touches at this point. Remember the mask is an inverse.
-            for (ii, jj), geom in iter_array(self.value, return_value=True):
+            for idx, geom in iter_array(self.value.reshape(-1), return_value=True):
                 bool_value = False
                 if prepared.intersects(geom):
-                    if polygon.touches(geom):
+                    if not keep_touches and polygon.touches(geom):
                         bool_value = True
                 else:
                     bool_value = True
-                ref_fill_mask[ii, jj] = bool_value
+                ref_fill_mask[idx] = bool_value
 
         # If everything is masked, this is an empty subset.
         if ref_fill_mask.all():
@@ -110,8 +101,6 @@ class PointArray(AbstractSpatialVariable):
 
         # Set the returned value to the fill array.
         ret._value = fill
-        # Also update the unique identifier array.
-        ret.uid = np.ma.array(ret.uid, mask=fill.mask.copy())
 
         return ret
 

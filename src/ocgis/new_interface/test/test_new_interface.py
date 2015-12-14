@@ -1,4 +1,5 @@
 from abc import ABCMeta
+from copy import deepcopy
 
 import numpy as np
 from shapely.geometry import Point
@@ -56,6 +57,6 @@ class AbstractTestNewInterface(TestBase):
         return grid
 
     def get_pointarray(self, **kwargs):
-        kwargs['value'] = kwargs.pop('value', _VALUE_POINT_ARRAY)
+        kwargs['value'] = kwargs.pop('value', deepcopy(_VALUE_POINT_ARRAY))
         pa = PointArray(**kwargs)
         return pa

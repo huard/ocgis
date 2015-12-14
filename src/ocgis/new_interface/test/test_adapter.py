@@ -44,15 +44,3 @@ class TestSpatialAdapter(AbstractTestNewInterface):
         pa.write_fiona(path)
         with fiona.open(path, 'r') as records:
             self.assertEqual(len(list(records)), 2)
-
-    # tdk: remove
-    def test_masking(self):
-        x = np.ma.array([[1, 2, 3],
-                         [4, 5, 6]], mask=[[True, False, True],
-                                           [True, False, True]])
-        slc = np.ma.clump_unmasked(x)
-        print x
-        print slc
-        print dir(np.ma)
-        print x.__getitem__(*slc)
-        # tdk:RESUME:implement get_intersects

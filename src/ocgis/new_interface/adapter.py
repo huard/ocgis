@@ -8,6 +8,7 @@ from ocgis import constants
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import ogr
+from ocgis.util.helpers import iter_array
 
 
 class AbstractAdapter(AbstractInterfaceObject):
@@ -38,19 +39,18 @@ class SpatialAdapter(AbstractAdapter):
             self._geom_type = geom.geom_type
         return self._geom_type
 
-    @property
-    def spatial_index(self):
-        if self._spatial_index is None:
-            # "rtree" is an optional dependency.
-            from ocgis.util.spatial.index import SpatialIndex
-            # Fill the spatial index with unmasked values only.
-            si = SpatialIndex()
-            r_add = si.add
-            # Add the geometries to the index.
-            for idx, geom in enumerate(self.value.compressed()):
-                r_add(idx, geom)
-            self._spatial_index = si
-        return self._spatial_index
+    def get_spatial_index(self):
+        # "rtree" is an optional dependency.
+        from ocgis.util.spatial.index import SpatialIndex
+        # Fill the spatial index with unmasked values only.
+        si = SpatialIndex()
+        r_add = si.add
+        # Add the geometries to the index.
+        # tdk: test with the value having a mask already
+        for idx, geom in iter_array(self.value.reshape(-1), return_value=True, use_mask=True):
+            r_add(idx[0], geom)
+
+        return si
 
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
@@ -66,9 +66,6 @@ class SpatialAdapter(AbstractAdapter):
             r_value[idx] = r_loads(ogr_geom.ExportToWkb())
         self._crs = to_crs
 
-    def get_intersects(self):
-        raise NotImplementedError
-
     def get_intersection(self):
         raise NotImplementedError
 
@@ -78,7 +75,7 @@ class SpatialAdapter(AbstractAdapter):
                   'properties': {name_uid: 'int'}}
         ref_prep = self._write_fiona_prep_geom_
         with fiona.open(path, 'w', driver=driver, crs=self.crs.value, schema=schema) as f:
-            for uid, (_, geom) in enumerate(self.compressed):
+            for uid, geom in enumerate(self.value.compressed()):
                 geom = ref_prep(geom)
                 feature = {'properties': {name_uid: uid}, 'geometry': mapping(geom)}
                 f.write(feature)

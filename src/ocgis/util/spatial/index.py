@@ -31,7 +31,7 @@ class SpatialIndex(object):
             for ig, sg in izip(id_geom, shapely_geom):
                 _insert(ig, sg.bounds)
 
-    def iter_intersects(self, shapely_geom, geom_mapping, keep_touches=True):
+    def iter_intersects(self, shapely_geom, arr, keep_touches=True):
         """
         Return an interator for the unique identifiers of the geometries intersecting the target geometry.
 
@@ -44,6 +44,7 @@ class SpatialIndex(object):
         :returns: Generator yield integer unique identifiers.
         :rtype: int
         """
+        # tdk: update doc
         # Create the geometry iterator. If it is a multi-geometry, we want to iterator over those individually.
         try:
             itr = iter(shapely_geom)
@@ -52,20 +53,20 @@ class SpatialIndex(object):
             itr = [shapely_geom]
 
         for shapely_geom_sub in itr:
-            # Return the initial identifiers that intersect with the bounding box using the retree internal method.
-            ids = self._get_intersection_rtree_(shapely_geom_sub)
+            # Return the initial identifiers that intersect with the bounding box using the "rtree" internal method.
+            indices = self._get_intersection_rtree_(shapely_geom_sub)
             # Prepare the geometry for faster operations.
             prepared = prep(shapely_geom_sub)
-            _intersects = prepared.intersects
-            _touches = shapely_geom_sub.touches
-            for ii in ids:
-                geom = geom_mapping[ii]
-                if _intersects(geom):
-                    if keep_touches == False:
-                        if _touches(geom) == False:
-                            yield (ii)
+            r_intersects = prepared.intersects
+            r_touches = shapely_geom_sub.touches
+            for idx in indices:
+                geom = arr[idx]
+                if r_intersects(geom):
+                    if not keep_touches:
+                        if not r_touches(geom):
+                            yield idx
                     else:
-                        yield (ii)
+                        yield idx
 
     def iter_rtree_intersection(self, shapely_geom):
         # Create the geometry iterator. If it is a multi-geometry, we want to iterator over those individually.

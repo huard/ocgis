@@ -557,6 +557,11 @@ class Test2(TestBase):
             self.assertFalse(values.mask[idx])
         self.assertEqual(len(list(iter_array(values, use_mask=True))), len(values.compressed()))
         self.assertEqual(len(list(iter_array(values, use_mask=False))), len(values.data.flatten()))
+
+        # Test true index is used regardless of mask. That is, the index is global not local to only the masked data.
+        arr = np.ma.array([1, 2, 3], mask=[False, True, False])
+        lhs = [i[0] for i in iter_array(arr)]
+        self.assertEqual(lhs, [0, 2])
         
     def test_format_bool(self):
         mmap = {0: False, 1: True, 't': True, 'True': True, 'f': False, 'False': False}
