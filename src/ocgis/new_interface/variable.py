@@ -11,7 +11,7 @@ from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAl
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
-from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, iter_array
+from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 
 
 class Variable(AbstractInterfaceObject, Attributes):
@@ -60,11 +60,6 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._alias = value
 
     @property
-    def compressed(self):
-        for idx, value in iter_array(self.value, use_mask=True, return_value=True):
-            yield idx, value
-
-    @property
     def dtype(self):
         if self._value is not None:
             ret = self._value.dtype
@@ -83,11 +78,6 @@ class Variable(AbstractInterfaceObject, Attributes):
     @dimensions.setter
     def dimensions(self, value):
         self._set_dimensions_(value)
-
-    @property
-    def flat(self):
-        for idx, value in iter_array(self.value, use_mask=False, return_value=True):
-            yield idx, value
 
     def _get_dimensions_(self):
         return self._dimensions

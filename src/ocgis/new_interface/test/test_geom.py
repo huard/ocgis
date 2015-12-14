@@ -4,6 +4,7 @@ from shapely.geometry import Point
 
 from ocgis import env
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestPointArray(AbstractTestNewInterface):
@@ -34,6 +35,11 @@ class TestPointArray(AbstractTestNewInterface):
         value = Point(6, 7)
         with self.assertRaises(ValueError):
             self.get_pointarray(value=value)
+
+    def test_spatial_index(self):
+        pa = self.get_pointarray()
+        self.assertIsInstance(pa.spatial_index, SpatialIndex)
+        self.assertEqual(pa.spatial_index._index.bounds, [1.0, 2.0, 3.0, 4.0])
 
     def test_get_intersects_masked(self):
         sdim = self.get_sdim(crs=WGS84())

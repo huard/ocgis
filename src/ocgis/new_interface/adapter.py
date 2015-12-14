@@ -15,12 +15,13 @@ class AbstractAdapter(AbstractInterfaceObject):
 
 
 class SpatialAdapter(AbstractAdapter):
-    def __init__(self, crs=None, geom_type='auto'):
+    def __init__(self, crs=None, geom_type='auto', spatial_index=None):
         if crs is not None:
             assert isinstance(crs, CoordinateReferenceSystem)
 
         self._geom_type = geom_type
         self._crs = crs
+        self._spatial_index = spatial_index
 
     @property
     def crs(self):
@@ -36,6 +37,20 @@ class SpatialAdapter(AbstractAdapter):
                     break
             self._geom_type = geom.geom_type
         return self._geom_type
+
+    @property
+    def spatial_index(self):
+        if self._spatial_index is None:
+            # "rtree" is an optional dependency.
+            from ocgis.util.spatial.index import SpatialIndex
+            # Fill the spatial index with unmasked values only.
+            si = SpatialIndex()
+            r_add = si.add
+            # Add the geometries to the index.
+            for idx, geom in enumerate(self.value.compressed()):
+                r_add(idx, geom)
+            self._spatial_index = si
+        return self._spatial_index
 
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
