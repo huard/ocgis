@@ -1,7 +1,10 @@
 from abc import ABCMeta
 
+import fiona
 from shapely import wkb
+from shapely.geometry import mapping
 
+from ocgis import constants
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import ogr
@@ -53,3 +56,20 @@ class SpatialAdapter(AbstractAdapter):
 
     def get_intersection(self):
         raise NotImplementedError
+
+    def write_fiona(self, path, driver='ESRI Shapefile'):
+        name_uid = constants.HEADERS.ID_GEOMETRY.upper()
+        schema = {'geometry': self.geom_type,
+                  'properties': {name_uid: 'int'}}
+        ref_prep = self._write_fiona_prep_geom_
+        with fiona.open(path, 'w', driver=driver, crs=self.crs.value, schema=schema) as f:
+            for uid, (_, geom) in enumerate(self.compressed):
+                geom = ref_prep(geom)
+                feature = {'properties': {name_uid: uid}, 'geometry': mapping(geom)}
+                f.write(feature)
+
+        return path
+
+    @staticmethod
+    def _write_fiona_prep_geom_(geom):
+        return geom

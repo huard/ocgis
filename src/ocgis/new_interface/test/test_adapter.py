@@ -1,3 +1,4 @@
+import fiona
 import numpy as np
 from shapely.geometry import Point, MultiPoint
 
@@ -36,3 +37,22 @@ class TestSpatialAdapter(AbstractTestNewInterface):
         v1 = [2358072.3857447207, -239270.87548993886]
         np.testing.assert_almost_equal(pa.value[0], v0)
         np.testing.assert_almost_equal(pa.value[1], v1)
+
+    def test_write_fiona(self):
+        pa = self.get_pointarray(crs=WGS84())
+        path = self.get_temporary_file_path('foo.shp')
+        pa.write_fiona(path)
+        with fiona.open(path, 'r') as records:
+            self.assertEqual(len(list(records)), 2)
+
+    # tdk: remove
+    def test_masking(self):
+        x = np.ma.array([[1, 2, 3],
+                         [4, 5, 6]], mask=[[True, False, True],
+                                           [True, False, True]])
+        slc = np.ma.clump_unmasked(x)
+        print x
+        print slc
+        print dir(np.ma)
+        print x.__getitem__(*slc)
+        # tdk:RESUME:implement get_intersects

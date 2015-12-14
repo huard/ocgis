@@ -11,7 +11,7 @@ from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAl
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
-from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
+from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, iter_array
 
 
 class Variable(AbstractInterfaceObject, Attributes):
@@ -60,6 +60,11 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._alias = value
 
     @property
+    def compressed(self):
+        for idx, value in iter_array(self.value, use_mask=True, return_value=True):
+            yield idx, value
+
+    @property
     def dtype(self):
         if self._value is not None:
             ret = self._value.dtype
@@ -78,6 +83,11 @@ class Variable(AbstractInterfaceObject, Attributes):
     @dimensions.setter
     def dimensions(self, value):
         self._set_dimensions_(value)
+
+    @property
+    def flat(self):
+        for idx, value in iter_array(self.value, use_mask=False, return_value=True):
+            yield idx, value
 
     def _get_dimensions_(self):
         return self._dimensions
@@ -224,6 +234,7 @@ class BoundedVariable(Variable):
         return ret
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
+        # tdk: refactor to function
         assert (lower <= upper)
 
         # Determine if data bounds are contiguous (if bounds exists for the data). Bounds must also have more than one
@@ -310,7 +321,11 @@ class SourcedVariable(Variable):
     # tdk: allow multiple variables to be opened with a single dataset open call?
     # tdk: rename 'data' to 'request_dataset'
     def __init__(self, *args, **kwargs):
-        self._data = kwargs.pop('data')
+        if kwargs.get('value') is None and kwargs.get('request_dataset') is None:
+            msg = 'A "value" or "request_dataset" is required.'
+            raise ValueError(msg)
+
+        self._request_dataset = kwargs.pop('request_dataset', None)
 
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
@@ -349,7 +364,7 @@ class SourcedVariable(Variable):
         return self._dimensions
 
     def _set_metadata_from_source_(self):
-        ds = self._data.driver.open()
+        ds = self._request_dataset.driver.open()
         try:
             var = ds.variables[self.name]
 
@@ -385,7 +400,7 @@ class SourcedVariable(Variable):
         return super(SourcedVariable, self)._get_value_()
 
     def _get_value_from_source_(self):
-        ds = self._data.driver.open()
+        ds = self._request_dataset.driver.open()
         try:
             var = ds.variables[self.name]
             slc = get_formatted_slice([d._src_idx for d in self.dimensions], len(self.shape))

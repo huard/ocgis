@@ -15,7 +15,7 @@ class GridXY(Variable):
         self.x = kwargs.pop('x', None)
         self.y = kwargs.pop('y', None)
 
-        super(GridXY, self).__init__(kwargs.pop('name', None), **kwargs)
+        super(GridXY, self).__init__(**kwargs)
 
         if self._value is None:
             if self.x is None or self.y is None:

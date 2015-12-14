@@ -20,9 +20,6 @@ class TestGridXY(AbstractTestNewInterface):
                 ret = (ret, k)
             yield ret
 
-    def test_bases(self):
-        self.assertEqual(GridXY.__bases__, (Variable,))
-
     def test_init(self):
         grid = self.get_gridxy()
         self.assertIsInstance(grid, GridXY)

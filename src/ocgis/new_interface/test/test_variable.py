@@ -126,16 +126,16 @@ class TestBoundedVariable(AbstractTestNewInterface):
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
-    def get(self, name='tas'):
-        data = self.get_data()
-        sv = SourcedVariable(name, data=data)
+    def get_sourcedvariable(self, name='tas'):
+        data = self.get_request_dataset()
+        sv = SourcedVariable(name, request_dataset=data)
         self.assertIsNone(sv._value)
         self.assertIsNone(sv._dimensions)
         self.assertIsNone(sv._dtype)
         self.assertIsNone(sv._fill_value)
         return sv
 
-    def get_data(self):
+    def get_request_dataset(self):
         data = self.test_data.get_rd('cancm4_tas')
         return data
 
@@ -143,16 +143,16 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(SourcedVariable.__bases__, (Variable,))
 
     def test_init(self):
-        sv = self.get()
-        self.assertIsInstance(sv._data, RequestDataset)
+        sv = self.get_sourcedvariable()
+        self.assertIsInstance(sv._request_dataset, RequestDataset)
 
-        sv = self.get(name='time_bnds')
+        sv = self.get_sourcedvariable(name='time_bnds')
         self.assertIsNone(sv._value)
         sub = sv[5:10, :]
-        self.assertIsNone(sv._value)
+        self.assertIsNone(sub._value)
 
     def test_getitem(self):
-        sv = self.get()
+        sv = self.get_sourcedvariable()
         sub = sv[10:20, 5, 6]
         self.assertEqual(sub.shape, (10, 1, 1))
         self.assertIsNone(sub._value)
@@ -160,11 +160,11 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sub.dimensions[0].length_current, 10)
 
     def test_get_dimensions(self):
-        sv = self.get()
+        sv = self.get_sourcedvariable()
         self.assertTrue(len(sv.dimensions), 3)
 
     def test_set_metadata_from_source_(self):
-        sv = self.get()
+        sv = self.get_sourcedvariable()
         sv._set_metadata_from_source_()
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
@@ -177,19 +177,19 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
     def test_get_value_from_source_(self):
-        sv = self.get()
+        sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]
         res = sub._get_value_from_source_()
         self.assertEqual(res.shape, (6, 3, 3))
 
-        with self.nc_scope(self.get_data().uri, 'r') as ds:
+        with self.nc_scope(self.get_request_dataset().uri, 'r') as ds:
             var = ds.variables[sv.name]
             actual = var[5:11, 3:6, 5:8]
 
         self.assertNumpyAll(res, actual)
 
     def test_value(self):
-        sv = self.get()
+        sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]
         self.assertEqual(sub.value.shape, (6, 3, 3))
 

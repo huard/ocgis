@@ -146,3 +146,6 @@ NAME_UID_FIELD = 'fid'
 CALC_KEY_KEYWORDS = 'kwds'
 CALC_KEY_CLASS_REFERENCE = 'ref'
 NAME_UID_FIELD = 'fid'
+
+# Default unique identifier start value.
+DEFAULT_UID_START = 1

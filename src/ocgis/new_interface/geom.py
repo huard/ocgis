@@ -115,27 +115,6 @@ class PointArray(AbstractSpatialVariable):
 
         return ret
 
-    def write_fiona(self, path, crs, driver='ESRI Shapefile'):
-        # tdk: move
-        schema = {'geometry': self.geom_type,
-                  'properties': {'UGID': 'int'}}
-        ref_prep = self._write_fiona_prep_geom_
-        ref_uid = self.uid
-
-        with fiona.open(path, 'w', driver=driver, crs=crs, schema=schema) as f:
-            for (ii, jj), geom in iter_array(self.value, return_value=True):
-                geom = ref_prep(geom)
-                uid = int(ref_uid[ii, jj])
-                feature = {'properties': {'UGID': uid}, 'geometry': mapping(geom)}
-                f.write(feature)
-
-        return path
-
-    @staticmethod
-    def _write_fiona_prep_geom_(geom):
-        # tdk: move
-        return geom
-
     def _get_geometry_fill_(self, shape=None):
         if shape is None:
             shape = (self.grid.shape[0], self.grid.shape[1])

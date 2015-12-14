@@ -11,20 +11,20 @@ class TestPointArray(AbstractTestNewInterface):
     # tdk: bring in spatialgeometrypointdimension tests
 
     def test_init(self):
-        value = [Point(1, 2), Point(3, 4)]
-        pa = self.get_pointarray(value=value)
+        pa = self.get_pointarray()
         self.assertIsInstance(pa.value, MaskedArray)
         self.assertEqual(pa.ndim, 1)
 
         # Test initializing with a grid object.
         gridxy = self.get_gridxy()
-        pa = self.get_pointarray(grid=gridxy)
+        # Enforce value as none.
+        pa = self.get_pointarray(grid=gridxy, value=None)
         self.assertIsInstance(pa.value, MaskedArray)
         self.assertEqual(pa.ndim, 2)
 
-    def test_get_item(self):
+    def test_getitem(self):
         gridxy = self.get_gridxy()
-        pa = self.get_pointarray(grid=gridxy)
+        pa = self.get_pointarray(grid=gridxy, value=None)
         sub = pa[2:4, 1]
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
