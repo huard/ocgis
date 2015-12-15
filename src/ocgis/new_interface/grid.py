@@ -4,11 +4,12 @@ import numpy as np
 
 from ocgis import constants
 from ocgis.exc import EmptySubsetError
+from ocgis.new_interface.adapter import SpatialAdapter
 from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice
 
 
-class GridXY(Variable):
+class GridXY(Variable, SpatialAdapter):
     ndim = 2
 
     def __init__(self, **kwargs):
@@ -49,6 +50,7 @@ class GridXY(Variable):
                 ret.x = self.x[slc[0], slc[1]]
         if self._value is not None:
             ret._value = self._value[:, slc[0], slc[1]]
+            ret._value.unshare_mask()
         return ret
 
     @property
@@ -89,9 +91,10 @@ class GridXY(Variable):
         assert min_col <= max_col
 
         if self.y is None:
-            r_row = self.value[0, :, :]
+            assert not use_bounds
+            r_row = self.value.data[0, :, :]
             real_idx_row = np.arange(0, r_row.shape[0])
-            r_col = self.value[1, :, :]
+            r_col = self.value.data[1, :, :]
             real_idx_col = np.arange(0, r_col.shape[1])
 
             if closed:
@@ -127,9 +130,6 @@ class GridXY(Variable):
                     raise EmptySubsetError(origin='X')
                 else:
                     raise
-
-            new_mask = np.invert(np.logical_or(idx_row, idx_col)[row_slc, col_slc])
-
         else:
             new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
                                                       use_bounds=use_bounds)
@@ -140,21 +140,60 @@ class GridXY(Variable):
 
         ret = self[row_slc, col_slc]
 
-        try:
-            grid_mask = np.zeros((2, new_mask.shape[0], new_mask.shape[1]), dtype=bool)
-            grid_mask[:, :, :] = new_mask
-            ret._value = np.ma.array(ret._value, mask=grid_mask)
-            ret.uid = np.ma.array(ret.uid, mask=new_mask)
-        except UnboundLocalError:
-            if self.row is not None:
-                pass
-            else:
-                raise
-
         if return_indices:
             ret = (ret, (row_slc, col_slc))
 
         return ret
+
+    def update_crs(self, to_crs):
+        """
+        Update the coordinate system in place.
+
+        :param to_crs: The destination coordinate system.
+        :type to_crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
+        """
+        # tdk: finish
+        assert self.crs is not None
+
+        # Rotated pole transformations are a special case.
+        if not isinstance(self.crs, CFRotatedPole) and not isinstance(to_crs, CFRotatedPole):
+            # if the crs values are the same, pass through
+            if to_crs != self.crs:
+                to_sr = to_crs.sr
+
+                if self.grid is not None:
+                    # update grid values
+                    value_row = self.grid.value.data[0].reshape(-1)
+                    value_col = self.grid.value.data[1].reshape(-1)
+                    self._update_crs_with_geometry_collection_(to_sr, value_row, value_col)
+                    self.grid.value.data[0] = value_row.reshape(*self.grid.shape)
+                    self.grid.value.data[1] = value_col.reshape(*self.grid.shape)
+
+                    if self.grid.corners is not None:
+                        # update the corners
+                        corner_row = self.grid.corners.data[0].reshape(-1)
+                        corner_col = self.grid.corners.data[1].reshape(-1)
+                        self._update_crs_with_geometry_collection_(to_sr, corner_row, corner_col)
+
+                    self.grid.row = None
+                    self.grid.col = None
+
+                if self._geom is not None:
+                    if self.geom._point is not None:
+                        self.geom.point.update_crs(to_crs, self.crs)
+                    if self.geom._polygon is not None:
+                        self.geom.polygon.update_crs(to_crs, self.crs)
+
+                self.crs = to_crs
+        else:
+            try:
+                """:type _crs: ocgis.interface.base.crs.CFRotatedPole"""
+                new_spatial = self.crs.get_rotated_pole_transformation(self)
+            # likely an inverse transformation if the destination crs is rotated pole.
+            except AttributeError:
+                new_spatial = to_crs.get_rotated_pole_transformation(self, inverse=True)
+            self.__dict__ = new_spatial.__dict__
+            self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
         if self._value is None:

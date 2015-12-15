@@ -1,5 +1,6 @@
 import numpy as np
 
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -30,6 +31,11 @@ class TestGridXY(AbstractTestNewInterface):
 
         grid = self.get_gridxy(with_value=True)
         self.assertIsNotNone(grid._value)
+
+    def test_corners(self):
+        grid = self.get_gridxy()
+        self.assertIsNotNone(grid.corners)
+        # tdk: RESUME: finish test
 
     def test_dimensions(self):
         grid = self.get_gridxy()
@@ -70,6 +76,32 @@ class TestGridXY(AbstractTestNewInterface):
         grid = self.get_gridxy(with_value_only=True)
         sub = grid[1, :]
         self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
+
+    def test_grid_get_subset_bbox(self):
+        keywords = dict(bounds=[True, False], closed=[True, False])
+
+        for k in self.iter_product_keywords(keywords):
+            y = self.get_variable_y(bounds=k.bounds)
+            x = self.get_variable_x(bounds=k.bounds)
+            grid = GridXY(x=x, y=y)
+            bg = grid.get_subset_bbox(-99, 39, -98, 39, closed=False)
+            self.assertEqual(bg._value, None)
+            with self.assertRaises(EmptySubsetError):
+                grid.get_subset_bbox(1000, 1000, 1001, 10001, closed=k.closed)
+
+            bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, closed=k.closed)
+            self.assertNumpyAll(bg2.value, grid.value)
+
+        # Test mask is not shared with subsetted grid.
+        grid = self.get_gridxy(with_value_only=True)
+        self.assertIsNone(grid.x)
+        self.assertIsNone(grid.y)
+        grid.value.mask[:, :, 1] = True
+        args = (101.5, 40.5, 102.5, 42.5)
+        sub = grid.get_subset_bbox(*args, use_bounds=False)
+        self.assertTrue(np.all(sub.value.mask[:, 1, 0]))
+        sub.value.mask[:, 0, 0] = False
+        self.assertTrue(np.all(grid.value.mask[:, :, 1]))
 
     def test_resolution(self):
         for grid in self.get_iter():

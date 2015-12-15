@@ -43,6 +43,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         if self.dimensions is not None:
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         ret.value = value
+        ret.value.unshare_mask()
         return ret
 
     def __len__(self):
@@ -242,7 +243,7 @@ class BoundedVariable(Variable):
         # row.
         is_contiguous = False
         if self.bounds is not None:
-            bounds_value = self.bounds.value
+            bounds_value = self.bounds
             try:
                 if len(set(bounds_value[0, :]).intersection(set(bounds_value[1, :]))) > 0:
                     is_contiguous = True

@@ -7,7 +7,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import TestBase
 
 _VALUE_POINT_ARRAY = np.array([None, None])
@@ -60,3 +60,21 @@ class AbstractTestNewInterface(TestBase):
         kwargs['value'] = kwargs.pop('value', deepcopy(_VALUE_POINT_ARRAY))
         pa = PointArray(**kwargs)
         return pa
+
+    def get_variable_x(self, bounds=True):
+        value = [-100., -99., -98., -97.]
+        if bounds:
+            bounds = [[v - 0.5, v + 0.5] for v in value]
+        else:
+            bounds = None
+        x = BoundedVariable(value=value, bounds=bounds, name='x')
+        return x
+
+    def get_variable_y(self, bounds=True):
+        value = [40., 39., 38.]
+        if bounds:
+            bounds = [[v + 0.5, v - 0.5] for v in value]
+        else:
+            bounds = None
+        y = BoundedVariable(value=value, bounds=bounds, name='y')
+        return y
