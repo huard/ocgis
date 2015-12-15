@@ -7,7 +7,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
-from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.new_interface.variable import BoundedVariable
 from ocgis.test.base import TestBase
 
 _VALUE_POINT_ARRAY = np.array([None, None])
@@ -42,8 +42,8 @@ class AbstractTestNewInterface(TestBase):
             y_dims = None
 
         if not with_value_only:
-            vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
-            vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
+            vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
+            vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
             kwds.update(dict(x=vx, y=vy))
 
         if with_value or with_value_only:

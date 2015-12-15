@@ -1,13 +1,59 @@
+import itertools
+
 import numpy as np
+from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.util.helpers import make_poly, iter_array
 
 
 class TestGridXY(AbstractTestNewInterface):
+    def assertGridCorners(self, grid):
+        """
+        :type grid: :class:`ocgis.new_interface.grid.GridXY`
+        """
+
+        assert grid.corners is not None
+
+        def _get_is_ascending_(arr):
+            """
+            Return ``True`` if the array is ascending from index 0 to -1.
+
+            :type arr: :class:`numpy.ndarray`
+            :rtype: bool
+            """
+
+            assert (arr.ndim == 1)
+            if arr[0] < arr[-1]:
+                ret = True
+            else:
+                ret = False
+
+            return ret
+
+        # Assert polygon constructed from grid corners contains the associated centroid value.
+        for ii, jj in itertools.product(range(grid.shape[0]), range(grid.shape[1])):
+            pt = Point(grid.value.data[1, ii, jj], grid.value.data[0, ii, jj])
+            poly_corners = grid.corners.data[:, ii, jj]
+            rtup = (poly_corners[0, :].min(), poly_corners[0, :].max())
+            ctup = (poly_corners[1, :].min(), poly_corners[1, :].max())
+            poly = make_poly(rtup, ctup)
+            self.assertTrue(poly.contains(pt))
+
+        # Assert masks are equivalent between value and corners.
+        for (ii, jj), m in iter_array(grid.value.mask[0, :, :], return_value=True):
+            if m:
+                self.assertTrue(grid.corners.mask[:, ii, jj].all())
+            else:
+                self.assertFalse(grid.corners.mask[:, ii, jj].any())
+
+        if grid.y is not None or grid.x is not None:
+            self.assertEqual(_get_is_ascending_(grid.y.value), _get_is_ascending_(grid.corners.data[0, :, 0][:, 0]))
+            self.assertEqual(_get_is_ascending_(grid.x.value), _get_is_ascending_(grid.corners.data[1, 0, :][:, 0]))
 
     def get_iter(self, return_kwargs=False):
         poss = [True, False]
@@ -33,9 +79,35 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIsNotNone(grid._value)
 
     def test_corners(self):
+        # Test constructing from x/y bounds.
         grid = self.get_gridxy()
-        self.assertIsNotNone(grid.corners)
-        # tdk: RESUME: finish test
+        grid.x.set_extrapolated_bounds()
+        grid.y.set_extrapolated_bounds()
+        corners = grid.corners.copy()
+        value = grid.value.copy()
+        self.assertIsNotNone(corners)
+        self.assertEqual(corners.shape, (2, grid.y.shape[0], grid.x.shape[0], 4))
+        self.assertGridCorners(grid)
+
+        # Test initializing corners with a value.
+        grid = GridXY(value=value, corners=corners)
+        self.assertNumpyAll(grid.corners, corners)
+
+    def test_corners_esmf(self):
+        x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]])
+        x = BoundedVariable(value=[-100., -99., -98., -97.], bounds=x_bounds)
+
+        y_bounds = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]])
+        y = BoundedVariable(value=[40., 39., 38.], bounds=y_bounds)
+
+        grid = GridXY(x=x, y=y)
+
+        actual = np.array([[[40.5, 40.5, 40.5, 40.5, 40.5], [39.5, 39.5, 39.5, 39.5, 39.5],
+                            [38.5, 38.5, 38.5, 38.5, 38.5], [37.5, 37.5, 37.5, 37.5, 37.5]],
+                           [[-100.5, -99.5, -98.5, -97.5, -96.5], [-100.5, -99.5, -98.5, -97.5, -96.5],
+                            [-100.5, -99.5, -98.5, -97.5, -96.5], [-100.5, -99.5, -98.5, -97.5, -96.5]]],
+                          dtype=grid.value.dtype)
+        self.assertNumpyAll(actual, grid.corners_esmf)
 
     def test_dimensions(self):
         grid = self.get_gridxy()

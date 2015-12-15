@@ -24,9 +24,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
         var = BoundedVariable('x', value=value, bounds=bounds)
         return var
 
-    def test_bases(self):
-        self.assertEqual(BoundedVariable.__bases__, (Variable,))
-
     def test_init(self):
         bv = self.get()
         self.assertEqual(bv.shape, (3,))

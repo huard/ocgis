@@ -1,3 +1,4 @@
+import itertools
 from copy import copy
 
 import numpy as np
@@ -5,17 +6,19 @@ import numpy as np
 from ocgis import constants
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.adapter import SpatialAdapter
-from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice
+from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
 
 
 class GridXY(Variable, SpatialAdapter):
     ndim = 2
 
     def __init__(self, **kwargs):
+        self._corners = None
 
         self.x = kwargs.pop('x', None)
         self.y = kwargs.pop('y', None)
+        self.corners = kwargs.pop('corners', None)
 
         super(GridXY, self).__init__(**kwargs)
 
@@ -26,6 +29,10 @@ class GridXY(Variable, SpatialAdapter):
             if self.x.ndim > 2 or self.y.ndim > 2:
                 msg = '"x" and "y" may not have ndim > 2.'
                 raise ValueError(msg)
+
+        if self.x is not None:
+            assert isinstance(self.x, BoundedVariable)
+            assert isinstance(self.y, BoundedVariable)
 
     def __getitem__(self, slc):
         """
@@ -52,6 +59,66 @@ class GridXY(Variable, SpatialAdapter):
             ret._value = self._value[:, slc[0], slc[1]]
             ret._value.unshare_mask()
         return ret
+
+    @property
+    def corners(self):
+        """
+        2 x row x column x 4
+
+        2 = y, x or row, column
+        row
+        column
+        4 = ul, ur, lr, ll
+        """
+
+        if self._corners is None:
+            if self.y is None or self.x is None:
+                pass
+            elif self.y.bounds.value is None or self.x.bounds.value is None:
+                pass
+            else:
+                fill = np.zeros([2] + list(self.shape) + [4], dtype=self.y.value.dtype)
+                col_bounds = self.x.bounds.value
+                row_bounds = self.y.bounds.value
+                for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
+                    fill_element = fill[:, ii, jj]
+                    fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
+                    fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
+                    fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
+                    fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
+
+                mask_value = self.value.mask
+                mask_fill = np.zeros(fill.shape, dtype=bool)
+                for (ii, jj), m in iter_array(mask_value[0, :, :], return_value=True):
+                    mask_fill[:, ii, jj, :] = m
+                fill = np.ma.array(fill, mask=mask_fill)
+
+                self._corners = fill
+
+        return self._corners
+
+    @corners.setter
+    def corners(self, value):
+        if value is not None:
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.array(value, mask=False)
+            assert value.ndim == 4
+            assert value.shape[3] == 4
+        self._corners = value
+
+    @property
+    def corners_esmf(self):
+        fill = np.zeros([2] + [element + 1 for element in self.shape], dtype=self.value.dtype)
+        range_row = range(self.shape[0])
+        range_col = range(self.shape[1])
+        _corners = self.corners.data
+        for ii, jj in itertools.product(range_row, range_col):
+            ref = fill[:, ii:ii + 2, jj:jj + 2]
+            ref[:, 0, 0] = _corners[:, ii, jj, 0]
+            ref[:, 0, 1] = _corners[:, ii, jj, 1]
+            ref[:, 1, 1] = _corners[:, ii, jj, 2]
+            ref[:, 1, 0] = _corners[:, ii, jj, 3]
+        return fill
 
     @property
     def is_vectorized(self):

@@ -9,7 +9,6 @@ from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError, \
     ResolutionError
 from ocgis.interface.base.attributes import Attributes
-from ocgis.interface.base.dimension.base import get_none_or_array
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
@@ -216,9 +215,9 @@ class BoundedVariable(Variable):
 
     @bounds.setter
     def bounds(self, value):
-        value = get_none_or_array(value, 2)
         if value is not None:
             assert value.ndim == 2
+            assert isinstance(value, Variable)
         self._bounds = value
 
     @property
@@ -303,12 +302,12 @@ class BoundedVariable(Variable):
 
     def set_extrapolated_bounds(self, name=None):
         """Set the bounds variable using extrapolation."""
-
         if self.bounds is not None:
             raise BoundsAlreadyAvailableError
         name = name or '{0}_{1}'.format(self.name, 'bounds')
         bounds_value = get_bounds_from_1d(self.value)
-        self.bounds = Variable(name, value=bounds_value)
+        var = Variable(name, value=bounds_value)
+        self.bounds = var
         self._has_extrapolated_bounds = True
 
     def write_netcdf(self, dataset, **kwargs):
