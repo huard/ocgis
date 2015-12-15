@@ -6,7 +6,7 @@ import numpy as np
 from ocgis import constants
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.adapter import SpatialAdapter
-from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
 
 
@@ -30,10 +30,6 @@ class GridXY(Variable, SpatialAdapter):
                 msg = '"x" and "y" may not have ndim > 2.'
                 raise ValueError(msg)
 
-        if self.x is not None:
-            assert isinstance(self.x, BoundedVariable)
-            assert isinstance(self.y, BoundedVariable)
-
     def __getitem__(self, slc):
         """
         :param slc: The slice sequence with indices corresponding to:
@@ -56,8 +52,11 @@ class GridXY(Variable, SpatialAdapter):
                 ret.y = self.y[slc[0], slc[1]]
                 ret.x = self.x[slc[0], slc[1]]
         if self._value is not None:
-            ret._value = self._value[:, slc[0], slc[1]]
-            ret._value.unshare_mask()
+            ret.value = self._value[:, slc[0], slc[1]]
+            ret.value.unshare_mask()
+        if self._corners is not None:
+            ret.corners = self.corners[:, slc[0], slc[1], :]
+            ret.corners.unshare_mask()
         return ret
 
     @property

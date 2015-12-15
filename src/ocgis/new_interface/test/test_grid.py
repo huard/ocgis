@@ -81,6 +81,8 @@ class TestGridXY(AbstractTestNewInterface):
     def test_corners(self):
         # Test constructing from x/y bounds.
         grid = self.get_gridxy()
+        grid.x = BoundedVariable(value=grid.x.value)
+        grid.y = BoundedVariable(value=grid.y.value)
         grid.x.set_extrapolated_bounds()
         grid.y.set_extrapolated_bounds()
         corners = grid.corners.copy()
@@ -92,6 +94,16 @@ class TestGridXY(AbstractTestNewInterface):
         # Test initializing corners with a value.
         grid = GridXY(value=value, corners=corners)
         self.assertNumpyAll(grid.corners, corners)
+
+        # Test corners are sliced.
+        sub = grid[2:4, 1]
+        self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
+
+        cvar = Variable(value=corners, name='corners')
+        cvar.create_dimensions()
+        print cvar.dimensions
+        # tdk: make corners a variable
+        tkk
 
     def test_corners_esmf(self):
         x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]])

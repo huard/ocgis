@@ -74,14 +74,16 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def dimensions(self):
-        return self._get_dimensions_()
+        if self._dimensions is None:
+            self._dimensions = self._get_dimensions_()
+        return self._dimensions
 
     @dimensions.setter
     def dimensions(self, value):
         self._set_dimensions_(value)
 
     def _get_dimensions_(self):
-        return self._dimensions
+        return None
 
     def _set_dimensions_(self, value):
         if value is not None:
@@ -118,7 +120,7 @@ class Variable(AbstractInterfaceObject, Attributes):
     @property
     def shape(self):
         if self.dimensions is None:
-            if self.value is None:
+            if self._value is None:
                 ret = tuple()
             else:
                 ret = self.value.shape
@@ -144,12 +146,12 @@ class Variable(AbstractInterfaceObject, Attributes):
     def _set_value_(self, value):
         if value is not None:
             if not isinstance(value, MaskedArray):
-                value = np.ma.array(value, dtype=self.dtype, fill_value=self.fill_value, mask=False)
+                value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value, mask=False)
             self._validate_value_(value)
         self._value = value
 
     def _validate_value_(self, value):
-        if self.dimensions is not None:
+        if self._dimensions is not None:
             assert value.shape == self.shape
 
     ####################################################################################################################
@@ -188,7 +190,108 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.write_attributes_to_netcdf_object(var)
 
 
-class BoundedVariable(Variable):
+class SourcedVariable(Variable):
+    # tdk: allow multiple variables to be opened with a single dataset open call?
+    # tdk: rename 'data' to 'request_dataset'
+    def __init__(self, *args, **kwargs):
+        if kwargs.get('value') is None and kwargs.get('request_dataset') is None:
+            msg = 'A "value" or "request_dataset" is required.'
+            raise ValueError(msg)
+
+        self._request_dataset = kwargs.pop('request_dataset', None)
+
+        super(SourcedVariable, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, slc):
+        if self._value is None:
+            slc = get_formatted_slice(slc, len(self.dimensions))
+            ret = copy(self)
+            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
+        else:
+            ret = super(SourcedVariable, self).__getitem__(slc)
+        return ret
+
+    @property
+    def dtype(self):
+        if self._dtype is None:
+            if self._value is None:
+                self._set_metadata_from_source_()
+            else:
+                return self._value.dtype
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value):
+        self._dtype = value
+
+    @property
+    def fill_value(self):
+        if self._fill_value is None:
+            if self._value is None:
+                self._set_metadata_from_source_()
+            else:
+                return self._value.fill_value
+        return self._fill_value
+
+    @fill_value.setter
+    def fill_value(self, value):
+        self._fill_value = value
+
+    def _get_dimensions_(self):
+        if self._dimensions is None:
+            if self._request_dataset is None:
+                self._dimensions = super(SourcedVariable, self)._get_dimensions_()
+            else:
+                self._set_metadata_from_source_()
+        return self._dimensions
+
+    def _set_metadata_from_source_(self):
+        ds = self._request_dataset.driver.open()
+        try:
+            var = ds.variables[self.name]
+
+            if self._dimensions is None:
+                new_dimensions = []
+                for dim_name in var.dimensions:
+                    dim = ds.dimensions[dim_name]
+                    dim_length = len(dim)
+                    if dim.isunlimited():
+                        length = None
+                        length_current = dim_length
+                    else:
+                        length = dim_length
+                        length_current = None
+                    new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
+                    new_dimensions.append(new_dim)
+                super(SourcedVariable, self)._set_dimensions_(new_dimensions)
+
+            if self._dtype is None:
+                self.dtype = var.dtype
+
+            if self._fill_value is None:
+                self.fill_value = var.__dict__.get('_FillValue')
+
+            self.attrs.update(var.__dict__)
+        finally:
+            ds.close()
+
+    def _get_value_(self):
+        if self._value is None:
+            value = self._get_value_from_source_()
+            super(SourcedVariable, self)._set_value_(value)
+        return super(SourcedVariable, self)._get_value_()
+
+    def _get_value_from_source_(self):
+        ds = self._request_dataset.driver.open()
+        try:
+            var = ds.variables[self.name]
+            slc = get_formatted_slice([d._src_idx for d in self.dimensions], len(self.shape))
+            return var.__getitem__(slc)
+        finally:
+            ds.close()
+
+
+class BoundedVariable(SourcedVariable):
     def __init__(self, *args, **kwargs):
         self._bounds = None
 
@@ -242,7 +345,7 @@ class BoundedVariable(Variable):
         # row.
         is_contiguous = False
         if self.bounds is not None:
-            bounds_value = self.bounds
+            bounds_value = self.bounds.value
             try:
                 if len(set(bounds_value[0, :]).intersection(set(bounds_value[1, :]))) > 0:
                     is_contiguous = True
@@ -316,98 +419,6 @@ class BoundedVariable(Variable):
             self.bounds.write_netcdf(dataset, **kwargs)
             var = dataset.variables[self.name]
             var.bounds = self.bounds.name
-
-
-class SourcedVariable(Variable):
-    # tdk: allow multiple variables to be opened with a single dataset open call?
-    # tdk: rename 'data' to 'request_dataset'
-    def __init__(self, *args, **kwargs):
-        if kwargs.get('value') is None and kwargs.get('request_dataset') is None:
-            msg = 'A "value" or "request_dataset" is required.'
-            raise ValueError(msg)
-
-        self._request_dataset = kwargs.pop('request_dataset', None)
-
-        super(SourcedVariable, self).__init__(*args, **kwargs)
-
-    def __getitem__(self, slc):
-        if self._value is None:
-            slc = get_formatted_slice(slc, len(self.dimensions))
-            ret = copy(self)
-            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
-        else:
-            ret = super(SourcedVariable, self).__getitem__(slc)
-        return ret
-
-    @property
-    def dtype(self):
-        if self._dtype is None:
-            self._set_metadata_from_source_()
-        return self._dtype
-
-    @dtype.setter
-    def dtype(self, value):
-        self._dtype = value
-
-    @property
-    def fill_value(self):
-        if self._fill_value is None:
-            self._set_metadata_from_source_()
-        return self._fill_value
-
-    @fill_value.setter
-    def fill_value(self, value):
-        self._fill_value = value
-
-    def _get_dimensions_(self):
-        if self._dimensions is None:
-            self._set_metadata_from_source_()
-        return self._dimensions
-
-    def _set_metadata_from_source_(self):
-        ds = self._request_dataset.driver.open()
-        try:
-            var = ds.variables[self.name]
-
-            if self._dimensions is None:
-                new_dimensions = []
-                for dim_name in var.dimensions:
-                    dim = ds.dimensions[dim_name]
-                    dim_length = len(dim)
-                    if dim.isunlimited():
-                        length = None
-                        length_current = dim_length
-                    else:
-                        length = dim_length
-                        length_current = None
-                    new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
-                    new_dimensions.append(new_dim)
-                super(SourcedVariable, self)._set_dimensions_(new_dimensions)
-
-            if self._dtype is None:
-                self.dtype = var.dtype
-
-            if self._fill_value is None:
-                self.fill_value = var.__dict__.get('_FillValue')
-
-            self.attrs.update(var.__dict__)
-        finally:
-            ds.close()
-
-    def _get_value_(self):
-        if self._value is None:
-            value = self._get_value_from_source_()
-            super(SourcedVariable, self)._set_value_(value)
-        return super(SourcedVariable, self)._get_value_()
-
-    def _get_value_from_source_(self):
-        ds = self._request_dataset.driver.open()
-        try:
-            var = ds.variables[self.name]
-            slc = get_formatted_slice([d._src_idx for d in self.dimensions], len(self.shape))
-            return var.__getitem__(slc)
-        finally:
-            ds.close()
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection):

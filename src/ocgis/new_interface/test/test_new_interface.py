@@ -7,7 +7,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
-from ocgis.new_interface.variable import BoundedVariable
+from ocgis.new_interface.variable import BoundedVariable, Variable
 from ocgis.test.base import TestBase
 
 _VALUE_POINT_ARRAY = np.array([None, None])
@@ -42,8 +42,8 @@ class AbstractTestNewInterface(TestBase):
             y_dims = None
 
         if not with_value_only:
-            vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
-            vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
+            vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
+            vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
             kwds.update(dict(x=vx, y=vy))
 
         if with_value or with_value_only:
@@ -61,10 +61,15 @@ class AbstractTestNewInterface(TestBase):
         pa = PointArray(**kwargs)
         return pa
 
+    def get_request_dataset(self):
+        data = self.test_data.get_rd('cancm4_tas')
+        return data
+
     def get_variable_x(self, bounds=True):
         value = [-100., -99., -98., -97.]
         if bounds:
             bounds = [[v - 0.5, v + 0.5] for v in value]
+            bounds = Variable(value=bounds, name='x_bounds')
         else:
             bounds = None
         x = BoundedVariable(value=value, bounds=bounds, name='x')
@@ -74,6 +79,7 @@ class AbstractTestNewInterface(TestBase):
         value = [40., 39., 38.]
         if bounds:
             bounds = [[v + 0.5, v - 0.5] for v in value]
+            bounds = Variable(value=bounds, name='y_bounds')
         else:
             bounds = None
         y = BoundedVariable(value=value, bounds=bounds, name='y')

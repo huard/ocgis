@@ -14,7 +14,7 @@ from ocgis.util.helpers import get_bounds_from_1d
 
 
 class TestBoundedVariable(AbstractTestNewInterface):
-    def get(self, with_bounds=True):
+    def get_boundedvariable(self, with_bounds=True):
         value = np.array([4, 5, 6], dtype=float)
         if with_bounds:
             value_bounds = get_bounds_from_1d(value)
@@ -25,11 +25,25 @@ class TestBoundedVariable(AbstractTestNewInterface):
         return var
 
     def test_init(self):
-        bv = self.get()
+        bv = self.get_boundedvariable()
         self.assertEqual(bv.shape, (3,))
 
+        # Test loading from source.
+        request_dataset = self.get_request_dataset()
+        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
+        bv = BoundedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
+        self.assertEqual(bv.ndim, 1)
+        self.assertEqual(bv.dtype, np.float64)
+        self.assertEqual(bv.bounds.dtype, np.float64)
+        self.assertEqual(bv.shape, (20,))
+        self.assertEqual(bv.bounds.shape, (20, 2))
+        self.assertEqual(len(bv.dimensions), 1)
+        self.assertEqual(len(bv.bounds.dimensions), 2)
+        self.assertIsNone(bv.bounds._value)
+        self.assertIsNone(bv._value)
+
     def test_getitem(self):
-        bv = self.get()
+        bv = self.get_boundedvariable()
         sub = bv[1]
         self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
 
@@ -101,7 +115,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertNumpyAll(ret.bounds.value, np.ma.array([[2., 4.]]))
 
     def test_set_extrapolated_bounds(self):
-        bv = self.get(with_bounds=False)
+        bv = self.get_boundedvariable(with_bounds=False)
         self.assertIsNone(bv.bounds)
         self.assertFalse(bv._has_extrapolated_bounds)
         bv.set_extrapolated_bounds()
@@ -110,7 +124,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertEqual(bv.bounds.ndim, 2)
 
     def test_write_netcdf(self):
-        bv = self.get()
+        bv = self.get_boundedvariable()
         dim_x = Dimension('x', 3)
         bv.dimensions = dim_x
         bv.bounds.dimensions = [dim_x, Dimension('bounds', 2)]
@@ -132,13 +146,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sv._fill_value)
         return sv
 
-    def get_request_dataset(self):
-        data = self.test_data.get_rd('cancm4_tas')
-        return data
-
-    def test_bases(self):
-        self.assertEqual(SourcedVariable.__bases__, (Variable,))
-
     def test_init(self):
         sv = self.get_sourcedvariable()
         self.assertIsInstance(sv._request_dataset, RequestDataset)
@@ -147,6 +154,15 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sv._value)
         sub = sv[5:10, :]
         self.assertIsNone(sub._value)
+
+        # Test initializing with a value.
+        sv = SourcedVariable(value=[1, 2, 3])
+        self.assertEqual(sv.dtype, np.int)
+        self.assertEqual(sv.fill_value, 999999)
+        self.assertEqual(sv.shape, (3,))
+        self.assertIsNone(sv.dimensions)
+        sv.create_dimensions(names=['time'])
+        self.assertIsNotNone(sv.dimensions)
 
     def test_getitem(self):
         sv = self.get_sourcedvariable()
