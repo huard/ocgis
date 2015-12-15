@@ -79,7 +79,7 @@ class PointArray(AbstractSpatialVariable):
         fill = np.ma.array(ret.value, mask=True)
         ref_fill_mask = fill.mask.reshape(-1)
 
-        # If we are return indices, create the indices container.
+        # If we are returning indices, create the indices container.
         if return_indices:
             ri = deque()
 

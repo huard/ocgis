@@ -3,8 +3,9 @@ from copy import copy
 import numpy as np
 
 from ocgis import constants
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import get_formatted_slice
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice
 
 
 class GridXY(Variable):
@@ -81,6 +82,78 @@ class GridXY(Variable):
         else:
             ret = self.value.shape[1:]
         ret = tuple(ret)
+        return ret
+
+    def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
+        assert min_row <= max_row
+        assert min_col <= max_col
+
+        if self.y is None:
+            r_row = self.value[0, :, :]
+            real_idx_row = np.arange(0, r_row.shape[0])
+            r_col = self.value[1, :, :]
+            real_idx_col = np.arange(0, r_col.shape[1])
+
+            if closed:
+                lower_row = r_row > min_row
+                upper_row = r_row < max_row
+                lower_col = r_col > min_col
+                upper_col = r_col < max_col
+            else:
+                lower_row = r_row >= min_row
+                upper_row = r_row <= max_row
+                lower_col = r_col >= min_col
+                upper_col = r_col <= max_col
+
+            idx_row = np.logical_and(lower_row, upper_row)
+            idx_col = np.logical_and(lower_col, upper_col)
+
+            keep_row = np.any(idx_row, axis=1)
+            keep_col = np.any(idx_col, axis=0)
+
+            # Slice reduction may fail due to empty bounding box returns. Catch these value errors and re-purpose as
+            # subset errors.
+            try:
+                row_slc = get_reduced_slice(real_idx_row[keep_row])
+            except ValueError:
+                if real_idx_row[keep_row].shape[0] == 0:
+                    raise EmptySubsetError(origin='Y')
+                else:
+                    raise
+            try:
+                col_slc = get_reduced_slice(real_idx_col[keep_col])
+            except ValueError:
+                if real_idx_col[keep_col].shape[0] == 0:
+                    raise EmptySubsetError(origin='X')
+                else:
+                    raise
+
+            new_mask = np.invert(np.logical_or(idx_row, idx_col)[row_slc, col_slc])
+
+        else:
+            new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
+                                                      use_bounds=use_bounds)
+            new_col, col_indices = self.x.get_between(min_col, max_col, return_indices=True, closed=closed,
+                                                      use_bounds=use_bounds)
+            row_slc = get_reduced_slice(row_indices)
+            col_slc = get_reduced_slice(col_indices)
+
+        ret = self[row_slc, col_slc]
+
+        try:
+            grid_mask = np.zeros((2, new_mask.shape[0], new_mask.shape[1]), dtype=bool)
+            grid_mask[:, :, :] = new_mask
+            ret._value = np.ma.array(ret._value, mask=grid_mask)
+            ret.uid = np.ma.array(ret.uid, mask=new_mask)
+        except UnboundLocalError:
+            if self.row is not None:
+                pass
+            else:
+                raise
+
+        if return_indices:
+            ret = (ret, (row_slc, col_slc))
+
         return ret
 
     def write_netcdf(self, dataset, **kwargs):
