@@ -14,8 +14,6 @@ from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestPointArray(AbstractTestNewInterface):
-    # tdk: test initializing with a grid
-    # tdk: bring in spatialgeometrypointdimension tests
 
     def test_init(self):
         pa = self.get_pointarray()
