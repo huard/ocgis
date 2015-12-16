@@ -30,6 +30,8 @@ class PointArray(AbstractSpatialVariable):
     def __init__(self, **kwargs):
         self._grid = kwargs.pop('grid', None)
 
+        kwargs['name'] = kwargs.get('name', 'geom')
+
         super(PointArray, self).__init__(**kwargs)
 
     def __getitem__(self, slc):

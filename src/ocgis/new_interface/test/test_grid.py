@@ -1,5 +1,4 @@
 import itertools
-import subprocess
 
 import numpy as np
 from shapely.geometry import Point
@@ -82,8 +81,8 @@ class TestGridXY(AbstractTestNewInterface):
     def test_corners(self):
         # Test constructing from x/y bounds.
         grid = self.get_gridxy()
-        grid.x = BoundedVariable(value=grid.x.value)
-        grid.y = BoundedVariable(value=grid.y.value)
+        grid.x = BoundedVariable(value=grid.x.value, name='x')
+        grid.y = BoundedVariable(value=grid.y.value, name='y')
         grid.x.set_extrapolated_bounds()
         grid.y.set_extrapolated_bounds()
         corners = grid.corners.copy()
@@ -134,22 +133,20 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test writing with dimension variables.
         self.assertIsNotNone(grid.corners)
-        grid.x = None
-        grid.y = None
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
-        subprocess.check_call(['ncdump', '-h', path])
+        # subprocess.check_call(['ncdump', path])
+
         with self.nc_scope(path) as ds:
             self.assertIn('y_corners', ds.variables)
             self.assertIn('x_corners', ds.variables)
-            # tdk: allow dimension name overloads for grid
 
     def test_corners_esmf(self):
-        x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]])
-        x = BoundedVariable(value=[-100., -99., -98., -97.], bounds=x_bounds)
+        x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='x_bounds')
+        x = BoundedVariable(value=[-100., -99., -98., -97.], bounds=x_bounds, name='x')
 
-        y_bounds = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]])
-        y = BoundedVariable(value=[40., 39., 38.], bounds=y_bounds)
+        y_bounds = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='y_bounds')
+        y = BoundedVariable(value=[40., 39., 38.], bounds=y_bounds, name='y')
 
         grid = GridXY(x=x, y=y)
 
@@ -162,7 +159,7 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_dimensions(self):
         grid = self.get_gridxy()
-        self.assertIsNone(grid.dimensions)
+        self.assertEqual(grid.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
 
         grid = self.get_gridxy(with_dimensions=True)
         self.assertEqual(len(grid.dimensions), 2)
@@ -173,9 +170,11 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
         grid = self.get_gridxy(with_value_only=True)
-        self.assertIsNone(grid.x)
-        self.assertIsNone(grid.y)
-        self.assertIsNone(grid.dimensions)
+        self.assertIsNone(grid._x)
+        self.assertIsNone(grid._y)
+        self.assertIsInstance(grid.x, BoundedVariable)
+        self.assertIsInstance(grid.y, BoundedVariable)
+        self.assertEqual(len(grid.dimensions), 2)
 
     def test_getitem(self):
         for with_dimensions in [False, True]:
@@ -217,8 +216,6 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test mask is not shared with subsetted grid.
         grid = self.get_gridxy(with_value_only=True)
-        self.assertIsNone(grid.x)
-        self.assertIsNone(grid.y)
         grid.value.mask[:, :, 1] = True
         args = (101.5, 40.5, 102.5, 42.5)
         sub = grid.get_subset_bbox(*args, use_bounds=False)
@@ -266,18 +263,19 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test when the value is loaded.
         grid = self.get_gridxy(with_dimensions=True)
+        self.assertIsNone(grid._value)
         grid._get_value_()
+        self.assertIsNone(grid._dimensions)
+        self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
         with self.nc_scope(path, 'r') as ds:
-            self.assertEqual(['y', 'x'], [d for d in ds.variables['y'].dimensions])
+            self.assertEqual(['y'], [d for d in ds.variables['y'].dimensions])
+            self.assertEqual(['x'], [d for d in ds.variables['x'].dimensions])
 
         # Test with a value only.
         grid = self.get_gridxy(with_value_only=True)
-        self.assertIsNone(grid.y)
-        self.assertIsNone(grid.x)
-        self.assertIsNone(grid.dimensions)
         dimensions = (Dimension('yy', 4), Dimension('xx', 3))
         grid.dimensions = dimensions
         with self.nc_scope(path, 'w') as ds:

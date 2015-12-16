@@ -173,11 +173,11 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sub._value)
 
         # Test initializing with a value.
-        sv = SourcedVariable(value=[1, 2, 3])
+        sv = SourcedVariable(value=[1, 2, 3], name='foo')
         self.assertEqual(sv.dtype, np.int)
         self.assertEqual(sv.fill_value, 999999)
         self.assertEqual(sv.shape, (3,))
-        self.assertIsNone(sv.dimensions)
+        self.assertIsNotNone(sv.dimensions)
         sv.create_dimensions(names=['time'])
         self.assertIsNotNone(sv.dimensions)
 
@@ -270,7 +270,8 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
-        self.assertIsNone(var.dimensions)
+        self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
+        self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)

@@ -33,6 +33,14 @@ class Dimension(AbstractInterfaceObject):
                     length = len(self) - slc.start
                 else:
                     raise
+        else:
+            try:
+                # Check for boolean slices.
+                if slc.dtype == bool:
+                    length = slc.sum()
+            except AttributeError:
+                # Likely a list/tuple.
+                pass
         if self.length is None:
             ret = self.__class__(self.name, length_current=length)
         else:
@@ -52,7 +60,7 @@ class Dimension(AbstractInterfaceObject):
         return not self.__eq__(other)
 
     def __repr__(self):
-        msg = '{0}(name={1}, length={2})'.format(self.__class__.__name__, self.name, self.length)
+        msg = "{0}(name='{1}', length={2})".format(self.__class__.__name__, self.name, self.length)
         return msg
 
 

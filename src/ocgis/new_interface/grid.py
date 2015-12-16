@@ -1,4 +1,5 @@
 import itertools
+from collections import OrderedDict
 from copy import copy
 
 import numpy as np
@@ -6,7 +7,8 @@ import numpy as np
 from ocgis import constants
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.adapter import SpatialAdapter
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
 
 
@@ -15,20 +17,19 @@ class GridXY(Variable, SpatialAdapter):
 
     def __init__(self, **kwargs):
         self._corners = None
+        self._x = None
+        self._y = None
 
-        self.x = kwargs.pop('x', None)
-        self.y = kwargs.pop('y', None)
+        try:
+            self.y = kwargs.pop('y')
+            self.x = kwargs.pop('x')
+        except KeyError:
+            if 'value' not in kwargs:
+                msg = 'At least "x" and "y" are required to make a grid without a "value".'
+                raise ValueError(msg)
         self.corners = kwargs.pop('corners', None)
 
         super(GridXY, self).__init__(**kwargs)
-
-        if self._value is None:
-            if self.x is None or self.y is None:
-                msg = 'At least "x" and "y" are required to make a grid.'
-                raise ValueError(msg)
-            if self.x.ndim > 2 or self.y.ndim > 2:
-                msg = '"x" and "y" may not have ndim > 2.'
-                raise ValueError(msg)
 
     def __getitem__(self, slc):
         """
@@ -44,7 +45,7 @@ class GridXY(Variable, SpatialAdapter):
 
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
-        if self.y is not None:
+        if self._y is not None:
             if self.is_vectorized:
                 ret.y = self.y[slc[0]]
                 ret.x = self.x[slc[1]]
@@ -71,14 +72,14 @@ class GridXY(Variable, SpatialAdapter):
         """
 
         if self._corners is None:
-            if self.y is None or self.x is None:
-                pass
-            elif self.y.bounds.value is None or self.x.bounds.value is None:
+            x_bounds_value = self._x.bounds.value
+            y_bounds_value = self._y.bounds.value
+            if x_bounds_value is None or y_bounds_value is None:
                 pass
             else:
                 fill = np.zeros([2] + list(self.shape) + [4], dtype=self.y.value.dtype)
-                col_bounds = self.x.bounds.value
-                row_bounds = self.y.bounds.value
+                col_bounds = x_bounds_value
+                row_bounds = y_bounds_value
                 if self.y.ndim == 1:
                     for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
                         fill_element = fill[:, ii, jj]
@@ -126,11 +127,37 @@ class GridXY(Variable, SpatialAdapter):
 
     @property
     def is_vectorized(self):
-        if self.y is not None and self.y.ndim == 1:
+        y = self._y
+        if y is not None and y.ndim == 1:
             ret = True
         else:
             ret = False
+
         return ret
+
+    @property
+    def x(self):
+        if self._x is None:
+            self._x = get_dimension_variable('X', self, 1, 'xc')
+        return self._x
+
+    @x.setter
+    def x(self, value):
+        assert isinstance(value, Variable)
+        assert value.ndim <= 2
+        self._x = value
+
+    @property
+    def y(self):
+        if self._y is None:
+            self._y = get_dimension_variable('Y', self, 1, 'yc')
+        return self._y
+
+    @y.setter
+    def y(self, value):
+        assert isinstance(value, Variable)
+        assert value.ndim <= 2
+        self._y = value
 
     @property
     def resolution(self):
@@ -161,7 +188,7 @@ class GridXY(Variable, SpatialAdapter):
         assert min_row <= max_row
         assert min_col <= max_col
 
-        if self.y is None:
+        if self.y.ndim == 2:
             assert not use_bounds
             r_row = self.value.data[0, :, :]
             real_idx_row = np.arange(0, r_row.shape[0])
@@ -267,36 +294,15 @@ class GridXY(Variable, SpatialAdapter):
             self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
-        if self._value is None:
-            to_write = [self.x, self.y]
-        else:
-            if self.y is not None:
-                yname = self.y.name
-                yattrs = self.y.attrs
-                xname = self.x.name
-                xattrs = self.x.attrs
-            else:
-                yname = 'yc'
-                yattrs = {'axis': 'Y'}
-                xname = 'xc'
-                xattrs = {'axis': 'X'}
-            yvar = Variable(name=yname, value=self.value[0, ...], dimensions=self.dimensions, attrs=yattrs)
-            xvar = Variable(name=xname, value=self.value[1, ...], dimensions=self.dimensions, attrs=xattrs)
-            to_write = [yvar, xvar]
-        for tw in to_write:
+        for tw in [self.y, self.x]:
             tw.write_netcdf(dataset, **kwargs)
 
     def _get_dimensions_(self):
-        if self._dimensions is None:
-            value = None
-            if self.y is not None and self.y.dimensions is not None:
-                if self._value is None:
-                    if self.is_vectorized:
-                        value = (self.y.dimensions[0], self.x.dimensions[0])
-                    else:
-                        value = self.y.dimensions
-            self._dimensions = value
-        return self._dimensions
+        if self.is_vectorized:
+            ret = (self.y.dimensions[0], self.x.dimensions[0])
+        else:
+            ret = self.y.dimensions
+        return ret
 
     def _get_value_(self):
         if self._value is None:
@@ -316,6 +322,26 @@ class GridXY(Variable, SpatialAdapter):
         return self._value
 
     def _validate_value_(self, value):
-        if self.dimensions is not None:
+        if self._dimensions is not None and self._y is not None:
             assert value.shape[1:] == self.shape
             assert value.shape[0] == 2
+
+
+def get_dimension_variable(axis_string, gridxy, idx, variable_name):
+    if gridxy._dimensions is None:
+        dim_y = Dimension('y', length=gridxy.shape[0])
+        dim_x = Dimension('x', length=gridxy.shape[1])
+    else:
+        dim_y, dim_x = gridxy.dimensions
+    attrs = OrderedDict({'axis': axis_string})
+    # Only write the corners if they have been loaded.
+    if gridxy._corners is not None:
+        dim_n_corners = (Dimension('n_corners', length=4))
+        corners = Variable(name='{}_corners'.format(variable_name), dimensions=(dim_y, dim_x, dim_n_corners),
+                           value=gridxy.corners[idx, :, :, :])
+        attrs.update({'bounds': corners.name})
+    else:
+        corners = None
+    ret = BoundedVariable(name=variable_name, dimensions=(dim_y, dim_x), attrs=attrs,
+                          bounds=corners, value=gridxy.value[idx, :, :])
+    return ret

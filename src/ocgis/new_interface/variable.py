@@ -39,7 +39,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         ret = copy(self)
         slc = get_formatted_slice(slc, self.ndim)
         value = self.value.__getitem__(slc)
-        if self.dimensions is not None:
+        if self._dimensions is not None:
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         ret.value = value
         ret.value.unshare_mask()
@@ -75,7 +75,10 @@ class Variable(AbstractInterfaceObject, Attributes):
     @property
     def dimensions(self):
         if self._dimensions is None:
-            self._dimensions = self._get_dimensions_()
+            try:
+                self._dimensions = self._get_dimensions_()
+            except NotImplementedError:
+                self.create_dimensions()
         return self._dimensions
 
     @dimensions.setter
@@ -83,7 +86,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._set_dimensions_(value)
 
     def _get_dimensions_(self):
-        return None
+        raise NotImplementedError
 
     def _set_dimensions_(self, value):
         if value is not None:
@@ -160,14 +163,18 @@ class Variable(AbstractInterfaceObject, Attributes):
     ####################################################################################################################
 
     def create_dimensions(self, names=None):
-        assert self.dimensions is None
-        if names is None:
-            names = [self.name]
-            for ii in range(1, self.ndim):
-                names.append('{0}_{1}'.format(self.name, ii))
-        new_dimensions = []
-        for name, shp in izip(get_iter(names), self.shape):
-            new_dimensions.append(Dimension(name, length=shp))
+        value = self._value
+        if value is None:
+            new_dimensions = None
+        else:
+            if names is None:
+                assert self.name is not None
+                names = [self.name]
+                for ii in range(1, value.ndim):
+                    names.append('{0}_{1}'.format(self.name, ii))
+            new_dimensions = []
+            for name, shp in izip(get_iter(names), value.shape):
+                new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
 
     def write_netcdf(self, dataset, file_only=False, **kwargs):
@@ -241,12 +248,12 @@ class SourcedVariable(Variable):
         self._fill_value = value
 
     def _get_dimensions_(self):
-        if self._dimensions is None:
-            if self._request_dataset is None:
-                self._dimensions = super(SourcedVariable, self)._get_dimensions_()
-            else:
-                self._set_metadata_from_source_()
-        return self._dimensions
+        if self._request_dataset is None:
+            ret = super(SourcedVariable, self)._get_dimensions_()
+        else:
+            self._set_metadata_from_source_()
+            ret = self._dimensions
+        return ret
 
     def _set_metadata_from_source_(self):
         ds = self._request_dataset.driver.open()
