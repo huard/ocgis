@@ -42,6 +42,23 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertIsNone(bv.bounds._value)
         self.assertIsNone(bv._value)
 
+        # Test with two dimensions.
+        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
+        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
+                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
+                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
+                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
+        y_bounds = Variable(value=y_corners, name='y_corners')
+        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+        self.assertEqual(y_bounds.ndim, 3)
+        y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
+        y.create_dimensions(names=['y', 'x'])
+        suby = y[1:3, 1]
+        self.assertEqual(suby.bounds.shape, (2, 1, 4))
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            suby.write_netcdf(ds)
+
     def test_getitem(self):
         bv = self.get_boundedvariable()
         sub = bv[1]

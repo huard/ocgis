@@ -1,4 +1,5 @@
 import itertools
+import subprocess
 
 import numpy as np
 from shapely.geometry import Point
@@ -99,11 +100,49 @@ class TestGridXY(AbstractTestNewInterface):
         sub = grid[2:4, 1]
         self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
 
-        cvar = Variable(value=corners, name='corners')
-        cvar.create_dimensions()
-        print cvar.dimensions
-        # tdk: make corners a variable
-        tkk
+    def test_tdk(self):
+        # Test constructing with two-dimensional variables.
+        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
+        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
+                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
+                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
+                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
+        x_value = [[101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0]]
+        x_corners = [[[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]]]
+
+        y_bounds = Variable(value=y_corners, name='y_corners')
+        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+        y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
+        y.create_dimensions(names=['y', 'x'])
+
+        x_bounds = Variable(value=x_corners, name='x_corners')
+        x_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+        x = BoundedVariable(value=x_value, bounds=x_bounds, name='x')
+        x.create_dimensions(names=['y', 'x'])
+
+        grid = GridXY(x=x, y=y)
+        np.testing.assert_equal(grid.corners[0], y_corners)
+        np.testing.assert_equal(grid.corners[1], x_corners)
+
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            grid.write_netcdf(ds)
+        # subprocess.check_call(['ncdump', path])
+
+        # Test writing with dimension variables.
+        self.assertIsNotNone(grid.corners)
+        grid.x = None
+        grid.y = None
+        with self.nc_scope(path, 'w') as ds:
+            grid.write_netcdf(ds)
+        subprocess.check_call(['ncdump', '-h', path])
+        with self.nc_scope(path) as ds:
+            self.assertIn('y_corners', ds.variables)
+            self.assertIn('x_corners', ds.variables)
+            # tdk: allow dimension name overloads for grid
 
     def test_corners_esmf(self):
         x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]])

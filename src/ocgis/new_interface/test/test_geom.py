@@ -30,6 +30,9 @@ class TestPointArray(AbstractTestNewInterface):
     def test_getitem(self):
         gridxy = self.get_gridxy()
         pa = self.get_pointarray(grid=gridxy, value=None)
+        self.assertEqual(pa.shape, (4, 3))
+        self.assertEqual(pa.ndim, 2)
+        self.assertIsNone(pa._value)
         sub = pa[2:4, 1]
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))

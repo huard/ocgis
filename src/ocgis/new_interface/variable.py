@@ -37,7 +37,7 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __getitem__(self, slc):
         ret = copy(self)
-        slc = get_formatted_slice(slc, len(self.shape))
+        slc = get_formatted_slice(slc, self.ndim)
         value = self.value.__getitem__(slc)
         if self.dimensions is not None:
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
@@ -119,6 +119,9 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def shape(self):
+        return self._get_shape_()
+
+    def _get_shape_(self):
         if self.dimensions is None:
             if self._value is None:
                 ret = tuple()
@@ -300,13 +303,16 @@ class BoundedVariable(SourcedVariable):
 
         super(BoundedVariable, self).__init__(*args, **kwargs)
 
-        assert self.ndim == 1
+        assert self.ndim <= 2
 
     def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, 1)
+        slc = get_formatted_slice(slc, self.ndim)
         ret = super(BoundedVariable, self).__getitem__(slc)
         if self.bounds is not None:
-            bounds = self.bounds[slc, :]
+            if self.bounds.ndim == 2:
+                bounds = self.bounds[slc, :]
+            else:
+                bounds = self.bounds[slc[0], slc[1], :]
         else:
             bounds = None
         ret.bounds = bounds
@@ -319,7 +325,7 @@ class BoundedVariable(SourcedVariable):
     @bounds.setter
     def bounds(self, value):
         if value is not None:
-            assert value.ndim == 2
+            assert value.ndim <= 3
             assert isinstance(value, Variable)
         self._bounds = value
 
@@ -405,6 +411,8 @@ class BoundedVariable(SourcedVariable):
 
     def set_extrapolated_bounds(self, name=None):
         """Set the bounds variable using extrapolation."""
+        # Only allow extrapolation with a 1d value.
+        assert self.ndim == 1
         if self.bounds is not None:
             raise BoundsAlreadyAvailableError
         name = name or '{0}_{1}'.format(self.name, 'bounds')

@@ -79,13 +79,18 @@ class GridXY(Variable, SpatialAdapter):
                 fill = np.zeros([2] + list(self.shape) + [4], dtype=self.y.value.dtype)
                 col_bounds = self.x.bounds.value
                 row_bounds = self.y.bounds.value
-                for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
-                    fill_element = fill[:, ii, jj]
-                    fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
-                    fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
-                    fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
-                    fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
+                if self.y.ndim == 1:
+                    for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
+                        fill_element = fill[:, ii, jj]
+                        fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
+                        fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
+                        fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
+                        fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
+                else:
+                    fill[0] = row_bounds
+                    fill[1] = col_bounds
 
+                # Copy the mask structure of the underlying value.
                 mask_value = self.value.mask
                 mask_fill = np.zeros(fill.shape, dtype=bool)
                 for (ii, jj), m in iter_array(mask_value[0, :, :], return_value=True):
@@ -275,8 +280,8 @@ class GridXY(Variable, SpatialAdapter):
                 yattrs = {'axis': 'Y'}
                 xname = 'xc'
                 xattrs = {'axis': 'X'}
-            yvar = Variable(yname, value=self.value[0, ...], dimensions=self.dimensions, attrs=yattrs)
-            xvar = Variable(xname, value=self.value[1, ...], dimensions=self.dimensions, attrs=xattrs)
+            yvar = Variable(name=yname, value=self.value[0, ...], dimensions=self.dimensions, attrs=yattrs)
+            xvar = Variable(name=xname, value=self.value[1, ...], dimensions=self.dimensions, attrs=xattrs)
             to_write = [yvar, xvar]
         for tw in to_write:
             tw.write_netcdf(dataset, **kwargs)

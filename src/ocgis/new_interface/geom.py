@@ -137,6 +137,13 @@ class PointArray(AbstractSpatialVariable):
 
         return fill
 
+    def _get_shape_(self):
+        ret = super(PointArray, self)._get_shape_()
+        # If there is a grid, return this shape. The superclass relies on dimensions and private values.
+        if len(ret) == 0 and self.grid is not None:
+            ret = self.grid.shape
+        return ret
+
     def _get_value_(self):
         # Create geometries for all the underlying coordinates regardless if the data is masked.
         ref_grid = self.grid.value.data
