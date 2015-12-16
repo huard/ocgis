@@ -106,6 +106,7 @@ class PointArray(AbstractSpatialVariable):
             ret = self.__getitem__(slc)
         else:
             ret = self
+            slc = [slice(None)] * self.ndim
         ret = ret.get_intersects_masked(*args, **kwargs)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
