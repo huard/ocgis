@@ -309,3 +309,4 @@ class TestVariableCollection(AbstractTestNewInterface):
     def test_shape(self):
         vc = self.get()
         self.assertEqual(vc.shape, (3,))
+
