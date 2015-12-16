@@ -251,7 +251,6 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertEqual(grid.ndim, 2)
 
     def test_update_crs(self):
-        # tdk: finish
         grid = self.get_gridxy(crs=WGS84())
         grid.set_extrapolated_corners()
         self.assertIsNotNone(grid.corners)

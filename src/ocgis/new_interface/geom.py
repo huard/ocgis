@@ -1,34 +1,53 @@
-import inspect
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from copy import copy
 
+import fiona
 import numpy as np
 from numpy.core.multiarray import ndarray
-from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely import wkb
+from shapely.geometry import Point, Polygon, MultiPolygon, mapping
 from shapely.prepared import prep
 
-from ocgis import env
+from ocgis import constants
+from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
-from ocgis.new_interface.adapter import SpatialAdapter
-from ocgis.new_interface.base import get_keyword_arguments_from_template_keys
 from ocgis.new_interface.variable import Variable
+from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice
 
-_KWARGS_SPATIAL_ADAPTER = inspect.getargspec(SpatialAdapter.__init__).args
+CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
+                                                                   ogr.wkbGeometryCollection, ogr.wkbPoint
 
 
-class AbstractSpatialVariable(Variable, SpatialAdapter):
+class AbstractSpatialVariable(Variable):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
-        kwargs_sa = get_keyword_arguments_from_template_keys(kwargs, _KWARGS_SPATIAL_ADAPTER, pop=True)
-        SpatialAdapter.__init__(self, **kwargs_sa)
-        Variable.__init__(self, **kwargs)
+        self._crs = None
+
+        self.crs = kwargs.pop('crs', None)
+
+        super(AbstractSpatialVariable, self).__init__(**kwargs)
+
+    @property
+    def crs(self):
+        return self._crs
+
+    @crs.setter
+    def crs(self, value):
+        if value is not None:
+            assert isinstance(value, CoordinateReferenceSystem)
+        self._crs = value
+
+    @abstractmethod
+    def update_crs(self, to_crs):
+        """Update coordinate system in-place."""
 
 
 class PointArray(AbstractSpatialVariable):
     def __init__(self, **kwargs):
         self._grid = kwargs.pop('grid', None)
+        self._geom_type = kwargs.pop('geom_type', 'auto')
 
         kwargs['name'] = kwargs.get('name', 'geom')
 
@@ -47,6 +66,17 @@ class PointArray(AbstractSpatialVariable):
     @dtype.setter
     def dtype(self, value):
         assert value == object or value is None
+
+    @property
+    def geom_type(self):
+        # Geometry objects may change part counts during operations. It is better to scan and update the geometry types
+        # to account for these operations.
+        if self._geom_type == 'auto':
+            for geom in self.value.data.flat:
+                if geom.geom_type.startswith('Multi'):
+                    break
+            self._geom_type = geom.geom_type
+        return self._geom_type
 
     @property
     def grid(self):
@@ -102,7 +132,9 @@ class PointArray(AbstractSpatialVariable):
             raise EmptySubsetError(self.name)
 
         # Set the returned value to the fill array.
-        ret._value = fill
+        ret.value = fill
+
+        # tdk: test grid mask is updated
 
         return ret
 
@@ -124,9 +156,50 @@ class PointArray(AbstractSpatialVariable):
         ret = self.value[select_nearest_index]
 
         if return_index:
-            ret = (select_nearest_index[0], ret)
+            ret = (ret, select_nearest_index[0],)
 
         return ret
+
+    def get_spatial_index(self):
+        # "rtree" is an optional dependency.
+        from ocgis.util.spatial.index import SpatialIndex
+        # Fill the spatial index with unmasked values only.
+        si = SpatialIndex()
+        r_add = si.add
+        # Add the geometries to the index.
+        for idx, geom in iter_array(self.value.reshape(-1), return_value=True, use_mask=True):
+            r_add(idx[0], geom)
+
+        return si
+
+    def update_crs(self, to_crs):
+        # Be sure and project masked geometries to maintain underlying geometries.
+        r_value = self.value.data
+        r_loads = wkb.loads
+        r_create = ogr.CreateGeometryFromWkb
+        to_sr = to_crs.sr
+        from_sr = self.crs.sr
+        for idx, geom in enumerate(r_value.flat):
+            ogr_geom = r_create(geom.wkb)
+            ogr_geom.AssignSpatialReference(from_sr)
+            ogr_geom.TransformTo(to_sr)
+            r_value[idx] = r_loads(ogr_geom.ExportToWkb())
+        self.crs = to_crs
+        # The grid is not longer representative of the data.
+        self._grid = None
+
+    def write_fiona(self, path, driver='ESRI Shapefile'):
+        name_uid = constants.HEADERS.ID_GEOMETRY.upper()
+        schema = {'geometry': self.geom_type,
+                  'properties': {name_uid: 'int'}}
+        ref_prep = self._write_fiona_prep_geom_
+        with fiona.open(path, 'w', driver=driver, crs=self.crs.value, schema=schema) as f:
+            for uid, geom in enumerate(self.value.compressed()):
+                geom = ref_prep(geom)
+                feature = {'properties': {name_uid: uid}, 'geometry': mapping(geom)}
+                f.write(feature)
+
+        return path
 
     def _get_geometry_fill_(self, shape=None):
         if shape is None:
@@ -163,3 +236,7 @@ class PointArray(AbstractSpatialVariable):
             msg = 'Geometry values must be NumPy arrays to avoid automatic shapely transformations.'
             raise ValueError(msg)
         super(PointArray, self)._set_value_(value)
+
+    @staticmethod
+    def _write_fiona_prep_geom_(geom):
+        return geom

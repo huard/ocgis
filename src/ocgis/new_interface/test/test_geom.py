@@ -1,9 +1,10 @@
+import fiona
 import numpy as np
 from numpy.ma import MaskedArray
 from shapely import wkt
-from shapely.geometry import Point, box
+from shapely.geometry import Point, box, MultiPoint
 
-from ocgis import env
+from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
@@ -28,6 +29,10 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertIsInstance(pa.value, MaskedArray)
         self.assertEqual(pa.ndim, 2)
 
+        # Test passing a "crs".
+        pa = self.get_pointarray(grid=self.get_gridxy(), crs=WGS84())
+        self.assertEqual(pa.crs, WGS84())
+
     def test_getitem(self):
         gridxy = self.get_gridxy()
         pa = self.get_pointarray(grid=gridxy, value=None)
@@ -43,6 +48,21 @@ class TestPointArray(AbstractTestNewInterface):
         value = Point(6, 7)
         with self.assertRaises(ValueError):
             self.get_pointarray(value=value)
+
+    def test_geom_type(self):
+        gridxy = self.get_gridxy()
+        pa = self.get_pointarray(grid=gridxy)
+        self.assertEqual(pa.geom_type, 'Point')
+
+        # Test with a multi-geometry.
+        mp = np.array([None])
+        mp[0] = MultiPoint([Point(1, 2), Point(3, 4)])
+        pa = self.get_pointarray(value=mp)
+        self.assertEqual(pa.geom_type, 'MultiPoint')
+
+        # Test overloading.
+        pa = self.get_pointarray(value=mp, geom_type='overload')
+        self.assertEqual(pa.geom_type, 'overload')
 
     def test_get_intersects_masked(self):
         x = self.get_variable_x()
@@ -83,7 +103,7 @@ class TestPointArray(AbstractTestNewInterface):
         pa = self.get_pointarray()
         for target in [target1, target2]:
             res = pa.get_nearest(target, return_index=True)
-            self.assertEqual(res, (0, Point(1, 2)))
+            self.assertEqual(res, (Point(1, 2), 0))
 
     def test_get_spatial_index(self):
         pa = self.get_pointarray()
@@ -91,12 +111,29 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertIsInstance(si, SpatialIndex)
         self.assertEqual(si._index.bounds, [1.0, 2.0, 3.0, 4.0])
 
+    def test_update_crs(self):
+        pa = self.get_pointarray(crs=WGS84())
+        to_crs = CoordinateReferenceSystem(epsg=2136)
+        pa.update_crs(to_crs)
+        self.assertEqual(pa.crs, to_crs)
+        v0 = [1629871.494956261, -967769.9070825744]
+        v1 = [2358072.3857447207, -239270.87548993886]
+        np.testing.assert_almost_equal(pa.value[0], v0)
+        np.testing.assert_almost_equal(pa.value[1], v1)
+
     def test_weights(self):
         value = [Point(2, 3), Point(4, 5), Point(5, 6)]
         mask = [False, True, False]
         value = np.ma.array(value, mask=mask, dtype=object)
         pa = self.get_pointarray(value=value)
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
+
+    def test_write_fiona(self):
+        pa = self.get_pointarray(crs=WGS84())
+        path = self.get_temporary_file_path('foo.shp')
+        pa.write_fiona(path)
+        with fiona.open(path, 'r') as records:
+            self.assertEqual(len(list(records)), 2)
 
     def test_write_netcdf(self):
         raise ToTest
