@@ -13,7 +13,7 @@ from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.variable import Variable
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_none_or_slice
+from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -38,6 +38,14 @@ class AbstractSpatialVariable(Variable):
         if value is not None:
             assert isinstance(value, CoordinateReferenceSystem)
         self._crs = value
+
+    @abstractmethod
+    def get_mask(self):
+        """Return the object mask."""
+
+    @abstractmethod
+    def set_mask(self):
+        """Set the object mask."""
 
     @abstractmethod
     def update_crs(self, to_crs):
@@ -88,6 +96,30 @@ class PointArray(AbstractSpatialVariable):
         ret = np.ma.array(ret, mask=self.value.mask)
         return ret
 
+    def get_intersects(self, *args, **kwargs):
+        return_indices = kwargs.pop('return_indices', False)
+        # tdk: for polygon subsets we should use_bounds=False
+        ret = copy(self)
+        # First, subset the grid by the bounding box.
+        if self._grid is not None:
+            minx, miny, maxx, maxy = args[0].bounds
+            new_grid, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=True)
+            ret = ret.__getitem__(slc)
+        ret = ret.get_intersects_masked(*args, **kwargs)
+        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
+        # columns should be trimmed.
+        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+        # Use the adjustments to trim the returned data object.
+        ret = ret[adjust['row'], adjust['col']]
+        # Adjust the returned slices.
+        if return_indices:
+            ret_slc = [None, None]
+            ret_slc[0] = get_added_slice(slc[0], adjust['row'])
+            ret_slc[1] = get_added_slice(slc[1], adjust['col'])
+            ret = (ret, tuple(ret_slc))
+
+        return ret
+
     def get_intersects_masked(self, polygon, use_spatial_index=True, keep_touches=False):
         """
         :param polygon: The Shapely geometry to use for subsetting.
@@ -134,7 +166,9 @@ class PointArray(AbstractSpatialVariable):
         # Set the returned value to the fill array.
         ret.value = fill
 
-        # tdk: test grid mask is updated
+        # Update the grid mask if it is associated with the object.
+        if ret._grid is not None:
+            ret._grid.set_mask(self.get_mask())
 
         return ret
 
@@ -146,6 +180,19 @@ class PointArray(AbstractSpatialVariable):
             ref_value[idx] = geom.intersection(args[0])
 
         return ret
+
+    def get_mask(self):
+        if self._value is None:
+            ret = self.grid.get_mask()
+        else:
+            ret = self.value.mask
+        return ret
+
+    def set_mask(self, value):
+        if self._value is not None:
+            self.value.mask = value
+        if self._grid is not None:
+            self.grid.set_mask(value)
 
     def get_nearest(self, target, return_index=False):
         target = target.centroid

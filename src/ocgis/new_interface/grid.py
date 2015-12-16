@@ -189,6 +189,18 @@ class GridXY(AbstractSpatialVariable):
         ret = tuple(ret)
         return ret
 
+    def get_mask(self):
+        ret = self.value.mask[0]
+        assert ret.ndim == 2
+        return ret
+
+    def set_mask(self, value):
+        assert value.ndim == 2
+        self.value.mask[:, :, :] = value
+        if self.corners is not None:
+            idx_true = np.where(value)
+            self.corners.mask[:, idx_true[0], idx_true[1], :] = True
+
     def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
         assert min_row <= max_row
         assert min_col <= max_col

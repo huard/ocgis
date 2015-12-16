@@ -9,6 +9,7 @@ from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.variable import BoundedVariable
 from ocgis.test.base import ToTest
 from ocgis.util.spatial.index import SpatialIndex
 
@@ -61,6 +62,15 @@ class TestPointArray(AbstractTestNewInterface):
         # Test overloading.
         pa = self.get_pointarray(value=mp, geom_type='overload')
         self.assertEqual(pa.geom_type, 'overload')
+
+    def test_get_intersects(self):
+        x = BoundedVariable(value=[1, 2, 3, 4, 5], name='x')
+        y = BoundedVariable(value=[10, 20, 30, 40, 50], name='y')
+        grid = GridXY(x=x, y=y)
+        pa = PointArray(grid=grid)
+        polygon = box(2.5, 25, 4.5, 45)
+        sub = pa.get_intersects(polygon)
+        tkk
 
     def test_get_intersects_masked(self):
         x = self.get_variable_x()

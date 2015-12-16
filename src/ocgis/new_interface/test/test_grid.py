@@ -200,6 +200,13 @@ class TestGridXY(AbstractTestNewInterface):
         sub = grid[1, :]
         self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
 
+    def test_get_mask(self):
+        grid = self.get_gridxy()
+        self.assertFalse(np.any(grid.value.mask))
+        grid.value.mask[:, 1, 1] = True
+        mask = grid.get_mask()
+        self.assertTrue(mask[1, 1])
+
     def test_get_subset_bbox(self):
         keywords = dict(bounds=[True, False], closed=[True, False])
 
@@ -244,6 +251,17 @@ class TestGridXY(AbstractTestNewInterface):
         grid = GridXY(value=value_grid)
         grid.set_extrapolated_corners()
         np.testing.assert_equal(grid.corners, actual_corners)
+
+    def test_set_mask(self):
+        grid = self.get_gridxy()
+        grid.set_extrapolated_corners()
+        self.assertIsNotNone(grid.corners)
+        self.assertFalse(np.any(grid.get_mask()))
+        mask = np.zeros(grid.shape, dtype=bool)
+        mask[1, 1] = True
+        grid.set_mask(mask)
+        self.assertTrue(np.all(grid.corners.mask[:, 1, 1, :]))
+        self.assertTrue(np.all(grid.value.mask[:, 1, 1]))
 
     def test_shape(self):
         for grid in self.get_iter():
