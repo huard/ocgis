@@ -199,7 +199,7 @@ class TestGridXY(AbstractTestNewInterface):
         sub = grid[1, :]
         self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
 
-    def test_grid_get_subset_bbox(self):
+    def test_get_subset_bbox(self):
         keywords = dict(bounds=[True, False], closed=[True, False])
 
         for k in self.iter_product_keywords(keywords):

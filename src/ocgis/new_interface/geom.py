@@ -107,7 +107,6 @@ class PointArray(AbstractSpatialVariable):
         return ret
 
     def get_intersection_masked(self, *args, **kwargs):
-        # tdk: doc
         ret = self.get_intersects_masked(*args, **kwargs)
 
         ref_value = ret.value
