@@ -100,7 +100,6 @@ class TestGridXY(AbstractTestNewInterface):
         sub = grid[2:4, 1]
         self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
 
-    def test_tdk(self):
         # Test constructing with two-dimensional variables.
         y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
         y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],

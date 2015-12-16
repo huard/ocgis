@@ -99,24 +99,23 @@ class PointArray(AbstractSpatialVariable):
     def get_intersects(self, *args, **kwargs):
         return_indices = kwargs.pop('return_indices', False)
         # tdk: for polygon subsets we should use_bounds=False
-        ret = copy(self)
         # First, subset the grid by the bounding box.
         if self._grid is not None:
             minx, miny, maxx, maxy = args[0].bounds
-            new_grid, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=True)
-            ret = ret.__getitem__(slc)
+            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=True)
+            ret = self.__getitem__(slc)
+        else:
+            ret = self
         ret = ret.get_intersects_masked(*args, **kwargs)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
         _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
         # Use the adjustments to trim the returned data object.
-        ret = ret[adjust['row'], adjust['col']]
+        ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
         if return_indices:
-            ret_slc = [None, None]
-            ret_slc[0] = get_added_slice(slc[0], adjust['row'])
-            ret_slc[1] = get_added_slice(slc[1], adjust['col'])
-            ret = (ret, tuple(ret_slc))
+            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+            ret = (ret, ret_slc)
 
         return ret
 

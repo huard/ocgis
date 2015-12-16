@@ -26,6 +26,16 @@ class TestDimension(AbstractTestNewInterface):
         sub = dim[400:500]
         self.assertEqual(len(sub), 100)
 
+        # Test with negative indexing.
+        dim = Dimension(name='geom', length=2)
+        slc = slice(0, -1, None)
+        self.assertEqual(dim[slc], Dimension('geom', length=1))
+
+        dim = Dimension(name='geom', length=5)
+        slc = slice(1, -2, None)
+        a = np.arange(5)
+        self.assertEqual(dim[slc], Dimension('geom', length=a[slc].shape[0]))
+
     def test_len(self):
         dim = Dimension('foo')
         self.assertEqual(len(dim), 0)

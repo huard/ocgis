@@ -289,7 +289,10 @@ def get_formatted_slice(slc, n_dims):
             ret = slc
         else:
             if len(slc) == 1:
-                ret = slice(slc[0])
+                if isinstance(slc[0], slice):
+                    ret = slc[0]
+                else:
+                    ret = slice(slc[0])
             elif len(slc) > 1:
                 ret = np.array(slc)
             else:
@@ -507,38 +510,42 @@ def get_sorted_uris_by_time_dimension(uris, variable=None):
 
 
 def get_trimmed_array_by_mask(arr, return_adjustments=False):
-    '''
-    Returns a slice of the masked array ``arr`` with masked rows and columns
-    removed.
+    """"
+    Returns a slice of the masked array ``arr`` with masked rows and columns removed.
 
-    :param arr: Two-dimensional array object.
+    :param arr: An array.
     :type arr: :class:`numpy.ma.MaskedArray` or bool :class:`numpy.ndarray`
-    :param bool return_adjustments: If ``True``, return a dictionary with
-     values of index adjustments that may be added to a slice object.
+    :param bool return_adjustments: If ``True``, return a dictionary with values of index adjustments that may be added
+     to a slice object.
     :raises NotImplementedError:
     :returns: :class:`numpy.ma.MaskedArray` or (:class:`numpy.ma.MaskedArray', {'row':slice(...),'col':slice(...)})
-    '''
+    """
+
+    assert arr.ndim <= 2
+
+    has_col = False
     try:
         _mask = arr.mask
     except AttributeError:
-        ## likely a boolean array
+        # Likely a boolean array.
         if arr.dtype == np.dtype(bool):
             _mask = arr
         else:
-            raise (NotImplementedError('Array type is not implemented.'))
-    ## row 0 to end
+            raise NotImplementedError('Array type is not implemented.')
+
+    # Row 0 to end.
     start_row = 0
     for idx_row in range(arr.shape[0]):
-        if _mask[idx_row, :].all():
+        if _mask[idx_row, ...].all():
             start_row += 1
         else:
             break
 
-    ## row end to 0
+    # Row end to 0.
     stop_row = 0
     idx_row_adjust = 1
     for __ in range(arr.shape[0]):
-        if _mask[stop_row - idx_row_adjust, :].all():
+        if _mask[stop_row - idx_row_adjust, ...].all():
             idx_row_adjust += 1
         else:
             idx_row_adjust -= 1
@@ -548,34 +555,40 @@ def get_trimmed_array_by_mask(arr, return_adjustments=False):
     else:
         stop_row = stop_row - idx_row_adjust
 
-    ## col 0 to end
-    start_col = 0
-    for idx_col in range(arr.shape[1]):
-        if _mask[:, idx_col].all():
-            start_col += 1
-        else:
-            break
+    if arr.ndim == 2:
+        has_col = True
 
-    ## col end to 0
-    stop_col = 0
-    idx_col_adjust = 1
-    for __ in range(arr.shape[0]):
-        if _mask[:, stop_col - idx_col_adjust, ].all():
-            idx_col_adjust += 1
-        else:
-            idx_col_adjust -= 1
-            break
-    if idx_col_adjust == 0:
-        stop_col = None
-    else:
-        stop_col = stop_col - idx_col_adjust
+        # Column 0 to end.
+        start_col = 0
+        for idx_col in range(arr.shape[1]):
+            if _mask[:, idx_col].all():
+                start_col += 1
+            else:
+                break
 
-    ret = arr[start_row:stop_row, start_col:stop_col]
+        # Column end to 0.
+        stop_col = 0
+        idx_col_adjust = 1
+        for __ in range(arr.shape[0]):
+            if _mask[:, stop_col - idx_col_adjust, ].all():
+                idx_col_adjust += 1
+            else:
+                idx_col_adjust -= 1
+                break
+        if idx_col_adjust == 0:
+            stop_col = None
+        else:
+            stop_col = stop_col - idx_col_adjust
+
+    slc = [slice(start_row, stop_row)]
+    if has_col:
+        slc.append(slice(start_col, stop_col))
+    ret = arr.__getitem__(slc)
 
     if return_adjustments:
-        ret = (ret, {'row': slice(start_row, stop_row), 'col': slice(start_col, stop_col)})
+        ret = (ret, tuple(slc))
 
-    return (ret)
+    return ret
 
 
 def get_tuple(value):

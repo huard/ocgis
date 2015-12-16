@@ -68,9 +68,20 @@ class TestPointArray(AbstractTestNewInterface):
         y = BoundedVariable(value=[10, 20, 30, 40, 50], name='y')
         grid = GridXY(x=x, y=y)
         pa = PointArray(grid=grid)
-        polygon = box(2.5, 25, 4.5, 45)
+        polygon = box(2.5, 15, 4.5, 45)
+        sub, slc = pa.get_intersects(polygon, return_indices=True)
+        np.testing.assert_equal(sub.grid.x.value, [3, 4])
+        np.testing.assert_equal(sub.grid.y.value, [20, 30, 40])
+        self.assertNumpyAll(grid[slc].value, sub.grid.value)
+
+        # Test w/out an associated grid.
+        pa = self.get_pointarray()
+        self.assertIsNone(pa.grid)
+        polygon = box(0.5, 1.5, 1.5, 2.5)
         sub = pa.get_intersects(polygon)
-        tkk
+        self.assertIsNone(sub.grid)
+        self.assertEqual(sub.shape, (1,))
+        self.assertEqual(sub.value[0], Point(1, 2))
 
     def test_get_intersects_masked(self):
         x = self.get_variable_x()

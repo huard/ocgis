@@ -42,8 +42,14 @@ class Dimension(AbstractInterfaceObject):
                 # Likely a list/tuple.
                 pass
         if self.length is None:
+            if length < 0:
+                # This is using negative indexing. Subtract from the current length.
+                length = length + self.length_current
             ret = self.__class__(self.name, length_current=length)
         else:
+            if length < 0:
+                # This is using negative indexing. Subtract from the current length.
+                length = length + self.length
             ret = self.__class__(self.name, length=length)
         return ret
 

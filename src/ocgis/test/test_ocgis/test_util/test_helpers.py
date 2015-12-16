@@ -350,23 +350,23 @@ class Test2(TestBase):
         ## if no dtype is passed, then the builtin iterator of the element will be used
         itr = get_iter(data)
         self.assertEqual(list(itr), ['hi'])
-    
+
     def test_get_added_slice(self):
         slice1 = slice(46,47)
         slice2 = slice(0,None)
         ret = get_added_slice(slice1,slice2)
         self.assertEqual(ret,slice(46,47))
-        
+
         slice1 = slice(46,47)
         slice2 = slice(0,-1)
         ret = get_added_slice(slice1,slice2)
         self.assertEqual(ret,slice(46,46))
-        
+
         slice1 = slice(0,47)
         slice2 = slice(2,-3)
         ret = get_added_slice(slice1,slice2)
         self.assertEqual(ret,slice(2,44))
-        
+
         slice1 = slice(0,47,3)
         slice2 = slice(2,-3)
         with self.assertRaises(AssertionError):
@@ -380,18 +380,18 @@ class Test2(TestBase):
         arr = np.array([1, 2, 3, 4])
         res = get_optimal_slice_from_array(arr)
         self.assertEqual(res, slice(1, 5))
-    
+
     def test_get_trimmed_array_by_mask_by_bool(self):
         arr = np.zeros((4,4),dtype=bool)
         arr[-1,:] = True
         ret = get_trimmed_array_by_mask(arr)
         self.assertFalse(ret.any())
-        
+
     def test_get_trimmed_array_by_mask_bad_type(self):
         arr = np.zeros((4,4))
         with self.assertRaises(NotImplementedError):
             get_trimmed_array_by_mask(arr)
-    
+
     def test_get_trimmed_array_by_mask_row_only(self):
         arr = np.random.rand(4,4)
         arr = np.ma.array(arr,mask=False)
@@ -400,7 +400,7 @@ class Test2(TestBase):
         ret = get_trimmed_array_by_mask(arr)
         self.assertNumpyAll(ret,arr[1:-1,:])
         self.assertTrue(np.may_share_memory(ret,arr))
-    
+
     def test_get_trimmed_array_by_mask_rows_and_columns(self):
         arr = np.random.rand(4,4)
         arr = np.ma.array(arr,mask=False)
@@ -413,7 +413,7 @@ class Test2(TestBase):
         self.assertTrue(np.may_share_memory(ret,arr))
         ret,adjust = get_trimmed_array_by_mask(arr,return_adjustments=True)
         self.assertEqual(adjust,{'col': slice(1, -1), 'row': slice(1, -1)})
-    
+
     def test_get_trimmed_array_by_mask_none_masked(self):
         arr = np.random.rand(4,4)
         arr = np.ma.array(arr,mask=False)
@@ -421,7 +421,7 @@ class Test2(TestBase):
         self.assertNumpyAll(ret,arr)
         self.assertTrue(np.may_share_memory(ret,arr))
         self.assertEqual(adjust,{'col': slice(0, None), 'row': slice(0, None)})
-    
+
     def test_get_trimmed_array_by_mask_interior_masked(self):
         arr = np.random.rand(4,4)
         arr = np.ma.array(arr,mask=False)
@@ -430,13 +430,18 @@ class Test2(TestBase):
         ret = get_trimmed_array_by_mask(arr)
         self.assertNumpyAll(ret,arr)
         self.assertTrue(np.may_share_memory(ret,arr))
-    
+
     def test_get_trimmed_array_by_mask_all_masked(self):
         arr = np.random.rand(4,4)
         arr = np.ma.array(arr,mask=True)
         ret,adjust = get_trimmed_array_by_mask(arr,return_adjustments=True)
         self.assertEqual(ret.shape,(0,0))
         self.assertEqual(adjust,{'col': slice(4, -5), 'row': slice(4, -5)})
+
+    def test_get_trimmed_array_by_mask_1d(self):
+        arr = np.ma.array([1, 2, 3], mask=[True, False, True])
+        ret, adjust = get_trimmed_array_by_mask(arr, return_adjustments=True)
+        self.assertNumpyAll(ret, arr.__getitem__(adjust))
 
     def test_get_tuple(self):
         value = [4, 5]
@@ -468,26 +473,29 @@ class Test2(TestBase):
 
         ret = get_formatted_slice(slice(None,None,None),10)
         self.assertEqual(ret,[slice(None,None,None)]*10)
-        
+
         ret = get_formatted_slice(0,1)
         self.assertEqual(slice(0,1),ret)
         with self.assertRaises(IndexError):
             get_formatted_slice(slice(0,1),2)
-            
+
         ret = get_formatted_slice((slice(0,1),0),2)
         self.assertEqual(ret,[slice(0,1,None),slice(0,1,None)])
-        
+
         ret = get_formatted_slice([(1,2,3),slice(None)],2)
         self.assertNumpyAll(ret[0],np.arange(1,4))
         self.assertEqual(ret[1],slice(None))
         self.assertEqual(len(ret),2)
-        
+
         ret = get_formatted_slice((1,2),1)
         self.assertNumpyAll(ret,np.array([1,2]))
-        
+
         ret = get_formatted_slice((1,),1)
         self.assertEqual(ret,slice(1))
-    
+
+        ret = get_formatted_slice((slice(0, -1, None),), 1)
+        self.assertEqual(ret, slice(0, -1, None, ))
+
     def test_set_name_attributes(self):
 
         class Foo(object):
@@ -571,7 +579,7 @@ class Test2(TestBase):
         arr = np.ma.array([1, 2, 3], mask=[False, True, False])
         lhs = [i[0] for i in iter_array(arr)]
         self.assertEqual(lhs, [0, 2])
-        
+
     def test_format_bool(self):
         mmap = {0: False, 1: True, 't': True, 'True': True, 'f': False, 'False': False}
         for key, value in mmap.iteritems():
