@@ -4,6 +4,7 @@ import numpy as np
 from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError
+from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -227,10 +228,38 @@ class TestGridXY(AbstractTestNewInterface):
         for grid in self.get_iter():
             self.assertEqual(grid.resolution, 1.)
 
+    def test_set_extrapolated_corners(self):
+        value_grid = [[[40.0, 40.0, 40.0, 40.0], [39.0, 39.0, 39.0, 39.0], [38.0, 38.0, 38.0, 38.0]],
+                      [[-100.0, -99.0, -98.0, -97.0], [-100.0, -99.0, -98.0, -97.0], [-100.0, -99.0, -98.0, -97.0]]]
+        actual_corners = [
+            [[[40.5, 40.5, 39.5, 39.5], [40.5, 40.5, 39.5, 39.5], [40.5, 40.5, 39.5, 39.5], [40.5, 40.5, 39.5, 39.5]],
+             [[39.5, 39.5, 38.5, 38.5], [39.5, 39.5, 38.5, 38.5], [39.5, 39.5, 38.5, 38.5], [39.5, 39.5, 38.5, 38.5]],
+             [[38.5, 38.5, 37.5, 37.5], [38.5, 38.5, 37.5, 37.5], [38.5, 38.5, 37.5, 37.5], [38.5, 38.5, 37.5, 37.5]]],
+            [[[-100.5, -99.5, -99.5, -100.5], [-99.5, -98.5, -98.5, -99.5], [-98.5, -97.5, -97.5, -98.5],
+              [-97.5, -96.5, -96.5, -97.5]],
+             [[-100.5, -99.5, -99.5, -100.5], [-99.5, -98.5, -98.5, -99.5], [-98.5, -97.5, -97.5, -98.5],
+              [-97.5, -96.5, -96.5, -97.5]],
+             [[-100.5, -99.5, -99.5, -100.5], [-99.5, -98.5, -98.5, -99.5], [-98.5, -97.5, -97.5, -98.5],
+              [-97.5, -96.5, -96.5, -97.5]]]]
+        grid = GridXY(value=value_grid)
+        grid.set_extrapolated_corners()
+        np.testing.assert_equal(grid.corners, actual_corners)
+
     def test_shape(self):
         for grid in self.get_iter():
             self.assertEqual(grid.shape, (4, 3))
             self.assertEqual(grid.ndim, 2)
+
+    def test_update_crs(self):
+        # tdk: finish
+        grid = self.get_gridxy(crs=WGS84())
+        grid.set_extrapolated_corners()
+        self.assertIsNotNone(grid.corners)
+        to_crs = CoordinateReferenceSystem(epsg=3395)
+        grid.update_crs(to_crs)
+        self.assertEqual(grid.crs, to_crs)
+        for target in [grid.value, grid.corners, grid.x.value, grid.y.value]:
+            self.assertGreater(target.mean(), 10000)
 
     def test_value(self):
         for grid, kwds in self.get_iter(return_kwargs=True):

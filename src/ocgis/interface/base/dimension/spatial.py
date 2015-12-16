@@ -918,7 +918,7 @@ class SpatialGridDimension(base.AbstractUidValueDimension):
             corners_esmf[1, :, :] = get_extrapolated_corners_esmf(data[1])
             corners = get_ocgis_corners_from_esmf_corners(corners_esmf)
 
-        # update the corners mask if there are masked values
+        # Update the corners mask if there are masked values.
         if self.value.mask.any():
             idx_true = np.where(self.value.mask[0] == True)
             corners.mask[:, idx_true[0], idx_true[1], :] = True

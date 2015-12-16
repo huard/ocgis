@@ -28,6 +28,12 @@ class SpatialAdapter(AbstractAdapter):
     def crs(self):
         return self._crs
 
+    @crs.setter
+    def crs(self, value):
+        if value is not None:
+            assert isinstance(value, CoordinateReferenceSystem)
+        self._crs = value
+
     @property
     def geom_type(self):
         # Geometry objects may change part counts during operations. It is better to scan and update the geometry types

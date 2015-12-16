@@ -1569,9 +1569,11 @@ class TestSpatialGridDimension(AbstractTestSpatialDimension):
 
     def test_set_extrapolated_corners(self):
         sdim = self.get_sdim(bounds=False)
+        print 'value_grid =', sdim.grid.value.tolist()
         self.assertIsNone(sdim.grid.corners)
         sdim.grid.set_extrapolated_corners()
         sdim2 = self.get_sdim()
+        print 'actual_corners = ', sdim2.grid.corners.tolist()
         self.assertNumpyAll(sdim2.grid.corners, sdim.grid.corners)
 
         # test with a mask

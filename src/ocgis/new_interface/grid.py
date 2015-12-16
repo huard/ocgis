@@ -5,14 +5,19 @@ from copy import copy
 import numpy as np
 
 from ocgis import constants
-from ocgis.exc import EmptySubsetError
-from ocgis.new_interface.adapter import SpatialAdapter
+from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.geom import AbstractSpatialVariable
 from ocgis.new_interface.variable import Variable, BoundedVariable
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
+from ocgis.util.environment import ogr
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array, get_extrapolated_corners_esmf, \
+    get_ocgis_corners_from_esmf_corners
+
+CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
+                                                                   ogr.wkbGeometryCollection, ogr.wkbPoint
 
 
-class GridXY(Variable, SpatialAdapter):
+class GridXY(AbstractSpatialVariable):
     ndim = 2
 
     def __init__(self, **kwargs):
@@ -71,9 +76,9 @@ class GridXY(Variable, SpatialAdapter):
         4 = ul, ur, lr, ll
         """
 
-        if self._corners is None:
-            x_bounds_value = self._x.bounds.value
-            y_bounds_value = self._y.bounds.value
+        if self._corners is None and self.x.bounds is not None:
+            x_bounds_value = self.x.bounds.value
+            y_bounds_value = self.y.bounds.value
             if x_bounds_value is None or y_bounds_value is None:
                 pass
             else:
@@ -243,6 +248,29 @@ class GridXY(Variable, SpatialAdapter):
 
         return ret
 
+    def set_extrapolated_corners(self):
+        """
+        Extrapolate corners from grid centroids. If corners are already available, an exception will be raised.
+
+        :raises: BoundsAlreadyAvailableError
+        """
+
+        if self.corners is not None:
+            raise BoundsAlreadyAvailableError
+        else:
+            data = self.value.data
+            corners_esmf = get_extrapolated_corners_esmf(data[0])
+            corners_esmf.resize(*list([2] + list(corners_esmf.shape)))
+            corners_esmf[1, :, :] = get_extrapolated_corners_esmf(data[1])
+            corners = get_ocgis_corners_from_esmf_corners(corners_esmf)
+
+        # Update the corners mask if there are masked values.
+        if self.value.mask.any():
+            idx_true = np.where(self.value.mask[0] == True)
+            corners.mask[:, idx_true[0], idx_true[1], :] = True
+
+        self.corners = corners
+
     def update_crs(self, to_crs):
         """
         Update the coordinate system in place.
@@ -250,48 +278,29 @@ class GridXY(Variable, SpatialAdapter):
         :param to_crs: The destination coordinate system.
         :type to_crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
         """
-        # tdk: finish
+
         assert self.crs is not None
+        src_sr = self.crs.sr
+        to_sr = to_crs.sr
 
-        # Rotated pole transformations are a special case.
-        if not isinstance(self.crs, CFRotatedPole) and not isinstance(to_crs, CFRotatedPole):
-            # if the crs values are the same, pass through
-            if to_crs != self.crs:
-                to_sr = to_crs.sr
+        # Transforming the coordinate system will result in a non-vectorized grid (i.e. cannot be representated as row
+        # and column vectors).
+        value_row = self.value.data[0].reshape(-1)
+        value_col = self.value.data[1].reshape(-1)
+        update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
+        self.value.data[0] = value_row.reshape(*self.shape)
+        self.value.data[1] = value_col.reshape(*self.shape)
 
-                if self.grid is not None:
-                    # update grid values
-                    value_row = self.grid.value.data[0].reshape(-1)
-                    value_col = self.grid.value.data[1].reshape(-1)
-                    self._update_crs_with_geometry_collection_(to_sr, value_row, value_col)
-                    self.grid.value.data[0] = value_row.reshape(*self.grid.shape)
-                    self.grid.value.data[1] = value_col.reshape(*self.grid.shape)
+        if self.corners is not None:
+            corner_row = self.corners.data[0].reshape(-1)
+            corner_col = self.corners.data[1].reshape(-1)
+            update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
 
-                    if self.grid.corners is not None:
-                        # update the corners
-                        corner_row = self.grid.corners.data[0].reshape(-1)
-                        corner_col = self.grid.corners.data[1].reshape(-1)
-                        self._update_crs_with_geometry_collection_(to_sr, corner_row, corner_col)
+        # Reset the dimension variables.
+        self._x = None
+        self._y = None
 
-                    self.grid.row = None
-                    self.grid.col = None
-
-                if self._geom is not None:
-                    if self.geom._point is not None:
-                        self.geom.point.update_crs(to_crs, self.crs)
-                    if self.geom._polygon is not None:
-                        self.geom.polygon.update_crs(to_crs, self.crs)
-
-                self.crs = to_crs
-        else:
-            try:
-                """:type _crs: ocgis.interface.base.crs.CFRotatedPole"""
-                new_spatial = self.crs.get_rotated_pole_transformation(self)
-            # likely an inverse transformation if the destination crs is rotated pole.
-            except AttributeError:
-                new_spatial = to_crs.get_rotated_pole_transformation(self, inverse=True)
-            self.__dict__ = new_spatial.__dict__
-            self.crs = to_crs
+        self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
         for tw in [self.y, self.x]:
@@ -345,3 +354,29 @@ def get_dimension_variable(axis_string, gridxy, idx, variable_name):
     ret = BoundedVariable(name=variable_name, dimensions=(dim_y, dim_x), attrs=attrs,
                           bounds=corners, value=gridxy.value[idx, :, :])
     return ret
+
+
+def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
+    """
+    Update coordinate vectors in place to match the destination coordinate system.
+
+    :param src_sr: The source coordinate system.
+    :type src_sr: :class:`osgeo.osr.SpatialReference`
+    :param to_sr: The destination coordinate system.
+    :type to_sr: :class:`osgeo.osr.SpatialReference`
+    :param value_row: Vector of row or Y values.
+    :type value_row: :class:`numpy.ndarray`
+    :param value_col: Vector of column or X values.
+    :type value_col: :class:`numpy.ndarray`
+    """
+
+    geomcol = Geometry(wkbGeometryCollection)
+    for ii in range(value_row.shape[0]):
+        point = Geometry(wkbPoint)
+        point.AddPoint(value_col[ii], value_row[ii])
+        geomcol.AddGeometry(point)
+    geomcol.AssignSpatialReference(src_sr)
+    geomcol.TransformTo(to_sr)
+    for ii, geom in enumerate(geomcol):
+        value_col[ii] = geom.GetX()
+        value_row[ii] = geom.GetY()

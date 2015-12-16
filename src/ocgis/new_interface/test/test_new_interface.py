@@ -18,7 +18,7 @@ class AbstractTestNewInterface(TestBase):
     __metaclass__ = ABCMeta
 
     def get_gridxy(self, with_2d_variables=False, with_dimensions=False, with_value=False,
-                   with_value_only=False):
+                   with_value_only=False, crs=None):
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
@@ -26,7 +26,7 @@ class AbstractTestNewInterface(TestBase):
         x_dim = Dimension('x', length=len(x))
         y_dim = Dimension('y', length=len(y))
 
-        kwds = {}
+        kwds = {'crs': crs}
 
         if with_2d_variables:
             x_value, y_value = np.meshgrid(x, y)
@@ -42,8 +42,8 @@ class AbstractTestNewInterface(TestBase):
             y_dims = None
 
         if not with_value_only:
-            vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
-            vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
+            vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
+            vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
             kwds.update(dict(x=vx, y=vy))
 
         if with_value or with_value_only:
