@@ -8,6 +8,7 @@ from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.test.base import ToTest
 from ocgis.util.spatial.index import SpatialIndex
 
 
@@ -96,3 +97,6 @@ class TestPointArray(AbstractTestNewInterface):
         value = np.ma.array(value, mask=mask, dtype=object)
         pa = self.get_pointarray(value=value)
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
+
+    def test_write_netcdf(self):
+        raise ToTest
