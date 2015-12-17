@@ -157,8 +157,14 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._value = value
 
     def _validate_value_(self, value):
-        if self._dimensions is not None:
-            assert value.shape == self.shape
+        dimensions = self._dimensions
+        if dimensions is not None:
+            # Account for unlimited dimensions.
+            value_shape = value.shape
+            self_shape = self.shape
+            for idx, d in enumerate(dimensions):
+                if d.length is not None:
+                    assert value_shape[idx] == self_shape[idx]
 
     ####################################################################################################################
 
