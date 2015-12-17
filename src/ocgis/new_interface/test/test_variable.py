@@ -1,4 +1,3 @@
-import subprocess
 from copy import deepcopy
 
 import numpy as np
@@ -158,10 +157,13 @@ class TestBoundedVariable(AbstractTestNewInterface):
         var = Variable(name='time', value=[4, 5, 6], dimensions=dim)
         with self.nc_scope(path, 'w') as ds:
             var.write_netcdf(ds)
-        subprocess.check_call(['ncdump', path])
+        # subprocess.check_call(['ncdump', path])
         with self.nc_scope(path) as ds:
             rdim = ds.dimensions['time']
+            rvar = ds.variables['time']
             self.assertTrue(rdim.isunlimited())
+            # Fill value only present for masked data.
+            self.assertNotIn('_FillValue', rvar.__dict__)
 
 
 class TestSourcedVariable(AbstractTestNewInterface):

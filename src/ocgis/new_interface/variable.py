@@ -204,12 +204,16 @@ class Variable(AbstractInterfaceObject, Attributes):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        if self.dimensions is None:
-            self.create_dimensions()
-        for dim in self.dimensions:
+        dimensions = self.dimensions
+        for dim in dimensions:
             create_dimension_or_pass(dim, dataset)
-        dimensions = [d.name for d in self.dimensions]
-        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=self.fill_value, **kwargs)
+        dimensions = [d.name for d in dimensions]
+        # Only use the fill value is something is masked.
+        if self.get_mask().any():
+            fill_value = self.fill_value
+        else:
+            fill_value = None
+        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
             var[:] = self.value
         self.write_attributes_to_netcdf_object(var)
