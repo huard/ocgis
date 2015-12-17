@@ -5,7 +5,6 @@ import numpy as np
 from ocgis import RequestDataset
 from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, EmptySubsetError
-from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -238,20 +237,17 @@ class TestSourcedVariable(AbstractTestNewInterface):
 
 
 class TestVariable(AbstractTestNewInterface):
-    def test_bases(self):
-        self.assertEqual(Variable.__bases__, (AbstractInterfaceObject, Attributes))
-
-    def get(self, return_original_data=True):
+    def get_variable(self, return_original_data=True):
         value = [2, 3, 4, 5, 6, 7]
         time = Dimension('time', length=len(value))
-        var = Variable('time_value', value=value, dimensions=time)
+        var = Variable('time_value', value=value, dimensions=time, units='foo_units')
         if return_original_data:
             return time, value, var
         else:
             return var
 
     def test_init(self):
-        time, value, var = self.get()
+        time, value, var = self.get_variable()
 
         self.assertEqual(var.dimensions, (time,))
         self.assertEqual(id(time), id(var.dimensions[0]))
@@ -290,7 +286,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(var.dimensions), 1)
 
     def test_write_netcdf(self):
-        var = self.get(return_original_data=False)
+        var = self.get_variable(return_original_data=False)
         var.value.mask[1] = True
         var.attrs['axis'] = 'not_an_ally'
         path = self.get_temporary_file_path('out.nc')
@@ -298,6 +294,7 @@ class TestVariable(AbstractTestNewInterface):
             var.write_netcdf(ds)
         with self.nc_scope(path) as ds:
             ncvar = ds.variables[var.name]
+            self.assertEqual(ncvar.units, 'foo_units')
             self.assertEqual(ncvar.dtype, var.dtype)
             self.assertEqual(ncvar[:].fill_value, var.fill_value)
             self.assertEqual(ncvar.axis, 'not_an_ally')

@@ -18,15 +18,17 @@ class Variable(AbstractInterfaceObject, Attributes):
     # tdk:doc
     # tdk:support unlimited dimensions
 
-    def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None):
+    def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
+                 units=None):
         self._alias = None
         self._dimensions = None
         self._value = None
         self._dtype = None
         self._fill_value = None
+        self._units = None
 
         self.name = name
-
+        self.units = units
         self.dtype = dtype
         self.fill_value = fill_value
         self.alias = alias
@@ -134,7 +136,23 @@ class Variable(AbstractInterfaceObject, Attributes):
             ret = tuple([len(d) for d in self.dimensions])
         return ret
 
-    # property(value) ##################################################################################################
+    @property
+    def units(self):
+        if self._units is None:
+            self._units = self._get_units_()
+        return self._units
+
+    @units.setter
+    def units(self, value):
+        self._set_units_(value)
+
+    def _get_units_(self):
+        return None
+
+    def _set_units_(self, value):
+        if value is not None:
+            value = str(value)
+        self._units = value
 
     @property
     def value(self):
@@ -217,6 +235,9 @@ class Variable(AbstractInterfaceObject, Attributes):
         if not file_only:
             var[:] = self.value
         self.write_attributes_to_netcdf_object(var)
+        if self.units is not None:
+            var.units = self.units
+        dataset.sync()
 
 
 class SourcedVariable(Variable):
