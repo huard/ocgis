@@ -210,8 +210,6 @@ class Variable(AbstractInterfaceObject, Attributes):
 
 
 class SourcedVariable(Variable):
-    # tdk: allow multiple variables to be opened with a single dataset open call?
-    # tdk: rename 'data' to 'request_dataset'
     def __init__(self, *args, **kwargs):
         if kwargs.get('value') is None and kwargs.get('request_dataset') is None:
             msg = 'A "value" or "request_dataset" is required.'
