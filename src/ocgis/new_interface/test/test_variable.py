@@ -151,19 +151,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
             var = ds.variables[bv.name]
             self.assertEqual(var.bounds, bv.bounds.name)
 
-        # Test writing an unlimited dimension.
-        dim = Dimension('time')
-        var = Variable(name='time', value=[4, 5, 6], dimensions=dim)
-        with self.nc_scope(path, 'w') as ds:
-            var.write_netcdf(ds)
-        # subprocess.check_call(['ncdump', path])
-        with self.nc_scope(path) as ds:
-            rdim = ds.dimensions['time']
-            rvar = ds.variables['time']
-            self.assertTrue(rdim.isunlimited())
-            # Fill value only present for masked data.
-            self.assertNotIn('_FillValue', rvar.__dict__)
-
 
 class TestSourcedVariable(AbstractTestNewInterface):
     def get_sourcedvariable(self, name='tas'):
@@ -298,6 +285,25 @@ class TestVariable(AbstractTestNewInterface):
             self.assertEqual(ncvar.dtype, var.dtype)
             self.assertEqual(ncvar[:].fill_value, var.fill_value)
             self.assertEqual(ncvar.axis, 'not_an_ally')
+
+        # Test writing an unlimited dimension.
+        path = self.get_temporary_file_path('foo.nc')
+        dim = Dimension('time')
+        var = Variable(name='time', value=[4, 5, 6], dimensions=dim)
+        self.assertEqual(var.shape, (3,))
+        for unlimited_to_fixedsize in [False, True]:
+            with self.nc_scope(path, 'w') as ds:
+                var.write_netcdf(ds, unlimited_to_fixedsize=unlimited_to_fixedsize)
+            # subprocess.check_call(['ncdump', path])
+            with self.nc_scope(path) as ds:
+                rdim = ds.dimensions['time']
+                rvar = ds.variables['time']
+                if unlimited_to_fixedsize:
+                    self.assertFalse(rdim.isunlimited())
+                else:
+                    self.assertTrue(rdim.isunlimited())
+                # Fill value only present for masked data.
+                self.assertNotIn('_FillValue', rvar.__dict__)
 
 
 class TestVariableCollection(AbstractTestNewInterface):

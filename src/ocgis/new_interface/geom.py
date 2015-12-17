@@ -253,7 +253,7 @@ class PointArray(AbstractSpatialVariable):
         ret = copy(self)
         ret._grid = None
         ret._dimensions = None
-        ret.value = fill
+        ret._value = fill
         return ret
 
     def update_crs(self, to_crs):

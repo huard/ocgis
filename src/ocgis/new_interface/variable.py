@@ -1,5 +1,6 @@
 from copy import copy
 from itertools import izip
+from netCDF4 import Dataset
 
 import numpy as np
 from numpy.ma import MaskedArray
@@ -20,6 +21,7 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
+        self._is_init = True
         self._alias = None
         self._dimensions = None
         self._value = None
@@ -36,13 +38,15 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.value = value
 
         Attributes.__init__(self, attrs=attrs)
+        self._is_init = False
+        if self._value is not None:
+            self._validate_value_(self._value)
 
     def __getitem__(self, slc):
         ret = copy(self)
         slc = get_formatted_slice(slc, self.ndim)
         value = self.value.__getitem__(slc)
-        if self._dimensions is not None:
-            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
+        ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         ret.value = value
         ret.value.unshare_mask()
         return ret
@@ -126,14 +130,18 @@ class Variable(AbstractInterfaceObject, Attributes):
     def shape(self):
         return self._get_shape_()
 
+    @property
+    def shape_dimensions(self):
+        return tuple([d.length for d in get_iter(self.dimensions, dtype=Dimension)])
+
     def _get_shape_(self):
-        if self.dimensions is None:
-            if self._value is None:
+        if self._value is None:
+            if self.dimensions is None:
                 ret = tuple()
             else:
-                ret = self.value.shape
+                ret = tuple([len(d) for d in self.dimensions])
         else:
-            ret = tuple([len(d) for d in self.dimensions])
+            ret = self._value.shape
         return ret
 
     @property
@@ -175,14 +183,14 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._value = value
 
     def _validate_value_(self, value):
-        dimensions = self._dimensions
-        if dimensions is not None:
+        if not self._is_init:
+            dimensions = self.dimensions
             # Account for unlimited dimensions.
             value_shape = value.shape
-            self_shape = self.shape
+            dim_shape = self.shape_dimensions
             for idx, d in enumerate(dimensions):
                 if d.length is not None:
-                    assert value_shape[idx] == self_shape[idx]
+                    assert value_shape[idx] == dim_shape[idx]
 
     ####################################################################################################################
 
@@ -210,34 +218,52 @@ class Variable(AbstractInterfaceObject, Attributes):
         assert value.ndim == self.ndim
         self.value.mask = value
 
-    def write_netcdf(self, dataset, file_only=False, **kwargs):
+    def write_netcdf(self, dataset_or_path, file_only=False, unlimited_to_fixedsize=False, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
-        :param dataset: The open dataset object.
-        :type dataset: :class:`netCDF4.Dataset`
+        :param dataset: The open dataset object or path for the write.
+        :type dataset: :class:`netCDF4.Dataset` or str
         :param bool file_only: If ``True``, we are not filling the value variables. Only the file schema and dimension
          values will be written.
+        :param bool unlimited_to_fixedsize: If ``True``, convert the unlimited dimension to fixed size.
         :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        dimensions = self.dimensions
-        for dim in dimensions:
-            create_dimension_or_pass(dim, dataset)
-        dimensions = [d.name for d in dimensions]
-        # Only use the fill value is something is masked.
-        if self.get_mask().any():
-            fill_value = self.fill_value
+        if not isinstance(dataset_or_path, Dataset):
+            dataset = Dataset(dataset_or_path, 'w')
+            close_dataset = True
         else:
-            fill_value = None
-        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
-        if not file_only:
-            var[:] = self.value
-        self.write_attributes_to_netcdf_object(var)
-        if self.units is not None:
-            var.units = self.units
-        dataset.sync()
+            dataset = dataset_or_path
+            close_dataset = False
+
+        try:
+            dimensions = list(self.dimensions)
+            # Convert the unlimited dimension to fixed size if requested.
+            for idx, d in enumerate(dimensions):
+                if d.length is None and unlimited_to_fixedsize:
+                    dimensions[idx] = Dimension(d.name, length=self.shape[idx])
+                    break
+            # Create the dimensions.
+            for dim in dimensions:
+                create_dimension_or_pass(dim, dataset)
+            dimensions = [d.name for d in dimensions]
+            # Only use the fill value is something is masked.
+            if not file_only and self.get_mask().any():
+                fill_value = self.fill_value
+            else:
+                fill_value = None
+            var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+            if not file_only:
+                var[:] = self.value
+            self.write_attributes_to_netcdf_object(var)
+            if self.units is not None:
+                var.units = self.units
+            dataset.sync()
+        finally:
+            if close_dataset:
+                dataset.close()
 
 
 class SourcedVariable(Variable):
