@@ -56,6 +56,9 @@ class AbstractSpatialVariable(Variable):
 
 
 class PointArray(AbstractSpatialVariable):
+    # Flag for grid subsetting by bounding box. Bounds should not be used for points.
+    _use_bounds = False
+
     def __init__(self, **kwargs):
         self._grid = kwargs.pop('grid', None)
         self._geom_type = kwargs.pop('geom_type', 'auto')
@@ -68,10 +71,6 @@ class PointArray(AbstractSpatialVariable):
             if self._grid is None:
                 msg = 'A "value" or "grid" is required.'
                 raise ValueError(msg)
-            else:
-                if self._grid._corners is None and (self._grid.x.bounds is None or self._grid.y.bounds is None):
-                    msg = 'Grid "corners" must be available.'
-                    raise ValueError(msg)
 
     def __getitem__(self, slc):
         ret = super(PointArray, self).__getitem__(slc)
@@ -114,7 +113,7 @@ class PointArray(AbstractSpatialVariable):
         # First, subset the grid by the bounding box.
         if self._grid is not None:
             minx, miny, maxx, maxy = args[0].bounds
-            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=True)
+            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
             ret = self.__getitem__(slc)
         else:
             ret = self
@@ -283,11 +282,15 @@ class PointArray(AbstractSpatialVariable):
         self._grid = None
 
     def write_fiona(self, path, driver='ESRI Shapefile'):
+        if self.crs is None:
+            crs = None
+        else:
+            crs = self.crs.value
         name_uid = constants.HEADERS.ID_GEOMETRY.upper()
         schema = {'geometry': self.geom_type,
                   'properties': {name_uid: 'int'}}
         ref_prep = self._write_fiona_prep_geom_
-        with fiona.open(path, 'w', driver=driver, crs=self.crs.value, schema=schema) as f:
+        with fiona.open(path, 'w', driver=driver, crs=crs, schema=schema) as f:
             for uid, geom in enumerate(self.value.compressed()):
                 geom = ref_prep(geom)
                 feature = {'properties': {name_uid: uid}, 'geometry': mapping(geom)}
@@ -337,6 +340,16 @@ class PointArray(AbstractSpatialVariable):
 
 
 class PolygonArray(PointArray):
+    _use_bounds = True
+
+    def __init__(self, **kwargs):
+        super(PolygonArray, self).__init__(**kwargs)
+
+        if self._value is None:
+            if self._grid._corners is None and (self._grid.x.bounds is None or self._grid.y.bounds is None):
+                msg = 'Grid "corners" must be available.'
+                raise ValueError(msg)
+
     @property
     def area(self):
         r_value = self.value
@@ -354,8 +367,8 @@ class PolygonArray(PointArray):
         fill = self._get_geometry_fill_()
         r_data = fill.data
         try:
-            ref_row_bounds = self.grid.row.bounds
-            ref_col_bounds = self.grid.col.bounds
+            ref_row_bounds = self.grid.y.bounds.value
+            ref_col_bounds = self.grid.x.bounds.value
             for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
                 row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
                 col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()

@@ -15,7 +15,6 @@ from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestPointArray(AbstractTestNewInterface):
-
     def test_init(self):
         pa = self.get_pointarray()
         self.assertIsInstance(pa.value, MaskedArray)
@@ -252,23 +251,37 @@ class TestPolygonArray(AbstractTestNewInterface):
         self.assertEqual(poly.name, 'geom')
         self.assertEqual(poly.geom_type, 'Polygon')
 
+        # Test bounds are used for bbox subset.
+        self.assertTrue(PolygonArray._use_bounds)
+
+    def test_area_and_weights(self):
+        poly = self.get_polygonarray()
+        bbox = box(-98.1, 38.3, -99.4, 39.9)
+        sub = poly.get_intersection(bbox)
+        actual_area = [[0.360000000000001, 0.1600000000000017], [0.9000000000000057, 0.4000000000000057],
+                       [0.18000000000000368, 0.08000000000000228]]
+        np.testing.assert_almost_equal(sub.area, actual_area)
+        actual_weights = [[0.3999999999999986, 0.17777777777777853], [1.0, 0.444444444444448],
+                          [0.20000000000000284, 0.08888888888889086]]
+        np.testing.assert_almost_equal(sub.weights, actual_weights)
+
+    def test_get_unioned(self):
+        poly = self.get_polygonarray()
+        u = poly.get_unioned()
+        for p in poly.value.flat:
+            self.assertTrue(p.intersects(u.value[0]))
+
     def test_get_value(self):
-        # Test ordering of vertices when creating from corners is slightly different.
+        """Test ordering of vertices when creating from corners is slightly different."""
 
         keywords = dict(with_grid_row_col_bounds=[True, False],
                         with_grid_mask=[True, False])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
-            # sdim = self.get_sdim()
             poly = self.get_polygonarray()
             if k.with_grid_mask:
-                # sdim.grid.value.mask[:, 1, 1] = True
                 poly.grid.value.mask[:, 1, 1] = True
-            # sdim.grid.corners
             poly.grid.corners
-            self.assertIsNone(poly._value)
             if not k.with_grid_row_col_bounds:
-                # sdim.grid.row.bounds = None
-                # sdim.grid.col.bounds = None
                 poly.grid.y.bounds = None
                 poly.grid.x.bounds = None
                 actual = self.polygon_value_alternate_ordering
@@ -276,6 +289,6 @@ class TestPolygonArray(AbstractTestNewInterface):
                 actual = self.polygon_value
             if k.with_grid_mask:
                 actual.mask[1, 1] = True
-            # poly = sdim.geom.polygon.value
+            self.assertIsNone(poly._value)
             value_poly = poly.value
             self.assertGeometriesAlmostEquals(value_poly, actual)
