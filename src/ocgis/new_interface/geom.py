@@ -45,15 +45,6 @@ class AbstractSpatialVariable(Variable):
         self._crs = value
 
     @abstractmethod
-    def get_mask(self):
-        """Return the object mask."""
-        # tdk: move get and set mask to variable
-
-    @abstractmethod
-    def set_mask(self):
-        """Set the object mask."""
-
-    @abstractmethod
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
 

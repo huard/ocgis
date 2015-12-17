@@ -177,6 +177,15 @@ class Variable(AbstractInterfaceObject, Attributes):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
 
+    def get_mask(self):
+        """Return the object mask."""
+        return self.value.mask
+
+    def set_mask(self, value):
+        """Set the object mask."""
+        assert value.ndim == self.ndim
+        self.value.mask = value
+
     def write_netcdf(self, dataset, file_only=False, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
