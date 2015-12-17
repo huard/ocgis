@@ -1,3 +1,5 @@
+from unittest import SkipTest
+
 import fiona
 import numpy as np
 from numpy.ma import MaskedArray
@@ -10,7 +12,6 @@ from ocgis.new_interface.geom import PointArray, PolygonArray
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import BoundedVariable, Variable
-from ocgis.test.base import ToTest
 from ocgis.util.spatial.index import SpatialIndex
 
 
@@ -171,8 +172,15 @@ class TestPointArray(AbstractTestNewInterface):
         with fiona.open(path, 'r') as records:
             self.assertEqual(len(list(records)), 2)
 
+        # Test with a multi-geometry.
+        pts = np.ma.array([Point(1, 2), MultiPoint([Point(3, 4), Point(5, 6)])], dtype=object, mask=False)
+        pa = PointArray(value=pts)
+        pa.write_fiona(path)
+        with fiona.open(path) as source:
+            self.assertEqual(source.schema['geometry'], 'MultiPoint')
+
     def test_write_netcdf(self):
-        raise ToTest
+        raise SkipTest
 
 
 class TestPolygonArray(AbstractTestNewInterface):

@@ -21,6 +21,8 @@ from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
 
+GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoint, 'MultiPolygon': MultiPolygon}
+
 
 class AbstractSpatialVariable(Variable):
     __metaclass__ = ABCMeta
@@ -45,6 +47,7 @@ class AbstractSpatialVariable(Variable):
     @abstractmethod
     def get_mask(self):
         """Return the object mask."""
+        # tdk: move get and set mask to variable
 
     @abstractmethod
     def set_mask(self):
@@ -91,10 +94,7 @@ class PointArray(AbstractSpatialVariable):
         # Geometry objects may change part counts during operations. It is better to scan and update the geometry types
         # to account for these operations.
         if self._geom_type == 'auto':
-            for geom in self.value.data.flat:
-                if geom.geom_type.startswith('Multi'):
-                    break
-            self._geom_type = geom.geom_type
+            self._geom_type = get_geom_type(self.value.data)
         return self._geom_type
 
     @property
@@ -281,7 +281,21 @@ class PointArray(AbstractSpatialVariable):
         # The grid is not longer representative of the data.
         self._grid = None
 
-    def write_fiona(self, path, driver='ESRI Shapefile'):
+    def iter_records(self, use_mask=True):
+        if use_mask:
+            to_itr = self.value.compressed()
+        else:
+            to_itr = self.value.data.flat
+        r_geom_class = GEOM_TYPE_MAPPING[self.geom_type]
+        name_uid = constants.HEADERS.ID_GEOMETRY.upper()
+        for idx, geom in enumerate(to_itr):
+            # Convert geometry to a multi-geometry if needed.
+            if not isinstance(geom, r_geom_class):
+                geom = r_geom_class([geom])
+            feature = {'properties': {name_uid: idx}, 'geometry': mapping(geom)}
+            yield feature
+
+    def write_fiona(self, path, driver='ESRI Shapefile', use_mask=True):
         if self.crs is None:
             crs = None
         else:
@@ -289,13 +303,10 @@ class PointArray(AbstractSpatialVariable):
         name_uid = constants.HEADERS.ID_GEOMETRY.upper()
         schema = {'geometry': self.geom_type,
                   'properties': {name_uid: 'int'}}
-        ref_prep = self._write_fiona_prep_geom_
-        with fiona.open(path, 'w', driver=driver, crs=crs, schema=schema) as f:
-            for uid, geom in enumerate(self.value.compressed()):
-                geom = ref_prep(geom)
-                feature = {'properties': {name_uid: uid}, 'geometry': mapping(geom)}
-                f.write(feature)
 
+        with fiona.open(path, 'w', driver=driver, crs=crs, schema=schema) as f:
+            for record in self.iter_records(use_mask=use_mask):
+                f.write(record)
         return path
 
     def _get_geometry_fill_(self, shape=None):
@@ -333,10 +344,6 @@ class PointArray(AbstractSpatialVariable):
             msg = 'Geometry values must be NumPy arrays to avoid automatic shapely transformations.'
             raise ValueError(msg)
         super(PointArray, self)._set_value_(value)
-
-    @staticmethod
-    def _write_fiona_prep_geom_(geom):
-        return geom
 
 
 class PolygonArray(PointArray):
@@ -387,3 +394,11 @@ class PolygonArray(PointArray):
                 polygon = Polygon(coords)
                 r_data[row, col] = polygon
         return fill
+
+
+def get_geom_type(data):
+    for geom in data.flat:
+        geom_type = geom.geom_type
+        if geom_type.startswith('Multi'):
+            break
+    return geom_type
