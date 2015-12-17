@@ -45,10 +45,10 @@ class Variable(AbstractInterfaceObject, Attributes):
     def __getitem__(self, slc):
         ret = copy(self)
         slc = get_formatted_slice(slc, self.ndim)
-        value = self.value.__getitem__(slc)
         ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
-        ret.value = value
-        ret.value.unshare_mask()
+        if self._value is not None:
+            ret.value = self.value.__getitem__(slc)
+            ret.value.unshare_mask()
         return ret
 
     def __len__(self):

@@ -4,6 +4,7 @@ from collections import OrderedDict
 from copy import copy
 
 import numpy as np
+from shapely.geometry import box
 
 from ocgis import constants, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
@@ -37,9 +38,24 @@ class AbstractSpatialVariable(Variable):
             assert isinstance(value, CoordinateReferenceSystem)
         self._crs = value
 
+    @property
+    def envelope(self):
+        return box(*self.extent)
+
+    @property
+    def extent(self):
+        return self._get_extent_()
+
     @abstractmethod
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
+
+    @abstractmethod
+    def _get_extent_(self):
+        """
+        :returns: A tuple with order (minx, miny, maxx, maxy).
+        :rtype: tuple
+        """
 
 
 class GridXY(AbstractSpatialVariable):
@@ -349,6 +365,35 @@ class GridXY(AbstractSpatialVariable):
         else:
             ret = self.y.dimensions
         return ret
+
+    def _get_extent_(self):
+        if not self.is_vectorized:
+            corners = self.corners
+            if corners is not None:
+                minx = corners[1].min()
+                miny = corners[0].min()
+                maxx = corners[1].max()
+                maxy = corners[0].max()
+            else:
+                value = self.value
+                minx = value[1, :, :].min()
+                miny = value[0, :, :].min()
+                maxx = value[1, :, :].max()
+                maxy = value[0, :, :].max()
+        else:
+            row = self.y
+            col = self.x
+            if row.bounds is None:
+                minx = col.value.min()
+                miny = row.value.min()
+                maxx = col.value.max()
+                maxy = row.value.max()
+            else:
+                minx = col.bounds.value.min()
+                miny = row.bounds.value.min()
+                maxx = col.bounds.value.max()
+                maxy = row.bounds.value.max()
+        return minx, miny, maxx, maxy
 
     def _get_value_(self):
         if self._value is None:

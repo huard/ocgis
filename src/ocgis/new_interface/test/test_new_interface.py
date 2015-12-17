@@ -70,7 +70,8 @@ class AbstractTestNewInterface(TestBase):
         return grid
 
     def get_pointarray(self, **kwargs):
-        kwargs['value'] = kwargs.pop('value', deepcopy(_VALUE_POINT_ARRAY))
+        if kwargs.get('grid') is None:
+            kwargs['value'] = kwargs.pop('value', deepcopy(_VALUE_POINT_ARRAY))
         pa = PointArray(**kwargs)
         return pa
 

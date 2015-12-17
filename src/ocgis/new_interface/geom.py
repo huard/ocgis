@@ -25,14 +25,39 @@ GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoin
 
 
 class SpatialContainer(AbstractInterfaceObject):
-    def __init__(self, point=None, polygon=None, grid=None):
+    def __init__(self, point=None, polygon=None, grid=None, abstraction=None):
         self._point = None
         self._polygon = None
         self._grid = None
 
+        self.abstraction = abstraction
         self.point = point
         self.poly = polygon
         self.grid = grid
+
+    def __getitem__(self, slc):
+        ret = copy(self)
+        ret._grid = get_none_or_slice(ret._grid, slc)
+        ret._point = get_none_or_slice(ret._point, slc)
+        ret._polygon = get_none_or_slice(ret._polygon, slc)
+        return ret
+
+    @property
+    def envelope(self):
+        return get_grid_or_geom_attr(self, 'envelope')
+
+    @property
+    def extent(self):
+        return get_grid_or_geom_attr(self, 'extent')
+
+    @property
+    def geom(self):
+        if self.abstraction is None:
+            ret = self.get_optimal_geometry()
+        else:
+            ret = getattr(self, self.abstraction)
+        assert ret is not None
+        return ret
 
     @property
     def grid(self):
@@ -73,20 +98,45 @@ class SpatialContainer(AbstractInterfaceObject):
             assert isinstance(value, PolygonArray)
         self._polygon = value
 
-    def get_intersects(self, *args, **kwargs):
-        raise NotImplementedError
+    @property
+    def shape(self):
+        return get_grid_or_geom_attr(self, 'shape')
 
-    def get_optimal_geometry(self):
-        if self.polygon is None:
-            ret = self.point
+    def get_intersects(self, *args, **kwargs):
+        ret = copy(self)
+
+        # Always return indices so the other geometry can be sliced if needed.
+        kwargs = kwargs.copy()
+        original_return_indices = kwargs.get('return_indices', False)
+        kwargs['return_indices'] = True
+
+        # Subset the optimal geometry.
+        geom_subset, slc = ret.geom.get_intersects(*args, **kwargs)
+        # Synchronize the underlying grid.
+        ret.grid = geom_subset.grid
+        # Update the other geometry by slicing given the underlying subset. Only slice if it is loaded.
+        if isinstance(self.geom, PolygonArray):
+            ret.polygon = geom_subset
+            ret.point = get_none_or_slice(ret._point, slc)
         else:
-            ret = self.polygon
+            ret.point = geom_subset
+            ret.polygon = get_none_or_slice(ret._polygon, slc)
+
+        if original_return_indices:
+            ret = (ret, slc)
+        else:
+            ret = ret
+
         return ret
 
-    def update_crs(self, *args, **kwargs):
-        self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs, inplace=True)
+    def get_optimal_geometry(self):
+        return self.polygon or self.point
 
-    def _apply_(self, targets, func, args, kwargs, inplace=False):
+    def update_crs(self, *args, **kwargs):
+        self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs=kwargs, inplace=True)
+
+    def _apply_(self, targets, func, args, kwargs=None, inplace=False):
+        kwargs = kwargs or {}
         for target_name in targets:
             target = self.__dict__[target_name]
             if target is not None and hasattr(target, func):
@@ -228,7 +278,7 @@ class PointArray(AbstractSpatialVariable):
 
         # Update the grid mask if it is associated with the object.
         if ret._grid is not None:
-            ret._grid.set_mask(self.get_mask())
+            ret._grid.set_mask(ret.get_mask())
 
         return ret
 
@@ -347,6 +397,19 @@ class PointArray(AbstractSpatialVariable):
                 f.write(record)
         return path
 
+    def _get_dimensions_(self):
+        if self.grid is not None:
+            ret = self.grid.dimensions
+        else:
+            raise NotImplementedError
+        return ret
+
+    def _get_extent_(self):
+        if self.grid is None:
+            raise NotImplementedError
+        else:
+            return self.grid.extent
+
     def _get_geometry_fill_(self, shape=None):
         if shape is None:
             shape = (self.grid.shape[0], self.grid.shape[1])
@@ -411,7 +474,7 @@ class PolygonArray(PointArray):
     def _get_value_(self):
         fill = self._get_geometry_fill_()
         r_data = fill.data
-        if self.grid.is_vectorized:
+        if self.grid.is_vectorized and self.grid.y.bounds is not None:
             ref_row_bounds = self.grid.y.bounds.value
             ref_col_bounds = self.grid.x.bounds.value
             for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
@@ -440,3 +503,11 @@ def get_geom_type(data):
         if geom_type.startswith('Multi'):
             break
     return geom_type
+
+
+def get_grid_or_geom_attr(sc, attr):
+    if sc.grid is None:
+        ret = getattr(sc.geom, attr)
+    else:
+        ret = getattr(sc.grid, attr)
+    return ret

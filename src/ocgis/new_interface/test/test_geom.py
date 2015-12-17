@@ -7,6 +7,7 @@ from shapely import wkt
 from shapely.geometry import Point, box, MultiPoint
 
 from ocgis import env, CoordinateReferenceSystem
+from ocgis.exc import GridDeficientError
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer
 from ocgis.new_interface.grid import GridXY
@@ -241,13 +242,13 @@ class TestPolygonArray(AbstractTestNewInterface):
         grid = GridXY(x=col, y=row)
         self.assertIsNone(grid.corners)
         # Corners are not available.
-        with self.assertRaises(ValueError):
+        with self.assertRaises(GridDeficientError):
             PolygonArray(grid=grid)
 
         value = grid.value
         grid = GridXY(value=value)
         # Corners are not available.
-        with self.assertRaises(ValueError):
+        with self.assertRaises(GridDeficientError):
             PolygonArray(grid=grid)
 
         row = BoundedVariable(value=[2, 3], name='row')
@@ -303,6 +304,7 @@ class TestPolygonArray(AbstractTestNewInterface):
 
 
 class TestSpatialContainer(AbstractTestNewInterface):
+
     def test_init(self):
         to_crs = CoordinateReferenceSystem(epsg=4326)
         keywords = dict(with_xy_bounds=[False, True])
@@ -314,13 +316,19 @@ class TestSpatialContainer(AbstractTestNewInterface):
             self.assertEqual(grid.crs, sc.point.crs)
             polygon = sc.polygon
             optimal_geometry = sc.get_optimal_geometry()
+            geom = sc.geom
+            sub = sc[0, 1]
             if k.with_xy_bounds:
                 self.assertIsInstance(polygon, PolygonArray)
                 self.assertIsInstance(optimal_geometry, PolygonArray)
+                self.assertIsInstance(geom, PolygonArray)
                 self.assertEqual(grid.crs, polygon.crs)
+                for target in [sub, sub.grid, sub.polygon, sub.point]:
+                    self.assertEqual(target.shape, (1, 1))
             else:
                 self.assertIsNone(polygon)
                 self.assertIsInstance(optimal_geometry, PointArray)
+                self.assertIsInstance(geom, PointArray)
             for target in [sc.point, sc.polygon]:
                 try:
                     self.assertIsNone(target._value)
@@ -334,3 +342,32 @@ class TestSpatialContainer(AbstractTestNewInterface):
                 self.assertIsNone(sc.polygon)
             for target in to_test:
                 self.assertEqual(to_crs, target.crs)
+
+    def test_get_intersects(self):
+        keywords = dict(with_xy_bounds=[False, True], return_indices=[False, True])
+        polygon = 'Polygon ((100.82351859861583421 42.13422361591698007, 102.11512759515565563 42.12332396193773576, 102.14782655709338144 40.87531358131486314, 101.85353589965392018 40.88621323529410745, 101.83718641868506438 41.86718209342561892, 101.16140787197224427 41.87263192041523752, 100.99246323529403924 41.41484645328719694, 100.82351859861583421 42.13422361591698007))'
+        polygon = wkt.loads(polygon)
+        for k in self.iter_product_keywords(keywords):
+            grid = self.get_gridxy(with_xy_bounds=k.with_xy_bounds)
+            sc = SpatialContainer(grid=grid)
+            subset = sc.get_intersects(polygon, return_indices=k.return_indices)
+            if k.return_indices:
+                subset, slc = subset
+            self.assertEqual(subset.shape, (2, 2))
+            if k.with_xy_bounds:
+                self.assertFalse(subset.point.get_mask().any())
+                self.assertFalse(subset.polygon.get_mask().any())
+                self.assertFalse(subset.grid.get_mask().any())
+            else:
+                self.assertIsNone(subset.polygon)
+                self.assertTrue(subset.point.get_mask().any())
+                self.assertTrue(subset.grid.get_mask().any())
+                subset.grid.set_extrapolated_corners()
+                self.assertTrue(subset.grid.corners.mask.any())
+            grid_mask = sc.grid.get_mask().copy()
+            grid_mask[:] = True
+            self.assertFalse(sc.grid.get_mask().any())
+            sc.grid.set_mask(grid_mask)
+            self.assertTrue(sc.grid.get_mask().all())
+            self.assertFalse(subset.grid.get_mask().all())
+            self.assertFalse(subset.point.get_mask().all())
