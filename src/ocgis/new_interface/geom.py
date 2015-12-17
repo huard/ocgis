@@ -1,5 +1,4 @@
 import itertools
-from abc import ABCMeta, abstractmethod
 from collections import deque
 from copy import copy
 
@@ -12,9 +11,10 @@ from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
 from ocgis import constants
-from ocgis import env, CoordinateReferenceSystem
-from ocgis.exc import EmptySubsetError
-from ocgis.new_interface.variable import Variable
+from ocgis import env
+from ocgis.exc import EmptySubsetError, GridDeficientError
+from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.grid import GridXY, AbstractSpatialVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -24,29 +24,76 @@ CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeo
 GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoint, 'MultiPolygon': MultiPolygon}
 
 
-class AbstractSpatialVariable(Variable):
-    __metaclass__ = ABCMeta
+class SpatialContainer(AbstractInterfaceObject):
+    def __init__(self, point=None, polygon=None, grid=None):
+        self._point = None
+        self._polygon = None
+        self._grid = None
 
-    def __init__(self, **kwargs):
-        self._crs = None
-
-        self.crs = kwargs.pop('crs', None)
-
-        super(AbstractSpatialVariable, self).__init__(**kwargs)
+        self.point = point
+        self.poly = polygon
+        self.grid = grid
 
     @property
-    def crs(self):
-        return self._crs
+    def grid(self):
+        return self._grid
 
-    @crs.setter
-    def crs(self, value):
+    @grid.setter
+    def grid(self, value):
         if value is not None:
-            assert isinstance(value, CoordinateReferenceSystem)
-        self._crs = value
+            assert isinstance(value, GridXY)
+        self._grid = value
 
-    @abstractmethod
-    def update_crs(self, to_crs):
-        """Update coordinate system in-place."""
+    @property
+    def point(self):
+        if self._point is None:
+            if self._grid is not None:
+                self._point = PointArray(grid=self._grid, crs=self._grid.crs)
+        return self._point
+
+    @point.setter
+    def point(self, value):
+        if value is not None:
+            assert isinstance(value, PointArray)
+        self._point = value
+
+    @property
+    def polygon(self):
+        if self._polygon is None:
+            if self._grid is not None:
+                try:
+                    self._polygon = PolygonArray(grid=self._grid, crs=self._grid.crs)
+                except GridDeficientError:
+                    pass
+        return self._polygon
+
+    @polygon.setter
+    def polygon(self, value):
+        if value is not None:
+            assert isinstance(value, PolygonArray)
+        self._polygon = value
+
+    def get_intersects(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def get_optimal_geometry(self):
+        if self.polygon is None:
+            ret = self.point
+        else:
+            ret = self.polygon
+        return ret
+
+    def update_crs(self, *args, **kwargs):
+        self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs, inplace=True)
+
+    def _apply_(self, targets, func, args, kwargs, inplace=False):
+        for target_name in targets:
+            target = self.__dict__[target_name]
+            if target is not None and hasattr(target, func):
+                ref = getattr(target, func)
+                new_value = ref(*args, **kwargs)
+                if not inplace:
+                    setattr(self, target_name[1:], new_value)
 
 
 class PointArray(AbstractSpatialVariable):
@@ -258,7 +305,7 @@ class PointArray(AbstractSpatialVariable):
 
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
-        r_value = self.value.data
+        r_value = self.value.data.reshape(-1)
         r_loads = wkb.loads
         r_create = ogr.CreateGeometryFromWkb
         to_sr = to_crs.sr
@@ -346,7 +393,7 @@ class PolygonArray(PointArray):
         if self._value is None:
             if self._grid._corners is None and (self._grid.x.bounds is None or self._grid.y.bounds is None):
                 msg = 'Grid "corners" must be available.'
-                raise ValueError(msg)
+                raise GridDeficientError(msg)
 
     @property
     def area(self):
@@ -364,7 +411,7 @@ class PolygonArray(PointArray):
     def _get_value_(self):
         fill = self._get_geometry_fill_()
         r_data = fill.data
-        try:
+        if self.grid.is_vectorized:
             ref_row_bounds = self.grid.y.bounds.value
             ref_col_bounds = self.grid.x.bounds.value
             for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
@@ -373,7 +420,7 @@ class PolygonArray(PointArray):
                 r_data[idx_row, idx_col] = Polygon(
                     [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
         # The grid dimension may not have row/col or row/col bounds.
-        except AttributeError:
+        else:
             # We want geometries for everything even if masked.
             corners = self.grid.corners.data
             range_row = range(self.grid.shape[0])

@@ -326,3 +326,7 @@ class NoDimensionedVariablesFound(RequestValidationError):
 
     def __init__(self):
         super(NoDimensionedVariablesFound, self).__init__('variable', messages.M1)
+
+
+class GridDeficientError(OcgException):
+    """Raised when a grid is missing parameters necessary to create a geometry array."""

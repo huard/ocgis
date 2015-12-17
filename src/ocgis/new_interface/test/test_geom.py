@@ -8,7 +8,7 @@ from shapely.geometry import Point, box, MultiPoint
 
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
-from ocgis.new_interface.geom import PointArray, PolygonArray
+from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import BoundedVariable, Variable
@@ -300,3 +300,37 @@ class TestPolygonArray(AbstractTestNewInterface):
             self.assertIsNone(poly._value)
             value_poly = poly.value
             self.assertGeometriesAlmostEquals(value_poly, actual)
+
+
+class TestSpatialContainer(AbstractTestNewInterface):
+    def test_init(self):
+        to_crs = CoordinateReferenceSystem(epsg=4326)
+        keywords = dict(with_xy_bounds=[False, True])
+        for k in self.iter_product_keywords(keywords):
+            grid = self.get_gridxy(with_xy_bounds=k.with_xy_bounds)
+            grid.crs = CoordinateReferenceSystem(epsg=3395)
+            sc = SpatialContainer(grid=grid)
+            self.assertIsInstance(sc.point, PointArray)
+            self.assertEqual(grid.crs, sc.point.crs)
+            polygon = sc.polygon
+            optimal_geometry = sc.get_optimal_geometry()
+            if k.with_xy_bounds:
+                self.assertIsInstance(polygon, PolygonArray)
+                self.assertIsInstance(optimal_geometry, PolygonArray)
+                self.assertEqual(grid.crs, polygon.crs)
+            else:
+                self.assertIsNone(polygon)
+                self.assertIsInstance(optimal_geometry, PointArray)
+            for target in [sc.point, sc.polygon]:
+                try:
+                    self.assertIsNone(target._value)
+                except AttributeError:
+                    self.assertFalse(k.with_xy_bounds)
+            sc.update_crs(to_crs)
+            if k.with_xy_bounds:
+                to_test = [sc.grid, sc.point, sc.polygon]
+            else:
+                to_test = [sc.grid, sc.point]
+                self.assertIsNone(sc.polygon)
+            for target in to_test:
+                self.assertEqual(to_crs, target.crs)

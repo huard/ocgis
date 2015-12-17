@@ -1,13 +1,13 @@
 import itertools
+from abc import abstractmethod, ABCMeta
 from collections import OrderedDict
 from copy import copy
 
 import numpy as np
 
-from ocgis import constants
+from ocgis import constants, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.geom import AbstractSpatialVariable
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array, get_extrapolated_corners_esmf, \
@@ -15,6 +15,31 @@ from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_arra
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
+
+
+class AbstractSpatialVariable(Variable):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, **kwargs):
+        self._crs = None
+
+        self.crs = kwargs.pop('crs', None)
+
+        super(AbstractSpatialVariable, self).__init__(**kwargs)
+
+    @property
+    def crs(self):
+        return self._crs
+
+    @crs.setter
+    def crs(self, value):
+        if value is not None:
+            assert isinstance(value, CoordinateReferenceSystem)
+        self._crs = value
+
+    @abstractmethod
+    def update_crs(self, to_crs):
+        """Update coordinate system in-place."""
 
 
 class GridXY(AbstractSpatialVariable):
