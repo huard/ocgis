@@ -38,9 +38,16 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.value = value
 
         Attributes.__init__(self, attrs=attrs)
+
         self._is_init = False
+
         if self._value is not None:
             self._validate_value_(self._value)
+            # Update any unlimited dimension length.
+            if self._dimensions is not None:
+                for idx, d in enumerate(self.dimensions):
+                    if d.length is None and d.length_current is None:
+                        d.length_current = self.shape[idx]
 
     def __getitem__(self, slc):
         ret = copy(self)
@@ -135,14 +142,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         return tuple([d.length for d in get_iter(self.dimensions, dtype=Dimension)])
 
     def _get_shape_(self):
-        if self._value is None:
-            if self.dimensions is None:
-                ret = tuple()
-            else:
-                ret = tuple([len(d) for d in self.dimensions])
-        else:
-            ret = self._value.shape
-        return ret
+        return get_shape_from_variable(self)
 
     @property
     def units(self):
@@ -536,3 +536,32 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection):
 def create_dimension_or_pass(dim, dataset):
     if dim.name not in dataset.dimensions:
         dataset.createDimension(dim.name, dim.length)
+
+
+def get_dimension_lengths(dimensions):
+    return tuple([len(d) for d in dimensions])
+
+
+def get_shape_from_variable(variable):
+    _dimensions = variable._dimensions
+    _value = variable._value
+    if _dimensions is not None and not has_unlimited_dimension(_dimensions):
+        ret = get_dimension_lengths(_dimensions)
+    elif _value is None:
+        dimensions = variable.dimensions
+        if dimensions is None:
+            ret = tuple()
+        else:
+            ret = get_dimension_lengths(dimensions)
+    else:
+        ret = _value.shape
+
+    return ret
+
+
+def has_unlimited_dimension(dimensions):
+    ret = False
+    for d in dimensions:
+        if d.length is None:
+            ret = True
+    return ret

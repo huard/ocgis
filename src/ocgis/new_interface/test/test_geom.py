@@ -133,7 +133,7 @@ class TestPointArray(AbstractTestNewInterface):
         target2 = box(0.5, 0.75, 0.55, 0.755)
         pa = self.get_pointarray()
         for target in [target1, target2]:
-            res = pa.get_nearest(target, return_index=True)
+            res = pa.get_nearest(target, return_indices=True)
             self.assertEqual(res, (Point(1, 2), 0))
 
     def test_get_spatial_index(self):
@@ -351,6 +351,8 @@ class TestSpatialContainer(AbstractTestNewInterface):
             grid = self.get_gridxy(with_xy_bounds=k.with_xy_bounds)
             sc = SpatialContainer(grid=grid)
             subset = sc.get_intersects(polygon, return_indices=k.return_indices)
+            inter = sc.get_intersection(polygon)
+            near = sc.get_nearest(polygon)
             if k.return_indices:
                 subset, slc = subset
             self.assertEqual(subset.shape, (2, 2))

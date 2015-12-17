@@ -12,7 +12,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array, get_extrapolated_corners_esmf, \
-    get_ocgis_corners_from_esmf_corners
+    get_ocgis_corners_from_esmf_corners, get_iter
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -91,6 +91,7 @@ class GridXY(AbstractSpatialVariable):
 
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
+        ret.dimensions = [d[s] for d, s in itertools.izip(self.dimensions, get_iter(slc, dtype=slice))]
         if self._y is not None:
             if self.is_vectorized:
                 ret.y = self.y[slc[0]]
@@ -216,18 +217,6 @@ class GridXY(AbstractSpatialVariable):
             cols = np.mean(np.diff(r_value[1, :, :], axis=1))
             to_mean = [rows, cols]
         ret = np.mean(to_mean)
-        return ret
-
-    @property
-    def shape(self):
-        if self._value is None:
-            if self.is_vectorized:
-                ret = [len(self.y), len(self.x)]
-            else:
-                ret = list(self.x.shape)
-        else:
-            ret = self.value.shape[1:]
-        ret = tuple(ret)
         return ret
 
     def get_mask(self):
@@ -394,6 +383,14 @@ class GridXY(AbstractSpatialVariable):
                 maxx = col.bounds.value.max()
                 maxy = row.bounds.value.max()
         return minx, miny, maxx, maxy
+
+    def _get_shape_(self):
+        ret = super(GridXY, self)._get_shape_()
+        # Trim the first dimension. It is always 2 for grids.
+        if len(ret) == 3:
+            ret = tuple(list(ret)[1:])
+        assert len(ret) == 2
+        return ret
 
     def _get_value_(self):
         if self._value is None:

@@ -272,6 +272,18 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
 
+    def test_shape(self):
+        # Test shape with unlimited dimension.
+        dim = Dimension('time')
+        var = Variable(name='time', value=[4, 5, 6], dimensions=dim)
+        self.assertEqual(len(dim), 3)
+        self.assertEqual(var.shape, (3,))
+        # Copies are made after slicing.
+        sub = var[1]
+        self.assertEqual(len(dim), 3)
+        self.assertEqual(len(sub.dimensions[0]), 1)
+        self.assertEqual(sub.shape, (1,))
+
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)
         var.value.mask[1] = True

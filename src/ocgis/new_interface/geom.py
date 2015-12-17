@@ -103,31 +103,13 @@ class SpatialContainer(AbstractInterfaceObject):
         return get_grid_or_geom_attr(self, 'shape')
 
     def get_intersects(self, *args, **kwargs):
-        ret = copy(self)
+        return get_spatial_operation(self, 'get_intersects', args, kwargs)
 
-        # Always return indices so the other geometry can be sliced if needed.
-        kwargs = kwargs.copy()
-        original_return_indices = kwargs.get('return_indices', False)
-        kwargs['return_indices'] = True
+    def get_intersection(self, *args, **kwargs):
+        return get_spatial_operation(self, 'get_intersection', args, kwargs)
 
-        # Subset the optimal geometry.
-        geom_subset, slc = ret.geom.get_intersects(*args, **kwargs)
-        # Synchronize the underlying grid.
-        ret.grid = geom_subset.grid
-        # Update the other geometry by slicing given the underlying subset. Only slice if it is loaded.
-        if isinstance(self.geom, PolygonArray):
-            ret.polygon = geom_subset
-            ret.point = get_none_or_slice(ret._point, slc)
-        else:
-            ret.point = geom_subset
-            ret.polygon = get_none_or_slice(ret._polygon, slc)
-
-        if original_return_indices:
-            ret = (ret, slc)
-        else:
-            ret = ret
-
-        return ret
+    def get_nearest(self, *args, **kwargs):
+        return get_spatial_operation(self, 'get_nearest', args, kwargs)
 
     def get_optimal_geometry(self):
         return self.polygon or self.point
@@ -304,16 +286,16 @@ class PointArray(AbstractSpatialVariable):
         if self._grid is not None:
             self.grid.set_mask(value)
 
-    def get_nearest(self, target, return_index=False):
+    def get_nearest(self, target, return_indices=False):
         target = target.centroid
         distances = {}
         for select_nearest_index, geom in iter_array(self.value, return_value=True):
             distances[target.distance(geom)] = select_nearest_index
         select_nearest_index = distances[min(distances.keys())]
-        ret = self.value[select_nearest_index]
+        ret = self[select_nearest_index]
 
-        if return_index:
-            ret = (ret, select_nearest_index[0],)
+        if return_indices:
+            ret = (ret, select_nearest_index)
 
         return ret
 
@@ -510,4 +492,43 @@ def get_grid_or_geom_attr(sc, attr):
         ret = getattr(sc.geom, attr)
     else:
         ret = getattr(sc.grid, attr)
+    return ret
+
+
+def get_spatial_operation(sc, name, args, kwargs):
+    """
+    :param sc: A spatial containter.
+    :type sc: :class:`ocgis.new_interface.geom.SpatialContainer'
+    :param str name: Name of the spatial operation.
+    :param tuple args: Arguments to the spatial operation.
+    :param dict kwargs: Keyword arguments to the spatial operation.
+    :returns: Performs the spatial operation on the input spatial container.
+    :rtype: :class:`ocgis.new_interface.geom.SpatialContainer'
+    """
+    ret = copy(sc)
+
+    # Always return indices so the other geometry can be sliced if needed.
+    kwargs = kwargs.copy()
+    original_return_indices = kwargs.get('return_indices', False)
+    kwargs['return_indices'] = True
+
+    # Subset the optimal geometry.
+    geom = ret.geom
+    operation = getattr(geom, name)
+    geom_subset, slc = operation(*args, **kwargs)
+    # Synchronize the underlying grid.
+    ret.grid = geom_subset.grid
+    # Update the other geometry by slicing given the underlying subset. Only slice if it is loaded.
+    if isinstance(geom, PolygonArray):
+        ret.polygon = geom_subset
+        ret.point = get_none_or_slice(ret._point, slc)
+    else:
+        ret.point = geom_subset
+        ret.polygon = get_none_or_slice(ret._polygon, slc)
+
+    if original_return_indices:
+        ret = (ret, slc)
+    else:
+        ret = ret
+
     return ret
