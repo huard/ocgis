@@ -83,6 +83,17 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (1,))
         self.assertEqual(sub.value[0], Point(1, 2))
 
+    def test_get_intersection(self):
+        for return_indices in [True, False]:
+            pa = self.get_pointarray()
+            polygon = box(0.9, 1.9, 1.5, 2.5)
+            lhs = pa.get_intersection(polygon, return_indices=return_indices)
+            if return_indices:
+                lhs, slc = lhs
+                self.assertEqual(slc, (slice(0, -1, None),))
+            self.assertEqual(lhs.shape, (1,))
+            self.assertEqual(lhs.value[0], Point(1, 2))
+
     def test_get_intersects_masked(self):
         x = self.get_variable_x()
         y = self.get_variable_y()
@@ -129,6 +140,13 @@ class TestPointArray(AbstractTestNewInterface):
         si = pa.get_spatial_index()
         self.assertIsInstance(si, SpatialIndex)
         self.assertEqual(si._index.bounds, [1.0, 2.0, 3.0, 4.0])
+
+    def test_get_unioned(self):
+        pa = self.get_pointarray()
+        u = pa.get_unioned()
+        self.assertEqual(u.shape, (1,))
+        actual = MultiPoint([[1.0, 2.0], [3.0, 4.0]])
+        self.assertEqual(u.value[0], actual)
 
     def test_update_crs(self):
         pa = self.get_pointarray(crs=WGS84())

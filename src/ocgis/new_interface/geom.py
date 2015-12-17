@@ -1,11 +1,13 @@
 from abc import ABCMeta, abstractmethod
+from collections import deque
 from copy import copy
 
 import fiona
 import numpy as np
 from numpy.core.multiarray import ndarray
 from shapely import wkb
-from shapely.geometry import Point, Polygon, MultiPolygon, mapping
+from shapely.geometry import Point, Polygon, MultiPolygon, mapping, MultiPoint
+from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
 from ocgis import constants
@@ -120,6 +122,17 @@ class PointArray(AbstractSpatialVariable):
 
         return ret
 
+    def get_intersection(self, *args, **kwargs):
+        ret = self.get_intersects(*args, **kwargs)
+        # If indices are being returned, this will be a tuple.
+        if kwargs.get('return_indices'):
+            obj = ret[0]
+        else:
+            obj = ret
+        for idx, geom in iter_array(obj.value, return_value=True):
+            obj.value[idx] = geom.intersection(args[0])
+        return ret
+
     def get_intersects_masked(self, polygon, use_spatial_index=True, keep_touches=False):
         """
         :param polygon: The Shapely geometry to use for subsetting.
@@ -218,6 +231,30 @@ class PointArray(AbstractSpatialVariable):
             r_add(idx[0], geom)
 
         return si
+
+    def get_unioned(self):
+        """
+        Unions _unmasked_ geometry objects.
+        """
+
+        to_union = [geom for geom in self.value.compressed().flat]
+        processed_to_union = deque()
+        for geom in to_union:
+            if isinstance(geom, MultiPolygon) or isinstance(geom, MultiPoint):
+                for element in geom:
+                    processed_to_union.append(element)
+            else:
+                processed_to_union.append(geom)
+        unioned = cascaded_union(processed_to_union)
+
+        fill = np.ma.array([None], mask=False, dtype=object)
+        fill[0] = unioned
+
+        ret = copy(self)
+        ret._grid = None
+        ret._dimensions = None
+        ret.value = fill
+        return ret
 
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
