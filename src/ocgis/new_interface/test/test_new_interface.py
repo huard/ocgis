@@ -17,6 +17,16 @@ _VALUE_POINT_ARRAY[:] = [Point(1, 2), Point(3, 4)]
 class AbstractTestNewInterface(TestBase):
     __metaclass__ = ABCMeta
 
+    def assertGeometriesAlmostEquals(self, a, b):
+
+        def _almost_equals_(a, b):
+            return a.almost_equals(b)
+
+        vfunc = np.vectorize(_almost_equals_, otypes=[bool])
+        to_test = vfunc(a.data, b.data)
+        self.assertTrue(to_test.all())
+        self.assertNumpyAll(a.mask, b.mask)
+
     def get_gridxy(self, with_2d_variables=False, with_dimensions=False, with_value=False,
                    with_value_only=False, crs=None):
 

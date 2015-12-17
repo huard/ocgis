@@ -1,3 +1,4 @@
+import itertools
 from abc import ABCMeta, abstractmethod
 from collections import deque
 from copy import copy
@@ -62,6 +63,15 @@ class PointArray(AbstractSpatialVariable):
         kwargs['name'] = kwargs.get('name', 'geom')
 
         super(PointArray, self).__init__(**kwargs)
+
+        if self._value is None:
+            if self._grid is None:
+                msg = 'A "value" or "grid" is required.'
+                raise ValueError(msg)
+            else:
+                if self._grid._corners is None and (self._grid.x.bounds is None or self._grid.y.bounds is None):
+                    msg = 'Grid "corners" must be available.'
+                    raise ValueError(msg)
 
     def __getitem__(self, slc):
         ret = super(PointArray, self).__getitem__(slc)
@@ -324,3 +334,43 @@ class PointArray(AbstractSpatialVariable):
     @staticmethod
     def _write_fiona_prep_geom_(geom):
         return geom
+
+
+class PolygonArray(PointArray):
+    @property
+    def area(self):
+        r_value = self.value
+        fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
+        fill = np.ma.array(fill, mask=r_value.mask)
+        for (ii, jj), geom in iter_array(r_value, return_value=True):
+            fill[ii, jj] = geom.area
+        return fill
+
+    @property
+    def weights(self):
+        return self.area / self.area.max()
+
+    def _get_value_(self):
+        fill = self._get_geometry_fill_()
+        r_data = fill.data
+        try:
+            ref_row_bounds = self.grid.row.bounds
+            ref_col_bounds = self.grid.col.bounds
+            for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
+                row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
+                col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
+                r_data[idx_row, idx_col] = Polygon(
+                    [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
+        # The grid dimension may not have row/col or row/col bounds.
+        except AttributeError:
+            # We want geometries for everything even if masked.
+            corners = self.grid.corners.data
+            range_row = range(self.grid.shape[0])
+            range_col = range(self.grid.shape[1])
+            for row, col in itertools.product(range_row, range_col):
+                current_corner = corners[:, row, col]
+                coords = np.hstack((current_corner[1, :].reshape(-1, 1),
+                                    current_corner[0, :].reshape(-1, 1)))
+                polygon = Polygon(coords)
+                r_data[row, col] = polygon
+        return fill
