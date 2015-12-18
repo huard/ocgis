@@ -165,6 +165,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_init(self):
         sv = self.get_sourcedvariable()
         self.assertIsInstance(sv._request_dataset, RequestDataset)
+        self.assertEqual(sv.units, 'K')
 
         sv = self.get_sourcedvariable(name='time_bnds')
         self.assertIsNone(sv._value)

@@ -272,6 +272,9 @@ class SourcedVariable(Variable):
             msg = 'A "value" or "request_dataset" is required.'
             raise ValueError(msg)
 
+        # Flag to indicate if metadata already from source.
+        self._allocated = False
+
         self._request_dataset = kwargs.pop('request_dataset', None)
 
         super(SourcedVariable, self).__init__(*args, **kwargs)
@@ -287,7 +290,7 @@ class SourcedVariable(Variable):
 
     @property
     def dtype(self):
-        if self._dtype is None:
+        if self._dtype is None and not self._allocated:
             if self._value is None:
                 self._set_metadata_from_source_()
             else:
@@ -300,7 +303,7 @@ class SourcedVariable(Variable):
 
     @property
     def fill_value(self):
-        if self._fill_value is None:
+        if self._fill_value is None and not self._allocated:
             if self._value is None:
                 self._set_metadata_from_source_()
             else:
@@ -320,34 +323,15 @@ class SourcedVariable(Variable):
         return ret
 
     def _set_metadata_from_source_(self):
-        ds = self._request_dataset.driver.open()
-        try:
-            var = ds.variables[self.name]
+        if self._allocated:
+            raise ValueError('Variable metadata already read from source.')
+        else:
+            set_variable_metadata_from_source(self)
 
-            if self._dimensions is None:
-                new_dimensions = []
-                for dim_name in var.dimensions:
-                    dim = ds.dimensions[dim_name]
-                    dim_length = len(dim)
-                    if dim.isunlimited():
-                        length = None
-                        length_current = dim_length
-                    else:
-                        length = dim_length
-                        length_current = None
-                    new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
-                    new_dimensions.append(new_dim)
-                super(SourcedVariable, self)._set_dimensions_(new_dimensions)
-
-            if self._dtype is None:
-                self.dtype = var.dtype
-
-            if self._fill_value is None:
-                self.fill_value = var.__dict__.get('_FillValue')
-
-            self.attrs.update(var.__dict__)
-        finally:
-            ds.close()
+    def _get_units_(self):
+        if not self._allocated and self._units is None and self._request_dataset is not None:
+            self._set_metadata_from_source_()
+        return self._units
 
     def _get_value_(self):
         if self._value is None:
@@ -565,3 +549,38 @@ def has_unlimited_dimension(dimensions):
         if d.length is None:
             ret = True
     return ret
+
+
+def set_variable_metadata_from_source(variable):
+    ds = variable._request_dataset.driver.open()
+    try:
+        var = ds.variables[variable.name]
+
+        if variable._dimensions is None:
+            new_dimensions = []
+            for dim_name in var.dimensions:
+                dim = ds.dimensions[dim_name]
+                dim_length = len(dim)
+                if dim.isunlimited():
+                    length = None
+                    length_current = dim_length
+                else:
+                    length = dim_length
+                    length_current = None
+                new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
+                new_dimensions.append(new_dim)
+            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+
+        if variable._dtype is None:
+            variable.dtype = var.dtype
+
+        if variable._fill_value is None:
+            variable.fill_value = var.__dict__.get('_FillValue')
+
+        if variable._units is None:
+            variable.units = var.__dict__.get('units')
+
+        variable.attrs.update(var.__dict__)
+    finally:
+        ds.close()
+    variable._allocated = True
