@@ -169,7 +169,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
-    def test_tdk(self):
         grid = self.get_gridxy(with_value_only=True)
         self.assertIsNone(grid._x)
         self.assertIsNone(grid._y)

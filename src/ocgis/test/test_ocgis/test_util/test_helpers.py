@@ -483,12 +483,12 @@ class Test2(TestBase):
         self.assertEqual(ret,[slice(0,1,None),slice(0,1,None)])
 
         ret = get_formatted_slice([(1,2,3),slice(None)],2)
-        self.assertNumpyAll(ret[0],np.arange(1,4))
+        self.assertEqual(ret[0], slice(1, 4))
         self.assertEqual(ret[1],slice(None))
         self.assertEqual(len(ret),2)
 
         ret = get_formatted_slice((1,2),1)
-        self.assertNumpyAll(ret,np.array([1,2]))
+        self.assertEqual(ret, slice(1, 3))
 
         ret = get_formatted_slice((1,),1)
         self.assertEqual(ret, slice(1, 2))
@@ -498,6 +498,14 @@ class Test2(TestBase):
 
         ret = get_formatted_slice((0,), 1)
         self.assertEqual(ret, slice(0, 1))
+
+        slc = [np.array([0, 1, 2], dtype=np.int32)]
+        ret = get_formatted_slice(slc, 1)
+        self.assertEqual(ret, slice(0, 3))
+
+        slc = np.array([True, False], dtype=bool)
+        ret = get_formatted_slice(slc, 1)
+        self.assertNumpyAll(ret, slc)
 
     def test_set_name_attributes(self):
 

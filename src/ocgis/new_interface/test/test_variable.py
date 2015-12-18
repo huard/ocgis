@@ -3,9 +3,7 @@ from copy import deepcopy
 import numpy as np
 
 from ocgis import RequestDataset
-from ocgis.api.collection import AbstractCollection
-from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, EmptySubsetError
-from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.exc import VariableInCollectionError, EmptySubsetError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
@@ -265,6 +263,10 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
+        # Test a scalar variable.
+        v = Variable(value=2.0, dimensions=[])
+        self.assertEqual(v.value, 2.0)
+
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
@@ -323,16 +325,19 @@ class TestVariableCollection(AbstractTestNewInterface):
     def get(self):
         var1 = self.get_variable()
         var2 = self.get_variable(alias='wunderbar')
-        vc = VariableCollection(variables=[var1, var2])
+
+        var3 = Variable(name='lower', value=[[9, 10, 11], [12, 13, 14]], dtype=np.float32, units='large')
+        var3.create_dimensions(names=['y', 'x'])
+
+        var4 = Variable(name='coordinate_system', attrs={'proj4': '+proj=latlon'})
+
+        vc = VariableCollection(variables=[var1, var2, var3, var4], attrs={'foo': 'bar'})
         return vc
 
     def get_variable(self, name='foo', alias='foobar'):
         dim = Dimension('x', length=3)
         value = [4, 5, 6]
         return Variable(name=name, alias=alias, dimensions=dim, value=value)
-
-    def test_bases(self):
-        self.assertEqual(VariableCollection.__bases__, (AbstractInterfaceObject, AbstractCollection,))
 
     def test_init(self):
         var1 = self.get_variable()
@@ -348,12 +353,27 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = VariableCollection(variables=[var1, var2])
         self.assertEqual(vc.keys(), ['foobar', 'wunderbar'])
 
-        dim = Dimension('a', 4)
-        var3 = Variable('bye', dimensions=dim, value=[4, 5, 6, 7])
-        with self.assertRaises(VariableShapeMismatch):
-            vc.add_variable(var3)
+        self.assertEqual(vc.dimensions, {'x': Dimension(name='x', length=3)})
 
-    def test_shape(self):
         vc = self.get()
-        self.assertEqual(vc.shape, (3,))
+        self.assertEqual(vc.attrs, {'foo': 'bar'})
 
+    def test_write_netcdf_and_read_netcdf(self):
+        vc = self.get()
+        path = self.get_temporary_file_path('foo.nc')
+        vc.write_netcdf(path)
+        nvc = VariableCollection.read_netcdf(path)
+        path2 = self.get_temporary_file_path('foo2.nc')
+        nvc.write_netcdf(path2)
+        self.assertNcEqual(path, path2)
+
+    def test_write_netcdf_and_read_netcdf_data(self):
+        # Test against a real data file.
+        rd = self.get_request_dataset()
+        rvc = VariableCollection.read_netcdf(rd.uri)
+        self.assertEqual(rvc.dimensions['time'].length_current, 3650)
+        for var in rvc.itervalues():
+            self.assertIsNone(var._value)
+        path3 = self.get_temporary_file_path('foo3.nc')
+        rvc.write_netcdf(path3)
+        self.assertNcEqual(path3, rd.uri)

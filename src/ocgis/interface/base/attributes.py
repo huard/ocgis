@@ -29,6 +29,8 @@ class Attributes(object):
         """
 
         for k, v in self.attrs.iteritems():
+            if k.startswith('_'):
+                continue
             if k == 'axis' and isinstance(v, basestring):
                 target.axis = str(v)
             else:

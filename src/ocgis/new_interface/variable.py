@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 from itertools import izip
 from netCDF4 import Dataset
 
@@ -7,7 +7,7 @@ from numpy.ma import MaskedArray
 
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
-from ocgis.exc import VariableInCollectionError, VariableShapeMismatch, BoundsAlreadyAvailableError, EmptySubsetError, \
+from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
     ResolutionError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -239,25 +239,37 @@ class Variable(AbstractInterfaceObject, Attributes):
             close_dataset = False
 
         try:
-            dimensions = list(self.dimensions)
-            # Convert the unlimited dimension to fixed size if requested.
-            for idx, d in enumerate(dimensions):
-                if d.length is None and unlimited_to_fixedsize:
-                    dimensions[idx] = Dimension(d.name, length=self.shape[idx])
-                    break
-            # Create the dimensions.
-            for dim in dimensions:
-                create_dimension_or_pass(dim, dataset)
-            dimensions = [d.name for d in dimensions]
-            # Only use the fill value is something is masked.
-            if not file_only and self.get_mask().any():
+            if self.dimensions is not None:
+                dimensions = list(self.dimensions)
+                # Convert the unlimited dimension to fixed size if requested.
+                for idx, d in enumerate(dimensions):
+                    if d.length is None and unlimited_to_fixedsize:
+                        dimensions[idx] = Dimension(d.name, length=self.shape[idx])
+                        break
+                # Create the dimensions.
+                for dim in dimensions:
+                    create_dimension_or_pass(dim, dataset)
+                dimensions = [d.name for d in dimensions]
+            else:
+                dimensions = []
+            # Only use the fill value if something is masked.
+            if len(dimensions) > 0 and not file_only and self.get_mask().any():
                 fill_value = self.fill_value
             else:
-                fill_value = None
-            var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+                # Copy from original attributes.
+                if '_FillValue' not in self.attrs:
+                    fill_value = None
+                else:
+                    fill_value = self.fill_value
+            var = dataset.createVariable(self.alias, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
             if not file_only:
                 var[:] = self.value
+            # tdk
+            # if self.name != 'tas':
             self.write_attributes_to_netcdf_object(var)
+            # else:
+            #     print self.attrs.keys()
+            #     tkk
             if self.units is not None:
                 var.units = self.units
             dataset.sync()
@@ -342,9 +354,14 @@ class SourcedVariable(Variable):
     def _get_value_from_source_(self):
         ds = self._request_dataset.driver.open()
         try:
+            dimensions = self.dimensions
+            if len(dimensions) > 0:
+                slc = get_formatted_slice([d._src_idx for d in dimensions], len(self.shape))
+            else:
+                slc = slice(None)
             var = ds.variables[self.name]
-            slc = get_formatted_slice([d._src_idx for d in self.dimensions], len(self.shape))
-            return var.__getitem__(slc)
+            ret = var.__getitem__(slc)
+            return ret
         finally:
             ds.close()
 
@@ -484,23 +501,27 @@ class BoundedVariable(SourcedVariable):
             var.bounds = self.bounds.name
 
 
-class VariableCollection(AbstractInterfaceObject, AbstractCollection):
+class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     # tdk: should test for equivalence of dimensions on variables
 
-    def __init__(self, variables=None):
-        super(VariableCollection, self).__init__()
+    def __init__(self, variables=None, attrs=None):
+        AbstractCollection.__init__(self)
+        Attributes.__init__(self, attrs)
 
         if variables is not None:
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-    def __getitem__(self, slc):
-        variables = [v.__getitem__(slc) for v in self.itervalues()]
-        return VariableCollection(variables=variables)
-
     @property
-    def shape(self):
-        return self.first().shape
+    def dimensions(self):
+        ret = {}
+        for variable in self.itervalues():
+            for d in variable.dimensions:
+                if d not in ret:
+                    ret[d.name] = d
+                else:
+                    assert d.length == ret[d.name].length
+        return ret
 
     def add_variable(self, variable):
         """
@@ -510,11 +531,50 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection):
         assert isinstance(variable, Variable)
         if variable.alias in self:
             raise VariableInCollectionError(variable)
-        if len(self) > 0:
-            if variable.shape != self.shape:
-                raise VariableShapeMismatch(variable, self.shape)
-
         self[variable.alias] = variable
+
+    def write_netcdf(self, dataset_or_path, file_only=False, unlimited_to_fixedsize=False, **kwargs):
+        """
+        Write the field object to an open netCDF dataset object.
+
+        :param dataset: The open dataset object or path for the write.
+        :type dataset: :class:`netCDF4.Dataset` or str
+        :param bool file_only: If ``True``, we are not filling the value variables. Only the file schema and dimension
+         values will be written.
+        :param bool unlimited_to_fixedsize: If ``True``, convert the unlimited dimension to fixed size.
+        :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
+         ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
+        """
+
+        if not isinstance(dataset_or_path, Dataset):
+            dataset = Dataset(dataset_or_path, 'w')
+            close_dataset = True
+        else:
+            dataset = dataset_or_path
+            close_dataset = False
+
+        try:
+            self.write_attributes_to_netcdf_object(dataset)
+            for variable in self.itervalues():
+                variable.write_netcdf(dataset, file_only=file_only, unlimited_to_fixedsize=unlimited_to_fixedsize,
+                                      **kwargs)
+            dataset.sync()
+        finally:
+            if close_dataset:
+                dataset.close()
+
+    @staticmethod
+    def read_netcdf(path):
+        from ocgis import RequestDataset
+        rd = RequestDataset(uri=path)
+        ds = Dataset(path)
+        try:
+            ret = VariableCollection(attrs=deepcopy(ds.__dict__))
+            for name, ncvar in ds.variables.iteritems():
+                ret[name] = SourcedVariable(name=name, request_dataset=rd)
+        finally:
+            ds.close()
+        return ret
 
 
 def create_dimension_or_pass(dim, dataset):
@@ -572,15 +632,15 @@ def set_variable_metadata_from_source(variable):
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
 
         if variable._dtype is None:
-            variable.dtype = var.dtype
+            variable.dtype = deepcopy(var.dtype)
 
         if variable._fill_value is None:
-            variable.fill_value = var.__dict__.get('_FillValue')
+            variable.fill_value = deepcopy(var.__dict__.get('_FillValue'))
 
         if variable._units is None:
-            variable.units = var.__dict__.get('units')
+            variable.units = deepcopy(var.__dict__.get('units'))
 
-        variable.attrs.update(var.__dict__)
+        variable.attrs.update(deepcopy(var.__dict__))
     finally:
         ds.close()
     variable._allocated = True

@@ -280,23 +280,20 @@ def get_extrapolated_corners_esmf_vector(vec):
 
 
 def get_formatted_slice(slc, n_dims):
-    def _format_(slc):
-        if isinstance(slc, int):
-            ret = slice(slc, slc + 1)
-        elif isinstance(slc, slice):
-            ret = slc
-        elif isinstance(slc, np.ndarray):
-            ret = slc
-        else:
-            if len(slc) == 1:
-                if isinstance(slc[0], slice):
-                    ret = slc[0]
-                else:
-                    ret = slice(slc[0], slc[0] + 1)
-            elif len(slc) > 1:
-                ret = np.array(slc)
+    def _format_singleton_(single_slc):
+        if isinstance(single_slc, int):
+            ret = slice(single_slc, single_slc + 1)
+        elif isinstance(single_slc, slice):
+            ret = single_slc
+        elif isinstance(single_slc, np.ndarray):
+            ret = get_optimal_slice_from_array(single_slc)
+        elif isinstance(single_slc, (list, tuple)):
+            if len(single_slc) == 1 and isinstance(single_slc[0], slice):
+                ret = single_slc[0]
             else:
-                raise (NotImplementedError(slc, n_dims))
+                ret = get_optimal_slice_from_array(np.array(single_slc, ndmin=1))
+        else:
+            raise NotImplementedError(single_slc, n_dims)
         return ret
 
     if isinstance(slc, slice) and slc == slice(None):
@@ -305,15 +302,15 @@ def get_formatted_slice(slc, n_dims):
         else:
             ret = [slice(None)] * n_dims
     elif n_dims == 1:
-        ret = _format_(slc)
+        ret = _format_singleton_(slc)
     elif n_dims > 1:
         try:
-            assert (len(slc) == n_dims)
-        except (TypeError, AssertionError):
+            assert len(slc) == n_dims
+        except TypeError, AssertionError:
             raise IndexError("Only {0}-d slicing allowed.".format(n_dims))
-        ret = map(_format_, slc)
+        ret = map(_format_singleton_, slc)
     else:
-        raise (NotImplementedError((slc, n_dims)))
+        raise NotImplementedError((slc, n_dims))
 
     return ret
 
@@ -445,11 +442,14 @@ def get_ocgis_corners_from_esmf_corners(ecorners):
 
 
 def get_optimal_slice_from_array(arr):
-    if np.any(np.diff(arr) > 1):
+    if arr.dtype == bool:
         ret = arr
     else:
-        arr_min, arr_max = arr.min(), arr.max()
-        ret = slice(arr_min, arr_max + 1)
+        if np.any(np.diff(arr) > 1):
+            ret = arr
+        else:
+            arr_min, arr_max = arr.min(), arr.max()
+            ret = slice(arr_min, arr_max + 1)
     return ret
 
 
