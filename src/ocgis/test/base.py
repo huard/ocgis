@@ -600,6 +600,13 @@ class TestBase(unittest.TestCase):
             path = os.path.split(path)[0]
         subprocess.call(['nautilus', path])
 
+    def ncdump(self, path, header_only=True):
+        cmd = ['ncdump']
+        if header_only:
+            cmd.append('-h')
+        cmd.append(path)
+        subprocess.check_call(cmd)
+
     def nc_scope(self, *args, **kwargs):
         return nc_scope(*args, **kwargs)
 

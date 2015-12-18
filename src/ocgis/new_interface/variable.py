@@ -492,7 +492,8 @@ class BoundedVariable(SourcedVariable):
             raise BoundsAlreadyAvailableError
         name = name or '{0}_{1}'.format(self.name, 'bounds')
         bounds_value = get_bounds_from_1d(self.value)
-        var = Variable(name, value=bounds_value)
+        dims = [self.dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
+        var = Variable(name, value=bounds_value, dimensions=dims)
         self.bounds = var
         self._has_extrapolated_bounds = True
 
