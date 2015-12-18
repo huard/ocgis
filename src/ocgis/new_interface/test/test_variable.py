@@ -59,6 +59,18 @@ class TestBoundedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write_netcdf(ds)
 
+    def test_cfunits_conform(self):
+        vdim = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
+        vdim.set_extrapolated_bounds()
+        self.assertEqual(vdim.bounds.units, 'celsius')
+        vdim.cfunits_conform(get_units_object('kelvin'))
+        self.assertNumpyAll(vdim.bounds.value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
+
+        # Test conforming without bounds.
+        vdim = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
+        vdim.cfunits_conform('kelvin')
+        self.assertNumpyAll(vdim.value, np.ma.array([278.15, 283.15, 288.15]))
+
     def test_getitem(self):
         bv = self.get_boundedvariable()
         sub = bv[1]
@@ -181,6 +193,34 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNotNone(sv.dimensions)
         sv.create_dimensions(names=['time'])
         self.assertIsNotNone(sv.dimensions)
+
+    def test_conform_units_to(self):
+        with self.assertRaises(ValueError):
+            SourcedVariable(value=[2, 3, 4], conform_units_to='celsius', name='tas')
+        sv = SourcedVariable(conform_units_to='celsius', name='tas', request_dataset='foo')
+        self.assertTrue(get_are_units_equal((sv.conform_units_to, get_units_object('celsius'))))
+
+    @attr('data')
+    def test_conform_units_to_data(self):
+        rd = self.get_request_dataset()
+        sv = SourcedVariable('tas', request_dataset=rd, conform_units_to='celsius')[5:9, 5, 9]
+        self.assertIsNone(sv._value)
+        self.assertEqual(sv.units, 'K')
+        self.assertLess(sv.value.mean(), 200)
+        self.assertEqual(sv.units, 'celsius')
+        self.assertIsNone(sv.conform_units_to)
+
+        # Try with a bounded variable.
+        bounds = SourcedVariable('lat_bnds', request_dataset=rd)
+        sv = BoundedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
+        self.assertIsNotNone(sv.bounds.conform_units_to)
+        self.assertIsNone(sv._value)
+        self.assertGreater(sv.value.mean(), 250)
+        self.assertEqual(sv.units, 'K')
+        self.assertEqual(sv.bounds.units, 'celsius')
+        self.assertIsNone(sv.bounds._value)
+        self.assertGreater(sv.bounds.value.mean(), 250)
+        self.assertIsNone(sv.bounds.conform_units_to)
 
     def test_getitem(self):
         sv = self.get_sourcedvariable()

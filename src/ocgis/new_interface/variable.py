@@ -217,7 +217,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         :raises: NoUnitsError
         """
         if from_units is None and self.units is None:
-            raise NoUnitsError(self)
+            raise NoUnitsError(self.name)
 
         # Use overloaded value for source units.
         from_units = self.cfunits if from_units is None else from_units
@@ -335,16 +335,22 @@ class Variable(AbstractInterfaceObject, Attributes):
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
-        if kwargs.get('value') is None and kwargs.get('request_dataset') is None:
-            msg = 'A "value" or "request_dataset" is required.'
-            raise ValueError(msg)
+        self._conform_units_to = None
 
         # Flag to indicate if metadata already from source.
         self._allocated = False
 
+        self.conform_units_to = kwargs.pop('conform_units_to', None)
         self._request_dataset = kwargs.pop('request_dataset', None)
 
         super(SourcedVariable, self).__init__(*args, **kwargs)
+
+        if self._value is None and self._request_dataset is None:
+            msg = 'A "value" or "request_dataset" is required.'
+            raise ValueError(msg)
+        if self._value is not None and self._conform_units_to is not None:
+            msg = '"conform_units_to" only applicable when loading from source.'
+            raise ValueError(msg)
 
     def __getitem__(self, slc):
         if self._value is None:
@@ -354,6 +360,16 @@ class SourcedVariable(Variable):
         else:
             ret = super(SourcedVariable, self).__getitem__(slc)
         return ret
+
+    @property
+    def conform_units_to(self):
+        return self._conform_units_to
+
+    @conform_units_to.setter
+    def conform_units_to(self, value):
+        if value is not None:
+            value = get_units_object(value)
+        self._conform_units_to = value
 
     @property
     def dtype(self):
@@ -416,6 +432,12 @@ class SourcedVariable(Variable):
                 slc = slice(None)
             var = ds.variables[self.name]
             ret = var.__getitem__(slc)
+
+            # Conform the units if requested.
+            if self.conform_units_to is not None:
+                ret = get_conformed_units(ret, self.units, self.conform_units_to)
+                self.units = self.conform_units_to
+                self.conform_units_to = None
             return ret
         finally:
             ds.close()
@@ -425,10 +447,13 @@ class BoundedVariable(SourcedVariable):
     def __init__(self, *args, **kwargs):
         self._bounds = None
 
-        self.bounds = kwargs.pop('bounds', None)
+        bounds = kwargs.pop('bounds', None)
         self._has_extrapolated_bounds = False
 
         super(BoundedVariable, self).__init__(*args, **kwargs)
+
+        # Setting bounds requires checking the units of the value variable.
+        self.bounds = bounds
 
         assert self.ndim <= 2
 
@@ -454,6 +479,10 @@ class BoundedVariable(SourcedVariable):
         if value is not None:
             assert value.ndim <= 3
             assert isinstance(value, Variable)
+            if value.units is None:
+                value.units = self.units
+            if value.conform_units_to is None:
+                value.conform_units_to = self.conform_units_to
         self._bounds = value
 
     @property
@@ -469,6 +498,11 @@ class BoundedVariable(SourcedVariable):
             res_array = res_bounds[:, 1] - res_bounds[:, 0]
             ret = np.abs(res_array).mean()
         return ret
+
+    def cfunits_conform(self, *args, **kwargs):
+        super(BoundedVariable, self).cfunits_conform(*args, **kwargs)
+        if self.bounds is not None:
+            self.bounds.cfunits_conform(*args, **kwargs)
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function
