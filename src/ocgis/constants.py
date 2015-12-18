@@ -13,6 +13,9 @@ DEFAULT_TEMPORAL_CALENDAR = 'standard'
 #: Default temporal units.
 DEFAULT_TEMPORAL_UNITS = 'days since 0001-01-01 00:00:00'
 
+#: Default name for the time dimension.
+DEFAULT_TEMPORAL_NAME = 'time'
+
 #: Default name for coordinate systems in netCDF file if none is provided.
 DEFAULT_COORDINATE_SYSTEM_NAME = 'coordinate_system'
 
