@@ -354,11 +354,13 @@ class TestSpatialContainer(AbstractTestNewInterface):
             grid = self.get_gridxy(with_xy_bounds=k.with_xy_bounds)
             sc = SpatialContainer(grid=grid)
             subset = sc.get_intersects(polygon, return_indices=k.return_indices)
-            inter = sc.get_intersection(polygon)
-            near = sc.get_nearest(polygon)
+            intersection = sc.get_intersection(polygon)
+            nearest = sc.get_nearest(polygon)
             if k.return_indices:
                 subset, slc = subset
+            self.assertEqual(subset.shape, intersection.shape)
             self.assertEqual(subset.shape, (2, 2))
+            self.assertEqual(nearest.shape, (1, 1))
             if k.with_xy_bounds:
                 self.assertFalse(subset.point.get_mask().any())
                 self.assertFalse(subset.polygon.get_mask().any())
