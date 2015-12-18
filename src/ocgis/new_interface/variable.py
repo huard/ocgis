@@ -8,11 +8,12 @@ from numpy.ma import MaskedArray
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
-    ResolutionError
+    ResolutionError, NoUnitsError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
+from ocgis.util.units import get_units_object, get_conformed_units
 
 
 class Variable(AbstractInterfaceObject, Attributes):
@@ -74,6 +75,10 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._alias = value
 
     @property
+    def cfunits(self):
+        return get_units_object(self.units)
+
+    @property
     def dtype(self):
         if self._value is not None:
             ret = self._value.dtype
@@ -105,6 +110,14 @@ class Variable(AbstractInterfaceObject, Attributes):
         if value is not None:
             value = tuple(get_iter(value, dtype=Dimension))
         self._dimensions = value
+
+    @property
+    def extent(self):
+        target = self._get_extent_target_()
+        return target.compressed().min(), target.compressed().max()
+
+    def _get_extent_target_(self):
+        return self.value
 
     @property
     def fill_value(self):
@@ -192,7 +205,40 @@ class Variable(AbstractInterfaceObject, Attributes):
                 if d.length is not None:
                     assert value_shape[idx] == dim_shape[idx]
 
-    ####################################################################################################################
+    def cfunits_conform(self, to_units, from_units=None):
+        """
+        Conform value units in-place. If there are scale or offset parameters in the attribute dictionary, they will
+        be removed.
+
+        :param to_units: Target conform units.
+        :type to_units: str or units object
+        :param from_units: Overload source units.
+        :type from_units: str or units object
+        :raises: NoUnitsError
+        """
+        if from_units is None and self.units is None:
+            raise NoUnitsError(self)
+
+        # Use overloaded value for source units.
+        from_units = self.cfunits if from_units is None else from_units
+
+        # Get the conform value before swapping the units. Conversion inside time dimensions may be negatively affected
+        # otherwise.
+        to_conform_value = self._get_to_conform_value_()
+
+        # Update the units attribute with the destination units. Do this before conversion to not enter recursion when
+        # setting the new value.
+        self.units = to_units
+
+        # Conform the units.
+        new_value = get_conformed_units(to_conform_value, from_units, to_units)
+        self._set_to_conform_value_(new_value)
+
+        # Let the data type load from the value array.
+        self._dtype = None
+        # Remove any compression attributes if present.
+        for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
+            self.attrs.pop(remove, None)
 
     def create_dimensions(self, names=None):
         value = self._value
@@ -279,6 +325,12 @@ class Variable(AbstractInterfaceObject, Attributes):
         finally:
             if close_dataset:
                 dataset.close()
+
+    def _get_to_conform_value_(self):
+        return self.value
+
+    def _set_to_conform_value_(self, value):
+        self.value = value
 
 
 class SourcedVariable(Variable):
@@ -503,6 +555,13 @@ class BoundedVariable(SourcedVariable):
             self.bounds.write_netcdf(dataset, **kwargs)
             var = dataset.variables[self.name]
             var.bounds = self.bounds.name
+
+    def _get_extent_target_(self):
+        if self.bounds is None:
+            ret = super(BoundedVariable, self)._get_extent_target_()
+        else:
+            ret = self.bounds.value
+        return ret
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):

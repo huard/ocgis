@@ -3,11 +3,14 @@ from copy import deepcopy
 import numpy as np
 
 from ocgis import RequestDataset
-from ocgis.exc import VariableInCollectionError, EmptySubsetError
+from ocgis import constants
+from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
+from ocgis.test.base import attr
 from ocgis.util.helpers import get_bounds_from_1d
+from ocgis.util.units import get_units_object, get_are_units_equal
 
 
 class TestBoundedVariable(AbstractTestNewInterface):
@@ -226,7 +229,7 @@ class TestVariable(AbstractTestNewInterface):
     def get_variable(self, return_original_data=True):
         value = [2, 3, 4, 5, 6, 7]
         time = Dimension('time', length=len(value))
-        var = Variable('time_value', value=value, dimensions=time, units='foo_units')
+        var = Variable('time_value', value=value, dimensions=time, units='kelvin')
         if return_original_data:
             return time, value, var
         else:
@@ -267,6 +270,55 @@ class TestVariable(AbstractTestNewInterface):
         v = Variable(value=2.0, dimensions=[])
         self.assertEqual(v.value, 2.0)
 
+    @attr('cfunits')
+    def test_cfunits(self):
+        var = self.get_variable(return_original_data=False)
+        actual = get_units_object(var.units)
+        self.assertTrue(get_are_units_equal((var.cfunits, actual)))
+
+    @attr('cfunits')
+    def test_cfunits_conform(self):
+        units_kelvin = get_units_object('kelvin')
+        original_value = np.array([5, 5, 5])
+
+        # Conversion of celsius units to kelvin.
+        attrs = {k: 1 for k in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE}
+        var = Variable(name='tas', units='celsius', value=original_value, attrs=attrs)
+        self.assertEqual(len(var.attrs), 2)
+        var.cfunits_conform(units_kelvin)
+        self.assertNumpyAll(var.value, np.ma.array([278.15] * 3))
+        self.assertEqual(var.cfunits, units_kelvin)
+        self.assertEqual(var.units, 'kelvin')
+        self.assertEqual(len(var.attrs), 0)
+
+        # If there are no units associated with a variable, conforming the units should fail.
+        var = Variable(name='tas', units=None, value=original_value)
+        with self.assertRaises(NoUnitsError):
+            var.cfunits_conform(units_kelvin)
+
+        # Conversion should fail for nonequivalent units.
+        var = Variable(name='tas', units='kelvin', value=original_value)
+        with self.assertRaises(ValueError):
+            var.cfunits_conform(get_units_object('grams'))
+
+        # The data type should always be updated to match the output from CF units backend.
+        av = Variable(value=np.array([4, 5, 6]), dtype=int, name='what')
+        self.assertEqual(av.dtype, np.dtype(int))
+        with self.assertRaises(NoUnitsError):
+            av.cfunits_conform('K')
+        av.units = 'celsius'
+        av.cfunits_conform('K')
+        self.assertIsNone(av._dtype)
+        self.assertEqual(av.dtype, av.value.dtype)
+
+    @attr('cfunits')
+    def test_cfunits_conform_masked_array(self):
+        # Assert mask is respected by unit conversion.
+        value = np.ma.array(data=[5, 5, 5], mask=[False, True, False])
+        var = Variable(name='tas', units=get_units_object('celsius'), value=value)
+        var.cfunits_conform(get_units_object('kelvin'))
+        self.assertNumpyAll(np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False]), var.value)
+
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
@@ -296,7 +348,7 @@ class TestVariable(AbstractTestNewInterface):
             var.write_netcdf(ds)
         with self.nc_scope(path) as ds:
             ncvar = ds.variables[var.name]
-            self.assertEqual(ncvar.units, 'foo_units')
+            self.assertEqual(ncvar.units, 'kelvin')
             self.assertEqual(ncvar.dtype, var.dtype)
             self.assertEqual(ncvar[:].fill_value, var.fill_value)
             self.assertEqual(ncvar.axis, 'not_an_ally')
