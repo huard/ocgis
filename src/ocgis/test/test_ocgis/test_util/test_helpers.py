@@ -491,10 +491,13 @@ class Test2(TestBase):
         self.assertNumpyAll(ret,np.array([1,2]))
 
         ret = get_formatted_slice((1,),1)
-        self.assertEqual(ret,slice(1))
+        self.assertEqual(ret, slice(1, 2))
 
         ret = get_formatted_slice((slice(0, -1, None),), 1)
         self.assertEqual(ret, slice(0, -1, None, ))
+
+        ret = get_formatted_slice((0,), 1)
+        self.assertEqual(ret, slice(0, 1))
 
     def test_set_name_attributes(self):
 

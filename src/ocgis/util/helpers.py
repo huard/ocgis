@@ -292,7 +292,7 @@ def get_formatted_slice(slc, n_dims):
                 if isinstance(slc[0], slice):
                     ret = slc[0]
                 else:
-                    ret = slice(slc[0])
+                    ret = slice(slc[0], slc[0] + 1)
             elif len(slc) > 1:
                 ret = np.array(slc)
             else:

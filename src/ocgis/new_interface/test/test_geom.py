@@ -133,8 +133,11 @@ class TestPointArray(AbstractTestNewInterface):
         target2 = box(0.5, 0.75, 0.55, 0.755)
         pa = self.get_pointarray()
         for target in [target1, target2]:
-            res = pa.get_nearest(target, return_indices=True)
-            self.assertEqual(res, (Point(1, 2), 0))
+            res, slc = pa.get_nearest(target, return_indices=True)
+            self.assertIsInstance(res, PointArray)
+            self.assertEqual(res.value[0], Point(1, 2))
+            self.assertEqual(slc, (0,))
+            self.assertEqual(res.shape, (1,))
 
     def test_get_spatial_index(self):
         pa = self.get_pointarray()
