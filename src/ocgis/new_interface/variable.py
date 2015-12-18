@@ -584,3 +584,4 @@ def set_variable_metadata_from_source(variable):
     finally:
         ds.close()
     variable._allocated = True
+
