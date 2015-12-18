@@ -218,7 +218,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         assert value.ndim == self.ndim
         self.value.mask = value
 
-    def write_netcdf(self, dataset_or_path, file_only=False, unlimited_to_fixedsize=False, **kwargs):
+    def write_netcdf(self, dataset_or_path, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
@@ -237,6 +237,9 @@ class Variable(AbstractInterfaceObject, Attributes):
         else:
             dataset = dataset_or_path
             close_dataset = False
+
+        file_only = kwargs.pop('file_only', False)
+        unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
         try:
             if self.dimensions is not None:
@@ -533,7 +536,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             raise VariableInCollectionError(variable)
         self[variable.alias] = variable
 
-    def write_netcdf(self, dataset_or_path, file_only=False, unlimited_to_fixedsize=False, **kwargs):
+    def write_netcdf(self, dataset_or_path, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
@@ -556,8 +559,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         try:
             self.write_attributes_to_netcdf_object(dataset)
             for variable in self.itervalues():
-                variable.write_netcdf(dataset, file_only=file_only, unlimited_to_fixedsize=unlimited_to_fixedsize,
-                                      **kwargs)
+                variable.write_netcdf(dataset, **kwargs)
             dataset.sync()
         finally:
             if close_dataset:
