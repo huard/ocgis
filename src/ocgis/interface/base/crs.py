@@ -102,17 +102,20 @@ class CoordinateReferenceSystem(object):
         sr.ImportFromProj4(to_string(self.value))
         return sr
 
-    def write_to_rootgrp(self, rootgrp):
+    def write_to_rootgrp(self, rootgrp, with_proj4=True):
         """
         Write the coordinate system to an open netCDF file.
 
         :param rootgrp: An open netCDF dataset object for writing.
         :type rootgrp: :class:`netCDF4.Dataset`
+        :param bool with_proj4: If ``True``, write the PROJ.4 string to the coordinate system variable in an attribute
+         called "proj4".
         :returns: The netCDF variable object created to hold the coordinate system metadata.
         :rtype: :class:`netCDF4.Variable`
         """
-
-        variable = rootgrp.createVariable(self.name, 'c')
+        variable = rootgrp.createVariable(self.name, None)
+        if with_proj4:
+            variable.proj4 = self.proj4
         return variable
 
 

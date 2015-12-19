@@ -192,6 +192,7 @@ class GridXY(AbstractSpatialVariable):
     def x(self, value):
         assert isinstance(value, Variable)
         assert value.ndim <= 2
+        value.attrs['axis'] = 'X'
         self._x = value
 
     @property
@@ -204,6 +205,7 @@ class GridXY(AbstractSpatialVariable):
     def y(self, value):
         assert isinstance(value, Variable)
         assert value.ndim <= 2
+        value.attrs['axis'] = 'Y'
         self._y = value
 
     @property
@@ -347,6 +349,8 @@ class GridXY(AbstractSpatialVariable):
     def write_netcdf(self, dataset, **kwargs):
         for tw in [self.y, self.x]:
             tw.write_netcdf(dataset, **kwargs)
+        if self.crs is not None:
+            self.crs.write_to_rootgrp(dataset)
 
     def _get_dimensions_(self):
         if self.is_vectorized:

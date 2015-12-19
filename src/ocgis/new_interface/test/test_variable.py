@@ -24,6 +24,28 @@ class TestBoundedVariable(AbstractTestNewInterface):
         var = BoundedVariable('x', value=value, bounds=bounds)
         return var
 
+    def test(self):
+        # Test property update cascade.
+        bv = self.get_boundedvariable()
+        self.assertIsNone(bv.units)
+        self.assertIsNone(bv.bounds.units)
+        bv.units = 'celsius'
+        self.assertIsNone(bv.conform_units_to)
+        self.assertEqual(bv.units, bv.bounds.units)
+
+    @attr('data')
+    def test_with_data(self):
+        # Test units are left on bounds if we are conforming.
+        rd = self.get_request_dataset()
+        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd)
+        bv = BoundedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
+        self.assertIsNone(bv._value)
+        self.assertIsNone(bv.bounds._value)
+        self.assertEqual(bv.bounds.units, 'K')
+        assert bv.value is not None
+        self.assertEqual(bv.units, 'celsius')
+        self.assertEqual(bv.bounds.units, 'K')
+
     def test_init(self):
         bv = self.get_boundedvariable()
         self.assertEqual(bv.shape, (3,))
@@ -59,21 +81,29 @@ class TestBoundedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write_netcdf(ds)
 
+    def test_dimensions(self):
+        bv = self.get_boundedvariable()
+        self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
+        self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
+
+    @attr('cfunits')
     def test_cfunits_conform(self):
-        vdim = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
-        vdim.set_extrapolated_bounds()
-        self.assertEqual(vdim.bounds.units, 'celsius')
-        vdim.cfunits_conform(get_units_object('kelvin'))
-        self.assertNumpyAll(vdim.bounds.value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
+        bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
+        bv.set_extrapolated_bounds()
+        self.assertEqual(bv.bounds.units, 'celsius')
+        bv.cfunits_conform(get_units_object('kelvin'))
+        self.assertEqual(bv.bounds.units, 'kelvin')
+        self.assertNumpyAll(bv.bounds.value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
 
         # Test conforming without bounds.
-        vdim = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
-        vdim.cfunits_conform('kelvin')
-        self.assertNumpyAll(vdim.value, np.ma.array([278.15, 283.15, 288.15]))
+        bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
+        bv.cfunits_conform('kelvin')
+        self.assertNumpyAll(bv.value, np.ma.array([278.15, 283.15, 288.15]))
 
     def test_getitem(self):
         bv = self.get_boundedvariable()
         sub = bv[1]
+        self.assertEqual(sub.bounds.shape, (1, 2))
         self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
 
     def test_get_between(self):

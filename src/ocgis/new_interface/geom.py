@@ -43,6 +43,10 @@ class SpatialContainer(AbstractInterfaceObject):
         return ret
 
     @property
+    def crs(self):
+        return get_grid_or_geom_attr(self, 'crs')
+
+    @property
     def envelope(self):
         return get_grid_or_geom_attr(self, 'envelope')
 

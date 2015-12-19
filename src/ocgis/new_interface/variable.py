@@ -264,7 +264,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         assert value.ndim == self.ndim
         self.value.mask = value
 
-    def write_netcdf(self, dataset_or_path, **kwargs):
+    def write_netcdf(self, dataset, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
@@ -277,54 +277,38 @@ class Variable(AbstractInterfaceObject, Attributes):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        if not isinstance(dataset_or_path, Dataset):
-            dataset = Dataset(dataset_or_path, 'w')
-            close_dataset = True
-        else:
-            dataset = dataset_or_path
-            close_dataset = False
-
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
-        try:
-            if self.dimensions is not None:
-                dimensions = list(self.dimensions)
-                # Convert the unlimited dimension to fixed size if requested.
-                for idx, d in enumerate(dimensions):
-                    if d.length is None and unlimited_to_fixedsize:
-                        dimensions[idx] = Dimension(d.name, length=self.shape[idx])
-                        break
-                # Create the dimensions.
-                for dim in dimensions:
-                    create_dimension_or_pass(dim, dataset)
-                dimensions = [d.name for d in dimensions]
+        if self.dimensions is not None:
+            dimensions = list(self.dimensions)
+            # Convert the unlimited dimension to fixed size if requested.
+            for idx, d in enumerate(dimensions):
+                if d.length is None and unlimited_to_fixedsize:
+                    dimensions[idx] = Dimension(d.name, length=self.shape[idx])
+                    break
+            # Create the dimensions.
+            for dim in dimensions:
+                create_dimension_or_pass(dim, dataset)
+            dimensions = [d.name for d in dimensions]
+        else:
+            dimensions = []
+        # Only use the fill value if something is masked.
+        if len(dimensions) > 0 and not file_only and self.get_mask().any():
+            fill_value = self.fill_value
+        else:
+            # Copy from original attributes.
+            if '_FillValue' not in self.attrs:
+                fill_value = None
             else:
-                dimensions = []
-            # Only use the fill value if something is masked.
-            if len(dimensions) > 0 and not file_only and self.get_mask().any():
                 fill_value = self.fill_value
-            else:
-                # Copy from original attributes.
-                if '_FillValue' not in self.attrs:
-                    fill_value = None
-                else:
-                    fill_value = self.fill_value
-            var = dataset.createVariable(self.alias, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
-            if not file_only:
-                var[:] = self.value
-            # tdk
-            # if self.name != 'tas':
-            self.write_attributes_to_netcdf_object(var)
-            # else:
-            #     print self.attrs.keys()
-            #     tkk
-            if self.units is not None:
-                var.units = self.units
-            dataset.sync()
-        finally:
-            if close_dataset:
-                dataset.close()
+        var = dataset.createVariable(self.alias, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+        if not file_only:
+            var[:] = self.value
+        self.write_attributes_to_netcdf_object(var)
+        if self.units is not None:
+            var.units = self.units
+        dataset.sync()
 
     def _get_to_conform_value_(self):
         return self.value
@@ -411,6 +395,9 @@ class SourcedVariable(Variable):
         else:
             set_variable_metadata_from_source(self)
 
+    def _set_metadata_from_source_finalize_(self, *args, **kwargs):
+        pass
+
     def _get_units_(self):
         if not self._allocated and self._units is None and self._request_dataset is not None:
             self._set_metadata_from_source_()
@@ -435,7 +422,7 @@ class SourcedVariable(Variable):
 
             # Conform the units if requested.
             if self.conform_units_to is not None:
-                ret = get_conformed_units(ret, self.units, self.conform_units_to)
+                ret = get_conformed_units(ret, self.cfunits, self.conform_units_to)
                 self.units = self.conform_units_to
                 self.conform_units_to = None
             return ret
@@ -449,22 +436,24 @@ class BoundedVariable(SourcedVariable):
 
         bounds = kwargs.pop('bounds', None)
         self._has_extrapolated_bounds = False
+        self._name_bounds_dimension = kwargs.pop('name_bounds_dimension', constants.OCGIS_BOUNDS)
 
         super(BoundedVariable, self).__init__(*args, **kwargs)
 
         # Setting bounds requires checking the units of the value variable.
         self.bounds = bounds
 
+        # tdk: try to get this to one
         assert self.ndim <= 2
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
         ret = super(BoundedVariable, self).__getitem__(slc)
-        if self.bounds is not None:
-            if self.bounds.ndim == 2:
-                bounds = self.bounds[slc, :]
+        if ret.bounds is not None:
+            if ret.bounds.ndim == 2:
+                bounds = ret.bounds[slc, :]
             else:
-                bounds = self.bounds[slc[0], slc[1], :]
+                bounds = ret.bounds[slc[0], slc[1], :]
         else:
             bounds = None
         ret.bounds = bounds
@@ -479,10 +468,25 @@ class BoundedVariable(SourcedVariable):
         if value is not None:
             assert value.ndim <= 3
             assert isinstance(value, Variable)
+
+            # Update source dimensions for vector variables.
+            if self.ndim == 1:
+                bounds_dimension = copy(value.dimensions[1])
+                bounds_dimension.name = self._name_bounds_dimension
+                value.dimensions = [self.dimensions[0], bounds_dimension]
+
+            # Set units and calendar for bounds variables.
             if value.units is None:
                 value.units = self.units
-            if value.conform_units_to is None:
-                value.conform_units_to = self.conform_units_to
+            if hasattr(self, 'calendar'):
+                value.calendar = self.calendar
+            try:
+                if value.conform_units_to is None:
+                    value.conform_units_to = self.conform_units_to
+            except AttributeError:
+                # Account for non-sourced variables.
+                if not isinstance(value, Variable):
+                    raise
         self._bounds = value
 
     @property
@@ -499,10 +503,12 @@ class BoundedVariable(SourcedVariable):
             ret = np.abs(res_array).mean()
         return ret
 
-    def cfunits_conform(self, *args, **kwargs):
-        super(BoundedVariable, self).cfunits_conform(*args, **kwargs)
+    def cfunits_conform(self, to_units, from_units=None):
+        # The units will cascade when updated on the host variable.
+        units_original = self.units
+        super(BoundedVariable, self).cfunits_conform(to_units, from_units=None)
         if self.bounds is not None:
-            self.bounds.cfunits_conform(*args, **kwargs)
+            self.bounds.cfunits_conform(to_units, from_units=units_original)
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function
@@ -583,12 +589,23 @@ class BoundedVariable(SourcedVariable):
         self.bounds = var
         self._has_extrapolated_bounds = True
 
-    def write_netcdf(self, dataset, **kwargs):
-        super(BoundedVariable, self).write_netcdf(dataset, **kwargs)
+    def write_netcdf(self, *args, **kwargs):
+        super(BoundedVariable, self).write_netcdf(*args, **kwargs)
         if self.bounds is not None:
-            self.bounds.write_netcdf(dataset, **kwargs)
-            var = dataset.variables[self.name]
-            var.bounds = self.bounds.name
+            self.bounds.write_netcdf(*args, **kwargs)
+
+    def write_attributes_to_netcdf_object(self, target):
+        super(BoundedVariable, self).write_attributes_to_netcdf_object(target)
+        if self.bounds is not None:
+            target.bounds = self.bounds.name
+
+    def _set_units_(self, value):
+        super(BoundedVariable, self)._set_units_(value)
+        # Only update the units if they are not being conformed.
+        if self.bounds is not None:
+            cut = getattr(self.bounds, '_conform_units_to', None)
+            if cut is None:
+                self.bounds.units = value
 
     def _get_extent_target_(self):
         if self.bounds is None:
@@ -737,6 +754,8 @@ def set_variable_metadata_from_source(variable):
             variable.units = deepcopy(var.__dict__.get('units'))
 
         variable.attrs.update(deepcopy(var.__dict__))
+
+        variable._set_metadata_from_source_finalize_(var)
     finally:
         ds.close()
     variable._allocated = True

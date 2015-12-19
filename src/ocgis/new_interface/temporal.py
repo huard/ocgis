@@ -30,7 +30,7 @@ class TemporalVariable(BoundedVariable):
     _attrs_slice = ('uid', '_value', '_src_idx', '_value_datetime', '_value_numtime')
     _date_parts = ('year', 'month', 'day', 'hour', 'minute', 'second')
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self._value_datetime = None
         self._bounds_datetime = None
         self._value_numtime = None
@@ -42,10 +42,10 @@ class TemporalVariable(BoundedVariable):
         kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
         kwargs['name'] = kwargs.get('name') or constants.DEFAULT_TEMPORAL_NAME
 
-        super(TemporalVariable, self).__init__(*args, **kwargs)
+        super(TemporalVariable, self).__init__(**kwargs)
 
     def __getitem__(self, slc):
-        ret = super(BoundedVariable, self).__getitem__(slc)
+        ret = super(TemporalVariable, self).__getitem__(slc)
         value_slc = get_formatted_slice(slc, 1)
         ret._value_numtime = get_none_or_slice(ret._value_numtime, value_slc)
         ret._value_datetime = get_none_or_slice(ret._value_datetime, value_slc)
@@ -106,7 +106,7 @@ class TemporalVariable(BoundedVariable):
             raise CannotFormatTimeError('value_datetime')
         if self._value_datetime is None:
             if get_datetime_conversion_state(self.value[0]):
-                self._value_datetime = np.atleast_1d(self.get_datetime(self.value))
+                self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.get_mask(), ndmin=1)
             else:
                 self._value_datetime = self.value
         return self._value_datetime
@@ -115,7 +115,7 @@ class TemporalVariable(BoundedVariable):
     def value_numtime(self):
         if self._value_numtime is None:
             if not get_datetime_conversion_state(self.value[0]):
-                self._value_numtime = np.atleast_1d(self.get_numtime(self.value))
+                self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.get_mask(), ndmin=1)
             else:
                 self._value_numtime = self.value
         return self._value_numtime
@@ -179,12 +179,12 @@ class TemporalVariable(BoundedVariable):
         else:
             new_bounds, date_parts, repr_dt, dgroups = self._get_grouping_other_(grouping)
 
-        tgd = self._get_temporal_group_dimension_(grouping=grouping, date_parts=date_parts, bounds=new_bounds,
-                                                  dgroups=dgroups, value=repr_dt, name_value='time', name_uid='tid',
-                                                  name=self.name, meta=self.meta, units=self.units,
-                                                  calendar=self.calendar)
+        new_bounds = Variable(value=new_bounds, name='{}_{}'.format(self.name, self._name_bounds_dimension))
+        tgv = TemporalGroupVariable(grouping=grouping, date_parts=date_parts, bounds=new_bounds, dgroups=dgroups,
+                                    value=repr_dt, units=self.units, calendar=self.calendar, name=self.name,
+                                    attrs=self.attrs)
 
-        return tgd
+        return tgv
 
     def get_iter(self, *args, **kwargs):
         r_name_value = self.name_value
@@ -213,7 +213,7 @@ class TemporalVariable(BoundedVariable):
         return ret
 
     def get_report(self):
-        lines = super(TemporalDimension, self).get_report()
+        lines = super(TemporalVariable, self).get_report()
 
         try:
             if self.format_time:
@@ -334,30 +334,28 @@ class TemporalVariable(BoundedVariable):
         variable. See documentation for :meth:`~ocgis.interface.base.dimension.base.VectorDimension#write_netcdf`.
         """
 
-        # swap the value/bounds references from datetime to numtime for the duration for the write
+        # Swap the value/bounds references from datetime to numtime for the duration for the write.
         if not get_datetime_conversion_state(self.value[0]):
             self._value = self.value_numtime
-            self._bounds._value = self.bounds_numtime
+            self._bounds._value = self.bounds_numtime.value
             swapped_value_bounds = True
         else:
             swapped_value_bounds = False
 
+        # Make the bounds aware of the calendar.
+        if self.bounds is not None:
+            self.bounds.attrs['calendar'] = self.calendar
+
         super(TemporalVariable, self).write_netcdf(dataset, **kwargs)
 
-        # return the value and bounds to their original state
+        # Return the value and bounds to their original state.
         if swapped_value_bounds:
             self._value = self.value_datetime
-            self._bounds._value = self.bounds_datetime
+            self._bounds._value = self.bounds_datetime.value
 
-        for name in [self.name_value, self.name_bounds]:
-            try:
-                variable = dataset.variables[name]
-            except KeyError:
-                # bounds are likely missing
-                if self.bounds is not None:
-                    raise
-            variable.calendar = self.calendar
-            variable.units = self.units
+    def write_attributes_to_netcdf_object(self, target):
+        super(TemporalVariable, self).write_attributes_to_netcdf_object(target)
+        target.calendar = self.calendar
 
     def _get_grouping_all_(self):
         '''
@@ -365,14 +363,7 @@ class TemporalVariable(BoundedVariable):
         '''
 
         value = self.value_datetime
-        bounds = self.bounds_datetime
-        try:
-            lower = bounds.min()
-            upper = bounds.max()
-        # bounds may be None
-        except AttributeError:
-            lower = value.min()
-            upper = value.max()
+        lower, upper = self.extent_datetime
 
         # new bounds are simply the minimum and maximum values chosen either from
         # the value or bounds array. bounds are given preference.
@@ -402,10 +393,13 @@ class TemporalVariable(BoundedVariable):
 
         # reference the value and bounds datetime object arrays
         value_datetime = self.value_datetime
-        value_datetime_bounds = self.bounds_datetime
+        if self.bounds is None:
+            value_datetime_bounds = None
+        else:
+            value_datetime_bounds = self.bounds_datetime.value
 
         # populate the value array depending on the presence of bounds
-        if self.bounds is None:
+        if value_datetime_bounds is None:
             value[:, :] = value_datetime.reshape(-1, 1)
         # bounds are currently not used for the grouping mechanism
         else:
@@ -617,9 +611,6 @@ class TemporalVariable(BoundedVariable):
             ret = self.value_numtime, self.bounds_numtime
         return ret
 
-    def _get_temporal_group_dimension_(self, *args, **kwargs):
-        return TemporalGroupDimension(*args, **kwargs)
-
     def _get_to_conform_value_(self):
         return self.value_numtime
 
@@ -629,6 +620,11 @@ class TemporalVariable(BoundedVariable):
         self._value_datetime = None
         # Set the new value.
         self.value = value
+
+    def _set_metadata_from_source_finalize_(self, *args, **kwargs):
+        var = args[0]
+        if hasattr(var, 'calendar'):
+            self.calendar = var.calendar
 
     def _set_date_parts_(self, yld, value):
         if self.format_time:
@@ -664,22 +660,24 @@ class TemporalGroupVariable(TemporalVariable):
         self.dgroups = kwargs.pop('dgroups')
         self.date_parts = kwargs.pop('date_parts')
 
-        TemporalDimension.__init__(self, *args, **kwargs)
+        super(TemporalGroupVariable, self).__init__(*args, **kwargs)
 
-    def write_netcdf(self, dataset, **kwargs):
+    def write_netcdf(self, *args, **kwargs):
+        previous_name_bounds = self.bounds.name
+        self.bounds.name = 'climatology_bounds'
+        try:
+            super(TemporalGroupVariable, self).write_netcdf(*args, **kwargs)
+        finally:
+            self.bounds.name = previous_name_bounds
+
+    def write_attributes_to_netcdf_object(self, target):
         """
         For CF-compliance, ensures climatology bounds are correctly attributed.
         """
 
-        previous_name_bounds = self.name_bounds
-        self.name_bounds = 'climatology_bounds'
-        try:
-            super(TemporalGroupDimension, self).write_netcdf(dataset, **kwargs)
-            variable = dataset.variables[self.name_value]
-            variable.climatology = variable.bounds
-            variable.delncattr('bounds')
-        finally:
-            self.name_bounds = previous_name_bounds
+        super(TemporalGroupVariable, self).write_attributes_to_netcdf_object(target)
+        target.climatology = target.bounds
+        target.delncattr('bounds')
 
 
 def get_datetime_conversion_state(archetype):
@@ -969,7 +967,7 @@ def get_time_regions(seasons, dates, raise_if_incomplete=True):
             time_regions.append([{'year': [year], 'month': season}])
 
     # ensure each time region is valid. if it is not, remove it from the returned list
-    td = TemporalDimension(value=dates)
+    td = TemporalVariable(value=dates)
     remove = []
     for idx, time_region in enumerate(time_regions):
         try:
