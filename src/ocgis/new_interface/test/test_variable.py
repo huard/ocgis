@@ -397,6 +397,17 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
 
+    def test_dimensions(self):
+        # Test with empty.
+        var = Variable(name='height')
+        self.assertEqual(var.dimensions, ())
+
+        # Test with value.
+        var = Variable(name='hat', value=1.)
+        self.assertEqual(var.dimensions, ())
+        var = Variable(name='hat', value=[1., 2., 3.])
+        self.assertEqual(var.shape, (3,))
+
     def test_shape(self):
         # Test shape with unlimited dimension.
         dim = Dimension('time')

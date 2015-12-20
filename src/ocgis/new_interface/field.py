@@ -8,8 +8,9 @@ from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection, Variable
 from ocgis.util.helpers import get_formatted_slice
 
-_FIELD_BUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'spatial')
-_FIELD_BUNDLE_DIMENSIONS_MAP = dict(zip(_FIELD_BUNDLE_DIMENSIONS, range(3)))
+_FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'spatial')
+_FIELDBUNDLE_DIMENSIONS_MAP = dict(zip(_FIELDBUNDLE_DIMENSIONS, range(3)))
+
 
 
 class FieldBundle(AbstractInterfaceObject, Attributes):
@@ -35,7 +36,6 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self.level = kwargs.pop('level', None)
         self.spatial = kwargs.pop('spatial', None)
         self.extra = kwargs.pop('extra', VariableCollection())
-        self.schemas = {}
 
         Attributes.__init__(self, **kwargs)
 
@@ -46,7 +46,7 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         ret = copy(self)
         ret.should_sync = False
         slice_idx = 0
-        for dname in _FIELD_BUNDLE_DIMENSIONS:
+        for dname in _FIELDBUNDLE_DIMENSIONS:
             target = getattr(ret, dname)
             if target is not None:
                 if dname != 'spatial':
@@ -65,13 +65,6 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         except AttributeError:
             ret = None
         return ret
-
-    @property
-    def dimensions(self):
-        for fn in _FIELD_BUNDLE_DIMENSIONS:
-            yld = getattr(self, fn)
-            if yld is not None:
-                yield yld
 
     @property
     def ndim(self):
@@ -102,7 +95,7 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
     @property
     def shape_dict(self):
         ret = OrderedDict()
-        for name, d in zip(_FIELD_BUNDLE_DIMENSIONS, self.dimensions):
+        for name, d in zip(_FIELDBUNDLE_DIMENSIONS, self.dimensions):
             ret[name] = d.shape
         return ret
 

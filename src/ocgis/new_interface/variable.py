@@ -243,7 +243,7 @@ class Variable(AbstractInterfaceObject, Attributes):
     def create_dimensions(self, names=None):
         value = self._value
         if value is None:
-            new_dimensions = None
+            new_dimensions = ()
         else:
             if names is None:
                 assert self.name is not None
