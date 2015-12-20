@@ -41,21 +41,23 @@ class TestFieldBundle(AbstractTestNewInterface):
         fb = FieldBundle(**kwargs)
         if 'fields' not in kwargs:
             np.random.seed(1)
-            value = np.random.rand(7, 4, 3)
-            var = Variable(name='tas', alias='tas', value=value)
-            schema = {'time': 0, 'x': 2, 'y': 1}
+            value = np.random.rand(*fb.shape)
+            var = Variable(name='tas', alias='tas', value=value, units='K')
+            schema = {'realization': 0, 'time': 1, 'level': 2, 'y': 3, 'x': 4}
             fb.create_field(var, schema=schema)
         return fb
 
     # tdk: test wrong variable shape
-    # tdk: test uniform mask
-    # tdk: test field with value
+    # tdk: test with a mask
+    # tdk: test w/out all dimensions on input field
+    # tdk: test w/out standard ordering (i.e. x before y)
+    # tdk: test with a geometry instead of a grid as the only data
     def test_init(self):
         fb = self.get_fieldbundle()
         self.assertEqual(fb.attrs, self.attrs)
         path = self.get_temporary_file_path('foo.nc')
         fb.write_netcdf(path)
-        self.ncdump(path, header_only=False)
+        self.ncdump(path, header_only=True)
         vc = VariableCollection.read_netcdf(path)
         keys = vc.keys()
         self.assertIn('height', keys)
@@ -66,9 +68,14 @@ class TestFieldBundle(AbstractTestNewInterface):
         self.assertEqual(fb.shape, (2, 7, 5, 4, 3))
         self.assertEqual(fb.shape_dict,
                          OrderedDict([('realization', (2,)), ('time', (7,)), ('level', (5,)), ('spatial', (4, 3))]))
+        sub = fb[1, 1, 1, 1, 1]
+        for target in sub.dimensions:
+            print target.name
+            print target.shape
+        tkk
         with self.nc_scope(path) as ds:
             ncvar = ds.variables['tas']
-            self.assertEqual(ncvar.dimensions, ('time', 'y', 'x'))
+            self.assertEqual(ncvar.dimensions, ('time', 'x', 'y'))
         tkk
         print fb
         print fb.spatial.point.value

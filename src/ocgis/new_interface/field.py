@@ -1,10 +1,12 @@
 from collections import OrderedDict
+from copy import copy
 
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection, Variable
+from ocgis.util.helpers import get_formatted_slice
 
 _FIELD_BUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'spatial')
 _FIELD_BUNDLE_DIMENSIONS_MAP = dict(zip(_FIELD_BUNDLE_DIMENSIONS, range(3)))
@@ -13,6 +15,7 @@ _FIELD_BUNDLE_DIMENSIONS_MAP = dict(zip(_FIELD_BUNDLE_DIMENSIONS, range(3)))
 class FieldBundle(AbstractInterfaceObject, Attributes):
     # tdk: retain variables for backwards compatibility
     def __init__(self, **kwargs):
+        self._should_sync = False
         self._realization = None
         self._time = None
         self._level = None
@@ -36,10 +39,46 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
 
         Attributes.__init__(self, **kwargs)
 
+        self.should_sync = True
+
+    def __getitem__(self, slc):
+        slc = get_formatted_slice(slc, self.ndim)
+        ret = copy(self)
+        ret.should_sync = False
+        slice_idx = 0
+        for dname in _FIELD_BUNDLE_DIMENSIONS:
+            target = getattr(ret, dname)
+            if target is not None:
+                if dname != 'spatial':
+                    slc_target = slc[slice_idx]
+                else:
+                    slc_target = slc[slice_idx:]
+                setattr(ret, dname, target.__getitem__(slc_target))
+                slice_idx += 1
+        ret.should_sync = True
+        return ret
+
+    @property
+    def crs(self):
+        try:
+            ret = self.spatial.crs
+        except AttributeError:
+            ret = None
+        return ret
+
     @property
     def dimensions(self):
         for fn in _FIELD_BUNDLE_DIMENSIONS:
-            yield getattr(self, fn)
+            yld = getattr(self, fn)
+            if yld is not None:
+                yield yld
+
+    @property
+    def ndim(self):
+        ret = 0
+        for d in self.dimensions:
+            ret += d.ndim
+        return ret
 
     @property
     def realization(self):
@@ -68,6 +107,16 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         return ret
 
     @property
+    def should_sync(self):
+        return self._should_sync
+
+    @should_sync.setter
+    def should_sync(self, value):
+        self._should_sync = value
+        if value:
+            self.sync()
+
+    @property
     def temporal(self):
         return self._time
 
@@ -84,9 +133,9 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self._set_time_(value)
 
     def _set_time_(self, value):
-        self._set_dimension_variable_('_time', value, 'T')
         if value is not None:
             assert isinstance(value, TemporalVariable)
+        self._set_dimension_variable_('_time', value, 'T')
 
     @property
     def level(self):
@@ -105,22 +154,37 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         if value is None:
             assert isinstance(value, SpatialContainer)
         self._spatial = value
+        self.sync()
 
     def create_field(self, variable, schema=None):
         if schema is None:
             raise NotImplementedError
+        variable.attrs = variable.attrs.copy()
         self.schemas[variable.alias] = schema
         self.fields[variable.alias] = variable
+        self.sync()
+
+    def sync(self):
+        if self.should_sync:
+            crs = self.crs
+            for f in self.fields.itervalues():
+                if crs is not None:
+                    attrs = f.attrs
+                    crs_name = crs.name
+                    if 'grid_mapping_name' not in attrs:
+                        attrs['grid_mapping_name'] = crs_name
 
     def _set_dimension_variable_(self, name, value, axis):
         if value is not None:
             assert isinstance(value, Variable)
             value.attrs['axis'] = value.attrs.pop('axis', axis)
         setattr(self, name, value)
+        self.sync()
 
     def write_netcdf(self, *args, **kwargs):
         # tdk: test temporal
         # tdk: test field
+        self.sync()
         vc = VariableCollection(attrs=self.attrs, variables=self.fields.itervalues())
         for v in self.extra.itervalues():
             vc.add_variable(v)

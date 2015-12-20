@@ -74,6 +74,10 @@ class SpatialContainer(AbstractInterfaceObject):
         self._grid = value
 
     @property
+    def ndim(self):
+        return get_grid_or_geom_attr(self, 'ndim')
+
+    @property
     def point(self):
         if self._point is None:
             if self._grid is not None:
