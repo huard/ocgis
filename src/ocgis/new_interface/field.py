@@ -8,9 +8,13 @@ from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection, Variable
 from ocgis.util.helpers import get_formatted_slice
 
-_FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'spatial')
-_FIELDBUNDLE_DIMENSIONS_MAP = dict(zip(_FIELDBUNDLE_DIMENSIONS, range(3)))
-
+_FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
+# _FIELDBUNDLE_DIMENSIONS_MAP = dict(zip(_FIELDBUNDLE_DIMENSIONS, range(3)))
+# _AXES_MAP = dict(zip(('R', 'T', 'L', 'Y', 'X', 'G'),
+#                      ('realization', 'time', 'level', 'grid.y', 'grid.x', 'geom')))
+#
+# schema = {'T': 'time', 'Y': 'lat', 'X': 'lon'}
+_FIELDBUNDLE_DIMENSION_NAMES = {k: [] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
 class FieldBundle(AbstractInterfaceObject, Attributes):
@@ -31,11 +35,13 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
 
         self.time = kwargs.pop('time', None)
         # Backwards compatibility.
-        self.temporal = kwargs.pop('temporal', None)
+        if self._time is None:
+            self.temporal = kwargs.pop('temporal', None)
 
         self.level = kwargs.pop('level', None)
         self.spatial = kwargs.pop('spatial', None)
         self.extra = kwargs.pop('extra', VariableCollection())
+        self.schemas = kwargs.pop('schemas', OrderedDict())
 
         Attributes.__init__(self, **kwargs)
 
@@ -45,16 +51,14 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         slc = get_formatted_slice(slc, self.ndim)
         ret = copy(self)
         ret.should_sync = False
-        slice_idx = 0
-        for dname in _FIELDBUNDLE_DIMENSIONS:
-            target = getattr(ret, dname)
-            if target is not None:
-                if dname != 'spatial':
-                    slc_target = slc[slice_idx]
-                else:
-                    slc_target = slc[slice_idx:]
-                setattr(ret, dname, target.__getitem__(slc_target))
-                slice_idx += 1
+        ret.fields = VariableCollection()
+        for alias, f in self.fields.items():
+            ret.fields.add_variable(f[slc])
+        slc_fb = {}
+        for idx, d in enumerate(self.dimensions):
+            if d.name in _FIELDBUNDLE_DIMENSIONS:
+                slc_fb[d.name] = slc[idx]
+        set_getitem_field_bundle(ret, slc_fb)
         ret.should_sync = True
         return ret
 
@@ -67,11 +71,17 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         return ret
 
     @property
-    def ndim(self):
-        ret = 0
-        for d in self.dimensions:
-            ret += d.ndim
+    def dimensions(self):
+        var = self.fields.first()
+        if var is None:
+            ret = None
+        else:
+            ret = var.dimensions
         return ret
+
+    @property
+    def ndim(self):
+        return len(self.dimensions)
 
     @property
     def realization(self):
@@ -83,20 +93,11 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
 
     @property
     def shape(self):
-        ret = []
-        for d in self.dimensions:
-            try:
-                ret += list(d.shape)
-            except AttributeError:
-                # Assume is None.
-                ret.append(None)
-        return tuple(ret)
-
-    @property
-    def shape_dict(self):
-        ret = OrderedDict()
-        for name, d in zip(_FIELDBUNDLE_DIMENSIONS, self.dimensions):
-            ret[name] = d.shape
+        dimensions = self.dimensions
+        if dimensions is None:
+            ret = None
+        else:
+            ret = tuple([d.length for d in self.dimensions])
         return ret
 
     @property
@@ -144,14 +145,12 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
 
     @spatial.setter
     def spatial(self, value):
-        if value is None:
+        if value is not None:
             assert isinstance(value, SpatialContainer)
         self._spatial = value
         self.sync()
 
     def create_field(self, variable, schema=None):
-        if schema is None:
-            raise NotImplementedError
         variable.attrs = variable.attrs.copy()
         self.schemas[variable.alias] = schema
         self.fields[variable.alias] = variable
@@ -187,6 +186,34 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
             vc.add_variable(self.level)
         if self.spatial is not None:
             vc.add_variable(self.spatial.grid)
-        if self.temporal is not None:
-            vc.add_variable(self.temporal)
+        if self.time is not None:
+            vc.add_variable(self.time)
         vc.write_netcdf(*args, **kwargs)
+
+
+class DSlice(AbstractInterfaceObject):
+    def __init__(self, names):
+        self.names = names
+
+    def get_reordered(self, slc, slc_names):
+        names = self.names
+        slc = get_formatted_slice(slc, len(names))
+        mapped = dict(zip(slc_names, slc))
+        ret = tuple([mapped[n] for n in names])
+        return ret
+
+
+def set_getitem_field_bundle(fb, slc):
+    if fb.spatial is not None:
+        spatial_slice = [None] * fb.spatial.ndim
+    for k, v in slc.items():
+        if k == 'y':
+            spatial_slice[0] = v
+        elif k == 'x':
+            spatial_slice[1] = v
+        elif k == 'n_geom':
+            spatial_slice[0] = v
+        else:
+            setattr(fb, k, getattr(fb, k)[v])
+    if fb.spatial is not None:
+        fb.spatial = fb.spatial[spatial_slice]

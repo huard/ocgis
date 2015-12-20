@@ -3,11 +3,25 @@ from netCDF4 import OrderedDict
 import numpy as np
 
 from ocgis.interface.base.crs import Spherical
-from ocgis.new_interface.field import FieldBundle
+from ocgis.new_interface.field import FieldBundle, DSlice
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import VariableCollection, Variable, BoundedVariable
+
+
+class TestDSlice(AbstractTestNewInterface):
+    def test(self):
+        ds = DSlice(['x', 'time', 'y'])
+        slc = (1, 3, 4)
+        res = ds.get_reordered(slc, ['time', 'y', 'x'])
+        actual = (slice(4, 5, None), slice(1, 2, None), slice(3, 4, None))
+        self.assertEqual(res, actual)
+
+        np.random.seed(1)
+        variable_value = np.random.rand(5, 3, 4)
+        variable_value_actual = variable_value[4, 1, 3]
+        self.assertEqual(variable_value_actual, variable_value[actual])
 
 
 class TestFieldBundle(AbstractTestNewInterface):
@@ -46,6 +60,43 @@ class TestFieldBundle(AbstractTestNewInterface):
             schema = {'realization': 0, 'time': 1, 'level': 2, 'y': 3, 'x': 4}
             fb.create_field(var, schema=schema)
         return fb
+
+    def test(self):
+        # Test with no instrumented dimensions.
+        np.random.seed(1)
+        fb = FieldBundle(name='m1')
+        var = Variable(name='output', value=[[1, 2, 3], [4, 5, 6]])
+        var.create_dimensions(['one', 'two'])
+        fb.create_field(var)
+        sub = fb[1, 1]
+        np.testing.assert_equal(sub.fields['output'].value, [[5]])
+        self.assertEqual(fb.shape, (2, 3))
+
+        # Test with an instrumented dimension.
+        time = TemporalVariable(value=[1, 2, 3, 4, 5])
+        fb = FieldBundle(name='m2', time=time)
+        self.assertIsNotNone(fb.time)
+        var = Variable(name='output2', value=np.random.rand(50, time.shape[0]))
+        var.create_dimensions(['bs', 'time'])
+        fb.create_field(var)
+        sub = fb[20:40, 1:3]
+        np.testing.assert_equal(sub.time.value, [2, 3])
+        self.assertEqual(fb.time.shape, (5,))
+        self.assertTrue(np.may_share_memory(sub.time.value, fb.time.value))
+
+        # Test with two instrumented dimensions.
+        grid = self.get_gridxy()
+        spatial = SpatialContainer(grid=grid)
+        fb = FieldBundle(name='m3', time=time, spatial=spatial)
+        self.assertIsNone(fb.shape)
+        var = Variable(name='tas', value=np.random.rand(fb.time.shape[0], fb.spatial.shape[0], fb.spatial.shape[1]))
+        var.create_dimensions(['time', 'y', 'x'])
+        fb.create_field(var)
+        sub = fb[0:2, 2:4, 1]
+
+        path = self.get_temporary_file_path('foo.nc')
+        sub.write_netcdf(path)
+        self.ncdump(path)
 
     # tdk: test wrong variable shape
     # tdk: test with a mask

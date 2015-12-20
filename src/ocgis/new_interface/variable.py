@@ -51,11 +51,11 @@ class Variable(AbstractInterfaceObject, Attributes):
                         d.length_current = self.shape[idx]
 
     def __getitem__(self, slc):
-        ret = copy(self)
         slc = get_formatted_slice(slc, self.ndim)
+        ret = copy(self)
         ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
-        if self._value is not None:
-            ret.value = self.value.__getitem__(slc)
+        if ret._value is not None:
+            ret.value = ret.value.__getitem__(slc)
             ret.value.unshare_mask()
         return ret
 
