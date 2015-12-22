@@ -104,10 +104,11 @@ class TestFieldBundle(AbstractTestNewInterface):
                                                         6))
         var.create_dimensions(['the_time', 'lon', 'lat', 'six'])
         fb.create_field(var, schema={'time': 'the_time', 'x': 'lon', 'y': 'lat'})
-        sub = fb[0:2, 1:3, 1, 2:]
+        sub = fb[0:2, 1:3, 1, -3:]
         self.assertNumpyAll(sub.spatial.grid.x.value, spatial.grid.x.value[1:3])
         self.assertEqual(sub.spatial.grid.y.value, spatial.grid.y.value[1])
         self.assertEqual(sub.spatial.grid.x.dimensions[0].name, 'lon')
+        self.assertEqual(sub.time.dimensions[0].name, 'the_time')
 
         path = self.get_temporary_file_path('foo.nc')
         sub.write_netcdf(path)

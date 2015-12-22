@@ -28,9 +28,17 @@ class Dimension(AbstractInterfaceObject):
             except TypeError:
                 # Likely a NoneType slice.
                 if slc.start is None:
-                    length = len(self)
+                    if slc.stop > 0:
+                        length = len(self)
+                    elif slc.stop is None:
+                        length = len(self)
+                    else:
+                        length = len(self) + slc.stop
                 elif slc.stop is None:
-                    length = len(self) - slc.start
+                    if slc.start > 0:
+                        length = len(self) - slc.start
+                    else:
+                        length = abs(slc.start)
                 else:
                     raise
         else:

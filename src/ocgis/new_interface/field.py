@@ -169,23 +169,42 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
                     crs_name = crs.name
                     if 'grid_mapping_name' not in attrs:
                         attrs['grid_mapping_name'] = crs_name
+
             # Update grid dimension names.
-            try:
-                name_y = self._dimension_schema['y'][1]
-                name_x = self._dimension_schema['x'][1]
-            except IndexError:
-                # No new dimension names for x and y.
-                pass
-            else:
-                self.spatial.grid.name_y = name_y
-                self.spatial.grid.name_x = name_x
-                if self.spatial.grid.is_vectorized:
-                    self.spatial.grid.y.dimensions[0].name = name_y
-                    self.spatial.grid.x.dimensions[0].name = name_x
+            if self.spatial is not None:
+                try:
+                    name_y = self._dimension_schema['y'][1]
+                    name_x = self._dimension_schema['x'][1]
+                except IndexError:
+                    # No new dimension names for x and y.
+                    pass
                 else:
-                    for d in [self.spatial.grid.y, self.spatial.grid.x]:
-                        for dsubname, dsub in zip((name_y, name_x), d.dimensions):
-                            dsub.name = dsubname
+                    self.spatial.grid.name_y = name_y
+                    self.spatial.grid.name_x = name_x
+                    if self.spatial.grid.is_vectorized:
+                        self.spatial.grid.y.dimensions[0].name = name_y
+                        self.spatial.grid.y.name = name_y
+                        self.spatial.grid.x.dimensions[0].name = name_x
+                        self.spatial.grid.x.name = name_x
+                    else:
+                        for idx, d in enumerate([self.spatial.grid.y, self.spatial.grid.x]):
+                            name_tuple = (name_y, name_x)
+                            d.name = name_tuple[idx]
+                            for dsubname, dsub in zip(name_tuple, d.dimensions):
+                                dsub.name = dsubname
+
+            # Update the other dimension names.
+            for name in ['time', 'level', 'realization']:
+                try:
+                    new_name = self._dimension_schema[name][1]
+                except IndexError:
+                    pass
+                else:
+                    target = getattr(self, name)
+                    if target is not None:
+                        target.dimensions[0].name = new_name
+                        target.name = new_name
+
 
     def _set_dimension_variable_(self, name, value, axis):
         if value is not None:
@@ -227,7 +246,6 @@ class DSlice(AbstractInterfaceObject):
 def set_getitem_field_bundle(fb, slc):
     if fb.spatial is not None:
         spatial_slice = [None] * fb.spatial.ndim
-    print slc
     for k, v in slc.items():
         if k in fb._dimension_schema['y']:
             spatial_slice[0] = v
