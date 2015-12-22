@@ -227,6 +227,7 @@ class DSlice(AbstractInterfaceObject):
 def set_getitem_field_bundle(fb, slc):
     if fb.spatial is not None:
         spatial_slice = [None] * fb.spatial.ndim
+    print slc
     for k, v in slc.items():
         if k in fb._dimension_schema['y']:
             spatial_slice[0] = v
@@ -235,6 +236,9 @@ def set_getitem_field_bundle(fb, slc):
         elif k in fb._dimension_schema['n_geom']:
             spatial_slice[0] = v
         else:
-            setattr(fb, k, getattr(fb, k)[v])
+            for d, poss in fb._dimension_schema.items():
+                if k in poss:
+                    setattr(fb, d, getattr(fb, d)[v])
+                    break
     if fb.spatial is not None:
         fb.spatial = fb.spatial[spatial_slice]

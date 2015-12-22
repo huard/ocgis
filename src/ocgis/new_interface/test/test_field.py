@@ -100,10 +100,11 @@ class TestFieldBundle(AbstractTestNewInterface):
         fb = FieldBundle(name='m4', time=time, spatial=spatial)
         var = Variable(name='tas', value=np.random.rand(fb.time.shape[0],
                                                         fb.spatial.shape[0],
-                                                        fb.spatial.shape[1]))
-        var.create_dimensions(['time', 'lon', 'lat'])
-        fb.create_field(var, schema={'time': 'time', 'x': 'lon', 'y': 'lat'})
-        sub = fb[0:2, 1:3, 1]
+                                                        fb.spatial.shape[1],
+                                                        6))
+        var.create_dimensions(['the_time', 'lon', 'lat', 'six'])
+        fb.create_field(var, schema={'time': 'the_time', 'x': 'lon', 'y': 'lat'})
+        sub = fb[0:2, 1:3, 1, 2:]
         self.assertNumpyAll(sub.spatial.grid.x.value, spatial.grid.x.value[1:3])
         self.assertEqual(sub.spatial.grid.y.value, spatial.grid.y.value[1])
         self.assertEqual(sub.spatial.grid.x.dimensions[0].name, 'lon')
