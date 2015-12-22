@@ -1,3 +1,5 @@
+from copy import copy
+
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -77,6 +79,9 @@ class Dimension(AbstractInterfaceObject):
         msg = "{0}(name='{1}', length={2})".format(self.__class__.__name__, self.name, self.length)
         return msg
 
+    def copy(self):
+        return copy(self)
+
 
 class SourcedDimension(Dimension):
     _default_dtype = np.int32
@@ -119,5 +124,12 @@ class SourcedDimension(Dimension):
     @_src_idx.setter
     def _src_idx(self, value):
         if value is not None:
-            value = np.array(value)
+            if not isinstance(value, np.ndarray):
+                value = np.array(value)
         self.__src_idx__ = value
+
+    def copy(self):
+        ref = self._src_idx
+        ret = super(SourcedDimension, self).copy()
+        ret.__src_idx__ = ref
+        return ret

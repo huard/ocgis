@@ -389,6 +389,23 @@ class TestVariable(AbstractTestNewInterface):
         var.cfunits_conform(get_units_object('kelvin'))
         self.assertNumpyAll(np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False]), var.value)
 
+    def test_copy(self):
+        var = self.get_variable(return_original_data=False)
+        var2 = var.copy()
+        var2.name = 'foobar'
+        var2.dimensions[0].name = 'new_time'
+        self.assertTrue(np.may_share_memory(var.value, var2.value))
+        var2.value[:] = 100
+        self.assertNumpyAll(var.value.mean(), var2.value.mean())
+        var3 = var2[2:4]
+        var3.value[:] = 200
+        var3.value.mask[:] = True
+        self.assertAlmostEqual(var.value.mean(), 133.33333333)
+        self.assertFalse(var.get_mask().any())
+        var2.attrs['way'] = 'out'
+        self.assertEqual(len(var.attrs), 0)
+        self.assertEqual(len(var3.attrs), 0)
+
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))

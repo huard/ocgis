@@ -52,6 +52,18 @@ class TestSourcedDimension(AbstractTestNewInterface):
         self.assertNumpyAll(dim._src_idx, np.arange(0, 10, dtype=SourcedDimension._default_dtype))
         self.assertEqual(dim._src_idx.shape[0], 10)
 
+    def test_copy(self):
+        sd = self.get()
+        self.assertIsNotNone(sd._src_idx)
+        sd2 = sd.copy()
+        self.assertTrue(np.may_share_memory(sd._src_idx, sd2._src_idx))
+        sd3 = sd2[2:5]
+        self.assertEqual(sd, sd2)
+        self.assertNotEqual(sd2, sd3)
+        self.assertTrue(np.may_share_memory(sd2._src_idx, sd._src_idx))
+        self.assertTrue(np.may_share_memory(sd2._src_idx, sd3._src_idx))
+        self.assertTrue(np.may_share_memory(sd3._src_idx, sd._src_idx))
+
     def test_eq(self):
         lhs = self.get()
         rhs = self.get()

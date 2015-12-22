@@ -97,18 +97,21 @@ class TestFieldBundle(AbstractTestNewInterface):
         self.assertNumpyAll(sub.spatial.grid.y.value, spatial.grid.y.value[2:4])
 
         # Test with a schema.
-        fb = FieldBundle(name='m4', time=time, spatial=spatial)
-        var = Variable(name='tas', value=np.random.rand(fb.time.shape[0],
-                                                        fb.spatial.shape[0],
-                                                        fb.spatial.shape[1],
-                                                        6))
-        var.create_dimensions(['the_time', 'lon', 'lat', 'six'])
-        fb.create_field(var, schema={'time': 'the_time', 'x': 'lon', 'y': 'lat'})
-        sub = fb[0:2, 1:3, 1, -3:]
-        self.assertNumpyAll(sub.spatial.grid.x.value, spatial.grid.x.value[1:3])
-        self.assertEqual(sub.spatial.grid.y.value, spatial.grid.y.value[1])
-        self.assertEqual(sub.spatial.grid.x.dimensions[0].name, 'lon')
-        self.assertEqual(sub.time.dimensions[0].name, 'the_time')
+        for rename_dimensions in [False, True]:
+            fb = FieldBundle(name='m4', time=time, spatial=spatial)
+            var = Variable(name='tas', value=np.random.rand(fb.time.shape[0],
+                                                            fb.spatial.shape[0],
+                                                            fb.spatial.shape[1],
+                                                            6))
+            var.create_dimensions(['the_time', 'lon', 'lat', 'six'])
+            fb.create_field(var, schema={'time': 'the_time', 'x': 'lon', 'y': 'lat'},
+                            rename_dimensions=rename_dimensions)
+            if not rename_dimensions:
+                self.assertEqual(fb.spatial.grid.x.dimensions[0].name, 'lon')
+                self.assertEqual(fb.time.dimensions[0].name, 'the_time')
+            sub = fb[0:2, 1:3, 1, -3:]
+            self.assertNumpyAll(sub.spatial.grid.x.value, spatial.grid.x.value[1:3])
+            self.assertEqual(sub.spatial.grid.y.value, spatial.grid.y.value[1])
 
         path = self.get_temporary_file_path('foo.nc')
         sub.write_netcdf(path)

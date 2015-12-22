@@ -103,10 +103,8 @@ class GridXY(AbstractSpatialVariable):
                 ret.x = self.x[slc[0], slc[1]]
         if self._value is not None:
             ret.value = self._value[:, slc[0], slc[1]]
-            ret.value.unshare_mask()
         if self._corners is not None:
             ret.corners = self.corners[:, slc[0], slc[1], :]
-            ret.corners.unshare_mask()
         return ret
 
     @property

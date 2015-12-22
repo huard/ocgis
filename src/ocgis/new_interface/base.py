@@ -1,8 +1,12 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 
 
 class AbstractInterfaceObject(object):
     __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def copy(self):
+        """Return a shallow copy of self."""
 
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):

@@ -52,11 +52,10 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
-        ret = copy(self)
+        ret = self.copy()
         ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         if ret._value is not None:
             ret.value = ret.value.__getitem__(slc)
-            ret.value.unshare_mask()
         return ret
 
     def __len__(self):
@@ -239,6 +238,11 @@ class Variable(AbstractInterfaceObject, Attributes):
         # Remove any compression attributes if present.
         for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
             self.attrs.pop(remove, None)
+
+    def copy(self):
+        ret = copy(self)
+        ret.attrs = ret.attrs.copy()
+        return ret
 
     def create_dimensions(self, names=None):
         value = self._value

@@ -26,6 +26,7 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self._level = None
         self._spatial = None
 
+        self.inherit_names = kwargs.pop('inherit_names', True)
         self.name = kwargs.pop('name')
         self.fields = kwargs.pop('fields', VariableCollection())
         self.realization = kwargs.pop('realization', None)
@@ -147,18 +148,26 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
     def spatial(self, value):
         if value is not None:
             assert isinstance(value, SpatialContainer)
+            value = value.copy()
         self._spatial = value
         self.sync()
 
-    def create_field(self, variable, schema=None):
+    def create_field(self, variable, schema=None, rename_dimensions=False):
+        self.should_sync = False
         if schema is not None:
             for k, v in schema.items():
-                if v not in self._dimension_schema[k]:
-                    self._dimension_schema[k].append(v)
+                if rename_dimensions:
+                    for idx, d in enumerate(variable.dimensions):
+                        if d.name == v:
+                            variable.dimensions[idx].name = k
+                            break
+                else:
+                    if v not in self._dimension_schema[k]:
+                        self._dimension_schema[k].append(v)
         variable.attrs = variable.attrs.copy()
         self.schemas[variable.alias] = schema
         self.fields[variable.alias] = variable
-        self.sync()
+        self.should_sync = True
 
     def sync(self):
         if self.should_sync:
@@ -170,45 +179,48 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
                     if 'grid_mapping_name' not in attrs:
                         attrs['grid_mapping_name'] = crs_name
 
-            # Update grid dimension names.
-            if self.spatial is not None:
-                try:
-                    name_y = self._dimension_schema['y'][1]
-                    name_x = self._dimension_schema['x'][1]
-                except IndexError:
-                    # No new dimension names for x and y.
-                    pass
-                else:
-                    self.spatial.grid.name_y = name_y
-                    self.spatial.grid.name_x = name_x
-                    if self.spatial.grid.is_vectorized:
-                        self.spatial.grid.y.dimensions[0].name = name_y
-                        self.spatial.grid.y.name = name_y
-                        self.spatial.grid.x.dimensions[0].name = name_x
-                        self.spatial.grid.x.name = name_x
+            if self.inherit_names:
+                # Update grid dimension names.
+                if self.spatial is not None:
+                    try:
+                        name_y = self._dimension_schema['y'][1]
+                        name_x = self._dimension_schema['x'][1]
+                    except IndexError:
+                        # No new dimension names for x and y.
+                        pass
                     else:
-                        for idx, d in enumerate([self.spatial.grid.y, self.spatial.grid.x]):
-                            name_tuple = (name_y, name_x)
-                            d.name = name_tuple[idx]
-                            for dsubname, dsub in zip(name_tuple, d.dimensions):
-                                dsub.name = dsubname
+                        self.spatial.grid.name_y = name_y
+                        self.spatial.grid.name_x = name_x
+                        if self.spatial.grid.is_vectorized:
+                            self.spatial.grid.y.dimensions[0].name = name_y
+                            self.spatial.grid.y.name = name_y
+                            self.spatial.grid.x.dimensions[0].name = name_x
+                            self.spatial.grid.x.name = name_x
+                        else:
+                            for idx, d in enumerate([self.spatial.grid.y, self.spatial.grid.x]):
+                                name_tuple = (name_y, name_x)
+                                d.name = name_tuple[idx]
+                                for dsubname, dsub in zip(name_tuple, d.dimensions):
+                                    dsub.name = dsubname
 
-            # Update the other dimension names.
-            for name in ['time', 'level', 'realization']:
-                try:
-                    new_name = self._dimension_schema[name][1]
-                except IndexError:
-                    pass
-                else:
-                    target = getattr(self, name)
-                    if target is not None:
-                        target.dimensions[0].name = new_name
-                        target.name = new_name
-
+                # Update the other dimension names.
+                for name in ['time', 'level', 'realization']:
+                    try:
+                        new_name = self._dimension_schema[name][1]
+                    except IndexError:
+                        pass
+                    else:
+                        target = getattr(self, name)
+                        if target is not None:
+                            target.dimensions[0].name = new_name
+                            target.name = new_name
 
     def _set_dimension_variable_(self, name, value, axis):
         if value is not None:
             assert isinstance(value, Variable)
+            value = copy(value)
+            value.attrs = value.attrs.copy()
+            value.dimensions = deepcopy(value.dimensions)
             value.attrs['axis'] = value.attrs.pop('axis', axis)
         setattr(self, name, value)
         self.sync()
