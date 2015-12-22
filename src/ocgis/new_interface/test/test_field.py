@@ -93,6 +93,20 @@ class TestFieldBundle(AbstractTestNewInterface):
         var.create_dimensions(['time', 'y', 'x'])
         fb.create_field(var)
         sub = fb[0:2, 2:4, 1]
+        self.assertEqual(sub.spatial.grid.x.value, spatial.grid.x.value[1])
+        self.assertNumpyAll(sub.spatial.grid.y.value, spatial.grid.y.value[2:4])
+
+        # Test with a schema.
+        fb = FieldBundle(name='m4', time=time, spatial=spatial)
+        var = Variable(name='tas', value=np.random.rand(fb.time.shape[0],
+                                                        fb.spatial.shape[0],
+                                                        fb.spatial.shape[1]))
+        var.create_dimensions(['time', 'lon', 'lat'])
+        fb.create_field(var, schema={'time': 'time', 'x': 'lon', 'y': 'lat'})
+        sub = fb[0:2, 1:3, 1]
+        self.assertNumpyAll(sub.spatial.grid.x.value, spatial.grid.x.value[1:3])
+        self.assertEqual(sub.spatial.grid.y.value, spatial.grid.y.value[1])
+        self.assertEqual(sub.spatial.grid.x.dimensions[0].name, 'lon')
 
         path = self.get_temporary_file_path('foo.nc')
         sub.write_netcdf(path)

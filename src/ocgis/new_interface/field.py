@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from copy import copy
+from copy import copy, deepcopy
 
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -14,7 +14,7 @@ _FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
 #                      ('realization', 'time', 'level', 'grid.y', 'grid.x', 'geom')))
 #
 # schema = {'T': 'time', 'Y': 'lat', 'X': 'lon'}
-_FIELDBUNDLE_DIMENSION_NAMES = {k: [] for k in _FIELDBUNDLE_DIMENSIONS}
+_FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
 class FieldBundle(AbstractInterfaceObject, Attributes):
@@ -27,16 +27,13 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self._spatial = None
 
         self.name = kwargs.pop('name')
-        fields = kwargs.pop('fields', [])
-        for f in fields:
-            raise NotImplementedError
         self.fields = kwargs.pop('fields', VariableCollection())
         self.realization = kwargs.pop('realization', None)
-
         self.time = kwargs.pop('time', None)
         # Backwards compatibility.
         if self._time is None:
             self.temporal = kwargs.pop('temporal', None)
+        self._dimension_schema = deepcopy(_FIELDBUNDLE_DIMENSION_NAMES)
 
         self.level = kwargs.pop('level', None)
         self.spatial = kwargs.pop('spatial', None)
@@ -55,8 +52,11 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         for alias, f in self.fields.items():
             ret.fields.add_variable(f[slc])
         slc_fb = {}
+        fb_dimensions = []
+        for ii in self._dimension_schema.values():
+            fb_dimensions += ii
         for idx, d in enumerate(self.dimensions):
-            if d.name in _FIELDBUNDLE_DIMENSIONS:
+            if d.name in fb_dimensions:
                 slc_fb[d.name] = slc[idx]
         set_getitem_field_bundle(ret, slc_fb)
         ret.should_sync = True
@@ -151,6 +151,10 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self.sync()
 
     def create_field(self, variable, schema=None):
+        if schema is not None:
+            for k, v in schema.items():
+                if v not in self._dimension_schema[k]:
+                    self._dimension_schema[k].append(v)
         variable.attrs = variable.attrs.copy()
         self.schemas[variable.alias] = schema
         self.fields[variable.alias] = variable
@@ -165,6 +169,23 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
                     crs_name = crs.name
                     if 'grid_mapping_name' not in attrs:
                         attrs['grid_mapping_name'] = crs_name
+            # Update grid dimension names.
+            try:
+                name_y = self._dimension_schema['y'][1]
+                name_x = self._dimension_schema['x'][1]
+            except IndexError:
+                # No new dimension names for x and y.
+                pass
+            else:
+                self.spatial.grid.name_y = name_y
+                self.spatial.grid.name_x = name_x
+                if self.spatial.grid.is_vectorized:
+                    self.spatial.grid.y.dimensions[0].name = name_y
+                    self.spatial.grid.x.dimensions[0].name = name_x
+                else:
+                    for d in [self.spatial.grid.y, self.spatial.grid.x]:
+                        for dsubname, dsub in zip((name_y, name_x), d.dimensions):
+                            dsub.name = dsubname
 
     def _set_dimension_variable_(self, name, value, axis):
         if value is not None:
@@ -207,11 +228,11 @@ def set_getitem_field_bundle(fb, slc):
     if fb.spatial is not None:
         spatial_slice = [None] * fb.spatial.ndim
     for k, v in slc.items():
-        if k == 'y':
+        if k in fb._dimension_schema['y']:
             spatial_slice[0] = v
-        elif k == 'x':
+        elif k in fb._dimension_schema['x']:
             spatial_slice[1] = v
-        elif k == 'n_geom':
+        elif k in fb._dimension_schema['n_geom']:
             spatial_slice[0] = v
         else:
             setattr(fb, k, getattr(fb, k)[v])

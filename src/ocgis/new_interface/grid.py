@@ -66,6 +66,8 @@ class GridXY(AbstractSpatialVariable):
         self._x = None
         self._y = None
 
+        self.name_x = kwargs.pop('name_x', 'x')
+        self.name_y = kwargs.pop('name_y', 'y')
         try:
             self.y = kwargs.pop('y')
             self.x = kwargs.pop('x')
@@ -354,10 +356,14 @@ class GridXY(AbstractSpatialVariable):
 
     def _get_dimensions_(self):
         if self.is_vectorized:
-            ret = (self.y.dimensions[0], self.x.dimensions[0])
+            ret = [self.y.dimensions[0], self.x.dimensions[0]]
         else:
-            ret = self.y.dimensions
-        return ret
+            ret = list(self.y.dimensions)
+
+        ret[0].name = self.name_y
+        ret[1].name = self.name_x
+
+        return tuple(ret)
 
     def _get_extent_(self):
         if not self.is_vectorized:
@@ -421,8 +427,8 @@ class GridXY(AbstractSpatialVariable):
 
 def get_dimension_variable(axis_string, gridxy, idx, variable_name):
     if gridxy._dimensions is None:
-        dim_y = Dimension('y', length=gridxy.shape[0])
-        dim_x = Dimension('x', length=gridxy.shape[1])
+        dim_y = Dimension(gridxy.name_y, length=gridxy.shape[0])
+        dim_x = Dimension(gridxy.name_x, length=gridxy.shape[1])
     else:
         dim_y, dim_x = gridxy.dimensions
     attrs = OrderedDict({'axis': axis_string})
