@@ -22,13 +22,14 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
-        self._is_init = True
         self._alias = None
         self._dimensions = None
         self._value = None
         self._dtype = None
         self._fill_value = None
         self._units = None
+
+        Attributes.__init__(self, attrs=attrs)
 
         self.name = name
         self.units = units
@@ -38,22 +39,22 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.dimensions = dimensions
         self.value = value
 
-        Attributes.__init__(self, attrs=attrs)
-
-        self._is_init = False
-
+    def sync(self):
+        # tdk: order
         if self._value is not None:
-            self._validate_value_(self._value)
             # Update any unlimited dimension length.
-            if self._dimensions is not None:
-                for idx, d in enumerate(self.dimensions):
+            dimensions = self.dimensions
+            if dimensions is not None:
+                for idx, d in enumerate(dimensions):
                     if d.length is None and d.length_current is None:
                         d.length_current = self.shape[idx]
+                assert self._value.shape == self.shape_dimensions
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
         ret = self.copy()
-        ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
+        if self.dimensions is not None:
+            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         if ret._value is not None:
             ret.value = ret.value.__getitem__(slc)
         return ret
@@ -92,10 +93,7 @@ class Variable(AbstractInterfaceObject, Attributes):
     @property
     def dimensions(self):
         if self._dimensions is None:
-            try:
-                self._dimensions = self._get_dimensions_()
-            except NotImplementedError:
-                self.create_dimensions()
+            self._dimensions = self._get_dimensions_()
         return self._dimensions
 
     @dimensions.setter
@@ -103,7 +101,7 @@ class Variable(AbstractInterfaceObject, Attributes):
         self._set_dimensions_(value)
 
     def _get_dimensions_(self):
-        raise NotImplementedError
+        return None
 
     def _set_dimensions_(self, value):
         if value is not None:
@@ -151,7 +149,11 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     @property
     def shape_dimensions(self):
-        return tuple([d.length for d in get_iter(self.dimensions, dtype=Dimension)])
+        if self.dimensions is None:
+            ret = tuple()
+        else:
+            ret = tuple([len(d) for d in get_iter(self.dimensions, dtype=Dimension)])
+        return ret
 
     def _get_shape_(self):
         return get_shape_from_variable(self)
@@ -191,18 +193,8 @@ class Variable(AbstractInterfaceObject, Attributes):
         if value is not None:
             if not isinstance(value, MaskedArray):
                 value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value, mask=False)
-            self._validate_value_(value)
         self._value = value
-
-    def _validate_value_(self, value):
-        if not self._is_init:
-            dimensions = self.dimensions
-            # Account for unlimited dimensions.
-            value_shape = value.shape
-            dim_shape = self.shape_dimensions
-            for idx, d in enumerate(dimensions):
-                if d.length is not None:
-                    assert value_shape[idx] == dim_shape[idx]
+        self.sync()
 
     def cfunits_conform(self, to_units, from_units=None):
         """
@@ -340,9 +332,15 @@ class SourcedVariable(Variable):
             msg = '"conform_units_to" only applicable when loading from source.'
             raise ValueError(msg)
 
+    def _get_shape_(self):
+        # tdk: order
+        if self._request_dataset is not None and not self._allocated:
+            self._set_metadata_from_source_()
+        return super(SourcedVariable, self)._get_shape_()
+
     def __getitem__(self, slc):
         if self._value is None:
-            slc = get_formatted_slice(slc, len(self.dimensions))
+            slc = get_formatted_slice(slc, self.ndim)
             ret = copy(self)
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         else:
@@ -475,9 +473,10 @@ class BoundedVariable(SourcedVariable):
 
             # Update source dimensions for vector variables.
             if self.ndim == 1:
-                bounds_dimension = copy(value.dimensions[1])
-                bounds_dimension.name = self._name_bounds_dimension
-                value.dimensions = [self.dimensions[0], bounds_dimension]
+                if value.dimensions is not None:
+                    bounds_dimension = copy(value.dimensions[1])
+                    bounds_dimension.name = self._name_bounds_dimension
+                    value.dimensions = [self.dimensions[0], bounds_dimension]
 
             # Set units and calendar for bounds variables.
             if value.units is None:
@@ -588,10 +587,31 @@ class BoundedVariable(SourcedVariable):
             raise BoundsAlreadyAvailableError
         name = name or '{0}_{1}'.format(self.name, 'bounds')
         bounds_value = get_bounds_from_1d(self.value)
-        dims = [self.dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
+        if self.dimensions is None:
+            dims = None
+        else:
+            dims = [self.dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
         var = Variable(name, value=bounds_value, dimensions=dims)
         self.bounds = var
         self._has_extrapolated_bounds = True
+
+    def create_dimensions(self, names=None):
+        super(BoundedVariable, self).create_dimensions(names)
+        if self.bounds is not None:
+            if self.ndim == 1:
+                if self.bounds.dimensions is not None:
+                    name_bounds = self.bounds.dimensions[1].name
+                else:
+                    name_bounds = constants.OCGIS_BOUNDS
+                names = [self.dimensions[0].name, name_bounds]
+            else:
+                names = [d.name for d in self.dimensions]
+                if self.bounds.dimensions is not None:
+                    name_corners = self.bounds.dimensions[2].name
+                else:
+                    name_corners = constants.DEFAULT_NAME_CORNERS_DIMENSION
+                names.append(name_corners)
+            self.bounds.create_dimensions(names=names)
 
     def write_netcdf(self, *args, **kwargs):
         super(BoundedVariable, self).write_netcdf(*args, **kwargs)
@@ -704,7 +724,7 @@ def get_dimension_lengths(dimensions):
 
 
 def get_shape_from_variable(variable):
-    _dimensions = variable._dimensions
+    _dimensions = variable.dimensions
     _value = variable._value
     if _dimensions is not None and not has_unlimited_dimension(_dimensions):
         ret = get_dimension_lengths(_dimensions)

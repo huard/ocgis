@@ -83,6 +83,9 @@ class TestBoundedVariable(AbstractTestNewInterface):
 
     def test_dimensions(self):
         bv = self.get_boundedvariable()
+        self.assertIsNone(bv.dimensions)
+        self.assertIsNone(bv.bounds.dimensions)
+        bv.create_dimensions()
         self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
         self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
 
@@ -212,6 +215,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
 
         sv = self.get_sourcedvariable(name='time_bnds')
         self.assertIsNone(sv._value)
+        self.assertEqual(sv.ndim, 2)
         sub = sv[5:10, :]
         self.assertIsNone(sub._value)
 
@@ -220,7 +224,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.dtype, np.int)
         self.assertEqual(sv.fill_value, 999999)
         self.assertEqual(sv.shape, (3,))
-        self.assertIsNotNone(sv.dimensions)
+        self.assertIsNone(sv.dimensions)
         sv.create_dimensions(names=['time'])
         self.assertIsNotNone(sv.dimensions)
 
@@ -325,13 +329,9 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.value.dtype, dtype)
         self.assertEqual(var.value.fill_value, fill_value)
 
-    def test_tdk(self):
         var = Variable('foo')
         self.assertEqual(var.shape, tuple())
-        self.assertEqual(var.dimensions, tuple())
-        var.value = [2, 3, 4]
-        print var.shape
-        print var.value
+        self.assertIsNone(var.dimensions)
 
         var = Variable('foo', value=[4, 5, 6])
         self.assertEqual(var.shape, (3,))
@@ -412,6 +412,7 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
+        var.create_dimensions()
         self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
         self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
@@ -421,10 +422,14 @@ class TestVariable(AbstractTestNewInterface):
     def test_dimensions(self):
         # Test with empty.
         var = Variable(name='height')
+        self.assertIsNone(var.dimensions)
+        var.create_dimensions()
         self.assertEqual(var.dimensions, ())
 
         # Test with value.
         var = Variable(name='hat', value=1.)
+        self.assertIsNone(var.dimensions)
+        var.create_dimensions()
         self.assertEqual(var.dimensions, ())
         var = Variable(name='hat', value=[1., 2., 3.])
         self.assertEqual(var.shape, (3,))
@@ -433,8 +438,8 @@ class TestVariable(AbstractTestNewInterface):
         # Test shape with unlimited dimension.
         dim = Dimension('time')
         var = Variable(name='time', value=[4, 5, 6], dimensions=dim)
-        self.assertEqual(len(dim), 3)
         self.assertEqual(var.shape, (3,))
+        self.assertEqual(len(dim), 3)
         # Copies are made after slicing.
         sub = var[1]
         self.assertEqual(len(dim), 3)

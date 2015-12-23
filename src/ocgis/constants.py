@@ -32,7 +32,7 @@ DEFAULT_NAME_ROW_COORDINATES = 'yc'
 DEFAULT_NAME_COL_COORDINATES = 'xc'
 
 #: Default corners dimension name.
-DEFAULT_NAME_CORNERS_DIMENSION = 'ncorners'
+DEFAULT_NAME_CORNERS_DIMENSION = 'corners'
 
 #: Default rotated pole ellipse for transformation.
 PROJ4_ROTATED_POLE_ELLPS = 'sphere'
