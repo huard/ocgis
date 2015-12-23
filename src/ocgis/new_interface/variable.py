@@ -612,6 +612,9 @@ class BoundedVariable(SourcedVariable):
                     name_corners = constants.DEFAULT_NAME_CORNERS_DIMENSION
                 names.append(name_corners)
             self.bounds.create_dimensions(names=names)
+            synced_dimensions = list(self.bounds.dimensions)
+            synced_dimensions[0] = self.dimensions[0]
+            self.bounds.dimensions = synced_dimensions
 
     def write_netcdf(self, *args, **kwargs):
         super(BoundedVariable, self).write_netcdf(*args, **kwargs)
@@ -670,6 +673,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if variable.alias in self:
             raise VariableInCollectionError(variable)
         self[variable.alias] = variable
+
+    def copy(self):
+        ret = self.copy()
+        ret.attrs = ret.attrs.copy()
+        return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
