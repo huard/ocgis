@@ -325,9 +325,13 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.value.dtype, dtype)
         self.assertEqual(var.value.fill_value, fill_value)
 
+    def test_tdk(self):
         var = Variable('foo')
         self.assertEqual(var.shape, tuple())
-        self.assertIsNone(var.dimensions)
+        self.assertEqual(var.dimensions, tuple())
+        var.value = [2, 3, 4]
+        print var.shape
+        print var.value
 
         var = Variable('foo', value=[4, 5, 6])
         self.assertEqual(var.shape, (3,))
