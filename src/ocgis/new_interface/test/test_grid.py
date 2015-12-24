@@ -159,8 +159,10 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_dimensions(self):
         grid = self.get_gridxy()
+        grid.create_dimensions()
+        print grid.dimensions
         self.assertEqual(grid.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
-
+        thh
         grid = self.get_gridxy(with_dimensions=True)
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))

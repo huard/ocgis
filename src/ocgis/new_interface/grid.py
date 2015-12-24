@@ -1,7 +1,6 @@
 import itertools
 from abc import abstractmethod, ABCMeta
 from collections import OrderedDict
-from copy import copy
 
 import numpy as np
 from shapely.geometry import box
@@ -92,8 +91,9 @@ class GridXY(AbstractSpatialVariable):
         """
 
         slc = get_formatted_slice(slc, self.ndim)
-        ret = copy(self)
-        ret.dimensions = [d[s] for d, s in itertools.izip(self.dimensions, get_iter(slc, dtype=slice))]
+        ret = self.copy()
+        if ret.dimensions is not None:
+            ret.dimensions = [d[s] for d, s in zip(self.dimensions, get_iter(slc, dtype=slice))]
         if self._y is not None:
             if self.is_vectorized:
                 ret.y = self.y[slc[0]]
@@ -174,12 +174,10 @@ class GridXY(AbstractSpatialVariable):
 
     @property
     def is_vectorized(self):
-        y = self._y
-        if y is not None and y.ndim == 1:
+        if self.y.ndim == 1:
             ret = True
         else:
             ret = False
-
         return ret
 
     @property
@@ -220,6 +218,14 @@ class GridXY(AbstractSpatialVariable):
             to_mean = [rows, cols]
         ret = np.mean(to_mean)
         return ret
+
+    def create_dimensions(self, names=None):
+        if names is None:
+            name_y, name_x = [None] * 2
+        else:
+            name_y, name_x = names
+        if self.is_vectorized:
+            self.y.create_dimensions()
 
     def get_mask(self):
         ret = self.value.mask[0]
@@ -352,17 +358,6 @@ class GridXY(AbstractSpatialVariable):
         if self.crs is not None:
             self.crs.write_to_rootgrp(dataset)
 
-    def _get_dimensions_(self):
-        if self.is_vectorized:
-            ret = [self.y.dimensions[0], self.x.dimensions[0]]
-        else:
-            ret = list(self.y.dimensions)
-
-        ret[0].name = self.name_y
-        ret[1].name = self.name_x
-
-        return tuple(ret)
-
     def _get_extent_(self):
         if not self.is_vectorized:
             corners = self.corners
@@ -393,11 +388,19 @@ class GridXY(AbstractSpatialVariable):
         return minx, miny, maxx, maxy
 
     def _get_shape_(self):
-        ret = super(GridXY, self)._get_shape_()
-        # Trim the first dimension. It is always 2 for grids.
-        if len(ret) == 3:
-            ret = tuple(list(ret)[1:])
-        assert len(ret) == 2
+        if self.is_vectorized:
+            ret = (self.y.shape[0], self.x.shape[0])
+        else:
+            ret = self.y.shape
+        return ret
+        # tdk: remove
+        # ret = super(GridXY, self)._get_shape_()
+        # if len(ret) == 0:
+        #     if self.is_vectorized:
+        # # Trim the first dimension. It is always 2 for grids.
+        # if len(ret) == 3:
+        #     ret = tuple(list(ret)[1:])
+        # assert len(ret) == 2
         return ret
 
     def _get_value_(self):
@@ -424,21 +427,24 @@ class GridXY(AbstractSpatialVariable):
 
 
 def get_dimension_variable(axis_string, gridxy, idx, variable_name):
-    if gridxy._dimensions is None:
-        dim_y = Dimension(gridxy.name_y, length=gridxy.shape[0])
-        dim_x = Dimension(gridxy.name_x, length=gridxy.shape[1])
+    if gridxy.dimensions is not None:
+        dimensions = gridxy.dimensions
     else:
-        dim_y, dim_x = gridxy.dimensions
+        dimensions = None
     attrs = OrderedDict({'axis': axis_string})
     # Only write the corners if they have been loaded.
     if gridxy._corners is not None:
-        dim_n_corners = (Dimension('n_corners', length=4))
-        corners = Variable(name='{}_corners'.format(variable_name), dimensions=(dim_y, dim_x, dim_n_corners),
+        if dimensions is not None:
+            dim_ncorners = Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)
+            dimensions_corners = list(dimensions) + [dim_ncorners]
+        else:
+            dimensions_corners = None
+        corners = Variable(name='{}_corners'.format(variable_name), dimensions=dimensions_corners,
                            value=gridxy.corners[idx, :, :, :])
         attrs.update({'bounds': corners.name})
     else:
         corners = None
-    ret = BoundedVariable(name=variable_name, dimensions=(dim_y, dim_x), attrs=attrs,
+    ret = BoundedVariable(name=variable_name, dimensions=dimensions, attrs=attrs,
                           bounds=corners, value=gridxy.value[idx, :, :])
     return ret
 
