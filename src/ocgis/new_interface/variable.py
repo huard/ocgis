@@ -22,14 +22,14 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
+        Attributes.__init__(self, attrs=attrs)
+
         self._alias = None
         self._dimensions = None
         self._value = None
         self._dtype = None
         self._fill_value = None
         self._units = None
-
-        Attributes.__init__(self, attrs=attrs)
 
         self.name = name
         self.units = units

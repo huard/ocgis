@@ -79,16 +79,6 @@ class TestGridXY(AbstractTestNewInterface):
         grid = self.get_gridxy(with_value=True)
         self.assertIsNotNone(grid._value)
 
-        grid = self.get_gridxy()
-        self.assertIsNone(grid.dimensions)
-        grid = self.get_gridxy(with_dimensions=True)
-        self.assertIsNotNone(grid.dimensions)
-
-        grid = self.get_gridxy()
-        grid.create_dimensions()
-        self.assertIsNone(grid._dimensions)
-        self.assertEqual(len(grid.dimensions), 2)
-
     def test_corners(self):
         # Test constructing from x/y bounds.
         grid = self.get_gridxy()
@@ -170,9 +160,8 @@ class TestGridXY(AbstractTestNewInterface):
     def test_dimensions(self):
         grid = self.get_gridxy()
         grid.create_dimensions()
-        print grid.dimensions
         self.assertEqual(grid.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
-        thh
+
         grid = self.get_gridxy(with_dimensions=True)
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
@@ -182,28 +171,41 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
         grid = self.get_gridxy(with_value_only=True)
-        self.assertIsNone(grid._x)
-        self.assertIsNone(grid._y)
-        self.assertIsInstance(grid.x, BoundedVariable)
-        self.assertIsInstance(grid.y, BoundedVariable)
+        self.assertIsNone(grid.__x__)
+        self.assertIsNone(grid.__y__)
+        self.assertIsInstance(grid._x, BoundedVariable)
+        self.assertIsInstance(grid._y, BoundedVariable)
+        self.assertIsNone(grid.dimensions)
+        self.assertIsNone(grid._y.dimensions)
+        grid.create_dimensions()
         self.assertEqual(len(grid.dimensions), 2)
+
+        grid = self.get_gridxy()
+        self.assertIsNone(grid.dimensions)
+        grid = self.get_gridxy(with_dimensions=True)
+        self.assertIsNotNone(grid.dimensions)
+
+        grid = self.get_gridxy()
+        grid.create_dimensions()
+        self.assertEqual(len(grid.dimensions), 2)
+
 
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
-            self.assertEqual(sub.x.value, 102.)
-            self.assertEqual(sub.y.value, 42.)
+            self.assertEqual(sub._x.value, 102.)
+            self.assertEqual(sub._y.value, 42.)
             self.assertIsNone(grid._value)
 
             # Test with two-dimensional x and y values.
             grid = self.get_gridxy(with_2d_variables=True, with_dimensions=with_dimensions)
             sub = grid[1:3, 1:3]
             actual_x = [[102.0, 103.0], [102.0, 103.0]]
-            self.assertEqual(sub.x.value.tolist(), actual_x)
+            self.assertEqual(sub._x.value.tolist(), actual_x)
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
-            self.assertEqual(sub.y.value.tolist(), actual_y)
+            self.assertEqual(sub._y.value.tolist(), actual_y)
             self.assertIsNone(grid._value)
 
         # Test with a value.

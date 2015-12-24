@@ -56,20 +56,17 @@ class AbstractSpatialVariable(Variable):
         :rtype: tuple
         """
 
-
 class GridXY(AbstractSpatialVariable):
     ndim = 2
 
     def __init__(self, **kwargs):
         self._corners = None
-        self._x = None
-        self._y = None
+        self.__x__ = None
+        self.__y__ = None
 
-        self.name_x = kwargs.pop('name_x', 'x')
-        self.name_y = kwargs.pop('name_y', 'y')
         try:
-            self.y = kwargs.pop('y')
-            self.x = kwargs.pop('x')
+            self._y = kwargs.pop('y')
+            self._x = kwargs.pop('x')
         except KeyError:
             if 'value' not in kwargs:
                 msg = 'At least "x" and "y" are required to make a grid without a "value".'
@@ -77,6 +74,14 @@ class GridXY(AbstractSpatialVariable):
         self.corners = kwargs.pop('corners', None)
 
         super(GridXY, self).__init__(**kwargs)
+
+        if self.__y__ is not None:
+            if self.__y__.dimensions is not None:
+                if self._y.ndim == 1:
+                    dimensions = [self._y.dimensions[0], self._x.dimensions[0]]
+                else:
+                    dimensions = self._y.dimensions
+                self.dimensions = dimensions
 
     def __getitem__(self, slc):
         """
@@ -94,15 +99,17 @@ class GridXY(AbstractSpatialVariable):
         ret = self.copy()
         if ret.dimensions is not None:
             ret.dimensions = [d[s] for d, s in zip(self.dimensions, get_iter(slc, dtype=slice))]
-        if self._y is not None:
-            if self.is_vectorized:
-                ret.y = self.y[slc[0]]
-                ret.x = self.x[slc[1]]
-            else:
-                ret.y = self.y[slc[0], slc[1]]
-                ret.x = self.x[slc[0], slc[1]]
         if self._value is not None:
             ret.value = self._value[:, slc[0], slc[1]]
+            ret.__y__ = None
+            ret.__x__ = None
+        else:
+            if self.is_vectorized:
+                ret._y = self._y[slc[0]]
+                ret._x = self._x[slc[1]]
+            else:
+                ret._y = self._y[slc[0], slc[1]]
+                ret._x = self._x[slc[0], slc[1]]
         if self._corners is not None:
             ret.corners = self.corners[:, slc[0], slc[1], :]
         return ret
@@ -118,16 +125,19 @@ class GridXY(AbstractSpatialVariable):
         4 = ul, ur, lr, ll
         """
 
-        if self._corners is None and self.x.bounds is not None:
-            x_bounds_value = self.x.bounds.value
-            y_bounds_value = self.y.bounds.value
+        y_bounds = self._y.bounds
+        if self._corners is None and y_bounds is not None:
+            x_bounds_value = self._x.bounds.value
+            y_bounds_value = self._y.bounds.value
             if x_bounds_value is None or y_bounds_value is None:
                 pass
             else:
-                fill = np.zeros([2] + list(self.shape) + [4], dtype=self.y.value.dtype)
+                dtype = self._y.value.dtype
+                ndim = self._y.ndim
+                fill = np.zeros([2] + list(self.shape) + [4], dtype=dtype)
                 col_bounds = x_bounds_value
                 row_bounds = y_bounds_value
-                if self.y.ndim == 1:
+                if ndim == 1:
                     for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
                         fill_element = fill[:, ii, jj]
                         fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
@@ -174,62 +184,55 @@ class GridXY(AbstractSpatialVariable):
 
     @property
     def dimensions(self):
-        if self._dimensions is None:
-            if self.y.dimensions is None:
-                ret = None
-            else:
-                if self.is_vectorized:
-                    ret = (self.y.dimensions[0], self.x.dimensions[0])
-                else:
-                    ret = self.y.dimensions
-        else:
-            ret = self._dimensions
-        return ret
+        return self._dimensions
 
     @dimensions.setter
     def dimensions(self, value):
         if value is not None:
             assert len(value) == 2
+            value = tuple(value)
         self._dimensions = value
 
     @property
     def is_vectorized(self):
-        if self.y.ndim == 1:
+        if self._y.ndim == 1:
             ret = True
         else:
             ret = False
         return ret
 
     @property
-    def x(self):
-        if self._x is None:
-            self._x = get_dimension_variable('X', self, 1, 'xc')
-        return self._x
+    def _x(self):
+        if self.__x__ is None:
+            self.__x__ = get_dimension_variable('X', self, 1, 'xc')
+        return self.__x__
 
-    @x.setter
-    def x(self, value):
+    @_x.setter
+    def _x(self, value):
         assert isinstance(value, Variable)
         assert value.ndim <= 2
+        value = value.copy()
         value.attrs['axis'] = 'X'
-        self._x = value
+        self.__x__ = value
 
     @property
-    def y(self):
-        if self._y is None:
-            self._y = get_dimension_variable('Y', self, 1, 'yc')
-        return self._y
+    def _y(self):
+        if self.__y__ is None:
+            self.__y__ = get_dimension_variable('Y', self, 1, 'yc')
+        return self.__y__
 
-    @y.setter
-    def y(self, value):
+    @_y.setter
+    def _y(self, value):
         assert isinstance(value, Variable)
         assert value.ndim <= 2
+        value = value.copy()
         value.attrs['axis'] = 'Y'
-        self._y = value
+        self.__y__ = value
 
     @property
     def resolution(self):
         if self.is_vectorized:
-            to_mean = [self.x.resolution, self.y.resolution]
+            to_mean = [self._y.resolution, self._y.resolution]
         else:
             resolution_limit = int(constants.RESOLUTION_LIMIT) / 2
             r_value = self.value[:, 0:resolution_limit, 0:resolution_limit]
@@ -240,15 +243,9 @@ class GridXY(AbstractSpatialVariable):
         return ret
 
     def create_dimensions(self, names=None):
-        if names is None:
-            names = [self.name_y, self.name_x]
-        dimensions = [self.y, self.x]
-        if self.is_vectorized:
-            for n, d in zip(names, dimensions):
-                d.create_dimensions(names=n)
-        else:
-            for d in dimensions:
-                d.create_dimensions(names=names)
+        names = [self._y.alias, self._x.alias]
+        newdims = [Dimension(n, l) for n, l in zip(names, self.shape)]
+        self.dimensions = newdims
 
     def get_mask(self):
         ret = self.value.mask[0]
@@ -370,13 +367,14 @@ class GridXY(AbstractSpatialVariable):
             update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
 
         # Reset the dimension variables.
-        self._x = None
-        self._y = None
+        self.__x__ = None
+        self.__y__ = None
 
         self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
-        for tw in [self.y, self.x]:
+        # tdk: RESUME: add name_y and name_x back? allow grid to control names of x and y variables
+        for tw in [self._y, self._x]:
             tw.write_netcdf(dataset, **kwargs)
         if self.crs is not None:
             self.crs.write_to_rootgrp(dataset)
@@ -412,9 +410,9 @@ class GridXY(AbstractSpatialVariable):
 
     def _get_shape_(self):
         if self.is_vectorized:
-            ret = (self.y.shape[0], self.x.shape[0])
+            ret = (self._y.shape[0], self._x.shape[0])
         else:
-            ret = self.y.shape
+            ret = self._y.shape
         return ret
         # tdk: remove
         # ret = super(GridXY, self)._get_shape_()
@@ -428,11 +426,13 @@ class GridXY(AbstractSpatialVariable):
 
     def _get_value_(self):
         if self._value is None:
+            x = self._x
+            y = self._y
             if self.is_vectorized:
-                new_x, new_y = np.meshgrid(self.x.value, self.y.value)
-                shp = (2, len(self.y), len(self.x))
+                new_x, new_y = np.meshgrid(x.value, y.value)
+                shp = (2, len(y), len(x))
             else:
-                new_x, new_y = self.x.value, self.y.value
+                new_x, new_y = x.value, y.value
                 shp = [2] + list(new_x.shape)
 
             fill = np.zeros(shp)
