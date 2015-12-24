@@ -48,7 +48,6 @@ class Variable(AbstractInterfaceObject, Attributes):
                 for idx, d in enumerate(dimensions):
                     if d.length is None and d.length_current is None:
                         d.length_current = self.shape[idx]
-                assert self._value.shape == self.shape_dimensions
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)

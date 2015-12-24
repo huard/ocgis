@@ -173,6 +173,26 @@ class GridXY(AbstractSpatialVariable):
         return fill
 
     @property
+    def dimensions(self):
+        if self._dimensions is None:
+            if self.y.dimensions is None:
+                ret = None
+            else:
+                if self.is_vectorized:
+                    ret = (self.y.dimensions[0], self.x.dimensions[0])
+                else:
+                    ret = self.y.dimensions
+        else:
+            ret = self._dimensions
+        return ret
+
+    @dimensions.setter
+    def dimensions(self, value):
+        if value is not None:
+            assert len(value) == 2
+        self._dimensions = value
+
+    @property
     def is_vectorized(self):
         if self.y.ndim == 1:
             ret = True
@@ -221,11 +241,14 @@ class GridXY(AbstractSpatialVariable):
 
     def create_dimensions(self, names=None):
         if names is None:
-            name_y, name_x = [None] * 2
-        else:
-            name_y, name_x = names
+            names = [self.name_y, self.name_x]
+        dimensions = [self.y, self.x]
         if self.is_vectorized:
-            self.y.create_dimensions()
+            for n, d in zip(names, dimensions):
+                d.create_dimensions(names=n)
+        else:
+            for d in dimensions:
+                d.create_dimensions(names=names)
 
     def get_mask(self):
         ret = self.value.mask[0]

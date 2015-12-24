@@ -79,6 +79,24 @@ class TestGridXY(AbstractTestNewInterface):
         grid = self.get_gridxy(with_value=True)
         self.assertIsNotNone(grid._value)
 
+    def test_tdk(self):
+        grid = self.get_gridxy()
+        self.assertIsNone(grid.dimensions)
+        grid = self.get_gridxy(with_dimensions=True)
+        self.assertIsNotNone(grid.dimensions)
+
+        grid = self.get_gridxy()
+        grid.create_dimensions()
+        self.assertIsNone(grid._dimensions)
+        self.assertEqual(len(grid.dimensions), 2)
+        # grid.dimensions = (Dimension(name='yy', length=4), Dimension(name='xx', length=3))
+        grid.value
+        grid._y = None
+        grid._x = None
+        print grid.dimensions
+        print grid.y.dimensions
+        print grid.x.dimensions
+
     def test_corners(self):
         # Test constructing from x/y bounds.
         grid = self.get_gridxy()
