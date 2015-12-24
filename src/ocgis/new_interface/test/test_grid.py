@@ -313,7 +313,7 @@ class TestGridXY(AbstractTestNewInterface):
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
-            self.assertNumpyAll(var[:], grid.y.value.data)
+            self.assertNumpyAll(var[:], grid._y.value.data)
 
         # Test with 2-d x and y arrays.
         grid = self.get_gridxy(with_2d_variables=True, with_dimensions=True)
@@ -322,13 +322,13 @@ class TestGridXY(AbstractTestNewInterface):
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
-            self.assertNumpyAll(var[:], grid.y.value.data)
+            self.assertNumpyAll(var[:], grid._y.value.data)
 
         # Test when the value is loaded.
         grid = self.get_gridxy(with_dimensions=True)
         self.assertIsNone(grid._value)
         grid._get_value_()
-        self.assertIsNone(grid._dimensions)
+        self.assertIsNotNone(grid._dimensions)
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:

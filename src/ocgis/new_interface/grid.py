@@ -73,20 +73,23 @@ class GridXY(AbstractSpatialVariable):
                 raise ValueError(msg)
         self.corners = kwargs.pop('corners', None)
 
-        super(GridXY, self).__init__(**kwargs)
-
+        name = kwargs.get('name')
         if self.__y__ is not None:
             if self.__y__.dimensions is not None:
                 if self._y.ndim == 1:
                     dimensions = [self._y.dimensions[0], self._x.dimensions[0]]
                 else:
                     dimensions = self._y.dimensions
-                self.dimensions = dimensions
-            if self.name is None:
-                self.name = [self.__y__.name, self.__x__.name]
+                kwargs['dimensions'] = dimensions
+            if name is None:
+                name = [self.__y__.name, self.__x__.name]
         else:
-            if self.name is None:
-                self.name = ['yc', 'xc']
+            if name is None:
+                name = ['yc', 'xc']
+        kwargs['name'] = name
+
+        super(GridXY, self).__init__(**kwargs)
+
         assert len(self.name) == 2
 
     def __getitem__(self, slc):
@@ -276,6 +279,19 @@ class GridXY(AbstractSpatialVariable):
             idx_true = np.where(value)
             self.corners.mask[:, idx_true[0], idx_true[1], :] = True
 
+    def sync(self):
+        super(GridXY, self).sync()
+        if self.__y__ is not None:
+            for n, d in zip(self.name, (self._y, self._x)):
+                d.name = n
+            if self.dimensions is not None:
+                if self.is_vectorized:
+                    self._y.dimensions = self.dimensions[0]
+                    self._x.dimensions = self.dimensions[1]
+                else:
+                    self._y.dimensions = self.dimensions
+                    self._x.dimensions = self.dimensions
+
     def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
         assert min_row <= max_row
         assert min_col <= max_col
@@ -390,7 +406,9 @@ class GridXY(AbstractSpatialVariable):
         self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
-        # tdk: RESUME: add name_y and name_x back? allow grid to control names of x and y variables
+        if self.dimensions is None:
+            self.create_dimensions(names=self.name)
+        self.sync()
         for tw in [self._y, self._x]:
             tw.write_netcdf(dataset, **kwargs)
         if self.crs is not None:

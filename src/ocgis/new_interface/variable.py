@@ -22,6 +22,10 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
+        self._should_sync = None
+
+        self.should_sync = False
+
         Attributes.__init__(self, attrs=attrs)
 
         self._alias = None
@@ -39,15 +43,28 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.dimensions = dimensions
         self.value = value
 
+        self.should_sync = True
+
+    @property
+    def should_sync(self):
+        return self._should_sync
+
+    @should_sync.setter
+    def should_sync(self, value):
+        self._should_sync = value
+        if value:
+            self.sync()
+
     def sync(self):
         # tdk: order
-        if self._value is not None:
-            # Update any unlimited dimension length.
-            dimensions = self.dimensions
-            if dimensions is not None:
-                for idx, d in enumerate(dimensions):
-                    if d.length is None and d.length_current is None:
-                        d.length_current = self.shape[idx]
+        if self.should_sync:
+            if self._value is not None:
+                # Update any unlimited dimension length.
+                dimensions = self.dimensions
+                if dimensions is not None:
+                    for idx, d in enumerate(dimensions):
+                        if d.length is None and d.length_current is None:
+                            d.length_current = self.shape[idx]
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
@@ -275,7 +292,9 @@ class Variable(AbstractInterfaceObject, Attributes):
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
-        if self.dimensions is not None:
+        if self.dimensions is None:
+            self.create_dimensions()
+        if len(self.dimensions) > 0:
             dimensions = list(self.dimensions)
             # Convert the unlimited dimension to fixed size if requested.
             for idx, d in enumerate(dimensions):
@@ -286,8 +305,6 @@ class Variable(AbstractInterfaceObject, Attributes):
             for dim in dimensions:
                 create_dimension_or_pass(dim, dataset)
             dimensions = [d.name for d in dimensions]
-        else:
-            dimensions = []
         # Only use the fill value if something is masked.
         if len(dimensions) > 0 and not file_only and self.get_mask().any():
             fill_value = self.fill_value
