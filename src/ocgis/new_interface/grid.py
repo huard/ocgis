@@ -82,6 +82,12 @@ class GridXY(AbstractSpatialVariable):
                 else:
                     dimensions = self._y.dimensions
                 self.dimensions = dimensions
+            if self.name is None:
+                self.name = [self.__y__.name, self.__x__.name]
+        else:
+            if self.name is None:
+                self.name = ['yc', 'xc']
+        assert len(self.name) == 2
 
     def __getitem__(self, slc):
         """
@@ -124,6 +130,9 @@ class GridXY(AbstractSpatialVariable):
         column
         4 = ul, ur, lr, ll
         """
+
+        if self._corners is not None:
+            return self._corners
 
         y_bounds = self._y.bounds
         if self._corners is None and y_bounds is not None:
@@ -202,6 +211,14 @@ class GridXY(AbstractSpatialVariable):
         return ret
 
     @property
+    def x(self):
+        raise NotImplementedError
+
+    @property
+    def y(self):
+        raise NotImplementedError
+
+    @property
     def _x(self):
         if self.__x__ is None:
             self.__x__ = get_dimension_variable('X', self, 1, 'xc')
@@ -263,7 +280,7 @@ class GridXY(AbstractSpatialVariable):
         assert min_row <= max_row
         assert min_col <= max_col
 
-        if self.y.ndim == 2:
+        if self._y.ndim == 2:
             assert not use_bounds
             r_row = self.value.data[0, :, :]
             real_idx_row = np.arange(0, r_row.shape[0])
@@ -304,10 +321,10 @@ class GridXY(AbstractSpatialVariable):
                 else:
                     raise
         else:
-            new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
-                                                      use_bounds=use_bounds)
-            new_col, col_indices = self.x.get_between(min_col, max_col, return_indices=True, closed=closed,
-                                                      use_bounds=use_bounds)
+            new_row, row_indices = self._y.get_between(min_row, max_row, return_indices=True, closed=closed,
+                                                       use_bounds=use_bounds)
+            new_col, col_indices = self._x.get_between(min_col, max_col, return_indices=True, closed=closed,
+                                                       use_bounds=use_bounds)
             row_slc = get_reduced_slice(row_indices)
             col_slc = get_reduced_slice(col_indices)
 

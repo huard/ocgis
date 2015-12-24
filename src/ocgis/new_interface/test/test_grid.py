@@ -52,9 +52,11 @@ class TestGridXY(AbstractTestNewInterface):
             else:
                 self.assertFalse(grid.corners.mask[:, ii, jj].any())
 
-        if grid.y is not None or grid.x is not None:
-            self.assertEqual(_get_is_ascending_(grid.y.value), _get_is_ascending_(grid.corners.data[0, :, 0][:, 0]))
-            self.assertEqual(_get_is_ascending_(grid.x.value), _get_is_ascending_(grid.corners.data[1, 0, :][:, 0]))
+        grid_y = grid._y
+        grid_x = grid._x
+        if grid_y is not None or grid_x is not None:
+            self.assertEqual(_get_is_ascending_(grid_y.value), _get_is_ascending_(grid.corners.data[0, :, 0][:, 0]))
+            self.assertEqual(_get_is_ascending_(grid_x.value), _get_is_ascending_(grid.corners.data[1, 0, :][:, 0]))
 
     def get_iter(self, return_kwargs=False):
         poss = [True, False]
@@ -82,18 +84,19 @@ class TestGridXY(AbstractTestNewInterface):
     def test_corners(self):
         # Test constructing from x/y bounds.
         grid = self.get_gridxy()
-        grid.x = BoundedVariable(value=grid.x.value, name='x')
-        grid.y = BoundedVariable(value=grid.y.value, name='y')
-        grid.x.set_extrapolated_bounds()
-        grid.y.set_extrapolated_bounds()
+        grid._x = BoundedVariable(value=grid._x.value, name='x')
+        grid._y = BoundedVariable(value=grid._y.value, name='y')
+        grid._x.set_extrapolated_bounds()
+        grid._y.set_extrapolated_bounds()
         corners = grid.corners.copy()
         value = grid.value.copy()
         self.assertIsNotNone(corners)
-        self.assertEqual(corners.shape, (2, grid.y.shape[0], grid.x.shape[0], 4))
+        self.assertEqual(corners.shape, (2, grid._y.shape[0], grid._x.shape[0], 4))
         self.assertGridCorners(grid)
 
         # Test initializing corners with a value.
         grid = GridXY(value=value, corners=corners)
+        self.assertIsNotNone(grid._corners)
         self.assertNumpyAll(grid.corners, corners)
 
         # Test corners are sliced.
@@ -241,8 +244,9 @@ class TestGridXY(AbstractTestNewInterface):
         args = (101.5, 40.5, 102.5, 42.5)
         sub = grid.get_subset_bbox(*args, use_bounds=False)
         self.assertTrue(np.all(sub.value.mask[:, 1, 0]))
-        sub.value.mask[:, 0, 0] = False
         self.assertTrue(np.all(grid.value.mask[:, :, 1]))
+        sub.value.mask[:, 0, 0] = False
+        self.assertFalse(np.all(grid.value.mask[:, :, 1]))
 
     def test_resolution(self):
         for grid in self.get_iter():
@@ -288,7 +292,7 @@ class TestGridXY(AbstractTestNewInterface):
         to_crs = CoordinateReferenceSystem(epsg=3395)
         grid.update_crs(to_crs)
         self.assertEqual(grid.crs, to_crs)
-        for target in [grid.value, grid.corners, grid.x.value, grid.y.value]:
+        for target in [grid.value, grid.corners, grid._x.value, grid._y.value]:
             self.assertGreater(target.mean(), 10000)
 
     def test_value(self):
