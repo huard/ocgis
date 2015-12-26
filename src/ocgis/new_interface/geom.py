@@ -110,6 +110,9 @@ class SpatialContainer(AbstractInterfaceObject):
     def shape(self):
         return get_grid_or_geom_attr(self, 'shape')
 
+    def copy(self):
+        return copy(self)
+
     def get_intersects(self, *args, **kwargs):
         return get_spatial_operation(self, 'get_intersects', args, kwargs)
 

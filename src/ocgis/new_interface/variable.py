@@ -294,8 +294,9 @@ class Variable(AbstractInterfaceObject, Attributes):
 
         if self.dimensions is None:
             self.create_dimensions()
-        if len(self.dimensions) > 0:
-            dimensions = list(self.dimensions)
+        dimensions = self.dimensions
+        if len(dimensions) > 0:
+            dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.
             for idx, d in enumerate(dimensions):
                 if d.length is None and unlimited_to_fixedsize:
