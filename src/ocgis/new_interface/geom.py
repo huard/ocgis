@@ -190,7 +190,6 @@ class PointArray(AbstractSpatialVariable):
 
     def get_intersects(self, *args, **kwargs):
         return_indices = kwargs.pop('return_indices', False)
-        # tdk: for polygon subsets we should use_bounds=False
         # First, subset the grid by the bounding box.
         if self._grid is not None:
             minx, miny, maxx, maxy = args[0].bounds
@@ -394,7 +393,7 @@ class PointArray(AbstractSpatialVariable):
         if self.grid is not None:
             ret = self.grid.dimensions
         else:
-            raise NotImplementedError
+            ret = self._dimensions
         return ret
 
     def _get_extent_(self):
@@ -447,7 +446,7 @@ class PolygonArray(PointArray):
         super(PolygonArray, self).__init__(**kwargs)
 
         if self._value is None:
-            if self._grid._corners is None and (self._grid.x.bounds is None or self._grid.y.bounds is None):
+            if self._grid._corners is None and (self._grid._x.bounds is None or self._grid._y.bounds is None):
                 msg = 'Grid "corners" must be available.'
                 raise GridDeficientError(msg)
 
@@ -467,9 +466,9 @@ class PolygonArray(PointArray):
     def _get_value_(self):
         fill = self._get_geometry_fill_()
         r_data = fill.data
-        if self.grid.is_vectorized and self.grid.y.bounds is not None:
-            ref_row_bounds = self.grid.y.bounds.value
-            ref_col_bounds = self.grid.x.bounds.value
+        if self.grid.is_vectorized and self.grid._y.bounds is not None:
+            ref_row_bounds = self.grid._y.bounds.value
+            ref_col_bounds = self.grid._x.bounds.value
             for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
                 row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
                 col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()

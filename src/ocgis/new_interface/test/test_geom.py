@@ -71,8 +71,10 @@ class TestPointArray(AbstractTestNewInterface):
         pa = PointArray(grid=grid)
         polygon = box(2.5, 15, 4.5, 45)
         sub, slc = pa.get_intersects(polygon, return_indices=True)
-        np.testing.assert_equal(sub.grid.x.value, [3, 4])
-        np.testing.assert_equal(sub.grid.y.value, [20, 30, 40])
+        self.assertIsNone(sub.grid.__x__)
+        self.assertIsNone(sub.grid.__y__)
+        np.testing.assert_equal(sub.grid._x.value, sub.grid.value[1])
+        np.testing.assert_equal(sub.grid._y.value, sub.grid.value[0])
         self.assertNumpyAll(grid[slc].value, sub.grid.value)
 
         # Test w/out an associated grid.
@@ -294,8 +296,8 @@ class TestPolygonArray(AbstractTestNewInterface):
                 poly.grid.value.mask[:, 1, 1] = True
             poly.grid.corners
             if not k.with_grid_row_col_bounds:
-                poly.grid.y.bounds = None
-                poly.grid.x.bounds = None
+                poly.grid._y.bounds = None
+                poly.grid._x.bounds = None
                 actual = self.polygon_value_alternate_ordering
             else:
                 actual = self.polygon_value

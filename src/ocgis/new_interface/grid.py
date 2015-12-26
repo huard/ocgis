@@ -238,7 +238,7 @@ class GridXY(AbstractSpatialVariable):
     @property
     def _y(self):
         if self.__y__ is None:
-            self.__y__ = get_dimension_variable('Y', self, 1, 'yc')
+            self.__y__ = get_dimension_variable('Y', self, 0, 'yc')
         return self.__y__
 
     @_y.setter
