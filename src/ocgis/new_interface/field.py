@@ -152,6 +152,9 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         self._spatial = value
         self.sync()
 
+    def copy(self):
+        return copy(self)
+
     def create_field(self, variable, schema=None, rename_dimensions=False):
         self.should_sync = False
         if schema is not None:
