@@ -275,3 +275,4 @@ def set_getitem_field_bundle(fb, slc):
                     break
     if fb.spatial is not None:
         fb.spatial = fb.spatial[spatial_slice]
+
