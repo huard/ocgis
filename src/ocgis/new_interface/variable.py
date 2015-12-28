@@ -22,10 +22,6 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
-        self._should_sync = None
-
-        self.should_sync = False
-
         Attributes.__init__(self, attrs=attrs)
 
         self._alias = None
@@ -42,29 +38,6 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.alias = alias
         self.dimensions = dimensions
         self.value = value
-
-        self.should_sync = True
-
-    @property
-    def should_sync(self):
-        return self._should_sync
-
-    @should_sync.setter
-    def should_sync(self, value):
-        self._should_sync = value
-        if value:
-            self.sync()
-
-    def sync(self):
-        # tdk: order
-        if self.should_sync:
-            if self._value is not None:
-                # Update any unlimited dimension length.
-                dimensions = self.dimensions
-                if dimensions is not None:
-                    for idx, d in enumerate(dimensions):
-                        if d.length is None and d.length_current is None:
-                            d.length_current = self.shape[idx]
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
@@ -163,14 +136,6 @@ class Variable(AbstractInterfaceObject, Attributes):
     def shape(self):
         return self._get_shape_()
 
-    @property
-    def shape_dimensions(self):
-        if self.dimensions is None:
-            ret = tuple()
-        else:
-            ret = tuple([len(d) for d in get_iter(self.dimensions, dtype=Dimension)])
-        return ret
-
     def _get_shape_(self):
         return get_shape_from_variable(self)
 
@@ -210,7 +175,7 @@ class Variable(AbstractInterfaceObject, Attributes):
             if not isinstance(value, MaskedArray):
                 value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value, mask=False)
         self._value = value
-        self.sync()
+        update_unlimited_dimension_length(self)
 
     def cfunits_conform(self, to_units, from_units=None):
         """
@@ -749,18 +714,17 @@ def get_dimension_lengths(dimensions):
 
 
 def get_shape_from_variable(variable):
-    _dimensions = variable.dimensions
-    _value = variable._value
-    if _dimensions is not None and not has_unlimited_dimension(_dimensions):
-        ret = get_dimension_lengths(_dimensions)
-    elif _value is None:
-        dimensions = variable.dimensions
+    dimensions = variable.dimensions
+    value = variable._value
+    if dimensions is not None and not has_unlimited_dimension(dimensions):
+        ret = get_dimension_lengths(dimensions)
+    elif value is None:
         if dimensions is None:
             ret = tuple()
         else:
             ret = get_dimension_lengths(dimensions)
     else:
-        ret = _value.shape
+        ret = value.shape
 
     return ret
 
@@ -808,3 +772,20 @@ def set_variable_metadata_from_source(variable):
     finally:
         ds.close()
     variable._allocated = True
+
+
+def update_unlimited_dimension_length(variable):
+    """
+    Updaate unlimited dimension length if present on the variable. Update only occurs if the variable's value is
+    allocated.
+
+    :param variable: The target variable holding the dimensions.
+    :type variable: :class:`ocgis.new_interface.variable.Variable`
+    """
+    if variable._value is not None:
+        # Update any unlimited dimension length.
+        dimensions = variable.dimensions
+        if dimensions is not None:
+            for idx, d in enumerate(dimensions):
+                if d.length is None and d.length_current is None:
+                    d.length_current = variable.shape[idx]
