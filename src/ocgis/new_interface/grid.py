@@ -56,6 +56,7 @@ class AbstractSpatialVariable(Variable):
         :rtype: tuple
         """
 
+
 class GridXY(AbstractSpatialVariable):
     ndim = 2
 
@@ -215,10 +216,12 @@ class GridXY(AbstractSpatialVariable):
 
     @property
     def x(self):
+        # tdk: remove
         raise NotImplementedError
 
     @property
     def y(self):
+        # tdk: remove
         raise NotImplementedError
 
     @property
@@ -272,25 +275,17 @@ class GridXY(AbstractSpatialVariable):
         assert ret.ndim == 2
         return ret
 
+    def _set_dimensions_(self, value):
+        # tdk: order
+        super(GridXY, self)._set_dimensions_(value)
+        update_xy_dimensions(self)
+
     def set_mask(self, value):
         assert value.ndim == 2
         self.value.mask[:, :, :] = value
         if self.corners is not None:
             idx_true = np.where(value)
             self.corners.mask[:, idx_true[0], idx_true[1], :] = True
-
-    def sync(self):
-        super(GridXY, self).sync()
-        if self.__y__ is not None:
-            for n, d in zip(self.name, (self._y, self._x)):
-                d.name = n
-            if self.dimensions is not None:
-                if self.is_vectorized:
-                    self._y.dimensions = self.dimensions[0]
-                    self._x.dimensions = self.dimensions[1]
-                else:
-                    self._y.dimensions = self.dimensions
-                    self._x.dimensions = self.dimensions
 
     def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
         assert min_row <= max_row
@@ -408,7 +403,7 @@ class GridXY(AbstractSpatialVariable):
     def write_netcdf(self, dataset, **kwargs):
         if self.dimensions is None:
             self.create_dimensions(names=self.name)
-        self.sync()
+        update_xy_dimensions(self)
         for tw in [self._y, self._x]:
             tw.write_netcdf(dataset, **kwargs)
         if self.crs is not None:
@@ -531,3 +526,22 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
     for ii, geom in enumerate(geomcol):
         value_col[ii] = geom.GetX()
         value_row[ii] = geom.GetY()
+
+
+def update_xy_dimensions(grid):
+    """
+    Update dimensions on "x" and "y" grid components.
+
+    :param grid: The target grid object.
+    :type grid: :class:`ocgis.new_interface.grid.GridXY`
+    """
+    if grid.__y__ is not None:
+        for n, d in zip(grid.name, (grid._y, grid._x)):
+            d.name = n
+        if grid.dimensions is not None:
+            if grid.is_vectorized:
+                grid._y.dimensions = grid.dimensions[0]
+                grid._x.dimensions = grid.dimensions[1]
+            else:
+                grid._y.dimensions = grid.dimensions
+                grid._x.dimensions = grid.dimensions
