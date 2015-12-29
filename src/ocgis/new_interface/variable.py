@@ -48,6 +48,11 @@ class Variable(AbstractInterfaceObject, Attributes):
             ret.value = ret.value.__getitem__(slc)
         return ret
 
+    def __setitem__(self, slc, value):
+        # tdk: order
+        slc = get_formatted_slice(slc, self.ndim)
+        self.value[slc] = value
+
     def __len__(self):
         return self.shape[0]
 

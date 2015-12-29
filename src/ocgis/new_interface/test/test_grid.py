@@ -192,7 +192,6 @@ class TestGridXY(AbstractTestNewInterface):
         grid.create_dimensions()
         self.assertEqual(len(grid.dimensions), 2)
 
-
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get_gridxy(with_dimensions=with_dimensions)
@@ -279,6 +278,11 @@ class TestGridXY(AbstractTestNewInterface):
         grid.set_mask(mask)
         self.assertTrue(np.all(grid.corners.mask[:, 1, 1, :]))
         self.assertTrue(np.all(grid.value.mask[:, 1, 1]))
+
+    def test_setitem(self):
+        grid = self.get_gridxy()
+        grid[:] = 1e5
+        self.assertEqual(grid.value.mean(), 1e5)
 
     def test_shape(self):
         for grid in self.get_iter():

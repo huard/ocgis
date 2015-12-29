@@ -434,6 +434,19 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable(name='hat', value=[1., 2., 3.])
         self.assertEqual(var.shape, (3,))
 
+    def test_setitem(self):
+        var = Variable('one', [4, 5, 6, 7, 8, 9])
+        var[3] = 4000.5
+        self.assertEqual(var[3].value, 4000)
+
+        value = np.zeros((3, 4), dtype=int)
+        var = Variable(value=value)
+        with self.assertRaises(IndexError):
+            var[1] = 4500
+        var[1, 1:3] = 6700
+        self.assertTrue(np.all(var.value[1, 1:3] == 6700))
+        self.assertAlmostEqual(var.value.mean(), 1116.66666666)
+
     def test_shape(self):
         # Test shape with unlimited dimension.
         dim = Dimension('time')
