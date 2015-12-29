@@ -1,8 +1,10 @@
 import numpy as np
+from numpy.testing.utils import assert_array_equal
 
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.variable import Variable
 
 
 class TestDimension(AbstractTestNewInterface):
@@ -16,6 +18,38 @@ class TestDimension(AbstractTestNewInterface):
 
         dim = Dimension('foo', length=23)
         self.assertEqual(dim.length, 23)
+
+    def test_attach_variable(self):
+        # tdk: test unlimited dimensions
+        # tdk: test attaching a variable with the same dimension as the target
+        dim = Dimension('foo', 3)
+        var = Variable(value=[1, 2, 3], name='foobar')
+        dim.attach_variable(var)
+        var.dimensions = Dimension('loop', 3)
+        self.assertIsNone(dim._variable.dimensions)
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            dim.write_netcdf(ds)
+        with self.nc_scope(path) as ds:
+            ncvar = ds.variables['foobar']
+            self.assertEqual(ncvar.dimensions, ('foo',))
+
+        # Test with an unlimited dimension.
+        dim = Dimension('time')
+        value = [4, 5, 6, 7, 8]
+        var = Variable('time_data', value, dimensions=dim)
+        dim.attach_variable(var)
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            dim.write_netcdf(ds)
+        with self.nc_scope(path) as ds:
+            ncvar = ds.variables['time_data']
+            self.assertEqual(ncvar.dimensions, ('time',))
+            ncdim_time = ds.dimensions['time']
+            self.assertTrue(ncdim_time.isunlimited())
+        sub = dim[2:4]
+        self.assertIsNotNone(sub._variable)
+        self.assertNumpyAll(sub._variable.value, var.value[2:4])
 
     def test_getitem(self):
         dim = Dimension('foo', length=50)

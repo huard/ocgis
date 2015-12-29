@@ -11,7 +11,7 @@ from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, Em
     ResolutionError, NoUnitsError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.dimension import Dimension, SourcedDimension
+from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_conformed_units
 
@@ -702,11 +702,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         finally:
             ds.close()
         return ret
-
-
-def create_dimension_or_pass(dim, dataset):
-    if dim.name not in dataset.dimensions:
-        dataset.createDimension(dim.name, dim.length)
 
 
 def get_dimension_lengths(dimensions):

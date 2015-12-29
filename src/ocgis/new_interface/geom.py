@@ -128,6 +128,9 @@ class SpatialContainer(AbstractInterfaceObject):
     def update_crs(self, *args, **kwargs):
         self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs=kwargs, inplace=True)
 
+    def write_netcdf(self, *args, **kwargs):
+        raise NotImplementedError
+
     def _apply_(self, targets, func, args, kwargs=None, inplace=False):
         kwargs = kwargs or {}
         for target_name in targets:

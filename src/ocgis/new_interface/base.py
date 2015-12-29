@@ -8,6 +8,10 @@ class AbstractInterfaceObject(object):
     def copy(self):
         """Return a shallow copy of self."""
 
+    @abstractmethod
+    def write_netcdf(self, *args, **kwargs):
+        """Write to an open NetCDF dataset object."""
+
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):
     ret = {}

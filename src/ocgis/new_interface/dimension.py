@@ -8,6 +8,7 @@ from ocgis.util.helpers import get_formatted_slice
 
 class Dimension(AbstractInterfaceObject):
     def __init__(self, name, length=None, length_current=None):
+        self._variable = None
         self.name = name
         self.length = length
         self.length_current = length_current
@@ -21,6 +22,12 @@ class Dimension(AbstractInterfaceObject):
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)
+        ret = self.copy()
+
+        if ret._variable is not None:
+            assert ret._variable.dimensions is None
+            ret._variable = ret._variable[slc]
+
         try:
             length = len(slc)
         except TypeError:
@@ -55,12 +62,12 @@ class Dimension(AbstractInterfaceObject):
             if length < 0:
                 # This is using negative indexing. Subtract from the current length.
                 length = length + self.length_current
-            ret = self.__class__(self.name, length_current=length)
+            ret.length_current = length
         else:
             if length < 0:
                 # This is using negative indexing. Subtract from the current length.
                 length = length + self.length
-            ret = self.__class__(self.name, length=length)
+            ret.length = length
         return ret
 
     def __len__(self):
@@ -79,8 +86,32 @@ class Dimension(AbstractInterfaceObject):
         msg = "{0}(name='{1}', length={2})".format(self.__class__.__name__, self.name, self.length)
         return msg
 
+    @property
+    def is_unlimited(self):
+        if self.length is None:
+            ret = True
+        else:
+            ret = False
+        return ret
+
+    def attach_variable(self, variable):
+        if not self.is_unlimited:
+            assert len(self) == variable.shape[0]
+        assert variable.ndim == 1
+        self._variable = variable.copy()
+        self._variable.dimensions = None
+
     def copy(self):
         return copy(self)
+
+    def write_netcdf(self, dataset, **kwargs):
+        create_dimension_or_pass(self, dataset)
+        if self._variable is not None:
+            self._variable.dimensions = self
+            try:
+                self._variable.write_netcdf(dataset, **kwargs)
+            finally:
+                self._variable.dimensions = None
 
 
 class SourcedDimension(Dimension):
@@ -133,3 +164,8 @@ class SourcedDimension(Dimension):
         ret = super(SourcedDimension, self).copy()
         ret.__src_idx__ = ref
         return ret
+
+
+def create_dimension_or_pass(dim, dataset):
+    if dim.name not in dataset.dimensions:
+        dataset.createDimension(dim.name, dim.length)
