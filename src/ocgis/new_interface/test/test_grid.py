@@ -5,7 +5,7 @@ from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
-from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -69,6 +69,36 @@ class TestGridXY(AbstractTestNewInterface):
             if return_kwargs:
                 ret = (ret, k)
             yield ret
+
+    def test(self):
+        # tdk: add mechanism for asserting variable dimensions match variable values
+        # Test behavior of dimension-attached variables.
+        dx = SourcedDimension('dx', 3)
+        dy = SourcedDimension('dy', 4)
+        x = Variable(value=[1, 2, 3], name='x', dimensions=dx)
+        y = Variable(value=[10, 20, 30, 40], name='y', dimensions=dy)
+        tas = Variable(value=np.random.rand(4, 3), dimensions=[dy, dx])
+
+        dx.attach_variable(x)
+        dy.attach_variable(y)
+
+        self.assertTrue(np.may_share_memory(dx._variable.value, x.value))
+        self.assertTrue(np.may_share_memory(dy._variable.value, y.value))
+
+        sub = tas[2:4, 1]
+
+        self.assertNumpyAll(sub.dimensions[0]._variable.value, y[2:4].value)
+        self.assertNumpyAll(sub.dimensions[1]._variable.value, x[1].value)
+
+        grid = GridXY(x=x, y=y)
+        original_dim_ids = [id(d) for d in grid.dimensions]
+        self.assertEqual(id(grid._x.dimensions[0]), original_dim_ids[1])
+        grid[:] = 1000
+        self.assertEqual(grid._x.value.mean(), 1000)
+        self.assertEqual(id(grid._x.dimensions[1]), original_dim_ids[1])
+        self.assertEqual(id(grid._x.dimensions[0]), original_dim_ids[0])
+        self.assertEqual(map(id, grid.dimensions), original_dim_ids)
+        self.assertTrue(np.may_share_memory(grid.dimensions[0]._src_idx, dy._src_idx))
 
     def test_init(self):
         grid = self.get_gridxy()

@@ -124,6 +124,11 @@ class GridXY(AbstractSpatialVariable):
             ret.corners = self.corners[:, slc[0], slc[1], :]
         return ret
 
+    def __setitem__(self, slc, value):
+        super(GridXY, self).__setitem__(slc, value)
+        self.__y__ = None
+        self.__x__ = None
+
     @property
     def corners(self):
         """
