@@ -185,15 +185,25 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
 
-    def test_tdk(self):
         # Test extrapolating bounds on 2d variable.
-        value = np.array([[2, 3], [4, 5]], dtype=float)
-        bv = BoundedVariable(value=value, name='two_dee')
+        value = np.array([[2, 2.5],
+                          [1, 1.5],
+                          [0, 0.5]], dtype=float)
+        dims = (Dimension('y', 3), Dimension('x', 2))
+        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
         self.assertIsNone(bv.bounds)
         bv.set_extrapolated_bounds()
         bounds_value = bv.bounds.value
-        print bounds_value
+        actual = [[[2.25, 2.75, 1.75, 1.25], [2.75, 3.25, 2.25, 1.75]],
+                  [[1.25, 1.75, 0.75, 0.25], [1.75, 2.25, 1.25, 0.75]],
+                  [[0.25, 0.75, -0.25, -0.75], [0.75, 1.25, 0.25, -0.25]]]
+        actual = np.ma.array(actual, mask=False)
+        self.assertNumpyAll(actual, bounds_value)
         self.assertEqual(bounds_value.ndim, 3)
+        bounds_dimensions = bv.bounds.dimensions
+        self.assertEqual(bv.bounds.name, 'two_dee_bounds')
+        self.assertEqual(len(bounds_dimensions), 3)
+        self.assertEqual(bounds_dimensions[2].name, constants.DEFAULT_NAME_CORNERS_DIMENSION)
 
     def test_write_netcdf(self):
         bv = self.get_boundedvariable()

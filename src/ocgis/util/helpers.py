@@ -426,17 +426,19 @@ def get_ocgis_corners_from_esmf_corners(ecorners):
     :rtype: :class:`~numpy.ma.core.MaskedArray`
     """
 
-    base_shape = [xx - 1 for xx in ecorners.shape[1:]]
-    grid_corners = np.zeros([2] + base_shape + [4], dtype=ecorners.dtype)
+    assert ecorners.ndim == 2
+
+    # ESMF corners have an extra row and column.
+    base_shape = [xx - 1 for xx in ecorners.shape]
+    grid_corners = np.zeros(base_shape + [4], dtype=ecorners.dtype)
+    # Uppler left, upper right, lower right, lower left
     slices = [(0, 0), (0, 1), (1, 1), (1, 0)]
-    # collect the corners and insert into ocgis corners array
     for ii, jj in itertools.product(range(base_shape[0]), range(base_shape[1])):
         row_slice = slice(ii, ii + 2)
         col_slice = slice(jj, jj + 2)
-        row_corners = ecorners[0][row_slice, col_slice]
-        col_corners = ecorners[1][row_slice, col_slice]
+        corners = ecorners[row_slice, col_slice]
         for kk, slc in enumerate(slices):
-            grid_corners[:, ii, jj, kk] = row_corners[slc], col_corners[slc]
+            grid_corners[ii, jj, kk] = corners[slc]
     grid_corners = np.ma.array(grid_corners, mask=False)
     return grid_corners
 

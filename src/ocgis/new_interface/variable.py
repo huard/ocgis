@@ -582,10 +582,15 @@ class BoundedVariable(SourcedVariable):
             bounds_value = get_extrapolated_corners_esmf(self.value)
             bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
 
-        if self.dimensions is None:
+        dimensions = self.dimensions
+        if dimensions is None:
             dims = None
         else:
-            dims = [self.dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
+            if self.ndim == 1:
+                dims = [dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
+            else:
+                dims = list(dimensions) + [Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)]
+
         var = Variable(name, value=bounds_value, dimensions=dims)
         self.bounds = var
         self._has_extrapolated_bounds = True
