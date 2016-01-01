@@ -14,8 +14,10 @@ from ocgis.util.units import get_units_object, get_are_units_equal
 
 
 class TestBoundedVariable(AbstractTestNewInterface):
-    def get_boundedvariable(self, with_bounds=True):
+    def get_boundedvariable(self, with_bounds=True, mask=None):
         value = np.array([4, 5, 6], dtype=float)
+        if mask is not None:
+            value = np.ma.array(value, mask=mask)
         if with_bounds:
             value_bounds = get_bounds_from_1d(value)
             bounds = Variable('x_bounds', value=value_bounds)
@@ -177,20 +179,19 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertNumpyAll(ret.bounds.value, np.ma.array([[2., 4.]]))
 
     def test_set_extrapolated_bounds(self):
-        bv = self.get_boundedvariable(with_bounds=False)
+        bv = self.get_boundedvariable(with_bounds=False, mask=[False, True, False])
         self.assertIsNone(bv.bounds)
         self.assertFalse(bv._has_extrapolated_bounds)
         bv.set_extrapolated_bounds()
         self.assertTrue(bv._has_extrapolated_bounds)
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
+        bounds_mask = bv.bounds.get_mask()
+        self.assertTrue(np.all(bounds_mask[1, :]))
+        self.assertEqual(bounds_mask.sum(), 2)
 
         # Test extrapolating bounds on 2d variable.
-        value = np.array([[2, 2.5],
-                          [1, 1.5],
-                          [0, 0.5]], dtype=float)
-        dims = (Dimension('y', 3), Dimension('x', 2))
-        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
+        bv = self.get_boundedvariable_2d()
         self.assertIsNone(bv.bounds)
         bv.set_extrapolated_bounds()
         bounds_value = bv.bounds.value
@@ -204,6 +205,35 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertEqual(bv.bounds.name, 'two_dee_bounds')
         self.assertEqual(len(bounds_dimensions), 3)
         self.assertEqual(bounds_dimensions[2].name, constants.DEFAULT_NAME_CORNERS_DIMENSION)
+
+    def get_boundedvariable_2d(self):
+        # tdk: order
+        value = np.array([[2, 2.5],
+                          [1, 1.5],
+                          [0, 0.5]], dtype=float)
+        dims = (Dimension('y', 3), Dimension('x', 2))
+        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
+        return bv
+
+    def test_set_mask(self):
+        bv = self.get_boundedvariable(with_bounds=True)
+        bv.set_mask(np.array([False, True, False]))
+        bounds_mask = bv.bounds.get_mask()
+        self.assertTrue(np.all(bounds_mask[1, :]))
+        self.assertEqual(bounds_mask.sum(), 2)
+
+        # Test with two dimensions.
+        bv = self.get_boundedvariable_2d()
+        bv.set_extrapolated_bounds()
+        self.assertEqual(bv.bounds.ndim, 3)
+        mask = np.array([[False, True],
+                         [False, False],
+                         [True, False]], dtype=bool)
+        bv.set_mask(mask)
+        bounds_mask = bv.bounds.get_mask()
+        for slc in ((0, 1), (2, 0)):
+            self.assertTrue(np.all(bounds_mask[slc]))
+        self.assertEqual(bounds_mask.sum(), 8)
 
     def test_write_netcdf(self):
         bv = self.get_boundedvariable()

@@ -19,6 +19,15 @@ CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeo
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
 
 
+def expand_needed(func):
+    def func_wrapper(*args, **kwargs):
+        obj = args[0]
+        obj.expand()
+        return func(*args, **kwargs)
+
+    return func_wrapper
+
+
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
@@ -134,18 +143,19 @@ class GridXY(AbstractSpatialContainer):
     def expand(self):
         # tdk: doc
 
-        new_x_value, new_y_value = np.meshgrid(self.x.value, self.y.value)
-        new_dimensions = self.dimensions
+        if self.y.ndim == 1:
+            new_x_value, new_y_value = np.meshgrid(self.x.value, self.y.value)
+            new_dimensions = self.dimensions
 
-        self.x = self.x.copy()
-        self.x.value = None
-        self.x.dimensions = new_dimensions
-        self.x.value = new_x_value
+            self.x = self.x.copy()
+            self.x.value = None
+            self.x.dimensions = new_dimensions
+            self.x.value = new_x_value
 
-        self.y = self.y.copy()
-        self.y.value = None
-        self.y.dimensions = new_dimensions
-        self.y.value = new_y_value
+            self.y = self.y.copy()
+            self.y.value = None
+            self.y.dimensions = new_dimensions
+            self.y.value = new_y_value
 
     @property
     def corners(self):
@@ -258,49 +268,49 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def resolution(self):
+        y = self.y
+        x = self.x
         if self.is_vectorized:
-            to_mean = [self._y.resolution, self._y.resolution]
+            to_mean = [y.resolution, x.resolution]
         else:
-            resolution_limit = int(constants.RESOLUTION_LIMIT) / 2
-            r_value = self.value[:, 0:resolution_limit, 0:resolution_limit]
-            rows = np.mean(np.diff(r_value[0, :, :], axis=0))
-            cols = np.mean(np.diff(r_value[1, :, :], axis=1))
-            to_mean = [rows, cols]
+            resolution_limit = constants.RESOLUTION_LIMIT
+            targets = [np.diff(y.value[0:resolution_limit, :], axis=0),
+                       np.diff(x.value[:, 0:resolution_limit], axis=1)]
+            to_mean = [np.mean(t) for t in targets]
         ret = np.mean(to_mean)
         return ret
 
     @property
     def shape(self):
+        y = self.y
         if self.is_vectorized:
-            ret = (self.y.shape[0], self.x.shape[0])
+            ret = (y.shape[0], self.x.shape[0])
         else:
-            ret = self.y.shape
+            ret = y.shape
         return ret
 
     def copy(self):
         return copy(self)
 
     def create_dimensions(self, names=None):
-        names = [self._y.alias, self._x.alias]
-        newdims = [Dimension(n, l) for n, l in zip(names, self.shape)]
-        self.dimensions = newdims
+        if names is None:
+            names = [self.y.alias, self.x.alias]
+        if self.is_vectorized:
+            y_name, x_name = names
+            self.y.create_dimensions(names=y_name)
+            self.x.create_dimensions(names=x_name)
+        else:
+            self.y.create_dimensions(names=names)
+            self.x.create_dimensions(names=names)
 
+    @expand_needed
     def get_mask(self):
-        ret = self.value.mask[0]
-        assert ret.ndim == 2
-        return ret
+        return self.y.get_mask()
 
-    def _set_dimensions_(self, value):
-        # tdk: order
-        super(GridXY, self)._set_dimensions_(value)
-        update_xy_dimensions(self)
-
+    @expand_needed
     def set_mask(self, value):
-        assert value.ndim == 2
-        self.value.mask[:, :, :] = value
-        if self.corners is not None:
-            idx_true = np.where(value)
-            self.corners.mask[:, idx_true[0], idx_true[1], :] = True
+        for target in (self.y, self.x):
+            target.set_mask(value)
 
     def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
         assert min_row <= max_row

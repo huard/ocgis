@@ -13,7 +13,7 @@ from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
-    get_ocgis_corners_from_esmf_corners
+    get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
@@ -239,8 +239,8 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.dimensions = new_dimensions
 
     def get_mask(self):
-        """Return the object mask."""
-        return self.value.mask
+        """Return a deep copy of the object mask."""
+        return self.value.mask.copy()
 
     def set_mask(self, value):
         """Set the object mask."""
@@ -569,7 +569,6 @@ class BoundedVariable(SourcedVariable):
 
     def set_extrapolated_bounds(self, name=None):
         """Set the bounds variable using extrapolation."""
-        # Only allow extrapolation with a 1d value.
 
         if self.bounds is not None:
             raise BoundsAlreadyAvailableError
@@ -595,6 +594,9 @@ class BoundedVariable(SourcedVariable):
         self.bounds = var
         self._has_extrapolated_bounds = True
 
+        # This will synchronize the bounds mask with the variable's mask.
+        self.set_mask(self.get_mask())
+
     def create_dimensions(self, names=None):
         super(BoundedVariable, self).create_dimensions(names)
         if self.bounds is not None:
@@ -615,6 +617,17 @@ class BoundedVariable(SourcedVariable):
             synced_dimensions = list(self.bounds.dimensions)
             synced_dimensions[0] = self.dimensions[0]
             self.bounds.dimensions = synced_dimensions
+
+    def set_mask(self, value):
+        super(BoundedVariable, self).set_mask(value)
+
+        bounds = self.bounds
+        if bounds is not None:
+            bounds_mask = np.zeros(bounds.shape, dtype=bool)
+            for slc, mask_value in iter_array(value, return_value=True):
+                if mask_value:
+                    bounds_mask[slc] = mask_value
+            bounds.set_mask(bounds_mask)
 
     def write_netcdf(self, *args, **kwargs):
         super(BoundedVariable, self).write_netcdf(*args, **kwargs)

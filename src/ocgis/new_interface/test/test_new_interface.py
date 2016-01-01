@@ -27,7 +27,8 @@ class AbstractTestNewInterface(TestBase):
         self.assertTrue(to_test.all())
         self.assertNumpyAll(a.mask, b.mask)
 
-    def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False):
+    def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False,
+                   with_value_mask=False):
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
@@ -49,6 +50,10 @@ class AbstractTestNewInterface(TestBase):
         if not with_dimensions:
             x_dims = None
             y_dims = None
+
+        if with_value_mask:
+            x_value = np.ma.array(x_value, mask=[False, True, False])
+            y_value = np.ma.array(y_value, mask=[True, False, True, False])
 
         vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
         vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)

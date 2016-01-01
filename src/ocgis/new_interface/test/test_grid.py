@@ -198,16 +198,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
-        grid = self.get_gridxy(with_value_only=True)
-        self.assertIsNone(grid.__x__)
-        self.assertIsNone(grid.__y__)
-        self.assertIsInstance(grid._x, BoundedVariable)
-        self.assertIsInstance(grid._y, BoundedVariable)
-        self.assertIsNone(grid.dimensions)
-        self.assertIsNone(grid._y.dimensions)
-        grid.create_dimensions()
-        self.assertEqual(len(grid.dimensions), 2)
-
         grid = self.get_gridxy()
         self.assertIsNone(grid.dimensions)
         grid = self.get_gridxy(with_dimensions=True)
@@ -218,9 +208,11 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
 
     def test_expand(self):
-        grid = self.get_gridxy()
+        grid = self.get_gridxy(with_value_mask=True)
         self.assertTrue(grid.is_vectorized)
         grid.expand()
+        for target in [grid.x, grid.y]:
+            self.assertTrue(target.get_mask().any())
         self.assertFalse(grid.is_vectorized)
         self.assertEqual(grid.ndim, 2)
         self.assertEqual(grid.shape, (4, 3))
@@ -243,10 +235,11 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_get_mask(self):
         grid = self.get_gridxy()
-        self.assertFalse(np.any(grid.value.mask))
-        grid.value.mask[:, 1, 1] = True
+        self.assertTrue(grid.is_vectorized)
         mask = grid.get_mask()
-        self.assertTrue(mask[1, 1])
+        self.assertEqual(mask.ndim, 2)
+        self.assertFalse(np.any(mask))
+        self.assertFalse(grid.is_vectorized)
 
     def test_get_subset_bbox(self):
         keywords = dict(bounds=[True, False], closed=[True, False])
@@ -296,14 +289,12 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_set_mask(self):
         grid = self.get_gridxy()
-        grid.set_extrapolated_corners()
-        self.assertIsNotNone(grid.corners)
         self.assertFalse(np.any(grid.get_mask()))
         mask = np.zeros(grid.shape, dtype=bool)
         mask[1, 1] = True
         grid.set_mask(mask)
-        self.assertTrue(np.all(grid.corners.mask[:, 1, 1, :]))
-        self.assertTrue(np.all(grid.value.mask[:, 1, 1]))
+        self.assertTrue(np.all(grid.y.get_mask()[1, 1]))
+        self.assertTrue(np.all(grid.x.get_mask()[1, 1]))
 
     def test_shape(self):
         for grid in self.get_iter_gridxy():
@@ -319,17 +310,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(grid.crs, to_crs)
         for target in [grid.value, grid.corners, grid._x.value, grid._y.value]:
             self.assertGreater(target.mean(), 10000)
-
-    def test_value(self):
-        for grid, kwds in self.get_iter_gridxy(return_kwargs=True):
-            try:
-                self.assertIsNone(grid._value)
-            except AssertionError:
-                self.assertTrue(kwds['with_value'] or kwds['with_value_only'])
-            value = grid.value
-            self.assertEqual(value.shape, (2, 4, 3))
-            self.assertTrue(np.all(grid.value[0, 1, :] == 41.))
-            self.assertTrue(np.all(grid.value[1, :, 1] == 102.))
 
     def test_write_netcdf(self):
         grid = self.get_gridxy()
