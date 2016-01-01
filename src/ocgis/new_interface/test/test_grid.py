@@ -106,68 +106,69 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('y', grid._variables)
         self.assertEqual(grid.crs, crs)
 
-    def test_corners(self):
-        # Test constructing from x/y bounds.
-        grid = self.get_gridxy()
-        grid._x = BoundedVariable(value=grid._x.value, name='x')
-        grid._y = BoundedVariable(value=grid._y.value, name='y')
-        grid._x.set_extrapolated_bounds()
-        grid._y.set_extrapolated_bounds()
-        corners = grid.corners.copy()
-        value = grid.value.copy()
-        self.assertIsNotNone(corners)
-        self.assertEqual(corners.shape, (2, grid._y.shape[0], grid._x.shape[0], 4))
-        self.assertGridCorners(grid)
-
-        # Test initializing corners with a value.
-        grid = GridXY(value=value, corners=corners)
-        self.assertIsNotNone(grid._corners)
-        self.assertNumpyAll(grid.corners, corners)
-
-        # Test corners are sliced.
-        sub = grid[2:4, 1]
-        self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
-
-        # Test constructing with two-dimensional variables.
-        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
-        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
-                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
-                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
-                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
-        x_value = [[101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0]]
-        x_corners = [[[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-                     [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]]]
-
-        y_bounds = Variable(value=y_corners, name='y_corners')
-        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-        y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
-        y.create_dimensions(names=['y', 'x'])
-
-        x_bounds = Variable(value=x_corners, name='x_corners')
-        x_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-        x = BoundedVariable(value=x_value, bounds=x_bounds, name='x')
-        x.create_dimensions(names=['y', 'x'])
-
-        grid = GridXY(x=x, y=y)
-        np.testing.assert_equal(grid.corners[0], y_corners)
-        np.testing.assert_equal(grid.corners[1], x_corners)
-
-        path = self.get_temporary_file_path('foo.nc')
-        with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
-        # subprocess.check_call(['ncdump', path])
-
-        # Test writing with dimension variables.
-        self.assertIsNotNone(grid.corners)
-        with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
-        # subprocess.check_call(['ncdump', path])
-
-        with self.nc_scope(path) as ds:
-            self.assertIn('y_corners', ds.variables)
-            self.assertIn('x_corners', ds.variables)
+    # tdk: remove
+    # def test_corners(self):
+    #     # Test constructing from x/y bounds.
+    #     grid = self.get_gridxy()
+    #     grid._x = BoundedVariable(value=grid._x.value, name='x')
+    #     grid._y = BoundedVariable(value=grid._y.value, name='y')
+    #     grid._x.set_extrapolated_bounds()
+    #     grid._y.set_extrapolated_bounds()
+    #     corners = grid.corners.copy()
+    #     value = grid.value.copy()
+    #     self.assertIsNotNone(corners)
+    #     self.assertEqual(corners.shape, (2, grid._y.shape[0], grid._x.shape[0], 4))
+    #     self.assertGridCorners(grid)
+    #
+    #     # Test initializing corners with a value.
+    #     grid = GridXY(value=value, corners=corners)
+    #     self.assertIsNotNone(grid._corners)
+    #     self.assertNumpyAll(grid.corners, corners)
+    #
+    #     # Test corners are sliced.
+    #     sub = grid[2:4, 1]
+    #     self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
+    #
+    #     # Test constructing with two-dimensional variables.
+    #     y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
+    #     y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
+    #                  [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
+    #                  [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
+    #                  [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
+    #     x_value = [[101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0]]
+    #     x_corners = [[[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
+    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]]]
+    #
+    #     y_bounds = Variable(value=y_corners, name='y_corners')
+    #     y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+    #     y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
+    #     y.create_dimensions(names=['y', 'x'])
+    #
+    #     x_bounds = Variable(value=x_corners, name='x_corners')
+    #     x_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+    #     x = BoundedVariable(value=x_value, bounds=x_bounds, name='x')
+    #     x.create_dimensions(names=['y', 'x'])
+    #
+    #     grid = GridXY(x=x, y=y)
+    #     np.testing.assert_equal(grid.corners[0], y_corners)
+    #     np.testing.assert_equal(grid.corners[1], x_corners)
+    #
+    #     path = self.get_temporary_file_path('foo.nc')
+    #     with self.nc_scope(path, 'w') as ds:
+    #         grid.write_netcdf(ds)
+    #     # subprocess.check_call(['ncdump', path])
+    #
+    #     # Test writing with dimension variables.
+    #     self.assertIsNotNone(grid.corners)
+    #     with self.nc_scope(path, 'w') as ds:
+    #         grid.write_netcdf(ds)
+    #     # subprocess.check_call(['ncdump', path])
+    #
+    #     with self.nc_scope(path) as ds:
+    #         self.assertIn('y_corners', ds.variables)
+    #         self.assertIn('x_corners', ds.variables)
 
     def test_corners_esmf(self):
         x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='x_bounds')
@@ -270,7 +271,7 @@ class TestGridXY(AbstractTestNewInterface):
         for grid in self.get_iter_gridxy():
             self.assertEqual(grid.resolution, 1.)
 
-    def test_set_extrapolated_corners(self):
+    def test_set_extrapolated_bounds(self):
         value_grid = [[[40.0, 40.0, 40.0, 40.0], [39.0, 39.0, 39.0, 39.0], [38.0, 38.0, 38.0, 38.0]],
                       [[-100.0, -99.0, -98.0, -97.0], [-100.0, -99.0, -98.0, -97.0], [-100.0, -99.0, -98.0, -97.0]]]
         actual_corners = [
@@ -283,9 +284,12 @@ class TestGridXY(AbstractTestNewInterface):
               [-97.5, -96.5, -96.5, -97.5]],
              [[-100.5, -99.5, -99.5, -100.5], [-99.5, -98.5, -98.5, -99.5], [-98.5, -97.5, -97.5, -98.5],
               [-97.5, -96.5, -96.5, -97.5]]]]
-        grid = GridXY(value=value_grid)
-        grid.set_extrapolated_corners()
-        np.testing.assert_equal(grid.corners, actual_corners)
+        y = BoundedVariable(name='y', value=value_grid[0])
+        x = BoundedVariable(name='x', value=value_grid[1])
+        grid = GridXY(x, y)
+        grid.set_extrapolated_bounds()
+        np.testing.assert_equal(grid.y.bounds.value, actual_corners[0])
+        np.testing.assert_equal(grid.x.bounds.value, actual_corners[1])
 
     def test_set_mask(self):
         grid = self.get_gridxy()
@@ -303,13 +307,15 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_update_crs(self):
         grid = self.get_gridxy(crs=WGS84())
-        grid.set_extrapolated_corners()
-        self.assertIsNotNone(grid.corners)
+        grid.set_extrapolated_bounds()
+        self.assertIsNotNone(grid.y.bounds)
+        self.assertIsNotNone(grid.x.bounds)
         to_crs = CoordinateReferenceSystem(epsg=3395)
         grid.update_crs(to_crs)
         self.assertEqual(grid.crs, to_crs)
-        for target in [grid.value, grid.corners, grid._x.value, grid._y.value]:
-            self.assertGreater(target.mean(), 10000)
+        for element in [grid.x, grid.y]:
+            for target in [element.value, element.bounds.value]:
+                self.assertTrue(np.all(target > 10000))
 
     def test_write_netcdf(self):
         grid = self.get_gridxy()

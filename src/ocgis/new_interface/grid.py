@@ -7,13 +7,12 @@ import numpy as np
 from shapely.geometry import box
 
 from ocgis import constants, CoordinateReferenceSystem
-from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array, get_extrapolated_corners_esmf, \
-    get_ocgis_corners_from_esmf_corners
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -371,29 +370,16 @@ class GridXY(AbstractSpatialContainer):
 
         return ret
 
-    def set_extrapolated_corners(self):
+    @expand_needed
+    def set_extrapolated_bounds(self):
         """
-        Extrapolate corners from grid centroids. If corners are already available, an exception will be raised.
-
-        :raises: BoundsAlreadyAvailableError
+        Extrapolate corners from grid centroids.
         """
 
-        if self.corners is not None:
-            raise BoundsAlreadyAvailableError
-        else:
-            data = self.value.data
-            corners_esmf = get_extrapolated_corners_esmf(data[0])
-            corners_esmf.resize(*list([2] + list(corners_esmf.shape)))
-            corners_esmf[1, :, :] = get_extrapolated_corners_esmf(data[1])
-            corners = get_ocgis_corners_from_esmf_corners(corners_esmf)
+        for target in [self.y, self.x]:
+            target.set_extrapolated_bounds()
 
-        # Update the corners mask if there are masked values.
-        if self.value.mask.any():
-            idx_true = np.where(self.value.mask[0] == True)
-            corners.mask[:, idx_true[0], idx_true[1], :] = True
-
-        self.corners = corners
-
+    @expand_needed
     def update_crs(self, to_crs):
         """
         Update the coordinate system in place.
@@ -408,20 +394,16 @@ class GridXY(AbstractSpatialContainer):
 
         # Transforming the coordinate system will result in a non-vectorized grid (i.e. cannot be representated as row
         # and column vectors).
-        value_row = self.value.data[0].reshape(-1)
-        value_col = self.value.data[1].reshape(-1)
+        y = self.y
+        x = self.x
+        value_row = y.value.data.reshape(-1)
+        value_col = x.value.data.reshape(-1)
         update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
-        self.value.data[0] = value_row.reshape(*self.shape)
-        self.value.data[1] = value_col.reshape(*self.shape)
 
-        if self.corners is not None:
-            corner_row = self.corners.data[0].reshape(-1)
-            corner_col = self.corners.data[1].reshape(-1)
+        if y.bounds is not None:
+            corner_row = y.bounds.value.data.reshape(-1)
+            corner_col = x.bounds.value.data.reshape(-1)
             update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
-
-        # Reset the dimension variables.
-        self.__x__ = None
-        self.__y__ = None
 
         self.crs = to_crs
 
