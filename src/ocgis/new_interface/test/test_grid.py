@@ -58,12 +58,10 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertEqual(_get_is_ascending_(grid_y.value), _get_is_ascending_(grid.corners.data[0, :, 0][:, 0]))
             self.assertEqual(_get_is_ascending_(grid_x.value), _get_is_ascending_(grid.corners.data[1, 0, :][:, 0]))
 
-    def get_iter(self, return_kwargs=False):
+    def get_iter_gridxy(self, return_kwargs=False):
         poss = [True, False]
         kwds = dict(with_2d_variables=poss,
-                    with_dimensions=poss,
-                    with_value=poss,
-                    with_value_only=poss)
+                    with_dimensions=poss)
         for k in self.iter_product_keywords(kwds, as_namedtuple=False):
             ret = self.get_gridxy(**k)
             if return_kwargs:
@@ -101,15 +99,12 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(np.may_share_memory(grid.dimensions[0]._src_idx, dy._src_idx))
 
     def test_init(self):
-        grid = self.get_gridxy()
+        crs = WGS84()
+        grid = self.get_gridxy(crs=crs)
         self.assertIsInstance(grid, GridXY)
-
-        x = Variable('x', value=[1])
-        with self.assertRaises(ValueError):
-            GridXY(x=x)
-
-        grid = self.get_gridxy(with_value=True)
-        self.assertIsNotNone(grid._value)
+        self.assertIn('x', grid._variables)
+        self.assertIn('y', grid._variables)
+        self.assertEqual(grid.crs, crs)
 
     def test_corners(self):
         # Test constructing from x/y bounds.
@@ -222,28 +217,29 @@ class TestGridXY(AbstractTestNewInterface):
         grid.create_dimensions()
         self.assertEqual(len(grid.dimensions), 2)
 
+    def test_expand(self):
+        grid = self.get_gridxy()
+        self.assertTrue(grid.is_vectorized)
+        grid.expand()
+        self.assertFalse(grid.is_vectorized)
+        self.assertEqual(grid.ndim, 2)
+        self.assertEqual(grid.shape, (4, 3))
+
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
-            self.assertEqual(sub._x.value, 102.)
-            self.assertEqual(sub._y.value, 42.)
-            self.assertIsNone(grid._value)
+            self.assertEqual(sub.x.value, 102.)
+            self.assertEqual(sub.y.value, 42.)
 
             # Test with two-dimensional x and y values.
             grid = self.get_gridxy(with_2d_variables=True, with_dimensions=with_dimensions)
             sub = grid[1:3, 1:3]
             actual_x = [[102.0, 103.0], [102.0, 103.0]]
-            self.assertEqual(sub._x.value.tolist(), actual_x)
+            self.assertEqual(sub.x.value.tolist(), actual_x)
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
-            self.assertEqual(sub._y.value.tolist(), actual_y)
-            self.assertIsNone(grid._value)
-
-        # Test with a value.
-        grid = self.get_gridxy(with_value_only=True)
-        sub = grid[1, :]
-        self.assertEqual(sub.value.tolist(), [[[41.0, 41.0, 41.0]], [[101.0, 102.0, 103.0]]])
+            self.assertEqual(sub.y.value.tolist(), actual_y)
 
     def test_get_mask(self):
         grid = self.get_gridxy()
@@ -278,7 +274,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertFalse(np.all(grid.value.mask[:, :, 1]))
 
     def test_resolution(self):
-        for grid in self.get_iter():
+        for grid in self.get_iter_gridxy():
             self.assertEqual(grid.resolution, 1.)
 
     def test_set_extrapolated_corners(self):
@@ -309,13 +305,8 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(np.all(grid.corners.mask[:, 1, 1, :]))
         self.assertTrue(np.all(grid.value.mask[:, 1, 1]))
 
-    def test_setitem(self):
-        grid = self.get_gridxy()
-        grid[:] = 1e5
-        self.assertEqual(grid.value.mean(), 1e5)
-
     def test_shape(self):
-        for grid in self.get_iter():
+        for grid in self.get_iter_gridxy():
             self.assertEqual(grid.shape, (4, 3))
             self.assertEqual(grid.ndim, 2)
 
@@ -330,7 +321,7 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertGreater(target.mean(), 10000)
 
     def test_value(self):
-        for grid, kwds in self.get_iter(return_kwargs=True):
+        for grid, kwds in self.get_iter_gridxy(return_kwargs=True):
             try:
                 self.assertIsNone(grid._value)
             except AssertionError:

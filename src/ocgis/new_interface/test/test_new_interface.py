@@ -27,8 +27,7 @@ class AbstractTestNewInterface(TestBase):
         self.assertTrue(to_test.all())
         self.assertNumpyAll(a.mask, b.mask)
 
-    def get_gridxy(self, with_2d_variables=False, with_dimensions=False, with_value=False,
-                   with_value_only=False, crs=None, with_xy_bounds=False):
+    def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False):
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
@@ -51,20 +50,12 @@ class AbstractTestNewInterface(TestBase):
             x_dims = None
             y_dims = None
 
-        if not with_value_only:
-            vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
-            vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
-            if with_xy_bounds:
-                vx.set_extrapolated_bounds()
-                vy.set_extrapolated_bounds()
-            kwds.update(dict(x=vx, y=vy))
-
-        if with_value or with_value_only:
-            new_x, new_y = np.meshgrid(x, y)
-            fill = np.zeros((2, len(y), len(x)))
-            fill[0, ...] = new_y
-            fill[1, ...] = new_x
-            kwds.update(dict(value=fill))
+        vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
+        vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
+        if with_xy_bounds:
+            vx.set_extrapolated_bounds()
+            vy.set_extrapolated_bounds()
+        kwds.update(dict(x=vx, y=vy))
 
         grid = GridXY(**kwds)
         return grid

@@ -1,23 +1,35 @@
 import itertools
 from abc import abstractmethod, ABCMeta
 from collections import OrderedDict
+from copy import copy
 
 import numpy as np
 from shapely.geometry import box
 
 from ocgis import constants, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
+from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array, get_extrapolated_corners_esmf, \
-    get_ocgis_corners_from_esmf_corners, get_iter
+    get_ocgis_corners_from_esmf_corners
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
 
 
-class AbstractSpatialVariable(Variable):
+class AbstractContainer(AbstractInterfaceObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, variables=None):
+        assert isinstance(variables, VariableCollection)
+
+        self._variables = variables
+
+
+# tdk: rename AbstractSpatialVariable tests
+class AbstractSpatialContainer(AbstractContainer):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
@@ -25,7 +37,7 @@ class AbstractSpatialVariable(Variable):
 
         self.crs = kwargs.pop('crs', None)
 
-        super(AbstractSpatialVariable, self).__init__(**kwargs)
+        super(AbstractSpatialContainer, self).__init__(**kwargs)
 
     @property
     def crs(self):
@@ -57,41 +69,45 @@ class AbstractSpatialVariable(Variable):
         """
 
 
-class GridXY(AbstractSpatialVariable):
+class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, **kwargs):
-        self._corners = None
-        self.__x__ = None
-        self.__y__ = None
+    def __init__(self, x, y, crs=None):
 
-        try:
-            self._y = kwargs.pop('y')
-            self._x = kwargs.pop('x')
-        except KeyError:
-            if 'value' not in kwargs:
-                msg = 'At least "x" and "y" are required to make a grid without a "value".'
-                raise ValueError(msg)
-        self.corners = kwargs.pop('corners', None)
+        variables = VariableCollection(variables=(x, y))
+        super(GridXY, self).__init__(variables=variables, crs=crs)
 
-        name = kwargs.get('name')
-        if self.__y__ is not None:
-            if self.__y__.dimensions is not None:
-                if self._y.ndim == 1:
-                    dimensions = [self._y.dimensions[0], self._x.dimensions[0]]
-                else:
-                    dimensions = self._y.dimensions
-                kwargs['dimensions'] = dimensions
-            if name is None:
-                name = [self.__y__.name, self.__x__.name]
-        else:
-            if name is None:
-                name = ['yc', 'xc']
-        kwargs['name'] = name
-
-        super(GridXY, self).__init__(**kwargs)
-
-        assert len(self.name) == 2
+        # self._corners = None
+        # self.__x__ = None
+        # self.__y__ = None
+        #
+        # try:
+        #     self._y = kwargs.pop('y')
+        #     self._x = kwargs.pop('x')
+        # except KeyError:
+        #     if 'value' not in kwargs:
+        #         msg = 'At least "x" and "y" are required to make a grid without a "value".'
+        #         raise ValueError(msg)
+        # self.corners = kwargs.pop('corners', None)
+        #
+        # name = kwargs.get('name')
+        # if self.__y__ is not None:
+        #     if self.__y__.dimensions is not None:
+        #         if self._y.ndim == 1:
+        #             dimensions = [self._y.dimensions[0], self._x.dimensions[0]]
+        #         else:
+        #             dimensions = self._y.dimensions
+        #         kwargs['dimensions'] = dimensions
+        #     if name is None:
+        #         name = [self.__y__.name, self.__x__.name]
+        # else:
+        #     if name is None:
+        #         name = ['yc', 'xc']
+        # kwargs['name'] = name
+        #
+        # super(GridXY, self).__init__(**kwargs)
+        #
+        # assert len(self.name) == 2
 
     def __getitem__(self, slc):
         """
@@ -101,33 +117,35 @@ class GridXY(AbstractSpatialVariable):
          1 --> x-dimension
 
         :type slc: sequence of slice-compatible arguments
-        :returns: Sliced grid components.
+        :returns: Sliced grid.
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
 
         slc = get_formatted_slice(slc, self.ndim)
         ret = self.copy()
-        if ret.dimensions is not None:
-            ret.dimensions = [d[s] for d, s in zip(self.dimensions, get_iter(slc, dtype=slice))]
-        if self._value is not None:
-            ret.value = self._value[:, slc[0], slc[1]]
-            ret.__y__ = None
-            ret.__x__ = None
+        if ret.is_vectorized:
+            ret.y = ret.y[slc[0]]
+            ret.x = ret.x[slc[1]]
         else:
-            if self.is_vectorized:
-                ret._y = self._y[slc[0]]
-                ret._x = self._x[slc[1]]
-            else:
-                ret._y = self._y[slc[0], slc[1]]
-                ret._x = self._x[slc[0], slc[1]]
-        if self._corners is not None:
-            ret.corners = self.corners[:, slc[0], slc[1], :]
+            ret.y = ret.y[slc[0], slc[1]]
+            ret.x = ret.x[slc[0], slc[1]]
         return ret
 
-    def __setitem__(self, slc, value):
-        super(GridXY, self).__setitem__(slc, value)
-        self.__y__ = None
-        self.__x__ = None
+    def expand(self):
+        # tdk: doc
+
+        new_x_value, new_y_value = np.meshgrid(self.x.value, self.y.value)
+        new_dimensions = self.dimensions
+
+        self.x = self.x.copy()
+        self.x.value = None
+        self.x.dimensions = new_dimensions
+        self.x.value = new_x_value
+
+        self.y = self.y.copy()
+        self.y.value = None
+        self.y.dimensions = new_dimensions
+        self.y.value = new_y_value
 
     @property
     def corners(self):
@@ -202,18 +220,19 @@ class GridXY(AbstractSpatialVariable):
 
     @property
     def dimensions(self):
-        return self._dimensions
-
-    @dimensions.setter
-    def dimensions(self, value):
-        if value is not None:
-            assert len(value) == 2
-            value = tuple(value)
-        self._dimensions = value
+        if self.is_vectorized:
+            try:
+                ret = (self.y.dimensions[0], self.x.dimensions[0])
+            except TypeError:
+                # Assume dimensions are none.
+                ret = None
+        else:
+            ret = self.y.dimensions
+        return ret
 
     @property
     def is_vectorized(self):
-        if self._y.ndim == 1:
+        if self.y.ndim == 1:
             ret = True
         else:
             ret = False
@@ -221,41 +240,21 @@ class GridXY(AbstractSpatialVariable):
 
     @property
     def x(self):
-        # tdk: remove
-        raise NotImplementedError
+        return self._variables['x']
+
+    @x.setter
+    def x(self, value):
+        assert isinstance(value, Variable)
+        self._variables['x'] = value
 
     @property
     def y(self):
-        # tdk: remove
-        raise NotImplementedError
+        return self._variables['y']
 
-    @property
-    def _x(self):
-        if self.__x__ is None:
-            self.__x__ = get_dimension_variable('X', self, 1, 'xc')
-        return self.__x__
-
-    @_x.setter
-    def _x(self, value):
+    @y.setter
+    def y(self, value):
         assert isinstance(value, Variable)
-        assert value.ndim <= 2
-        value = value.copy()
-        value.attrs['axis'] = 'X'
-        self.__x__ = value
-
-    @property
-    def _y(self):
-        if self.__y__ is None:
-            self.__y__ = get_dimension_variable('Y', self, 0, 'yc')
-        return self.__y__
-
-    @_y.setter
-    def _y(self, value):
-        assert isinstance(value, Variable)
-        assert value.ndim <= 2
-        value = value.copy()
-        value.attrs['axis'] = 'Y'
-        self.__y__ = value
+        self._variables['y'] = value
 
     @property
     def resolution(self):
@@ -269,6 +268,17 @@ class GridXY(AbstractSpatialVariable):
             to_mean = [rows, cols]
         ret = np.mean(to_mean)
         return ret
+
+    @property
+    def shape(self):
+        if self.is_vectorized:
+            ret = (self.y.shape[0], self.x.shape[0])
+        else:
+            ret = self.y.shape
+        return ret
+
+    def copy(self):
+        return copy(self)
 
     def create_dimensions(self, names=None):
         names = [self._y.alias, self._x.alias]
@@ -406,10 +416,8 @@ class GridXY(AbstractSpatialVariable):
         self.crs = to_crs
 
     def write_netcdf(self, dataset, **kwargs):
-        if self.dimensions is None:
-            self.create_dimensions(names=self.name)
         update_xy_dimensions(self)
-        for tw in [self._y, self._x]:
+        for tw in [self.y, self.x]:
             tw.write_netcdf(dataset, **kwargs)
         if self.crs is not None:
             self.crs.write_to_rootgrp(dataset)
