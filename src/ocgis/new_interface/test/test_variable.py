@@ -185,6 +185,16 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
 
+    def test_tdk(self):
+        # Test extrapolating bounds on 2d variable.
+        value = np.array([[2, 3], [4, 5]], dtype=float)
+        bv = BoundedVariable(value=value, name='two_dee')
+        self.assertIsNone(bv.bounds)
+        bv.set_extrapolated_bounds()
+        bounds_value = bv.bounds.value
+        print bounds_value
+        self.assertEqual(bounds_value.ndim, 3)
+
     def test_write_netcdf(self):
         bv = self.get_boundedvariable()
         dim_x = Dimension('x', 3)

@@ -12,7 +12,8 @@ from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, Em
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
-from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
+from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
+    get_ocgis_corners_from_esmf_corners
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
@@ -569,11 +570,18 @@ class BoundedVariable(SourcedVariable):
     def set_extrapolated_bounds(self, name=None):
         """Set the bounds variable using extrapolation."""
         # Only allow extrapolation with a 1d value.
-        assert self.ndim == 1
+
         if self.bounds is not None:
             raise BoundsAlreadyAvailableError
         name = name or '{0}_{1}'.format(self.name, 'bounds')
-        bounds_value = get_bounds_from_1d(self.value)
+
+        if self.ndim == 1:
+            bounds_value = get_bounds_from_1d(self.value)
+        else:
+            # tdk: consider renaming this functions to get_bounds_from_2d
+            bounds_value = get_extrapolated_corners_esmf(self.value)
+            bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
+
         if self.dimensions is None:
             dims = None
         else:
