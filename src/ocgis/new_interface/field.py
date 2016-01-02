@@ -246,6 +246,7 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         vc.write_netcdf(*args, **kwargs)
 
 
+# tdk: remove
 class DSlice(AbstractInterfaceObject):
     def __init__(self, names):
         self.names = names

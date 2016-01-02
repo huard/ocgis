@@ -1,6 +1,5 @@
 import itertools
 from abc import abstractmethod, ABCMeta
-from collections import OrderedDict
 from copy import copy
 
 import numpy as np
@@ -9,10 +8,9 @@ from shapely.geometry import box
 from ocgis import constants, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, iter_array
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -159,62 +157,64 @@ class GridXY(AbstractSpatialContainer):
             assert self.y.ndim == 2
             assert self.x.ndim == 2
 
-    @property
-    def corners(self):
-        """
-        2 x row x column x 4
+            # tdk: remove
 
-        2 = y, x or row, column
-        row
-        column
-        4 = ul, ur, lr, ll
-        """
-
-        if self._corners is not None:
-            return self._corners
-
-        y_bounds = self._y.bounds
-        if self._corners is None and y_bounds is not None:
-            x_bounds_value = self._x.bounds.value
-            y_bounds_value = self._y.bounds.value
-            if x_bounds_value is None or y_bounds_value is None:
-                pass
-            else:
-                dtype = self._y.value.dtype
-                ndim = self._y.ndim
-                fill = np.zeros([2] + list(self.shape) + [4], dtype=dtype)
-                col_bounds = x_bounds_value
-                row_bounds = y_bounds_value
-                if ndim == 1:
-                    for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
-                        fill_element = fill[:, ii, jj]
-                        fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
-                        fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
-                        fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
-                        fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
-                else:
-                    fill[0] = row_bounds
-                    fill[1] = col_bounds
-
-                # Copy the mask structure of the underlying value.
-                mask_value = self.value.mask
-                mask_fill = np.zeros(fill.shape, dtype=bool)
-                for (ii, jj), m in iter_array(mask_value[0, :, :], return_value=True):
-                    mask_fill[:, ii, jj, :] = m
-                fill = np.ma.array(fill, mask=mask_fill)
-
-                self._corners = fill
-
-        return self._corners
-
-    @corners.setter
-    def corners(self, value):
-        if value is not None:
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.array(value, mask=False)
-            assert value.ndim == 4
-            assert value.shape[3] == 4
-        self._corners = value
+    # @property
+    # def corners(self):
+    #     """
+    #     2 x row x column x 4
+    #
+    #     2 = y, x or row, column
+    #     row
+    #     column
+    #     4 = ul, ur, lr, ll
+    #     """
+    #
+    #     if self._corners is not None:
+    #         return self._corners
+    #
+    #     y_bounds = self._y.bounds
+    #     if self._corners is None and y_bounds is not None:
+    #         x_bounds_value = self._x.bounds.value
+    #         y_bounds_value = self._y.bounds.value
+    #         if x_bounds_value is None or y_bounds_value is None:
+    #             pass
+    #         else:
+    #             dtype = self._y.value.dtype
+    #             ndim = self._y.ndim
+    #             fill = np.zeros([2] + list(self.shape) + [4], dtype=dtype)
+    #             col_bounds = x_bounds_value
+    #             row_bounds = y_bounds_value
+    #             if ndim == 1:
+    #                 for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
+    #                     fill_element = fill[:, ii, jj]
+    #                     fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
+    #                     fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
+    #                     fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
+    #                     fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
+    #             else:
+    #                 fill[0] = row_bounds
+    #                 fill[1] = col_bounds
+    #
+    #             # Copy the mask structure of the underlying value.
+    #             mask_value = self.value.mask
+    #             mask_fill = np.zeros(fill.shape, dtype=bool)
+    #             for (ii, jj), m in iter_array(mask_value[0, :, :], return_value=True):
+    #                 mask_fill[:, ii, jj, :] = m
+    #             fill = np.ma.array(fill, mask=mask_fill)
+    #
+    #             self._corners = fill
+    #
+    #     return self._corners
+    #
+    # @corners.setter
+    # def corners(self, value):
+    #     if value is not None:
+    #         if not isinstance(value, np.ma.MaskedArray):
+    #             value = np.ma.array(value, mask=False)
+    #         assert value.ndim == 4
+    #         assert value.shape[3] == 4
+    #     self._corners = value
 
     @property
     def corners_esmf(self):
@@ -292,7 +292,8 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     def copy(self):
-        return copy(self)
+        ret = copy(self)
+        return ret
 
     def create_dimensions(self, names=None):
         if names is None:
@@ -418,6 +419,7 @@ class GridXY(AbstractSpatialContainer):
             self.crs.write_to_rootgrp(dataset)
 
     def _get_extent_(self):
+        #tdk: test, doc
         if not self.is_vectorized:
             corners = self.corners
             if corners is not None:
@@ -446,12 +448,14 @@ class GridXY(AbstractSpatialContainer):
                 maxy = row.bounds.value.max()
         return minx, miny, maxx, maxy
 
-    def _get_shape_(self):
-        if self.is_vectorized:
-            ret = (self._y.shape[0], self._x.shape[0])
-        else:
-            ret = self._y.shape
-        return ret
+        # tdk: remove
+        #
+        # def _get_shape_(self):
+        #     if self.is_vectorized:
+        #         ret = (self._y.shape[0], self._x.shape[0])
+        #     else:
+        #         ret = self._y.shape
+        #     return ret
         # tdk: remove
         # ret = super(GridXY, self)._get_shape_()
         # if len(ret) == 0:
@@ -462,52 +466,54 @@ class GridXY(AbstractSpatialContainer):
         # assert len(ret) == 2
         return ret
 
-    def _get_value_(self):
-        if self._value is None:
-            x = self._x
-            y = self._y
-            if self.is_vectorized:
-                new_x, new_y = np.meshgrid(x.value, y.value)
-                shp = (2, len(y), len(x))
-            else:
-                new_x, new_y = x.value, y.value
-                shp = [2] + list(new_x.shape)
+        # tdk: remove
+        # def _get_value_(self):
+        #     if self._value is None:
+        #         x = self._x
+        #         y = self._y
+        #         if self.is_vectorized:
+        #             new_x, new_y = np.meshgrid(x.value, y.value)
+        #             shp = (2, len(y), len(x))
+        #         else:
+        #             new_x, new_y = x.value, y.value
+        #             shp = [2] + list(new_x.shape)
+        #
+        #         fill = np.zeros(shp)
+        #         fill[0, ...] = new_y
+        #         fill[1, ...] = new_x
+        #
+        #         self._set_value_(fill)
+        #
+        #     return self._value
+        #
+        # def _validate_value_(self, value):
+        #     if self._dimensions is not None and self._y is not None:
+        #         assert value.shape[1:] == self.shape
+        #         assert value.shape[0] == 2
 
-            fill = np.zeros(shp)
-            fill[0, ...] = new_y
-            fill[1, ...] = new_x
 
-            self._set_value_(fill)
-
-        return self._value
-
-    def _validate_value_(self, value):
-        if self._dimensions is not None and self._y is not None:
-            assert value.shape[1:] == self.shape
-            assert value.shape[0] == 2
-
-
-def get_dimension_variable(axis_string, gridxy, idx, variable_name):
-    if gridxy.dimensions is not None:
-        dimensions = gridxy.dimensions
-    else:
-        dimensions = None
-    attrs = OrderedDict({'axis': axis_string})
-    # Only write the corners if they have been loaded.
-    if gridxy._corners is not None:
-        if dimensions is not None:
-            dim_ncorners = Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)
-            dimensions_corners = list(dimensions) + [dim_ncorners]
-        else:
-            dimensions_corners = None
-        corners = Variable(name='{}_corners'.format(variable_name), dimensions=dimensions_corners,
-                           value=gridxy.corners[idx, :, :, :])
-        attrs.update({'bounds': corners.name})
-    else:
-        corners = None
-    ret = BoundedVariable(name=variable_name, dimensions=dimensions, attrs=attrs,
-                          bounds=corners, value=gridxy.value[idx, :, :])
-    return ret
+# tdk: remove
+# def get_dimension_variable(axis_string, gridxy, idx, variable_name):
+#     if gridxy.dimensions is not None:
+#         dimensions = gridxy.dimensions
+#     else:
+#         dimensions = None
+#     attrs = OrderedDict({'axis': axis_string})
+#     # Only write the corners if they have been loaded.
+#     if gridxy._corners is not None:
+#         if dimensions is not None:
+#             dim_ncorners = Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)
+#             dimensions_corners = list(dimensions) + [dim_ncorners]
+#         else:
+#             dimensions_corners = None
+#         corners = Variable(name='{}_corners'.format(variable_name), dimensions=dimensions_corners,
+#                            value=gridxy.corners[idx, :, :, :])
+#         attrs.update({'bounds': corners.name})
+#     else:
+#         corners = None
+#     ret = BoundedVariable(name=variable_name, dimensions=dimensions, attrs=attrs,
+#                           bounds=corners, value=gridxy.value[idx, :, :])
+#     return ret
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
@@ -536,6 +542,7 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
         value_row[ii] = geom.GetY()
 
 
+#tdk: remove
 def update_xy_dimensions(grid):
     """
     Update dimensions on "x" and "y" grid components.

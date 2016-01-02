@@ -223,6 +223,7 @@ class TestGridXY(AbstractTestNewInterface):
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
+            self.assertNotEqual(grid.shape, sub.shape)
             self.assertEqual(sub.x.value, 102.)
             self.assertEqual(sub.y.value, 42.)
 
@@ -233,6 +234,9 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertEqual(sub.x.value.tolist(), actual_x)
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
+
+            # Test with backrefs.
+
 
     def test_get_mask(self):
         grid = self.get_gridxy()
@@ -266,11 +270,10 @@ class TestGridXY(AbstractTestNewInterface):
         new_mask[:, 1] = True
         grid.set_mask(new_mask)
         args = (101.5, 40.5, 102.5, 42.5)
-        print grid.shape
         sub = grid.get_subset_bbox(*args, use_bounds=False)
-        print grid.shape
         self.assertTrue(np.all(sub.get_mask()[1, 0]))
         self.assertTrue(np.all(grid.get_mask()))
+        raise self.ToTest('correct copy is made when subsetting')
 
     def test_resolution(self):
         for grid in self.get_iter_gridxy():
