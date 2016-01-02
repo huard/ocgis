@@ -156,6 +156,9 @@ class GridXY(AbstractSpatialContainer):
             self.y.dimensions = new_dimensions
             self.y.value = new_y_value
 
+            assert self.y.ndim == 2
+            assert self.x.ndim == 2
+
     @property
     def corners(self):
         """
@@ -315,11 +318,11 @@ class GridXY(AbstractSpatialContainer):
         assert min_row <= max_row
         assert min_col <= max_col
 
-        if self._y.ndim == 2:
+        if self.y.ndim == 2:
             assert not use_bounds
-            r_row = self.value.data[0, :, :]
+            r_row = self.y.value.data
+            r_col = self.x.value.data
             real_idx_row = np.arange(0, r_row.shape[0])
-            r_col = self.value.data[1, :, :]
             real_idx_col = np.arange(0, r_col.shape[1])
 
             if closed:
@@ -356,10 +359,10 @@ class GridXY(AbstractSpatialContainer):
                 else:
                     raise
         else:
-            new_row, row_indices = self._y.get_between(min_row, max_row, return_indices=True, closed=closed,
-                                                       use_bounds=use_bounds)
-            new_col, col_indices = self._x.get_between(min_col, max_col, return_indices=True, closed=closed,
-                                                       use_bounds=use_bounds)
+            new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
+                                                      use_bounds=use_bounds)
+            new_col, col_indices = self.x.get_between(min_col, max_col, return_indices=True, closed=closed,
+                                                      use_bounds=use_bounds)
             row_slc = get_reduced_slice(row_indices)
             col_slc = get_reduced_slice(col_indices)
 

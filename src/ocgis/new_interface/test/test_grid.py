@@ -248,24 +248,29 @@ class TestGridXY(AbstractTestNewInterface):
         for k in self.iter_product_keywords(keywords):
             y = self.get_variable_y(bounds=k.bounds)
             x = self.get_variable_x(bounds=k.bounds)
-            grid = GridXY(x=x, y=y)
+            grid = GridXY(x, y)
             bg = grid.get_subset_bbox(-99, 39, -98, 39, closed=False)
-            self.assertEqual(bg._value, None)
+            self.assertTrue(bg.is_vectorized)
             with self.assertRaises(EmptySubsetError):
                 grid.get_subset_bbox(1000, 1000, 1001, 10001, closed=k.closed)
 
             bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, closed=k.closed)
-            self.assertNumpyAll(bg2.value, grid.value)
+            for target in ['x', 'y']:
+                original = getattr(grid, target).value
+                sub = getattr(bg2, target).value
+                self.assertNumpyAll(original, sub)
 
         # Test mask is not shared with subsetted grid.
-        grid = self.get_gridxy(with_value_only=True)
-        grid.value.mask[:, :, 1] = True
+        grid = self.get_gridxy()
+        new_mask = grid.get_mask()
+        new_mask[:, 1] = True
+        grid.set_mask(new_mask)
         args = (101.5, 40.5, 102.5, 42.5)
+        print grid.shape
         sub = grid.get_subset_bbox(*args, use_bounds=False)
-        self.assertTrue(np.all(sub.value.mask[:, 1, 0]))
-        self.assertTrue(np.all(grid.value.mask[:, :, 1]))
-        sub.value.mask[:, 0, 0] = False
-        self.assertFalse(np.all(grid.value.mask[:, :, 1]))
+        print grid.shape
+        self.assertTrue(np.all(sub.get_mask()[1, 0]))
+        self.assertTrue(np.all(grid.get_mask()))
 
     def test_resolution(self):
         for grid in self.get_iter_gridxy():
