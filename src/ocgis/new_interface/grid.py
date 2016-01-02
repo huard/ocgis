@@ -1,4 +1,3 @@
-import itertools
 from abc import abstractmethod, ABCMeta
 from copy import copy
 
@@ -28,10 +27,14 @@ def expand_needed(func):
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, variables=None):
+    def __init__(self, variables=None, backref=None):
         assert isinstance(variables, VariableCollection)
 
+        if backref is not None:
+            assert isinstance(backref, VariableCollection)
+
         self._variables = variables
+        self._backref = backref
 
 
 # tdk: rename AbstractSpatialVariable tests
@@ -67,6 +70,11 @@ class AbstractSpatialContainer(AbstractContainer):
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
 
+    def write_netcdf(self, dataset, **kwargs):
+        self._variables.write_netcdf(dataset, **kwargs)
+        if self.crs is not None:
+            self.crs.write_to_rootgrp(dataset)
+
     @abstractmethod
     def _get_extent_(self):
         """
@@ -78,10 +86,15 @@ class AbstractSpatialContainer(AbstractContainer):
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, crs=None):
+    def __init__(self, x, y, crs=None, backref=None):
+
+        x = x.copy()
+        y = y.copy()
+        x.attrs['axis'] = 'X'
+        y.attrs['axis'] = 'Y'
 
         variables = VariableCollection(variables=(x, y))
-        super(GridXY, self).__init__(variables=variables, crs=crs)
+        super(GridXY, self).__init__(variables=variables, crs=crs, backref=backref)
 
         # self._corners = None
         # self.__x__ = None
@@ -129,12 +142,24 @@ class GridXY(AbstractSpatialContainer):
 
         slc = get_formatted_slice(slc, self.ndim)
         ret = self.copy()
+
         if ret.is_vectorized:
-            ret.y = ret.y[slc[0]]
-            ret.x = ret.x[slc[1]]
+            y = ret.y[slc[0]]
+            x = ret.x[slc[1]]
         else:
-            ret.y = ret.y[slc[0], slc[1]]
-            ret.x = ret.x[slc[0], slc[1]]
+            y = ret.y[slc[0], slc[1]]
+            x = ret.x[slc[0], slc[1]]
+        ret._variables = VariableCollection(variables=(x, y))
+
+        backref = ret._backref
+        if backref is not None:
+            new_backref = VariableCollection(attrs=backref.attrs.copy())
+            names_src = [d.name for d in ret.dimensions]
+            for key, variable in backref.items():
+                names_dst = [d.name for d in variable.dimensions]
+                mapped_slc = get_mapped_slice(slc, names_src, names_dst)
+                new_backref.add_variable(backref[key].__getitem__(mapped_slc))
+            ret._backref = new_backref
         return ret
 
     def expand(self):
@@ -158,7 +183,6 @@ class GridXY(AbstractSpatialContainer):
             assert self.x.ndim == 2
 
             # tdk: remove
-
     # @property
     # def corners(self):
     #     """
@@ -216,19 +240,19 @@ class GridXY(AbstractSpatialContainer):
     #         assert value.shape[3] == 4
     #     self._corners = value
 
-    @property
-    def corners_esmf(self):
-        fill = np.zeros([2] + [element + 1 for element in self.shape], dtype=self.value.dtype)
-        range_row = range(self.shape[0])
-        range_col = range(self.shape[1])
-        _corners = self.corners.data
-        for ii, jj in itertools.product(range_row, range_col):
-            ref = fill[:, ii:ii + 2, jj:jj + 2]
-            ref[:, 0, 0] = _corners[:, ii, jj, 0]
-            ref[:, 0, 1] = _corners[:, ii, jj, 1]
-            ref[:, 1, 1] = _corners[:, ii, jj, 2]
-            ref[:, 1, 0] = _corners[:, ii, jj, 3]
-        return fill
+    # @property
+    # def corners_esmf(self):
+    #     fill = np.zeros([2] + [element + 1 for element in self.shape], dtype=self.value.dtype)
+    #     range_row = range(self.shape[0])
+    #     range_col = range(self.shape[1])
+    #     _corners = self.corners.data
+    #     for ii, jj in itertools.product(range_row, range_col):
+    #         ref = fill[:, ii:ii + 2, jj:jj + 2]
+    #         ref[:, 0, 0] = _corners[:, ii, jj, 0]
+    #         ref[:, 0, 1] = _corners[:, ii, jj, 1]
+    #         ref[:, 1, 1] = _corners[:, ii, jj, 2]
+    #         ref[:, 1, 0] = _corners[:, ii, jj, 3]
+    #     return fill
 
     @property
     def dimensions(self):
@@ -411,13 +435,6 @@ class GridXY(AbstractSpatialContainer):
 
         self.crs = to_crs
 
-    def write_netcdf(self, dataset, **kwargs):
-        update_xy_dimensions(self)
-        for tw in [self.y, self.x]:
-            tw.write_netcdf(dataset, **kwargs)
-        if self.crs is not None:
-            self.crs.write_to_rootgrp(dataset)
-
     def _get_extent_(self):
         #tdk: test, doc
         if not self.is_vectorized:
@@ -560,3 +577,11 @@ def update_xy_dimensions(grid):
             else:
                 grid._y.dimensions = grid.dimensions
                 grid._x.dimensions = grid.dimensions
+
+
+def get_mapped_slice(slc_src, names_src, names_dst):
+    ret = [slice(None)] * len(names_dst)
+    for name, slc in zip(names_src, slc_src):
+        idx = names_dst.index(name)
+        ret[idx] = slc
+    return tuple(ret)

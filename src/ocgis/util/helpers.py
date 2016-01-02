@@ -418,6 +418,27 @@ def get_none_or_slice(target, slc):
     return ret
 
 
+def get_esmf_corners_from_ocgis_corners(ocorners):
+    """
+    :param ocorners: Corners array with dimension (m, n, 4).
+    :type ocorners: :class:`numpy.ma.core.MaskedArray`
+    :returns: An ESMF corners array with dimension (m + 1, n + 1).
+    :rtype: :class:`numpy.ndarray`
+    """
+
+    fill = np.zeros([element + 1 for element in ocorners.shape[1:3]], dtype=ocorners.dtype)
+    range_row = range(ocorners.shape[0])
+    range_col = range(ocorners.shape[1])
+    _corners = ocorners.data
+    for ii, jj in itertools.product(range_row, range_col):
+        ref = fill[ii:ii + 2, jj:jj + 2]
+        ref[0, 0] = _corners[ii, jj, 0]
+        ref[0, 1] = _corners[ii, jj, 1]
+        ref[1, 1] = _corners[ii, jj, 2]
+        ref[1, 0] = _corners[ii, jj, 3]
+    return fill
+
+
 def get_ocgis_corners_from_esmf_corners(ecorners):
     """
     :param ecorners: An array of ESMF corners.

@@ -7,7 +7,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.grid import GridXY
-from ocgis.new_interface.variable import BoundedVariable, Variable
+from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
 from ocgis.test.base import TestBase
 
 _VALUE_POINT_ARRAY = np.array([None, None])
@@ -60,7 +60,6 @@ class AbstractTestNewInterface(TestBase):
         if with_xy_bounds:
             vx.set_extrapolated_bounds()
             vy.set_extrapolated_bounds()
-        kwds.update(dict(x=vx, y=vy))
 
         if with_backref:
             np.random.seed(1)
@@ -70,9 +69,11 @@ class AbstractTestNewInterface(TestBase):
 
             rhs = np.random.rand(4, 3, 10) * 100
             rhs = Variable(name='rhs', value=rhs)
-            tas.create_dimensions(names=['time', 'x', 'y'])
+            rhs.create_dimensions(names=['y', 'x', 'time'])
 
-        grid = GridXY(**kwds)
+            kwds['backref'] = VariableCollection(variables=[tas, rhs])
+
+        grid = GridXY(vx, vy, **kwds)
         return grid
 
     def get_pointarray(self, **kwargs):

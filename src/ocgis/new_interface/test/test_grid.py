@@ -1,11 +1,12 @@
 import itertools
+from unittest import SkipTest
 
 import numpy as np
 from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
-from ocgis.new_interface.dimension import Dimension, SourcedDimension
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -67,36 +68,6 @@ class TestGridXY(AbstractTestNewInterface):
             if return_kwargs:
                 ret = (ret, k)
             yield ret
-
-    def test(self):
-        # tdk: add mechanism for asserting variable dimensions match variable values
-        # Test behavior of dimension-attached variables.
-        dx = SourcedDimension('dx', 3)
-        dy = SourcedDimension('dy', 4)
-        x = Variable(value=[1, 2, 3], name='x', dimensions=dx)
-        y = Variable(value=[10, 20, 30, 40], name='y', dimensions=dy)
-        tas = Variable(value=np.random.rand(4, 3), dimensions=[dy, dx])
-
-        dx.attach_variable(x)
-        dy.attach_variable(y)
-
-        self.assertTrue(np.may_share_memory(dx._variable.value, x.value))
-        self.assertTrue(np.may_share_memory(dy._variable.value, y.value))
-
-        sub = tas[2:4, 1]
-
-        self.assertNumpyAll(sub.dimensions[0]._variable.value, y[2:4].value)
-        self.assertNumpyAll(sub.dimensions[1]._variable.value, x[1].value)
-
-        grid = GridXY(x=x, y=y)
-        original_dim_ids = [id(d) for d in grid.dimensions]
-        self.assertEqual(id(grid._x.dimensions[0]), original_dim_ids[1])
-        grid[:] = 1000
-        self.assertEqual(grid._x.value.mean(), 1000)
-        self.assertEqual(id(grid._x.dimensions[1]), original_dim_ids[1])
-        self.assertEqual(id(grid._x.dimensions[0]), original_dim_ids[0])
-        self.assertEqual(map(id, grid.dimensions), original_dim_ids)
-        self.assertTrue(np.may_share_memory(grid.dimensions[0]._src_idx, dy._src_idx))
 
     def test_init(self):
         crs = WGS84()
@@ -171,6 +142,7 @@ class TestGridXY(AbstractTestNewInterface):
     #         self.assertIn('x_corners', ds.variables)
 
     def test_corners_esmf(self):
+        raise SkipTest('move to test for get_esmf_corners_from_ocgis_corners')
         x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='x_bounds')
         x = BoundedVariable(value=[-100., -99., -98., -97.], bounds=x_bounds, name='x')
 
@@ -223,7 +195,6 @@ class TestGridXY(AbstractTestNewInterface):
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
-            self.assertNotEqual(grid.shape, sub.shape)
             self.assertEqual(sub.x.value, 102.)
             self.assertEqual(sub.y.value, 42.)
 
@@ -235,8 +206,17 @@ class TestGridXY(AbstractTestNewInterface):
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
 
-            # Test with backrefs.
-
+        # Test with backref.
+        grid = self.get_gridxy(with_backref=True, with_dimensions=True)
+        orig_tas = grid._backref['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
+        orig_rhs = grid._backref['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]
+        sub = grid[2:4, 1]
+        self.assertEqual(grid.shape, (4, 3))
+        self.assertEqual(sub._backref['tas'].shape, (10, 1, 2))
+        self.assertEqual(sub._backref['rhs'].shape, (2, 1, 10))
+        self.assertNumpyAll(sub._backref['tas'].value, orig_tas)
+        self.assertNumpyAll(sub._backref['rhs'].value, orig_rhs)
+        self.assertTrue(np.may_share_memory(sub._backref['tas'].value, grid._backref['tas'].value))
 
     def test_get_mask(self):
         grid = self.get_gridxy()
@@ -254,6 +234,7 @@ class TestGridXY(AbstractTestNewInterface):
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
             bg = grid.get_subset_bbox(-99, 39, -98, 39, closed=False)
+            self.assertNotEqual(grid.shape, bg.shape)
             self.assertTrue(bg.is_vectorized)
             with self.assertRaises(EmptySubsetError):
                 grid.get_subset_bbox(1000, 1000, 1001, 10001, closed=k.closed)
@@ -264,16 +245,16 @@ class TestGridXY(AbstractTestNewInterface):
                 sub = getattr(bg2, target).value
                 self.assertNumpyAll(original, sub)
 
-        # Test mask is not shared with subsetted grid.
+        # Test mask is shared with subsetted grid.
         grid = self.get_gridxy()
         new_mask = grid.get_mask()
         new_mask[:, 1] = True
         grid.set_mask(new_mask)
         args = (101.5, 40.5, 102.5, 42.5)
         sub = grid.get_subset_bbox(*args, use_bounds=False)
-        self.assertTrue(np.all(sub.get_mask()[1, 0]))
-        self.assertTrue(np.all(grid.get_mask()))
-        raise self.ToTest('correct copy is made when subsetting')
+        self.assertTrue(np.all(sub.get_mask()))
+        sub.set_mask(np.array([[False, False]]))
+        self.assertEqual(grid.get_mask().sum(), 2)
 
     def test_resolution(self):
         for grid in self.get_iter_gridxy():
@@ -331,8 +312,9 @@ class TestGridXY(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
-            var = ds.variables['y']
-            self.assertNumpyAll(var[:], grid._y.value.data)
+            var = ds.variables[grid.y.name]
+            self.assertNumpyAll(var[:], grid.y.value.data)
+            self.assertEqual(var.axis, 'Y')
 
         # Test with 2-d x and y arrays.
         grid = self.get_gridxy(with_2d_variables=True, with_dimensions=True)
@@ -341,13 +323,10 @@ class TestGridXY(AbstractTestNewInterface):
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
-            self.assertNumpyAll(var[:], grid._y.value.data)
+            self.assertNumpyAll(var[:], grid.y.value.data)
 
-        # Test when the value is loaded.
         grid = self.get_gridxy(with_dimensions=True)
-        self.assertIsNone(grid._value)
-        grid._get_value_()
-        self.assertIsNotNone(grid._dimensions)
+        self.assertIsNotNone(grid.dimensions)
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
@@ -355,14 +334,3 @@ class TestGridXY(AbstractTestNewInterface):
         with self.nc_scope(path, 'r') as ds:
             self.assertEqual(['y'], [d for d in ds.variables['y'].dimensions])
             self.assertEqual(['x'], [d for d in ds.variables['x'].dimensions])
-
-        # Test with a value only.
-        grid = self.get_gridxy(with_value_only=True)
-        dimensions = (Dimension('yy', 4), Dimension('xx', 3))
-        grid.dimensions = dimensions
-        with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
-        with self.nc_scope(path, 'r') as ds:
-            yc = ds.variables['yc']
-            self.assertEqual(['yy', 'xx'], [d for d in yc.dimensions])
-            self.assertEqual(yc.axis, 'Y')
