@@ -2,6 +2,7 @@ import itertools
 from unittest import SkipTest
 
 import numpy as np
+from numpy.testing.utils import assert_equal
 from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
@@ -76,6 +77,13 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('x', grid._variables)
         self.assertIn('y', grid._variables)
         self.assertEqual(grid.crs, crs)
+
+        # Test with different variable names.
+        x = Variable(name='col', value=[1])
+        y = Variable(name='row', value=[2])
+        grid = GridXY(x, y)
+        assert_equal(grid.x.value, [1])
+        assert_equal(grid.y.value, [2])
 
     # tdk: remove
     # def test_corners(self):

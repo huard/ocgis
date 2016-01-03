@@ -417,9 +417,10 @@ class PointArray(AbstractSpatialVariable):
             return self.grid.extent
 
     def _get_geometry_fill_(self, shape=None):
+        self.grid.expand()
         if shape is None:
             shape = (self.grid.shape[0], self.grid.shape[1])
-            mask = self.grid.value[0].mask
+            mask = self.grid.get_mask()
         else:
             mask = False
         fill = np.ma.array(np.zeros(shape), mask=mask, dtype=object)
@@ -434,14 +435,16 @@ class PointArray(AbstractSpatialVariable):
         return ret
 
     def _get_value_(self):
-        # Create geometries for all the underlying coordinates regardless if the data is masked.
-        ref_grid = self.grid.value.data
-
         fill = self._get_geometry_fill_()
+
+        # Create geometries for all the underlying coordinates regardless if the data is masked.
+        x_data = self.grid.x.value.data
+        y_data = self.grid.y.value.data
+
         r_data = fill.data
-        for idx_row, idx_col in iter_array(ref_grid[0], use_mask=False):
-            y = ref_grid[0, idx_row, idx_col]
-            x = ref_grid[1, idx_row, idx_col]
+        for idx_row, idx_col in iter_array(y_data, use_mask=False):
+            y = y_data[idx_row, idx_col]
+            x = x_data[idx_row, idx_col]
             pt = Point(x, y)
             r_data[idx_row, idx_col] = pt
         return fill
@@ -460,8 +463,8 @@ class PolygonArray(PointArray):
         super(PolygonArray, self).__init__(**kwargs)
 
         if self._value is None:
-            if self._grid._corners is None and (self._grid._x.bounds is None or self._grid._y.bounds is None):
-                msg = 'Grid "corners" must be available.'
+            if not self.grid.has_bounds:
+                msg = 'Grid bounds/corners must be available.'
                 raise GridDeficientError(msg)
 
     @property
@@ -480,9 +483,11 @@ class PolygonArray(PointArray):
     def _get_value_(self):
         fill = self._get_geometry_fill_()
         r_data = fill.data
-        if self.grid.is_vectorized and self.grid._y.bounds is not None:
-            ref_row_bounds = self.grid._y.bounds.value
-            ref_col_bounds = self.grid._x.bounds.value
+        grid = self.grid
+
+        if grid.is_vectorized and grid.has_bounds:
+            ref_row_bounds = grid.y.bounds.value.data
+            ref_col_bounds = grid.x.bounds.value.data
             for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
                 row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
                 col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
@@ -491,9 +496,13 @@ class PolygonArray(PointArray):
         # The grid dimension may not have row/col or row/col bounds.
         else:
             # We want geometries for everything even if masked.
-            corners = self.grid.corners.data
-            range_row = range(self.grid.shape[0])
-            range_col = range(self.grid.shape[1])
+            x_corners = grid.x.bounds.value.data
+            y_corners = grid.y.bounds.value.data
+            corners = np.vstack((y_corners, x_corners))
+            # tdk: implement mesh value on grid to maintain vectorized grid
+            corners = corners.reshape([2] + list(x_corners.shape))
+            range_row = range(grid.shape[0])
+            range_col = range(grid.shape[1])
             for row, col in itertools.product(range_row, range_col):
                 current_corner = corners[:, row, col]
                 coords = np.hstack((current_corner[1, :].reshape(-1, 1),

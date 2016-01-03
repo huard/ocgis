@@ -114,6 +114,9 @@ class GridXY(AbstractSpatialContainer):
         x.attrs['axis'] = 'X'
         y.attrs['axis'] = 'Y'
 
+        self._x_name = x.alias
+        self._y_name = y.alias
+
         variables = VariableCollection(variables=(x, y))
         super(GridXY, self).__init__(variables=variables, crs=crs, backref=backref)
 
@@ -287,6 +290,14 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
+    def has_bounds(self):
+        if self._archetype.bounds is None:
+            ret = False
+        else:
+            ret = True
+        return ret
+
+    @property
     def is_vectorized(self):
         if self.y.ndim == 1:
             ret = True
@@ -296,21 +307,21 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def x(self):
-        return self._variables['x']
+        return self._variables[self._x_name]
 
     @x.setter
     def x(self, value):
         assert isinstance(value, Variable)
-        self._variables['x'] = value
+        self._variables[self._x_name] = value
 
     @property
     def y(self):
-        return self._variables['y']
+        return self._variables[self._y_name]
 
     @y.setter
     def y(self, value):
         assert isinstance(value, Variable)
-        self._variables['y'] = value
+        self._variables[self._y_name] = value
 
     @property
     def resolution(self):
@@ -328,12 +339,15 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def shape(self):
-        y = self.y
         if self.is_vectorized:
-            ret = (y.shape[0], self.x.shape[0])
+            ret = (self.y.shape[0], self.x.shape[0])
         else:
-            ret = y.shape
+            ret = self._archetype.shape
         return ret
+
+    @property
+    def _archetype(self):
+        return self.y
 
     def copy(self):
         ret = copy(self)
@@ -352,7 +366,7 @@ class GridXY(AbstractSpatialContainer):
 
     @expand_needed
     def get_mask(self):
-        return self.y.get_mask()
+        return self._archetype.get_mask()
 
     @expand_needed
     def set_mask(self, value):

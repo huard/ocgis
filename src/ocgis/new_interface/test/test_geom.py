@@ -71,11 +71,8 @@ class TestPointArray(AbstractTestNewInterface):
         pa = PointArray(grid=grid)
         polygon = box(2.5, 15, 4.5, 45)
         sub, slc = pa.get_intersects(polygon, return_indices=True)
-        self.assertIsNone(sub.grid.__x__)
-        self.assertIsNone(sub.grid.__y__)
-        np.testing.assert_equal(sub.grid._x.value, sub.grid.value[1])
-        np.testing.assert_equal(sub.grid._y.value, sub.grid.value[0])
-        self.assertNumpyAll(grid[slc].value, sub.grid.value)
+        self.assertIsNotNone(sub.grid.x)
+        self.assertIsNotNone(sub.grid.y)
 
         # Test w/out an associated grid.
         pa = self.get_pointarray()
@@ -244,14 +241,13 @@ class TestPolygonArray(AbstractTestNewInterface):
 
         row = BoundedVariable(value=[2, 3], name='row')
         col = BoundedVariable(value=[4, 5], name='col')
-        grid = GridXY(x=col, y=row)
-        self.assertIsNone(grid.corners)
+        grid = GridXY(col, row)
+        self.assertIsNone(grid._archetype.bounds)
         # Corners are not available.
         with self.assertRaises(GridDeficientError):
             PolygonArray(grid=grid)
 
-        value = grid.value
-        grid = GridXY(value=value)
+        grid = GridXY(col, row)
         # Corners are not available.
         with self.assertRaises(GridDeficientError):
             PolygonArray(grid=grid)
@@ -292,18 +288,22 @@ class TestPolygonArray(AbstractTestNewInterface):
                         with_grid_mask=[True, False])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
             poly = self.get_polygonarray()
+            self.assertTrue(poly.grid.has_bounds)
+            self.assertTrue(poly.grid.is_vectorized)
             if k.with_grid_mask:
-                poly.grid.value.mask[:, 1, 1] = True
-            poly.grid.corners
+                poly.grid.y.value.mask[1] = True
+                # poly.grid.value.mask[:, 1, 1] = True
+            # poly.grid.corners
             if not k.with_grid_row_col_bounds:
-                poly.grid._y.bounds = None
-                poly.grid._x.bounds = None
+                poly.grid.y.bounds = None
+                poly.grid.x.bounds = None
                 actual = self.polygon_value_alternate_ordering
             else:
                 actual = self.polygon_value
             if k.with_grid_mask:
-                actual.mask[1, 1] = True
+                actual.mask[1, :] = True
             self.assertIsNone(poly._value)
+            self.assertTrue(poly.grid.is_vectorized)
             value_poly = poly.value
             self.assertGeometriesAlmostEquals(value_poly, actual)
 
