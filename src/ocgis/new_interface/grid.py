@@ -182,6 +182,12 @@ class GridXY(AbstractSpatialContainer):
             assert self.y.ndim == 2
             assert self.x.ndim == 2
 
+            if self.y.bounds is not None:
+                self.y.bounds = None
+                self.x.bounds = None
+                # tdk: this should leverage the bounds already in place on the vectors
+                self.set_extrapolated_bounds()
+
             # tdk: remove
     # @property
     # def corners(self):
@@ -398,7 +404,6 @@ class GridXY(AbstractSpatialContainer):
 
         return ret
 
-    @expand_needed
     def set_extrapolated_bounds(self):
         """
         Extrapolate corners from grid centroids.
@@ -560,23 +565,23 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
 
 
 #tdk: remove
-def update_xy_dimensions(grid):
-    """
-    Update dimensions on "x" and "y" grid components.
-
-    :param grid: The target grid object.
-    :type grid: :class:`ocgis.new_interface.grid.GridXY`
-    """
-    if grid.__y__ is not None:
-        for n, d in zip(grid.name, (grid._y, grid._x)):
-            d.name = n
-        if grid.dimensions is not None:
-            if grid.is_vectorized:
-                grid._y.dimensions = grid.dimensions[0]
-                grid._x.dimensions = grid.dimensions[1]
-            else:
-                grid._y.dimensions = grid.dimensions
-                grid._x.dimensions = grid.dimensions
+# def update_xy_dimensions(grid):
+#     """
+#     Update dimensions on "x" and "y" grid components.
+#
+#     :param grid: The target grid object.
+#     :type grid: :class:`ocgis.new_interface.grid.GridXY`
+#     """
+#     if grid.__y__ is not None:
+#         for n, d in zip(grid.name, (grid._y, grid._x)):
+#             d.name = n
+#         if grid.dimensions is not None:
+#             if grid.is_vectorized:
+#                 grid._y.dimensions = grid.dimensions[0]
+#                 grid._x.dimensions = grid.dimensions[1]
+#             else:
+#                 grid._y.dimensions = grid.dimensions
+#                 grid._x.dimensions = grid.dimensions
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):

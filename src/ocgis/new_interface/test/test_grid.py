@@ -4,7 +4,7 @@ from unittest import SkipTest
 import numpy as np
 from shapely.geometry import Point
 
-from ocgis.exc import EmptySubsetError
+from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.grid import GridXY
@@ -273,12 +273,30 @@ class TestGridXY(AbstractTestNewInterface):
               [-97.5, -96.5, -96.5, -97.5]],
              [[-100.5, -99.5, -99.5, -100.5], [-99.5, -98.5, -98.5, -99.5], [-98.5, -97.5, -97.5, -98.5],
               [-97.5, -96.5, -96.5, -97.5]]]]
-        y = BoundedVariable(name='y', value=value_grid[0])
-        x = BoundedVariable(name='x', value=value_grid[1])
+
+        for should_extrapolate in [False, True]:
+            y = BoundedVariable(name='y', value=value_grid[0])
+            x = BoundedVariable(name='x', value=value_grid[1])
+            if should_extrapolate:
+                y.set_extrapolated_bounds()
+                x.set_extrapolated_bounds()
+            grid = GridXY(x, y)
+            try:
+                grid.set_extrapolated_bounds()
+            except BoundsAlreadyAvailableError:
+                self.assertTrue(should_extrapolate)
+            else:
+                np.testing.assert_equal(grid.y.bounds.value, actual_corners[0])
+                np.testing.assert_equal(grid.x.bounds.value, actual_corners[1])
+
+        # Test vectorized.
+        y = BoundedVariable(name='y', value=[1., 2., 3.])
+        x = BoundedVariable(name='x', value=[10., 20., 30.])
         grid = GridXY(x, y)
         grid.set_extrapolated_bounds()
-        np.testing.assert_equal(grid.y.bounds.value, actual_corners[0])
-        np.testing.assert_equal(grid.x.bounds.value, actual_corners[1])
+        self.assertTrue(grid.is_vectorized)
+        grid.expand()
+        self.assertEqual(grid.x.bounds.ndim, 3)
 
     def test_set_mask(self):
         grid = self.get_gridxy()
@@ -307,7 +325,7 @@ class TestGridXY(AbstractTestNewInterface):
                 self.assertTrue(np.all(target > 10000))
 
     def test_write_netcdf(self):
-        grid = self.get_gridxy()
+        grid = self.get_gridxy(crs=WGS84())
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
@@ -315,10 +333,12 @@ class TestGridXY(AbstractTestNewInterface):
             var = ds.variables[grid.y.name]
             self.assertNumpyAll(var[:], grid.y.value.data)
             self.assertEqual(var.axis, 'Y')
+            self.assertIn(grid.crs.name, ds.variables)
 
         # Test with 2-d x and y arrays.
         grid = self.get_gridxy(with_2d_variables=True, with_dimensions=True)
         path = self.get_temporary_file_path('out.nc')
+        grid.set_extrapolated_bounds()
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
