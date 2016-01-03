@@ -10,6 +10,7 @@ from tempfile import mkdtemp
 import fiona
 import numpy as np
 from fiona.crs import from_epsg
+from numpy.ma import MaskedArray
 from shapely.geometry import Point
 from shapely.geometry.geo import mapping
 from shapely.geometry.polygon import Polygon
@@ -199,6 +200,8 @@ def get_extrapolated_corners_esmf(arr):
     :returns: A two-dimensional array of extrapolated corners with dimension ``(arr.shape[0]+1, arr.shape[1]+1)``.
     :rtype: :class:`numpy.ndarray`
     """
+
+    assert not isinstance(arr, MaskedArray)
 
     # if this is only a single element, we cannot make corners
     if all([element == 1 for element in arr.shape]):

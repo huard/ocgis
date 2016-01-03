@@ -507,6 +507,7 @@ class PolygonArray(PointArray):
             corners = corners.reshape([2] + list(x_corners.shape))
             range_row = range(grid.shape[0])
             range_col = range(grid.shape[1])
+
             for row, col in itertools.product(range_row, range_col):
                 current_corner = corners[:, row, col]
                 coords = np.hstack((current_corner[1, :].reshape(-1, 1),

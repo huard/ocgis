@@ -578,7 +578,7 @@ class BoundedVariable(SourcedVariable):
             bounds_value = get_bounds_from_1d(self.value)
         else:
             # tdk: consider renaming this functions to get_bounds_from_2d
-            bounds_value = get_extrapolated_corners_esmf(self.value)
+            bounds_value = get_extrapolated_corners_esmf(self.value.data)
             bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
 
         dimensions = self.dimensions

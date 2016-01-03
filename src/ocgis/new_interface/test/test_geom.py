@@ -377,8 +377,10 @@ class TestSpatialContainer(AbstractTestNewInterface):
                 self.assertIsNone(subset.polygon)
                 self.assertTrue(subset.point.get_mask().any())
                 self.assertTrue(subset.grid.get_mask().any())
-                subset.grid.set_extrapolated_corners()
-                self.assertTrue(subset.grid.corners.mask.any())
+                # subset.grid.set_extrapolated_corners()
+                subset.grid.set_extrapolated_bounds()
+                # self.assertTrue(subset.grid.corners.mask.any())
+                self.assertTrue(subset.grid._archetype.bounds.get_mask().any())
             grid_mask = sc.grid.get_mask().copy()
             grid_mask[:] = True
             self.assertFalse(sc.grid.get_mask().any())
