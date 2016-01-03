@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABCMeta
+from abc import abstractmethod, ABCMeta, abstractproperty
 from copy import copy
 
 import numpy as np
@@ -35,6 +35,10 @@ class AbstractContainer(AbstractInterfaceObject):
 
         self._variables = variables
         self._backref = backref
+
+    @abstractproperty
+    def dimensions(self):
+        """Return a tuple of dimension objects."""
 
     def write_netcdf(self, *args, **kwargs):
         self._variables.write_netcdf(*args, **kwargs)
@@ -168,15 +172,8 @@ class GridXY(AbstractSpatialContainer):
             x = ret.x[slc[0], slc[1]]
         ret._variables = VariableCollection(variables=(x, y))
 
-        backref = ret._backref
-        if backref is not None:
-            new_backref = VariableCollection(attrs=backref.attrs.copy())
-            names_src = [d.name for d in ret.dimensions]
-            for key, variable in backref.items():
-                names_dst = [d.name for d in variable.dimensions]
-                mapped_slc = get_mapped_slice(slc, names_src, names_dst)
-                new_backref.add_variable(backref[key].__getitem__(mapped_slc))
-            ret._backref = new_backref
+        set_sliced_backref_variables(ret, slc)
+
         return ret
 
     def expand(self):
@@ -607,3 +604,15 @@ def get_mapped_slice(slc_src, names_src, names_dst):
         idx = names_dst.index(name)
         ret[idx] = slc
     return tuple(ret)
+
+
+def set_sliced_backref_variables(ret, slc):
+    backref = ret._backref
+    if backref is not None:
+        new_backref = VariableCollection(attrs=backref.attrs.copy())
+        names_src = [d.name for d in ret.dimensions]
+        for key, variable in backref.items():
+            names_dst = [d.name for d in variable.dimensions]
+            mapped_slc = get_mapped_slice(slc, names_src, names_dst)
+            new_backref.add_variable(backref[key].__getitem__(mapped_slc))
+        ret._backref = new_backref
