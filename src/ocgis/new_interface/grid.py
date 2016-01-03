@@ -36,9 +36,11 @@ class AbstractContainer(AbstractInterfaceObject):
         self._variables = variables
         self._backref = backref
 
+    def write_netcdf(self, *args, **kwargs):
+        self._variables.write_netcdf(*args, **kwargs)
 
-# tdk: rename AbstractSpatialVariable tests
-class AbstractSpatialContainer(AbstractContainer):
+
+class AbstractSpatialObject(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
@@ -46,7 +48,7 @@ class AbstractSpatialContainer(AbstractContainer):
 
         self.crs = kwargs.pop('crs', None)
 
-        super(AbstractSpatialContainer, self).__init__(**kwargs)
+        super(AbstractSpatialObject, self).__init__(**kwargs)
 
     @property
     def crs(self):
@@ -70,8 +72,7 @@ class AbstractSpatialContainer(AbstractContainer):
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
 
-    def write_netcdf(self, dataset, **kwargs):
-        self._variables.write_netcdf(dataset, **kwargs)
+    def write_netcdf(self, dataset):
         if self.crs is not None:
             self.crs.write_to_rootgrp(dataset)
 
@@ -81,6 +82,22 @@ class AbstractSpatialContainer(AbstractContainer):
         :returns: A tuple with order (minx, miny, maxx, maxy).
         :rtype: tuple
         """
+
+
+class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, **kwargs):
+        crs = kwargs.pop('crs', None)
+        variables = kwargs['variables']
+        backref = kwargs.pop('backref', None)
+
+        AbstractContainer.__init__(self, variables=variables, backref=backref)
+        AbstractSpatialObject.__init__(self, crs=crs)
+
+    def write_netcdf(self, dataset, **kwargs):
+        AbstractContainer.write_netcdf(self, dataset, **kwargs)
+        AbstractSpatialObject.write_netcdf(self, dataset)
 
 
 class GridXY(AbstractSpatialContainer):
