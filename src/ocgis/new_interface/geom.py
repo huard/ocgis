@@ -1,4 +1,5 @@
 import itertools
+from abc import ABCMeta
 from collections import deque
 from copy import copy
 
@@ -14,7 +15,8 @@ from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.grid import GridXY, AbstractSpatialContainer
+from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
+from ocgis.new_interface.variable import Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -142,7 +144,16 @@ class SpatialContainer(AbstractInterfaceObject):
                     setattr(self, target_name[1:], new_value)
 
 
-class PointArray(AbstractSpatialContainer):
+class AbstractSpatialVariable(Variable, AbstractSpatialObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, **kwargs):
+        crs = kwargs.pop('crs', None)
+        Variable.__init__(self, **kwargs)
+        AbstractSpatialObject.__init__(self, crs=crs)
+
+
+class PointArray(AbstractSpatialVariable):
     # Flag for grid subsetting by bounding box. Bounds should not be used for points.
     _use_bounds = False
 
