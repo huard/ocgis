@@ -155,7 +155,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
 
 class AbstractSpatialVariableContainer(AbstractSpatialVariable, AbstractContainer):
     def __init__(self, **kwargs):
-        kwargs_abstractcontainer = {k: kwargs.pop(k, None) for k in ['variables', 'backref']}
+        kwargs_abstractcontainer = {k: kwargs.pop(k, None) for k in ['backref']}
         AbstractSpatialVariable.__init__(self, **kwargs)
         AbstractContainer.__init__(self, **kwargs_abstractcontainer)
 

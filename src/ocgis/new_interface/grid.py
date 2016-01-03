@@ -27,21 +27,15 @@ def expand_needed(func):
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, variables=None, backref=None):
-        assert isinstance(variables, VariableCollection)
-
+    def __init__(self, backref=None):
         if backref is not None:
             assert isinstance(backref, VariableCollection)
 
-        self._variables = variables
         self._backref = backref
 
     @abstractproperty
     def dimensions(self):
         """Return a tuple of dimension objects."""
-
-    def write_netcdf(self, *args, **kwargs):
-        self._variables.write_netcdf(*args, **kwargs)
 
 
 class AbstractSpatialObject(AbstractInterfaceObject):
@@ -93,14 +87,13 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
 
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
-        variables = kwargs['variables']
         backref = kwargs.pop('backref', None)
 
-        AbstractContainer.__init__(self, variables=variables, backref=backref)
+        AbstractContainer.__init__(self, backref=backref)
         AbstractSpatialObject.__init__(self, crs=crs)
 
     def write_netcdf(self, dataset, **kwargs):
-        AbstractContainer.write_netcdf(self, dataset, **kwargs)
+        self._variables.write_netcdf(dataset, **kwargs)
         AbstractSpatialObject.write_netcdf(self, dataset)
 
 
@@ -116,8 +109,9 @@ class GridXY(AbstractSpatialContainer):
         self._x_name = x.alias
         self._y_name = y.alias
 
-        variables = VariableCollection(variables=(x, y))
-        super(GridXY, self).__init__(variables=variables, crs=crs, backref=backref)
+        self._variables = VariableCollection(variables=(x, y))
+
+        super(GridXY, self).__init__(crs=crs, backref=backref)
 
         if self.is_vectorized:
             try:
