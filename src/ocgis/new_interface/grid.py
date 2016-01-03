@@ -9,7 +9,7 @@ from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, get_iter
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, get_iter, iter_array
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -36,6 +36,22 @@ class AbstractContainer(AbstractInterfaceObject):
     @abstractproperty
     def dimensions(self):
         """Return a tuple of dimension objects."""
+
+    def set_mask(self, value):
+        if self._backref is not None:
+            names_container = [d.name for d in self.dimensions]
+            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
+            mask_container = value
+            for k, v in self._backref.items():
+                names_variable = [d.name for d in v.dimensions]
+                mask_variable = v.get_mask()
+                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
+                    if value_mask_container:
+                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
+                        mask_variable[mapped_slice] = True
+                v.set_mask(mask_variable)
+                new_backref.add_variable(v)
+            self._backref = new_backref
 
 
 class AbstractSpatialObject(AbstractInterfaceObject):
@@ -374,6 +390,7 @@ class GridXY(AbstractSpatialContainer):
 
     @expand_needed
     def set_mask(self, value):
+        super(GridXY, self).set_mask(value)
         for target in (self.y, self.x):
             target.set_mask(value)
 

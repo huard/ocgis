@@ -319,6 +319,24 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(np.all(grid.y.get_mask()[1, 1]))
         self.assertTrue(np.all(grid.x.get_mask()[1, 1]))
 
+        # Test with a backref.
+        grid = self.get_gridxy(with_backref=True, with_dimensions=True)
+        for k in ['tas', 'rhs']:
+            self.assertFalse(grid._backref[k].get_mask().any())
+        new_mask = grid.get_mask()
+        self.assertFalse(new_mask.any())
+        new_mask[1:3, 1] = True
+        grid.set_mask(new_mask)
+        for k in ['tas', 'rhs']:
+            backref_var = grid._backref[k]
+            mask = backref_var.get_mask()
+            self.assertTrue(mask.any())
+            if k == 'tas':
+                self.assertTrue(mask[:, 1, 1:3].all())
+            if k == 'rhs':
+                self.assertTrue(mask[1:3, 1, :].all())
+            self.assertEqual(mask.sum(), 20)
+
     def test_shape(self):
         for grid in self.get_iter_gridxy():
             self.assertEqual(grid.shape, (4, 3))
