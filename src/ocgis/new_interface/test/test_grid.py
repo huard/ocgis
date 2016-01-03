@@ -189,11 +189,15 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
 
     def test_expand(self):
-        grid = self.get_gridxy(with_value_mask=True)
+        # Test no mask allowed on vector coordinates.
+        with self.assertRaises(ValueError):
+            self.get_gridxy(with_value_mask=True)
+
+        grid = self.get_gridxy()
         self.assertTrue(grid.is_vectorized)
         grid.expand()
         for target in [grid.x, grid.y]:
-            self.assertTrue(target.get_mask().any())
+            self.assertFalse(target.get_mask().any())
         self.assertFalse(grid.is_vectorized)
         self.assertEqual(grid.ndim, 2)
         self.assertEqual(grid.shape, (4, 3))
@@ -232,7 +236,7 @@ class TestGridXY(AbstractTestNewInterface):
         mask = grid.get_mask()
         self.assertEqual(mask.ndim, 2)
         self.assertFalse(np.any(mask))
-        self.assertFalse(grid.is_vectorized)
+        self.assertTrue(grid.is_vectorized)
 
     def test_get_subset_bbox(self):
         keywords = dict(bounds=[True, False], closed=[True, False])

@@ -108,7 +108,6 @@ class GridXY(AbstractSpatialContainer):
     ndim = 2
 
     def __init__(self, x, y, crs=None, backref=None):
-
         x = x.copy()
         y = y.copy()
         x.attrs['axis'] = 'X'
@@ -119,6 +118,14 @@ class GridXY(AbstractSpatialContainer):
 
         variables = VariableCollection(variables=(x, y))
         super(GridXY, self).__init__(variables=variables, crs=crs, backref=backref)
+
+        if self.is_vectorized:
+            try:
+                assert not x.get_mask().any()
+                assert not y.get_mask().any()
+            except AssertionError:
+                msg = 'Vector coordinates may not be masked.'
+                raise ValueError(msg)
 
         # self._corners = None
         # self.__x__ = None
@@ -364,9 +371,12 @@ class GridXY(AbstractSpatialContainer):
             self.y.create_dimensions(names=names)
             self.x.create_dimensions(names=names)
 
-    @expand_needed
     def get_mask(self):
-        return self._archetype.get_mask()
+        if self.is_vectorized:
+            ret = np.zeros(self.shape, dtype=bool)
+        else:
+            ret = self._archetype.get_mask()
+        return ret
 
     @expand_needed
     def set_mask(self, value):
