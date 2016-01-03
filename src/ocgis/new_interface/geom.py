@@ -417,9 +417,8 @@ class PointArray(AbstractSpatialVariable):
             return self.grid.extent
 
     def _get_geometry_fill_(self, shape=None):
-        self.grid.expand()
         if shape is None:
-            shape = (self.grid.shape[0], self.grid.shape[1])
+            shape = self.grid.shape
             mask = self.grid.get_mask()
         else:
             mask = False
@@ -438,15 +437,21 @@ class PointArray(AbstractSpatialVariable):
         fill = self._get_geometry_fill_()
 
         # Create geometries for all the underlying coordinates regardless if the data is masked.
-        x_data = self.grid.x.value.data
-        y_data = self.grid.y.value.data
+        x_data = self.grid.x.value
+        y_data = self.grid.y.value
 
         r_data = fill.data
-        for idx_row, idx_col in iter_array(y_data, use_mask=False):
-            y = y_data[idx_row, idx_col]
-            x = x_data[idx_row, idx_col]
-            pt = Point(x, y)
-            r_data[idx_row, idx_col] = pt
+        if self.grid.is_vectorized:
+            for idx_row in range(y_data.shape[0]):
+                for idx_col in range(x_data.shape[0]):
+                    pt = Point(x_data[idx_col], y_data[idx_row])
+                    r_data[idx_row, idx_col] = pt
+        else:
+            for idx_row, idx_col in iter_array(y_data, use_mask=False):
+                y = y_data[idx_row, idx_col]
+                x = x_data[idx_row, idx_col]
+                pt = Point(x, y)
+                r_data[idx_row, idx_col] = pt
         return fill
 
     def _set_value_(self, value):
@@ -493,13 +498,12 @@ class PolygonArray(PointArray):
                 col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
                 r_data[idx_row, idx_col] = Polygon(
                     [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
-        # The grid dimension may not have row/col or row/col bounds.
         else:
             # We want geometries for everything even if masked.
             x_corners = grid.x.bounds.value.data
             y_corners = grid.y.bounds.value.data
+            # tdk: we should be able to avoid the creation of this corners array
             corners = np.vstack((y_corners, x_corners))
-            # tdk: implement mesh value on grid to maintain vectorized grid
             corners = corners.reshape([2] + list(x_corners.shape))
             range_row = range(grid.shape[0])
             range_col = range(grid.shape[1])

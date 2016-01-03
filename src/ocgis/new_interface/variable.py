@@ -19,7 +19,7 @@ from ocgis.util.units import get_units_object, get_conformed_units
 
 class Variable(AbstractInterfaceObject, Attributes):
     # tdk:doc
-    # tdk:support unlimited dimensions
+    # tdk: add masked=False/masked=True
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):

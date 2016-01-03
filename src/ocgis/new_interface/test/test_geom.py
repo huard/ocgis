@@ -3,6 +3,7 @@ from unittest import SkipTest
 import fiona
 import numpy as np
 from numpy.ma import MaskedArray
+from numpy.testing.utils import assert_equal
 from shapely import wkt
 from shapely.geometry import Point, box, MultiPoint
 
@@ -17,6 +18,7 @@ from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestPointArray(AbstractTestNewInterface):
+
     def test_init(self):
         pa = self.get_pointarray()
         self.assertIsInstance(pa.value, MaskedArray)
@@ -151,6 +153,16 @@ class TestPointArray(AbstractTestNewInterface):
         actual = MultiPoint([[1.0, 2.0], [3.0, 4.0]])
         self.assertEqual(u.value[0], actual)
 
+    def test_get_value(self):
+        pa = self.get_pointarray(grid=self.get_gridxy())
+        self.assertIsNone(pa._value)
+        self.assertIsNotNone(pa.grid)
+        self.assertTrue(pa.grid.is_vectorized)
+        value = pa.value
+        self.assertTrue(pa.grid.is_vectorized)
+        col = value[:, 0]
+        assert_equal(pa.grid.y.value, [c.y for c in col.flat])
+
     def test_update_crs(self):
         pa = self.get_pointarray(crs=WGS84())
         to_crs = CoordinateReferenceSystem(epsg=2136)
@@ -284,26 +296,20 @@ class TestPolygonArray(AbstractTestNewInterface):
     def test_get_value(self):
         """Test ordering of vertices when creating from corners is slightly different."""
 
-        keywords = dict(with_grid_row_col_bounds=[True, False],
-                        with_grid_mask=[True, False])
+        keywords = dict(expanded=[False, True])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
             poly = self.get_polygonarray()
             self.assertTrue(poly.grid.has_bounds)
-            self.assertTrue(poly.grid.is_vectorized)
-            if k.with_grid_mask:
-                poly.grid.y.value.mask[1] = True
-                # poly.grid.value.mask[:, 1, 1] = True
-            # poly.grid.corners
-            if not k.with_grid_row_col_bounds:
-                poly.grid.y.bounds = None
-                poly.grid.x.bounds = None
+            if k.expanded:
+                poly.grid.expand()
+                self.assertFalse(poly.grid.is_vectorized)
+            else:
+                self.assertTrue(poly.grid.is_vectorized)
+            if k.expanded:
                 actual = self.polygon_value_alternate_ordering
             else:
                 actual = self.polygon_value
-            if k.with_grid_mask:
-                actual.mask[1, :] = True
             self.assertIsNone(poly._value)
-            self.assertTrue(poly.grid.is_vectorized)
             value_poly = poly.value
             self.assertGeometriesAlmostEquals(value_poly, actual)
 
