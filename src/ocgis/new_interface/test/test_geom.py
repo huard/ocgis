@@ -13,11 +13,21 @@ from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import BoundedVariable, Variable
+from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
 from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestPointArray(AbstractTestNewInterface):
+    def get_pointarray_with_backref(self):
+        vpa = np.array([None, None, None])
+        vpa[:] = [Point(1, 2), Point(3, 4), Point(5, 6)]
+        value = np.arange(0, 30).reshape(10, 3)
+        tas = Variable(name='tas', value=value)
+        tas.create_dimensions(['time', 'ngeom'])
+        backref = VariableCollection(variables=[tas])
+        pa = PointArray(value=vpa, backref=backref)
+        pa.create_dimensions('ngeom')
+        return pa
 
     def test_init(self):
         pa = self.get_pointarray()
@@ -45,6 +55,14 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
         self.assertEqual(sub.grid.shape, (2, 1))
+
+        # Test slicing with a backref.
+        pa = self.get_pointarray_with_backref()
+        desired = pa._backref['tas'][:, 1].value
+        sub = pa[1]
+        backref_tas = sub._backref['tas']
+        self.assertNumpyAll(backref_tas.value, desired)
+        self.assertEqual(backref_tas.shape, (10, 1))
 
     def test_set_value(self):
         value = Point(6, 7)

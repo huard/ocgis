@@ -15,7 +15,7 @@ from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.grid import GridXY, AbstractSpatialObject, AbstractContainer
+from ocgis.new_interface.grid import GridXY, AbstractSpatialObject, AbstractContainer, set_sliced_backref_variables
 from ocgis.new_interface.variable import Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -154,6 +154,8 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
 
 
 class AbstractSpatialVariableContainer(AbstractSpatialVariable, AbstractContainer):
+    __metaclass__ = ABCMeta
+
     def __init__(self, **kwargs):
         kwargs_abstractcontainer = {k: kwargs.pop(k, None) for k in ['backref']}
         AbstractSpatialVariable.__init__(self, **kwargs)
@@ -180,6 +182,9 @@ class PointArray(AbstractSpatialVariableContainer):
     def __getitem__(self, slc):
         ret = super(PointArray, self).__getitem__(slc)
         ret._grid = get_none_or_slice(ret._grid, slc)
+
+        set_sliced_backref_variables(ret, slc)
+
         return ret
 
     @property
@@ -201,6 +206,7 @@ class PointArray(AbstractSpatialVariableContainer):
 
     @property
     def grid(self):
+        # tdk: grid should be made private on point arrays
         return self._grid
 
     @property
@@ -212,7 +218,7 @@ class PointArray(AbstractSpatialVariableContainer):
     def get_intersects(self, *args, **kwargs):
         return_indices = kwargs.pop('return_indices', False)
         # First, subset the grid by the bounding box.
-        if self._grid is not None:
+        if self.grid is not None:
             minx, miny, maxx, maxy = args[0].bounds
             _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
             ret = self.__getitem__(slc)

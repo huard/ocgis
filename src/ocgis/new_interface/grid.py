@@ -9,7 +9,7 @@ from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice
+from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, get_iter
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -625,6 +625,7 @@ def get_mapped_slice(slc_src, names_src, names_dst):
 
 
 def set_sliced_backref_variables(ret, slc):
+    slc = list(get_iter(slc))
     backref = ret._backref
     if backref is not None:
         new_backref = VariableCollection(attrs=backref.attrs.copy())
