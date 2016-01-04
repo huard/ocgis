@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABCMeta, abstractproperty
+from abc import abstractmethod, ABCMeta
 from copy import copy
 
 import numpy as np
@@ -39,14 +39,6 @@ class AbstractContainer(AbstractInterfaceObject):
         set_sliced_backref_variables(ret, slc)
         self._getitem_finalize_(ret, slc)
         return ret
-
-    @abstractproperty
-    def dimensions(self):
-        """Return a tuple of dimension objects."""
-
-    @abstractproperty
-    def ndim(self):
-        """The number of dimensions."""
 
     def set_mask(self, value):
         if self._backref is not None:

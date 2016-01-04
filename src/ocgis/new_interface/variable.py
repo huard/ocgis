@@ -19,7 +19,6 @@ from ocgis.util.units import get_units_object, get_conformed_units
 
 class Variable(AbstractInterfaceObject, Attributes):
     # tdk:doc
-    # tdk: add masked=False/masked=True
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
                  units=None):
@@ -43,11 +42,18 @@ class Variable(AbstractInterfaceObject, Attributes):
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, self.ndim)
         ret = self.copy()
+        self._getitem_main_(ret, slc)
+        self._getitem_finalize_(ret, slc)
+        return ret
+
+    def _getitem_main_(self, ret, slc):
         if self.dimensions is not None:
             ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
         if ret._value is not None:
             ret.value = ret.value.__getitem__(slc)
-        return ret
+
+    def _getitem_finalize_(self, ret, slc):
+        pass
 
     def __setitem__(self, slc, value):
         # tdk: order

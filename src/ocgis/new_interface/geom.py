@@ -153,7 +153,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
         AbstractSpatialObject.__init__(self, crs=crs)
 
 
-class AbstractSpatialVariableContainer(AbstractSpatialVariable, AbstractContainer):
+class AbstractSpatialVariableContainer(AbstractContainer, AbstractSpatialVariable):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
@@ -182,10 +182,8 @@ class PointArray(AbstractSpatialVariableContainer):
     def _getitem_finalize_(self, ret, slc):
         # thh
         # tdk: order
-        thh
-        # AbstractContainer._getitem_finalize_(self, ret, slc)
+        Variable._getitem_main_(self, ret, slc)
         ret._grid = get_none_or_slice(ret._grid, slc)
-        return ret
 
     @property
     def dtype(self):
