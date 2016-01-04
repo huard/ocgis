@@ -295,9 +295,8 @@ class PointArray(AbstractSpatialVariableContainer):
         # Set the returned value to the fill array.
         ret.value = fill
 
-        # Update the grid mask if it is associated with the object.
-        if ret._grid is not None:
-            ret._grid.set_mask(ret.get_mask())
+        # Update associated masks.
+        self.set_mask(ret.get_mask())
 
         return ret
 
@@ -318,10 +317,13 @@ class PointArray(AbstractSpatialVariableContainer):
         return ret
 
     def set_mask(self, value):
-        if self._value is not None:
-            self.value.mask = value
-        if self._grid is not None:
-            self.grid.set_mask(value)
+        if self._grid is None:
+            super(PointArray, self).set_mask(value)
+        else:
+            self._grid.set_mask(value)
+            # Bypass the container set_mask to avoid duplicate loops. Call the variable superclass directory which does
+            # not adjust the mask of any backref variables.
+            AbstractSpatialVariable.set_mask(self, value)
 
     def get_nearest(self, target, return_indices=False):
         target = target.centroid

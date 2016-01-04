@@ -311,6 +311,8 @@ class TestPolygonArray(AbstractTestNewInterface):
         for p in poly.value.flat:
             self.assertTrue(p.intersects(u.value[0]))
 
+        raise self.ToTest('test backref variables are spatially weighted')
+
     def test_get_value(self):
         """Test ordering of vertices when creating from corners is slightly different."""
 
