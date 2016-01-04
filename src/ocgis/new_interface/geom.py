@@ -15,7 +15,7 @@ from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.grid import GridXY, AbstractSpatialObject, AbstractContainer, set_sliced_backref_variables
+from ocgis.new_interface.grid import GridXY, AbstractSpatialObject, AbstractContainer
 from ocgis.new_interface.variable import Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -179,12 +179,12 @@ class PointArray(AbstractSpatialVariableContainer):
                 msg = 'A "value" or "grid" is required.'
                 raise ValueError(msg)
 
-    def __getitem__(self, slc):
-        ret = super(PointArray, self).__getitem__(slc)
+    def _getitem_finalize_(self, ret, slc):
+        # thh
+        # tdk: order
+        thh
+        # AbstractContainer._getitem_finalize_(self, ret, slc)
         ret._grid = get_none_or_slice(ret._grid, slc)
-
-        set_sliced_backref_variables(ret, slc)
-
         return ret
 
     @property

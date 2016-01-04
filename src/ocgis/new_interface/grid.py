@@ -33,9 +33,20 @@ class AbstractContainer(AbstractInterfaceObject):
 
         self._backref = backref
 
+    def __getitem__(self, slc):
+        slc = get_formatted_slice(slc, self.ndim)
+        ret = self.copy()
+        set_sliced_backref_variables(ret, slc)
+        self._getitem_finalize_(ret, slc)
+        return ret
+
     @abstractproperty
     def dimensions(self):
         """Return a tuple of dimension objects."""
+
+    @abstractproperty
+    def ndim(self):
+        """The number of dimensions."""
 
     def set_mask(self, value):
         if self._backref is not None:
@@ -52,6 +63,10 @@ class AbstractContainer(AbstractInterfaceObject):
                 v.set_mask(mask_variable)
                 new_backref.add_variable(v)
             self._backref = new_backref
+
+    @abstractmethod
+    def _getitem_finalize_(self, ret, slc):
+        """Finalize the returned sliced object in-place."""
 
 
 class AbstractSpatialObject(AbstractInterfaceObject):
@@ -169,7 +184,8 @@ class GridXY(AbstractSpatialContainer):
         #
         # assert len(self.name) == 2
 
-    def __getitem__(self, slc):
+    def _getitem_finalize_(self, ret, slc):
+        # tdk: order
         """
         :param slc: The slice sequence with indices corresponding to:
 
@@ -181,9 +197,6 @@ class GridXY(AbstractSpatialContainer):
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
 
-        slc = get_formatted_slice(slc, self.ndim)
-        ret = self.copy()
-
         if ret.is_vectorized:
             y = ret.y[slc[0]]
             x = ret.x[slc[1]]
@@ -191,9 +204,6 @@ class GridXY(AbstractSpatialContainer):
             y = ret.y[slc[0], slc[1]]
             x = ret.x[slc[0], slc[1]]
         ret._variables = VariableCollection(variables=(x, y))
-
-        set_sliced_backref_variables(ret, slc)
-
         return ret
 
     def expand(self):
