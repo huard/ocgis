@@ -27,7 +27,6 @@ class TemporalVariable(BoundedVariable):
      datetime objects. See: http://unidata.github.io/netcdf4-python/netCDF4-module.html#num2date
     """
 
-    _attrs_slice = ('uid', '_value', '_src_idx', '_value_datetime', '_value_numtime')
     _date_parts = ('year', 'month', 'day', 'hour', 'minute', 'second')
 
     def __init__(self, **kwargs):
