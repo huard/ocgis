@@ -15,7 +15,7 @@ from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.grid import GridXY, AbstractSpatialObject, AbstractContainer
+from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
 from ocgis.new_interface.variable import Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -153,16 +153,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
         AbstractSpatialObject.__init__(self, crs=crs)
 
 
-class AbstractSpatialVariableContainer(AbstractContainer, AbstractSpatialVariable):
-    __metaclass__ = ABCMeta
-
-    def __init__(self, **kwargs):
-        kwargs_abstractcontainer = {k: kwargs.pop(k, None) for k in ['backref']}
-        AbstractSpatialVariable.__init__(self, **kwargs)
-        AbstractContainer.__init__(self, **kwargs_abstractcontainer)
-
-
-class PointArray(AbstractSpatialVariableContainer):
+class PointArray(AbstractSpatialVariable):
     # Flag for grid subsetting by bounding box. Bounds should not be used for points.
     _use_bounds = False
 
@@ -179,10 +170,9 @@ class PointArray(AbstractSpatialVariableContainer):
                 msg = 'A "value" or "grid" is required.'
                 raise ValueError(msg)
 
-    def _getitem_finalize_(self, ret, slc):
-        # thh
+    def _getitem_main_(self, ret, slc):
         # tdk: order
-        Variable._getitem_main_(self, ret, slc)
+        AbstractSpatialVariable._getitem_main_(self, ret, slc)
         ret._grid = get_none_or_slice(ret._grid, slc)
 
     @property

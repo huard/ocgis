@@ -94,6 +94,7 @@ class Dimension(AbstractInterfaceObject):
             ret = False
         return ret
 
+    # tdk: remove this method and associated tests
     def attach_variable(self, variable):
         if not self.is_unlimited:
             assert len(self) == variable.shape[0]

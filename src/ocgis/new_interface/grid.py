@@ -7,9 +7,9 @@ from shapely.geometry import box
 from ocgis import constants, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_formatted_slice, get_reduced_slice, get_iter, iter_array
+from ocgis.util.helpers import get_reduced_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -22,43 +22,6 @@ def expand_needed(func):
         return func(*args, **kwargs)
 
     return func_wrapper
-
-
-class AbstractContainer(AbstractInterfaceObject):
-    __metaclass__ = ABCMeta
-
-    def __init__(self, backref=None):
-        if backref is not None:
-            assert isinstance(backref, VariableCollection)
-
-        self._backref = backref
-
-    def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, self.ndim)
-        ret = self.copy()
-        set_sliced_backref_variables(ret, slc)
-        self._getitem_finalize_(ret, slc)
-        return ret
-
-    def set_mask(self, value):
-        if self._backref is not None:
-            names_container = [d.name for d in self.dimensions]
-            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
-            mask_container = value
-            for k, v in self._backref.items():
-                names_variable = [d.name for d in v.dimensions]
-                mask_variable = v.get_mask()
-                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
-                    if value_mask_container:
-                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
-                        mask_variable[mapped_slice] = True
-                v.set_mask(mask_variable)
-                new_backref.add_variable(v)
-            self._backref = new_backref
-
-    @abstractmethod
-    def _getitem_finalize_(self, ret, slc):
-        """Finalize the returned sliced object in-place."""
 
 
 class AbstractSpatialObject(AbstractInterfaceObject):
@@ -176,7 +139,7 @@ class GridXY(AbstractSpatialContainer):
         #
         # assert len(self.name) == 2
 
-    def _getitem_finalize_(self, ret, slc):
+    def _getitem_main_(self, ret, slc):
         # tdk: order
         """
         :param slc: The slice sequence with indices corresponding to:
@@ -196,7 +159,6 @@ class GridXY(AbstractSpatialContainer):
             y = ret.y[slc[0], slc[1]]
             x = ret.x[slc[0], slc[1]]
         ret._variables = VariableCollection(variables=(x, y))
-        return ret
 
     def expand(self):
         # tdk: doc
@@ -634,24 +596,4 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
 #                 grid._y.dimensions = grid.dimensions
 #                 grid._x.dimensions = grid.dimensions
 
-
-def get_mapped_slice(slc_src, names_src, names_dst):
-    ret = [slice(None)] * len(names_dst)
-    for name, slc in zip(names_src, slc_src):
-        idx = names_dst.index(name)
-        ret[idx] = slc
-    return tuple(ret)
-
-
-def set_sliced_backref_variables(ret, slc):
-    slc = list(get_iter(slc))
-    backref = ret._backref
-    if backref is not None:
-        new_backref = VariableCollection(attrs=backref.attrs.copy())
-        names_src = [d.name for d in ret.dimensions]
-        for key, variable in backref.items():
-            names_dst = [d.name for d in variable.dimensions]
-            mapped_slc = get_mapped_slice(slc, names_src, names_dst)
-            new_backref.add_variable(backref[key].__getitem__(mapped_slc))
-        ret._backref = new_backref
 

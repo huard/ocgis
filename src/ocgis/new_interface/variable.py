@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractproperty
 from copy import copy, deepcopy
 from itertools import izip
 from netCDF4 import Dataset
@@ -17,12 +18,69 @@ from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
-class Variable(AbstractInterfaceObject, Attributes):
+class AbstractContainer(AbstractInterfaceObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, backref=None):
+        if backref is not None:
+            assert isinstance(backref, VariableCollection)
+
+        self._backref = backref
+
+    def __getitem__(self, slc):
+        ret, slc = self._getitem_initialize_(slc)
+        self._getitem_main_(ret, slc)
+        set_sliced_backref_variables(ret, slc)
+        self._getitem_finalize_(ret, slc)
+        return ret
+
+    @abstractproperty
+    def ndim(self):
+        pass
+
+    @abstractproperty
+    def dimensions(self):
+        pass
+
+    def set_mask(self, value):
+        if value.ndim != self.ndim:
+            msg = 'Mask must have same dimensions as target.'
+            raise ValueError(msg)
+
+        if self._backref is not None:
+            names_container = [d.name for d in self.dimensions]
+            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
+            mask_container = value
+            for k, v in self._backref.items():
+                names_variable = [d.name for d in v.dimensions]
+                mask_variable = v.get_mask()
+                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
+                    if value_mask_container:
+                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
+                        mask_variable[mapped_slice] = True
+                v.set_mask(mask_variable)
+                new_backref.add_variable(v)
+            self._backref = new_backref
+
+    def _getitem_initialize_(self, slc):
+        slc = get_formatted_slice(slc, self.ndim)
+        ret = self.copy()
+        return ret, slc
+
+    def _getitem_main_(self, ret, slc):
+        """Perform major slicing operations in-place."""
+
+    def _getitem_finalize_(self, ret, slc):
+        """Finalize the returned sliced object in-place."""
+
+
+class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
     def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
-                 units=None):
+                 units=None, backref=None):
         Attributes.__init__(self, attrs=attrs)
+        AbstractContainer.__init__(self, backref=backref)
 
         self._alias = None
         self._dimensions = None
@@ -38,13 +96,6 @@ class Variable(AbstractInterfaceObject, Attributes):
         self.alias = alias
         self.dimensions = dimensions
         self.value = value
-
-    def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, self.ndim)
-        ret = self.copy()
-        self._getitem_main_(ret, slc)
-        self._getitem_finalize_(ret, slc)
-        return ret
 
     def _getitem_main_(self, ret, slc):
         if self.dimensions is not None:
@@ -250,7 +301,7 @@ class Variable(AbstractInterfaceObject, Attributes):
 
     def set_mask(self, value):
         """Set the object mask."""
-        assert value.ndim == self.ndim
+        super(Variable, self).set_mask(value)
         self.value.mask = value
 
     def write_netcdf(self, dataset, **kwargs):
@@ -331,15 +382,6 @@ class SourcedVariable(Variable):
         if self._request_dataset is not None and not self._allocated:
             self._set_metadata_from_source_()
         return super(SourcedVariable, self)._get_shape_()
-
-    def __getitem__(self, slc):
-        if self._value is None:
-            slc = get_formatted_slice(slc, self.ndim)
-            ret = copy(self)
-            ret.dimensions = [d[s] for d, s in izip(self.dimensions, get_iter(slc, dtype=slice))]
-        else:
-            ret = super(SourcedVariable, self).__getitem__(slc)
-        return ret
 
     @property
     def conform_units_to(self):
@@ -442,9 +484,9 @@ class BoundedVariable(SourcedVariable):
         # tdk: try to get this to one
         assert self.ndim <= 2
 
-    def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, self.ndim)
-        ret = super(BoundedVariable, self).__getitem__(slc)
+    def _getitem_main_(self, ret, slc):
+        # tdk: order
+        super(BoundedVariable, self)._getitem_main_(ret, slc)
         if ret.bounds is not None:
             if ret.bounds.ndim == 2:
                 bounds = ret.bounds[slc, :]
@@ -453,7 +495,6 @@ class BoundedVariable(SourcedVariable):
         else:
             bounds = None
         ret.bounds = bounds
-        return ret
 
     @property
     def bounds(self):
@@ -821,3 +862,24 @@ def update_unlimited_dimension_length(variable):
             for idx, d in enumerate(dimensions):
                 if d.length is None and d.length_current is None:
                     d.length_current = variable.shape[idx]
+
+
+def set_sliced_backref_variables(ret, slc):
+    slc = list(get_iter(slc))
+    backref = ret._backref
+    if backref is not None:
+        new_backref = VariableCollection(attrs=backref.attrs.copy())
+        names_src = [d.name for d in ret.dimensions]
+        for key, variable in backref.items():
+            names_dst = [d.name for d in variable.dimensions]
+            mapped_slc = get_mapped_slice(slc, names_src, names_dst)
+            new_backref.add_variable(backref[key].__getitem__(mapped_slc))
+        ret._backref = new_backref
+
+
+def get_mapped_slice(slc_src, names_src, names_dst):
+    ret = [slice(None)] * len(names_dst)
+    for name, slc in zip(names_src, slc_src):
+        idx = names_dst.index(name)
+        ret[idx] = slc
+    return tuple(ret)
