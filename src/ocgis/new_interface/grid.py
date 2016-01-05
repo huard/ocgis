@@ -654,3 +654,4 @@ def set_sliced_backref_variables(ret, slc):
             mapped_slc = get_mapped_slice(slc, names_src, names_dst)
             new_backref.add_variable(backref[key].__getitem__(mapped_slc))
         ret._backref = new_backref
+
