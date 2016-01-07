@@ -61,6 +61,30 @@ class TestFieldBundle(AbstractTestNewInterface):
             fb.create_field(var, schema=schema)
         return fb
 
+    def test_tdk(self):
+        np.random.seed(1)
+        value = np.random.rand(5, 4, 3)
+        v = Variable(value=value, name='tas')
+        v.create_dimensions(['time', 'y', 'x'])
+        backref = VariableCollection(variables=[v])
+        t = TemporalVariable(value=[1, 2, 3, 4, 5])
+        t.create_dimensions('time')
+        grid = self.get_gridxy()
+        grid.create_dimensions()
+        spatial = SpatialContainer(grid=grid)
+
+        t._backref = backref
+        sub_t = t[2:4]
+        backref = sub_t._backref
+        t._backref = None
+
+        spatial.grid._backref = backref
+        sub_s = spatial[1:4, 1]
+        backref = sub_s.grid._backref
+        sub_s.grid._backref = None
+
+        print backref['tas'].shape
+
     def test(self):
         # Test with no instrumented dimensions.
         np.random.seed(1)
