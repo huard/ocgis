@@ -17,6 +17,24 @@ _FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
 _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
+class FieldBundle2(AbstractInterfaceObject, Attributes):
+
+    def __init__(self, **kwargs):
+        self.fields = kwargs.pop('fields', VariableCollection())
+        self.time = None
+
+    def copy(self):
+        return copy(self)
+
+    def set_time_dimension(self, value, dim_name='time'):
+        self.time = value
+        for field in self.fields.values():
+            field.dimensions_dict[dim_name].attach_variable(value)
+
+    def write_netcdf(self, *args, **kwargs):
+        raise NotImplementedError
+
+
 class FieldBundle(AbstractInterfaceObject, Attributes):
     # tdk: retain variables for backwards compatibility
     def __init__(self, **kwargs):

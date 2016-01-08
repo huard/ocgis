@@ -3,7 +3,7 @@ from netCDF4 import OrderedDict
 import numpy as np
 
 from ocgis.interface.base.crs import Spherical
-from ocgis.new_interface.field import FieldBundle, DSlice
+from ocgis.new_interface.field import FieldBundle, DSlice, FieldBundle2
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -22,6 +22,30 @@ class TestDSlice(AbstractTestNewInterface):
         variable_value = np.random.rand(5, 3, 4)
         variable_value_actual = variable_value[4, 1, 3]
         self.assertEqual(variable_value_actual, variable_value[actual])
+
+
+class TestFieldBundle2(AbstractTestNewInterface):
+
+    def test_get_fieldbundle2(self, **kwargs):
+        if kwargs.get('fields') is None:
+            fields = VariableCollection()
+            variable = BoundedVariable(value=[10, 20, 30], name='bvar')
+            variable.create_dimensions('the_time')
+            fields.add_variable(variable)
+            kwargs['fields'] = fields
+        return FieldBundle2(**kwargs)
+
+    def test_set_time_dimension(self):
+        time = TemporalVariable(value=[1, 2, 3])
+        time.create_dimensions('temporal')
+        fb = self.test_get_fieldbundle2()
+        fb.set_time_dimension(time, dim_name='the_time')
+        self.assertNumpyAll(fb.time.value, time.value)
+        self.assertNumpyAll(fb.fields['bvar'].dimensions_dict['the_time']._variable.value, time.value)
+        fb.fields['bvar'] = fb.fields['bvar'][1]
+        self.assertEqual(fb.fields['bvar'].value, 20)
+        self.assertEqual(2, fb.fields['bvar'].dimensions_dict['the_time']._variable.value)
+        print fb.time.value
 
 
 class TestFieldBundle(AbstractTestNewInterface):
