@@ -18,36 +18,57 @@ _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
 class FieldBundle2(AbstractInterfaceObject, Attributes):
+    """
+    :type fields: sequence of :class:`~ocgis.new_interface.variable.Variable` objects
+    :type attrs: see :class:`~ocgis.interface.base.attributes.Attributes` documentation
+    """
 
     def __init__(self, **kwargs):
-        self._time = None
+        self._vc = VariableCollection()
 
-        self.fields = kwargs.pop('fields', VariableCollection())
-        self.time = kwargs.pop('time', None)
+        fields = VariableCollection(variables=kwargs.pop('fields', None))
+        self._vc.update(fields)
+        self._fields = fields.keys()
 
-        Attributes.__init__(self, attrs=kwargs.pop('attrs', None))
-        AbstractInterfaceObject.__init__(self, **kwargs)
+        attrs = kwargs.pop('attrs', None)
+        Attributes.__init__(self, attrs=attrs)
+
+        for v in kwargs.values():
+            self._vc.add_variable(v)
+
+    def __getattribute__(self, name):
+        ga = object.__getattribute__
+        try:
+            attr = ga(self, '_vc')[name]
+        except KeyError:
+            attr = ga(self, name)
+        return attr
+
+    def __setattr__(self, name, value):
+        if isinstance(value, Variable):
+            self._vc.add_variable(value)
+        else:
+            object.__setattr__(self, name, value)
 
     @property
-    def time(self):
-        return self._time
+    def fields(self):
+        ret = VariableCollection(variables=[self._vc[v] for v in self._fields])
+        return ret
 
-    @time.setter
-    def time(self, value):
-        self._time = value
+    def add_field(self, field):
+        self._vc.add_variable(field)
+        self._fields.append(field.alias)
+
+    def attach_variable_to_dimension(self, variable, dim_name):
+        self.dim_name = variable
+        for field in self.fields.values():
+            field.dimensions_dict[dim_name].attach_variable(variable)
 
     def copy(self):
         return copy(self)
 
-    def set_time_dimension(self, value=None, dim_name='time'):
-        if value is None:
-            value = self.time
-        else:
-            self.time = value
-        assert value is not None
-
-        for field in self.fields.values():
-            field.dimensions_dict[dim_name].attach_variable(value)
+    def create_dimension(self, dim_name):
+        self._dimensions.append(dim_name)
 
     def write_netcdf(self, *args, **kwargs):
         raise NotImplementedError

@@ -28,11 +28,9 @@ class TestFieldBundle2(AbstractTestNewInterface):
 
     def get_fieldbundle(self, **kwargs):
         if 'fields' not in kwargs:
-            fields = VariableCollection()
             variable = BoundedVariable(value=[10, 20, 30], name='bvar')
             variable.create_dimensions('the_time')
-            fields.add_variable(variable)
-            kwargs['fields'] = fields
+            kwargs['fields'] = [variable]
         if 'time' not in kwargs:
             time = self.get_temporalvariable()
             kwargs['time'] = time
@@ -44,8 +42,13 @@ class TestFieldBundle2(AbstractTestNewInterface):
         return time
 
     def test_init(self):
-        field = self.get_fieldbundle(fields=None)
-        self.assertIsNotNone(field.time)
+        fb = self.get_fieldbundle()
+        self.assertIsInstance(fb._vc, VariableCollection)
+        self.assertEqual(fb._fields, ['bvar'])
+        self.assertIsInstance(fb._vc['bvar'], Variable)
+        self.assertIn('time', fb._vc)
+        self.assertIsInstance(fb.time, Variable)
+        self.assertIsInstance(fb.bvar, Variable)
 
     def test_set_time_dimension(self):
         time = self.get_temporalvariable()
