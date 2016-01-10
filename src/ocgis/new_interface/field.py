@@ -20,14 +20,32 @@ _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 class FieldBundle2(AbstractInterfaceObject, Attributes):
 
     def __init__(self, **kwargs):
+        self._time = None
+
         self.fields = kwargs.pop('fields', VariableCollection())
-        self.time = None
+        self.time = kwargs.pop('time', None)
+
+        Attributes.__init__(self, attrs=kwargs.pop('attrs', None))
+        AbstractInterfaceObject.__init__(self, **kwargs)
+
+    @property
+    def time(self):
+        return self._time
+
+    @time.setter
+    def time(self, value):
+        self._time = value
 
     def copy(self):
         return copy(self)
 
-    def set_time_dimension(self, value, dim_name='time'):
-        self.time = value
+    def set_time_dimension(self, value=None, dim_name='time'):
+        if value is None:
+            value = self.time
+        else:
+            self.time = value
+        assert value is not None
+
         for field in self.fields.values():
             field.dimensions_dict[dim_name].attach_variable(value)
 

@@ -26,26 +26,34 @@ class TestDSlice(AbstractTestNewInterface):
 
 class TestFieldBundle2(AbstractTestNewInterface):
 
-    def test_get_fieldbundle2(self, **kwargs):
-        if kwargs.get('fields') is None:
+    def get_fieldbundle(self, **kwargs):
+        if 'fields' not in kwargs:
             fields = VariableCollection()
             variable = BoundedVariable(value=[10, 20, 30], name='bvar')
             variable.create_dimensions('the_time')
             fields.add_variable(variable)
             kwargs['fields'] = fields
+        if 'time' not in kwargs:
+            time = self.get_temporalvariable()
+            kwargs['time'] = time
         return FieldBundle2(**kwargs)
 
-    def test_set_time_dimension(self):
+    def get_temporalvariable(self):
         time = TemporalVariable(value=[1, 2, 3])
         time.create_dimensions('temporal')
-        fb = self.test_get_fieldbundle2()
+        return time
+
+    def test_init(self):
+        field = self.get_fieldbundle(fields=None)
+        self.assertIsNotNone(field.time)
+
+    def test_set_time_dimension(self):
+        time = self.get_temporalvariable()
+        fb = self.get_fieldbundle(time=None)
+        self.assertIsNone(fb.time)
         fb.set_time_dimension(time, dim_name='the_time')
         self.assertNumpyAll(fb.time.value, time.value)
         self.assertNumpyAll(fb.fields['bvar'].dimensions_dict['the_time']._variable.value, time.value)
-        fb.fields['bvar'] = fb.fields['bvar'][1]
-        self.assertEqual(fb.fields['bvar'].value, 20)
-        self.assertEqual(2, fb.fields['bvar'].dimensions_dict['the_time']._variable.value)
-        print fb.time.value
 
 
 class TestFieldBundle(AbstractTestNewInterface):
