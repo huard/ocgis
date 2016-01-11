@@ -25,6 +25,7 @@ class FieldBundle2(VariableCollection):
     """
 
     def __init__(self, **kwargs):
+        self.schema = {}
         self._field_names = kwargs.pop('field_names', [])
         super(FieldBundle2, self).__init__(**kwargs)
 
@@ -45,13 +46,13 @@ class FieldBundle2(VariableCollection):
             ret.update(new_variables)
         return ret
 
-    # def __getattribute__(self, name_or_slice):
-    #     ga = object.__getattribute__
-    #     if name_or_slice in ga(self, '_field_dimensions'):
-    #         ret = ga(self, '_storage')[name_or_slice]
-    #     else:
-    #         ret = ga(self, name_or_slice)
-    #     return ret
+    def __getattribute__(self, name_or_slice):
+        ga = object.__getattribute__
+        if hasattr(self, 'schema') and name_or_slice in ga(self, 'schema'):
+            ret = ga(self, '_storage')[name_or_slice]
+        else:
+            ret = ga(self, name_or_slice)
+        return ret
 
     # def __setattr__(self, name, value):
     #     if isinstance(value, Variable):
@@ -76,8 +77,10 @@ class FieldBundle2(VariableCollection):
         self.add_variable(field)
         self._field_names.append(field.name)
 
-    def write_netcdf(self, *args, **kwargs):
-        raise NotImplementedError
+    def set_coordinate_variable(self, name, name_variable, axis=None):
+        self.schema[name] = name_variable
+        if axis is not None:
+            self[name_variable].attrs['axis'] = axis
 
 
 class FieldBundle(AbstractInterfaceObject, Attributes):

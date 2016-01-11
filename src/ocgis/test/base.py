@@ -162,6 +162,9 @@ class TestBase(unittest.TestCase):
         else:
             self.assertTrue(np.all(arr1 == arr2))
 
+    def assertNumpyMayShareMemory(self, *args, **kwargs):
+        self.assertTrue(np.may_share_memory(*args, **kwargs))
+
     def assertNcEqual(self, uri_src, uri_dest, check_types=True, close=False, metadata_only=False,
                       ignore_attributes=None, ignore_variables=None):
         """

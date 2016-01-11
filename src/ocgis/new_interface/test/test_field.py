@@ -32,7 +32,7 @@ class TestFieldBundle2(AbstractTestNewInterface):
         if 'fields' not in kwargs:
             dims = [Dimension('time'), Dimension('level', length=4)]
             value = np.arange(0, 3 * 4).reshape(3, 4)
-            variable = BoundedVariable(value=value, name='bvar', dimensions=dims)
+            variable = BoundedVariable(value=value, name='bvar', dimensions=dims, units='kelvin')
             variables.append(variable)
 
             value2 = value * 2
@@ -95,6 +95,26 @@ class TestFieldBundle2(AbstractTestNewInterface):
             self.assertIsNone(field._backref)
         self.assertEqual(sub2['level'].shape, (1,))
         self.assertEqual(sub2['time'].shape, (3,))
+
+    def test_set_coordinate_variable(self):
+        fb = self.get_fieldbundle()
+        with self.assertRaises(AttributeError):
+            fb.time
+        fb.pop('time')
+        time = Variable(value=[4, 5, 6], name='time')
+        time.create_dimensions('time')
+        fb.add_variable(time)
+        fb.set_coordinate_variable('time', 'time', axis='T')
+        self.assertNumpyAll(fb.time.value, time.value)
+        self.assertEqual(fb.time.attrs['axis'], 'T')
+        self.assertNotIn('axis', time.attrs)
+        sub = fb[1, :]
+        self.assertNumpyAll(sub.time.value, time[1].value)
+        self.assertEqual(time.shape, (3,))
+        self.assertNumpyMayShareMemory(time.value, fb.time.value)
+        path = self.get_temporary_file_path('foo.nc')
+        sub.write_netcdf(path)
+        self.ncdump(path)
 
 
 class TestFieldBundle(AbstractTestNewInterface):

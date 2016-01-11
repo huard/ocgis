@@ -713,7 +713,8 @@ class BoundedVariable(SourcedVariable):
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     # tdk: should test for equivalence of dimensions on variables
 
-    def __init__(self, variables=None, attrs=None):
+    def __init__(self, variables=None, attrs=None, should_copy=True):
+        self.should_copy = should_copy
         AbstractCollection.__init__(self)
         Attributes.__init__(self, attrs)
 
@@ -737,10 +738,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
-        assert isinstance(variable, Variable)
-        if variable.alias in self:
+        if self.should_copy:
+            variable = variable.copy()
+        if variable.name in self:
             raise VariableInCollectionError(variable)
-        self[variable.alias] = variable
+        self[variable.name] = variable
 
     def copy(self):
         ret = AbstractCollection.copy(self)
