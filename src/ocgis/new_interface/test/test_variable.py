@@ -273,10 +273,11 @@ class TestSourcedVariable(AbstractTestNewInterface):
 
         # Test initializing with a value.
         sv = SourcedVariable(value=[1, 2, 3], name='foo')
+        sv.create_dimensions()
         self.assertEqual(sv.dtype, np.int)
         self.assertEqual(sv.fill_value, 999999)
         self.assertEqual(sv.shape, (3,))
-        self.assertIsNone(sv.dimensions)
+        self.assertEqual(len(sv.dimensions), 1)
         sv.create_dimensions(names=['time'])
         self.assertIsNotNone(sv.dimensions)
 
