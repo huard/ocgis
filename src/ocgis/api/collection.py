@@ -1,5 +1,6 @@
 import abc
 from collections import OrderedDict
+from copy import copy
 
 import fiona
 from shapely.geometry import mapping, MultiPoint, MultiPolygon
@@ -56,6 +57,12 @@ class AbstractCollection(object):
 
     def __str__(self):
         return self.__repr__()
+
+    def copy(self):
+        ret = copy(self)
+        ret._storage = ret._storage.copy()
+        ret._storage_id = copy(ret._storage_id)
+        return ret
 
     def first(self):
         for key in self.iterkeys():

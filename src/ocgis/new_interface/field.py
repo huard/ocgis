@@ -17,58 +17,64 @@ _FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
 _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
-class FieldBundle2(AbstractInterfaceObject, Attributes):
+class FieldBundle2(VariableCollection):
     """
-    :type fields: sequence of :class:`~ocgis.new_interface.variable.Variable` objects
-    :type attrs: see :class:`~ocgis.interface.base.attributes.Attributes` documentation
+    :type fields: sequence of variable aliases
+
+    >>> fields = ['tas', 'pr']
     """
 
     def __init__(self, **kwargs):
-        self._vc = VariableCollection()
+        self._field_names = kwargs.pop('field_names', [])
+        super(FieldBundle2, self).__init__(**kwargs)
 
-        fields = VariableCollection(variables=kwargs.pop('fields', None))
-        self._vc.update(fields)
-        self._fields = fields.keys()
-
-        attrs = kwargs.pop('attrs', None)
-        Attributes.__init__(self, attrs=attrs)
-
-        for v in kwargs.values():
-            self._vc.add_variable(v)
-
-    def __getattribute__(self, name):
-        ga = object.__getattribute__
-        try:
-            attr = ga(self, '_vc')[name]
-        except KeyError:
-            attr = ga(self, name)
-        return attr
-
-    def __setattr__(self, name, value):
-        if isinstance(value, Variable):
-            self._vc.add_variable(value)
+    def __getitem__(self, slc):
+        if isinstance(slc, basestring):
+            ret = super(FieldBundle2, self).__getitem__(slc)
         else:
-            object.__setattr__(self, name, value)
+            target = self.fields.first()
+            slc = get_formatted_slice(slc, target.ndim)
+            backref = self.copy()
+            backref.pop(target.name)
+            target._backref = backref
+            sub = target.__getitem__(slc)
+            ret = self.copy()
+            new_variables = sub._backref
+            sub._backref = None
+            new_variables.add_variable(sub)
+            ret.update(new_variables)
+        return ret
+
+    # def __getattribute__(self, name_or_slice):
+    #     ga = object.__getattribute__
+    #     if name_or_slice in ga(self, '_field_dimensions'):
+    #         ret = ga(self, '_storage')[name_or_slice]
+    #     else:
+    #         ret = ga(self, name_or_slice)
+    #     return ret
+
+    # def __setattr__(self, name, value):
+    #     if isinstance(value, Variable):
+    #         self.add_variable(value)
+    #     else:
+    #         object.__setattr__(self, name, value)
 
     @property
     def fields(self):
-        ret = VariableCollection(variables=[self._vc[v] for v in self._fields])
+        ret = VariableCollection(variables=[self[v] for v in self._field_names])
         return ret
 
+    @property
+    def dimensions(self):
+        return self.fields.first().dimensions
+
+    @property
+    def dimensions_dict(self):
+        return self.fields.first().dimensions_dict
+
     def add_field(self, field):
-        self._vc.add_variable(field)
-        self._fields.append(field.alias)
-
-    def attach_variable_to_dimension(self, variable, dim_name):
-        self.dim_name = variable
-        for field in self.fields.values():
-            field.dimensions_dict[dim_name].attach_variable(variable)
-
-    def copy(self):
-        return copy(self)
-
-    def create_dimension(self, dim_name):
-        self._dimensions.append(dim_name)
+        self.add_variable(field)
+        self._field_names.append(field.name)
 
     def write_netcdf(self, *args, **kwargs):
         raise NotImplementedError

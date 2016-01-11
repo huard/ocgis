@@ -6,6 +6,7 @@ from ocgis.interface.base.crs import Spherical
 from ocgis.new_interface.field import FieldBundle, DSlice, FieldBundle2
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import VariableCollection, Variable, BoundedVariable
 
@@ -27,36 +28,73 @@ class TestDSlice(AbstractTestNewInterface):
 class TestFieldBundle2(AbstractTestNewInterface):
 
     def get_fieldbundle(self, **kwargs):
+        variables = []
         if 'fields' not in kwargs:
-            variable = BoundedVariable(value=[10, 20, 30], name='bvar')
-            variable.create_dimensions('the_time')
-            kwargs['fields'] = [variable]
+            dims = [Dimension('time'), Dimension('level', length=4)]
+            value = np.arange(0, 3 * 4).reshape(3, 4)
+            variable = BoundedVariable(value=value, name='bvar', dimensions=dims)
+            variables.append(variable)
+
+            value2 = value * 2
+            variable2 = BoundedVariable(value=value2, name='cvar', dimensions=dims)
+            variables.append(variable2)
+
+            kwargs['field_names'] = [variable.name, variable2.name]
+        if 'level' not in kwargs:
+            level = self.get_levelvariable()
+            variables.append(level)
         if 'time' not in kwargs:
             time = self.get_temporalvariable()
-            kwargs['time'] = time
+            variables.append(time)
+        kwargs['variables'] = variables
         return FieldBundle2(**kwargs)
 
+    def get_levelvariable(self):
+        level = BoundedVariable(value=[0, 25, 50, 75], name='level')
+        level.create_dimensions('level')
+        return level
+
     def get_temporalvariable(self):
-        time = TemporalVariable(value=[1, 2, 3])
-        time.create_dimensions('temporal')
+        dim = Dimension('time')
+        time = TemporalVariable(value=[1, 2, 3], name='time', dimensions=dim)
         return time
 
     def test_init(self):
         fb = self.get_fieldbundle()
-        self.assertIsInstance(fb._vc, VariableCollection)
-        self.assertEqual(fb._fields, ['bvar'])
-        self.assertIsInstance(fb._vc['bvar'], Variable)
-        self.assertIn('time', fb._vc)
-        self.assertIsInstance(fb.time, Variable)
-        self.assertIsInstance(fb.bvar, Variable)
+        self.assertIsInstance(fb, VariableCollection)
+        self.assertEqual(fb._field_names, ['bvar'])
+        self.assertIsInstance(fb['bvar'], Variable)
+        self.assertIn('time', fb)
+        with self.assertRaises(AttributeError):
+            fb.time
 
-    def test_set_time_dimension(self):
-        time = self.get_temporalvariable()
-        fb = self.get_fieldbundle(time=None)
-        self.assertIsNone(fb.time)
-        fb.set_time_dimension(time, dim_name='the_time')
-        self.assertNumpyAll(fb.time.value, time.value)
-        self.assertNumpyAll(fb.fields['bvar'].dimensions_dict['the_time']._variable.value, time.value)
+    def test_create_dimension(self):
+        fb = self.get_fieldbundle()
+        fb._field_dimensions = []
+        fb.create_dimension('time')
+        fb.create_dimension('level')
+        self.assertIsInstance(fb.time, TemporalVariable)
+        self.assertIsInstance(fb.dimensions['time'], TemporalVariable)
+
+    def test_getitem(self):
+        fb = self.get_fieldbundle()
+        sub = fb[1, 3]
+        for v in sub.values():
+            self.assertTrue(all([ii == 1 for ii in v.shape]))
+        for v in fb.values():
+            self.assertTrue(all([ii != 1 for ii in v.shape]))
+        for f, s in zip(fb.values(), sub.values()):
+            self.assertTrue(np.may_share_memory(f.value, s.value))
+        self.assertNumpyAll(sub['time'].value, fb['time'][1].value)
+        self.assertEqual(sub.keys(), ['bvar', 'cvar', 'level', 'time'])
+        self.assertEqual(fb.keys(), sub.keys())
+
+        sub2 = fb[:, 3]
+        for field in sub2.fields.values():
+            self.assertEqual(field.shape, (3, 1))
+            self.assertIsNone(field._backref)
+        self.assertEqual(sub2['level'].shape, (1,))
+        self.assertEqual(sub2['time'].shape, (3,))
 
 
 class TestFieldBundle(AbstractTestNewInterface):

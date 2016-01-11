@@ -68,7 +68,12 @@ class TestAbstractCollection(TestBase):
 
     def test_copy(self):
         coll = self.get_coll()
-        self.assertEqual(coll, copy(coll))
+        coll['arr'] = np.array([1, 2, 3])
+        coll2 = coll.copy()
+        self.assertEqual(coll, coll2)
+        coll2[3] = 'c'
+        self.assertNotIn(3, coll)
+        self.assertTrue(np.may_share_memory(coll['arr'], coll2['arr']))
 
     def test_deepcopy(self):
         coll = self.get_coll()

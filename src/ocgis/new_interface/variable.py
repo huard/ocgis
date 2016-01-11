@@ -743,7 +743,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         self[variable.alias] = variable
 
     def copy(self):
-        ret = self.copy()
+        ret = AbstractCollection.copy(self)
         ret.attrs = ret.attrs.copy()
         return ret
 
@@ -887,7 +887,7 @@ def set_sliced_backref_variables(ret, slc):
 
 def get_mapped_slice(slc_src, names_src, names_dst):
     ret = [slice(None)] * len(names_dst)
-    for name, slc in zip(names_src, slc_src):
-        idx = names_dst.index(name)
-        ret[idx] = slc
+    for idx, name in enumerate(names_dst):
+        idx_src = names_src.index(name)
+        ret[idx] = slc_src[idx_src]
     return tuple(ret)
