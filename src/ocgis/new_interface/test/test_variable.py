@@ -52,6 +52,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
 
     def test_init(self):
         bv = self.get_boundedvariable()
+        bv.create_dimensions()
         self.assertEqual(bv.shape, (3,))
 
         # Test loading from source.
@@ -314,8 +315,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sub = sv[10:20, 5, 6]
         self.assertEqual(sub.shape, (10, 1, 1))
         self.assertIsNone(sub._value)
-        self.assertIsNone(sub.dimensions[0].length)
-        self.assertEqual(sub.dimensions[0].length_current, 10)
+        self.assertIsNone(sub.dimensions.values()[0].length)
+        self.assertEqual(sub.dimensions.values()[0].length_current, 10)
 
     def test_get_dimensions(self):
         sv = self.get_sourcedvariable()
@@ -327,10 +328,10 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
         dims = sv.dimensions
-        self.assertIsNone(dims[0].length)
-        self.assertEqual(dims[0].length_current, 3650)
-        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
-        for d in dims:
+        self.assertIsNone(dims.values()[0].length)
+        self.assertEqual(dims.values()[0].length_current, 3650)
+        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims.values()])
+        for d in dims.values():
             self.assertIsNone(d.__src_idx__)
         self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
@@ -349,6 +350,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_value(self):
         sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]
+        self.assertTrue(sv.value.mean() > 0)
         self.assertEqual(sub.value.shape, (6, 3, 3))
 
 

@@ -161,7 +161,7 @@ class Variable(AbstractContainer, Attributes):
                 ret = OrderedDict()
             else:
                 raise DimensionsRequiredError
-        return OrderedDict()
+        return ret
 
     def _set_dimensions_(self, value):
         if value is not None:
@@ -473,14 +473,17 @@ class SourcedVariable(Variable):
         if self._value is None:
             value = self._get_value_from_source_()
             super(SourcedVariable, self)._set_value_(value)
-        return super(SourcedVariable, self)._get_value_()
+            ret = self._value
+        else:
+            ret = super(SourcedVariable, self)._get_value_()
+        return ret
 
     def _get_value_from_source_(self):
         ds = self._request_dataset.driver.open()
         try:
             dimensions = self.dimensions
             if len(dimensions) > 0:
-                slc = get_formatted_slice([d._src_idx for d in dimensions], len(self.shape))
+                slc = get_formatted_slice([d._src_idx for d in dimensions.values()], len(self.shape))
             else:
                 slc = slice(None)
             var = ds.variables[self.name]
@@ -509,8 +512,10 @@ class BoundedVariable(SourcedVariable):
         # Setting bounds requires checking the units of the value variable.
         self.bounds = bounds
 
-        # tdk: try to get this to one
-        assert self.ndim <= 2
+        try:
+            assert self.ndim <= 2
+        except DimensionsRequiredError:
+            assert self._value.ndim <= 2
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
@@ -531,14 +536,25 @@ class BoundedVariable(SourcedVariable):
     @bounds.setter
     def bounds(self, value):
         if value is not None:
-            assert value.ndim <= 3
+            try:
+                assert value.ndim <= 3
+            except DimensionsRequiredError as e:
+                if value._value is None:
+                    msg = "Dimensions are required on the 'bounds' variable when its 'value' is None: {}".format(e.message)
+                    raise DimensionsRequiredError(msg)
+                else:
+                    assert value._value.ndim <= 3
 
             # Update source dimensions for vector variables.
-            if self.ndim == 1:
-                if value.dimensions is not None:
-                    bounds_dimension = copy(value.dimensions[1])
+            try:
+                ndim = self.ndim
+            except DimensionsRequiredError:
+                ndim = self._value.ndim
+            if ndim == 1:
+                if value._dimensions is not None:
+                    bounds_dimension = copy(value.dimensions.values()[1])
                     bounds_dimension.name = self._name_bounds_dimension
-                    value.dimensions = [self.dimensions[0], bounds_dimension]
+                    value.dimensions = [self.dimensions.values()[0], bounds_dimension]
 
             # Set units and calendar for bounds variables.
             if value.units is None:
@@ -675,21 +691,21 @@ class BoundedVariable(SourcedVariable):
         super(BoundedVariable, self).create_dimensions(names)
         if self.bounds is not None:
             if self.ndim == 1:
-                if self.bounds.dimensions is not None:
+                if self.bounds._dimensions is not None:
                     name_bounds = self.bounds.dimensions[1].name
                 else:
                     name_bounds = constants.OCGIS_BOUNDS
-                names = [self.dimensions[0].name, name_bounds]
+                names = [self.dimensions.values()[0].name, name_bounds]
             else:
-                names = [d.name for d in self.dimensions]
+                names = [d.name for d in self.dimensions.values()]
                 if self.bounds.dimensions is not None:
-                    name_corners = self.bounds.dimensions[2].name
+                    name_corners = self.bounds.dimensions.values()[2].name
                 else:
                     name_corners = constants.DEFAULT_NAME_CORNERS_DIMENSION
                 names.append(name_corners)
             self.bounds.create_dimensions(names=names)
-            synced_dimensions = list(self.bounds.dimensions)
-            synced_dimensions[0] = self.dimensions[0]
+            synced_dimensions = self.bounds.dimensions
+            synced_dimensions.values()[0] = self.dimensions.values()[0]
             self.bounds.dimensions = synced_dimensions
 
     def set_mask(self, value):
@@ -816,6 +832,7 @@ def get_dimension_lengths(dimensions):
 
 
 def get_shape_from_variable(variable):
+    # tdk: RESUME: allow shapes without dimensions
     dimensions = variable.dimensions
     value = variable._value
     if dimensions is not None and not has_unlimited_dimension(dimensions):
