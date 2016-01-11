@@ -330,3 +330,13 @@ class NoDimensionedVariablesFound(RequestValidationError):
 
 class GridDeficientError(OcgException):
     """Raised when a grid is missing parameters necessary to create a geometry array."""
+
+
+class DimensionsRequiredError(OcgException):
+    """Raised when a variable requires dimensions."""
+
+    def __init__(self, message=None):
+        if message is None:
+            message = "Variables with dimension count greater than 0 (ndim > 0) require dimensions. Initialize the " \
+                      "variable with dimensions or call 'create_dimensions' before size inquiries (i.e. ndim, shape)."
+        super(DimensionsRequiredError, self).__init__(message=message)

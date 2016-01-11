@@ -1,10 +1,12 @@
 from copy import deepcopy
+from netCDF4 import OrderedDict
 
 import numpy as np
+from numpy.ma import MaskedArray
 
 from ocgis import RequestDataset
 from ocgis import constants
-from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError
+from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
@@ -360,10 +362,44 @@ class TestVariable(AbstractTestNewInterface):
             return var
 
     def test_init(self):
+        # Test an empty variable.
+        var = Variable('foo')
+        self.assertEqual(var.shape, tuple())
+        self.assertEqual(var.dimensions, OrderedDict())
+        self.assertEqual(var.value, None)
+
+        # Test a scalar variable.
+        v = Variable(value=2.0)
+        self.assertEqual(v.value, 2.0)
+        self.assertIsInstance(v.value, MaskedArray)
+        self.assertEqual(v.shape, tuple())
+        self.assertEqual(v.value.dtype, np.float)
+        self.assertEqual(v.dimensions, OrderedDict())
+        self.assertEqual(v.ndim, 0)
+
+        # Test a value with no dimensions.
+        v = Variable(value=[[1, 2, 3], [4, 5, 6]])
+        self.assertIsNone(v._dimensions)
+        with self.assertRaises(DimensionsRequiredError):
+            v.shape
+        v.create_dimensions(['one', 'two'])
+        self.assertEqual(v.shape, (2, 3))
+        self.assertEqual(v.ndim, 2)
+
+        # Test with dimensions only.
+        v = Variable(dimensions=[Dimension('a', 3), Dimension('b', 8)], dtype=np.int8, fill_value=2)
+        self.assertNumpyAll(v.value, np.ma.zeros((3, 8), dtype=np.int8, fill_value=2))
+
+        # Test with an unlimited dimension.
+        v = Variable(dimensions=Dimension('unlimited'))
+        with self.assertRaises(ValueError):
+            v.value
+
         time, value, var = self.get_variable()
 
-        self.assertEqual(var.dimensions, (time,))
-        self.assertEqual(id(time), id(var.dimensions[0]))
+        desired = OrderedDict({time.name: time})
+        self.assertDictEqual(var.dimensions, desired)
+        self.assertEqual(id(time), id(var.dimensions[time.name]))
         self.assertEqual(var.name, 'time_value')
         self.assertEqual(var.alias, var.name)
         self.assertEqual(var.shape, (len(value),))
@@ -379,20 +415,13 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.value.dtype, dtype)
         self.assertEqual(var.value.fill_value, fill_value)
 
-        var = Variable('foo')
-        self.assertEqual(var.shape, tuple())
-        self.assertIsNone(var.dimensions)
-
         var = Variable('foo', value=[4, 5, 6])
+        var.create_dimensions()
         self.assertEqual(var.shape, (3,))
         self.assertEqual(var.dtype, var.value.dtype)
         self.assertEqual(var.fill_value, var.value.fill_value)
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
-
-        # Test a scalar variable.
-        v = Variable(value=2.0, dimensions=[])
-        self.assertEqual(v.value, 2.0)
 
     @attr('cfunits')
     def test_cfunits(self):
@@ -447,7 +476,7 @@ class TestVariable(AbstractTestNewInterface):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()
         var2.name = 'foobar'
-        var2.dimensions[0].name = 'new_time'
+        var2.dimensions.values()[0].name = 'new_time'
         self.assertTrue(np.may_share_memory(var.value, var2.value))
         var2.value[:] = 100
         self.assertNumpyAll(var.value.mean(), var2.value.mean())
@@ -463,34 +492,21 @@ class TestVariable(AbstractTestNewInterface):
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         var.create_dimensions()
-        self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
+        self.assertEqual(var.dimensions.values()[0], Dimension('tas', length=3, ))
         self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
 
-    def test_dimensions(self):
-        # Test with empty.
-        var = Variable(name='height')
-        self.assertIsNone(var.dimensions)
-        var.create_dimensions()
-        self.assertEqual(var.dimensions, ())
-
-        # Test with value.
-        var = Variable(name='hat', value=1.)
-        self.assertIsNone(var.dimensions)
-        var.create_dimensions()
-        self.assertEqual(var.dimensions, ())
-        var = Variable(name='hat', value=[1., 2., 3.])
-        self.assertEqual(var.shape, (3,))
-
     def test_setitem(self):
         var = Variable('one', [4, 5, 6, 7, 8, 9])
+        var.create_dimensions()
         var[3] = 4000.5
         self.assertEqual(var[3].value, 4000)
 
         value = np.zeros((3, 4), dtype=int)
         var = Variable(value=value)
+        var.create_dimensions(['dim', 'dim1'])
         with self.assertRaises(IndexError):
             var[1] = 4500
         var[1, 1:3] = 6700
@@ -506,7 +522,7 @@ class TestVariable(AbstractTestNewInterface):
         # Copies are made after slicing.
         sub = var[1]
         self.assertEqual(len(dim), 3)
-        self.assertEqual(len(sub.dimensions[0]), 1)
+        self.assertEqual(len(sub.dimensions.values()[0]), 1)
         self.assertEqual(sub.shape, (1,))
 
     def test_write_netcdf(self):
