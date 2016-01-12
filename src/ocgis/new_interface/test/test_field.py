@@ -3,10 +3,10 @@ from netCDF4 import OrderedDict
 import numpy as np
 
 from ocgis.interface.base.crs import Spherical
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import FieldBundle, DSlice, FieldBundle2
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
-from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import VariableCollection, Variable, BoundedVariable
 
@@ -62,7 +62,7 @@ class TestFieldBundle2(AbstractTestNewInterface):
     def test_init(self):
         fb = self.get_fieldbundle()
         self.assertIsInstance(fb, VariableCollection)
-        self.assertEqual(fb._field_names, ['bvar'])
+        self.assertEqual(fb._field_names, ['bvar', 'cvar'])
         self.assertIsInstance(fb['bvar'], Variable)
         self.assertIn('time', fb)
         with self.assertRaises(AttributeError):
