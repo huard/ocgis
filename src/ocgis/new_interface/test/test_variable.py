@@ -1,12 +1,12 @@
 from copy import deepcopy
-from netCDF4 import OrderedDict
 
 import numpy as np
 from numpy.ma import MaskedArray
+from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
 from ocgis import constants
-from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, DimensionsRequiredError
+from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
@@ -315,8 +315,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sub = sv[10:20, 5, 6]
         self.assertEqual(sub.shape, (10, 1, 1))
         self.assertIsNone(sub._value)
-        self.assertIsNone(sub.dimensions.values()[0].length)
-        self.assertEqual(sub.dimensions.values()[0].length_current, 10)
+        self.assertIsNone(sub.dimensions[0].length)
+        self.assertEqual(sub.dimensions[0].length_current, 10)
 
     def test_get_dimensions(self):
         sv = self.get_sourcedvariable()
@@ -328,10 +328,10 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
         dims = sv.dimensions
-        self.assertIsNone(dims.values()[0].length)
-        self.assertEqual(dims.values()[0].length_current, 3650)
-        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims.values()])
-        for d in dims.values():
+        self.assertIsNone(dims[0].length)
+        self.assertEqual(dims[0].length_current, 3650)
+        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
+        for d in dims:
             self.assertIsNone(d.__src_idx__)
         self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
@@ -366,10 +366,30 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_init(self):
         # Test an empty variable.
-        var = Variable('foo')
+        var = Variable()
         self.assertEqual(var.shape, tuple())
-        self.assertEqual(var.dimensions, OrderedDict())
+        self.assertEqual(var.dimensions, None)
         self.assertEqual(var.value, None)
+        # Test setting the dimensions.
+        var.dimensions = Dimension('five', 5)
+        self.assertEqual(var.shape, (5,))
+
+        # Test an empty variable setting the value.
+        var = Variable()
+        var.value = [[2, 3, 4], [4, 5, 6]]
+        self.assertIsNone(var.dimensions)
+        self.assertEqual(var.shape, (2, 3))
+        self.assertEqual(var.ndim, 2)
+        var.value = np.random.rand(10, 11)
+        self.assertEqual(var.shape, (10, 11))
+        var.create_dimensions(('ten', 'eleven'))
+        with self.assertRaises(ValueError):
+            var.value = np.random.rand(4)
+        with self.assertRaises(ValueError):
+            var.dimensions = Dimension('a', None)
+        var.dimensions = [Dimension('aa', 10), Dimension('bb')]
+        self.assertEqual(var.dimensions[1].length_current, 11)
+        self.assertEqual(var.shape, (10, 11))
 
         # Test a scalar variable.
         v = Variable(value=2.0)
@@ -377,14 +397,13 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsInstance(v.value, MaskedArray)
         self.assertEqual(v.shape, tuple())
         self.assertEqual(v.value.dtype, np.float)
-        self.assertEqual(v.dimensions, OrderedDict())
+        self.assertEqual(v.dimensions, None)
         self.assertEqual(v.ndim, 0)
 
         # Test a value with no dimensions.
         v = Variable(value=[[1, 2, 3], [4, 5, 6]])
         self.assertIsNone(v._dimensions)
-        with self.assertRaises(DimensionsRequiredError):
-            v.shape
+        self.assertEqual(v.shape, (2, 3))
         v.create_dimensions(['one', 'two'])
         self.assertEqual(v.shape, (2, 3))
         self.assertEqual(v.ndim, 2)
@@ -398,13 +417,23 @@ class TestVariable(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             v.value
 
+        # Test value converted to dtype and fill_value.
+        value = [4.5, 5.5, 6.5]
+        desired = np.ma.array(value, dtype=np.int8, fill_value=4)
+        var = Variable(value=value, dtype=np.int8, fill_value=4)
+        self.assertNumpyAll(var.value, desired)
+        var.value = None
+        var.value = np.ma.array(value)
+        self.assertNumpyAll(var.value, desired)
+        var.value = None
+        var.value = desired
+        assert_equal(var.value.mask, [False, False, False])
+
         time, value, var = self.get_variable()
 
-        desired = OrderedDict({time.name: time})
-        self.assertDictEqual(var.dimensions, desired)
-        self.assertEqual(id(time), id(var.dimensions[time.name]))
+        self.assertEqual(var.dimensions, (time,))
+        self.assertEqual(id(time), id(var.dimensions[0]))
         self.assertEqual(var.name, 'time_value')
-        self.assertEqual(var.alias, var.name)
         self.assertEqual(var.shape, (len(value),))
         self.assertNumpyAll(var.value, np.ma.array(value))
         sub = var[2:4]
@@ -479,8 +508,8 @@ class TestVariable(AbstractTestNewInterface):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()
         var2.name = 'foobar'
-        var2.dimensions.values()[0].name = 'new_time'
-        self.assertTrue(np.may_share_memory(var.value, var2.value))
+        var2.dimensions[0].name = 'new_time'
+        self.assertNumpyMayShareMemory(var.value, var2.value)
         var2.value[:] = 100
         self.assertNumpyAll(var.value.mean(), var2.value.mean())
         var3 = var2[2:4]
@@ -495,7 +524,7 @@ class TestVariable(AbstractTestNewInterface):
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         var.create_dimensions()
-        self.assertEqual(var.dimensions.values()[0], Dimension('tas', length=3, ))
+        self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
         self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
@@ -525,7 +554,7 @@ class TestVariable(AbstractTestNewInterface):
         # Copies are made after slicing.
         sub = var[1]
         self.assertEqual(len(dim), 3)
-        self.assertEqual(len(sub.dimensions.values()[0]), 1)
+        self.assertEqual(len(sub.dimensions[0]), 1)
         self.assertEqual(sub.shape, (1,))
 
     def test_write_netcdf(self):
@@ -565,7 +594,7 @@ class TestVariable(AbstractTestNewInterface):
 class TestVariableCollection(AbstractTestNewInterface):
     def get(self):
         var1 = self.get_variable()
-        var2 = self.get_variable(alias='wunderbar')
+        var2 = self.get_variable(name='wunderbar')
 
         var3 = Variable(name='lower', value=[[9, 10, 11], [12, 13, 14]], dtype=np.float32, units='large')
         var3.create_dimensions(names=['y', 'x'])
@@ -575,10 +604,10 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = VariableCollection(variables=[var1, var2, var3, var4], attrs={'foo': 'bar'})
         return vc
 
-    def get_variable(self, name='foo', alias='foobar'):
+    def get_variable(self, name='foo'):
         dim = Dimension('x', length=3)
         value = [4, 5, 6]
-        return Variable(name=name, alias=alias, dimensions=dim, value=value)
+        return Variable(name=name, dimensions=dim, value=value)
 
     def test_init(self):
         var1 = self.get_variable()
@@ -590,9 +619,10 @@ class TestVariableCollection(AbstractTestNewInterface):
         with self.assertRaises(VariableInCollectionError):
             VariableCollection(variables=[var1, var2])
 
-        var2 = self.get_variable(alias='wunderbar')
+        var2 = self.get_variable()
+        var2.name = 'wunderbar'
         vc = VariableCollection(variables=[var1, var2])
-        self.assertEqual(vc.keys(), ['foobar', 'wunderbar'])
+        self.assertEqual(vc.keys(), ['foo', 'wunderbar'])
 
         self.assertEqual(vc.dimensions, {'x': Dimension(name='x', length=3)})
 

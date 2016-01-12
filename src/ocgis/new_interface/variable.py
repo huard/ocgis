@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractproperty
-from collections import OrderedDict
 from copy import copy, deepcopy
 from itertools import izip
 from netCDF4 import Dataset
@@ -78,12 +77,11 @@ class AbstractContainer(AbstractInterfaceObject):
 class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
-    def __init__(self, name=None, value=None, dimensions=None, dtype=None, alias=None, attrs=None, fill_value=None,
-                 units=None, backref=None):
+    def __init__(self, name=None, value=None, dimensions=None, dtype=None, attrs=None, fill_value=None, units=None,
+                 backref=None):
         Attributes.__init__(self, attrs=attrs)
         AbstractContainer.__init__(self, backref=backref)
 
-        self._alias = None
         self._dimensions = None
         self._value = None
         self._dtype = None
@@ -94,15 +92,23 @@ class Variable(AbstractContainer, Attributes):
         self.units = units
         self.dtype = dtype
         self.fill_value = fill_value
-        self.alias = alias
         self.dimensions = dimensions
         self.value = value
 
     def _getitem_main_(self, ret, slc):
-        if self.dimensions is not None:
-            ret.dimensions = [d[s] for d, s in izip(self.dimensions.values(), get_iter(slc, dtype=slice))]
+        new_dimensions = None
+        new_value = None
+
+        if ret.dimensions is not None:
+            new_dimensions = [d[s] for d, s in izip(ret.dimensions, get_iter(slc, dtype=slice))]
         if ret._value is not None:
-            ret.value = ret.value.__getitem__(slc)
+            new_value = ret.value.__getitem__(slc)
+
+        ret.dimensions = None
+        ret.value = None
+
+        ret.dimensions = new_dimensions
+        ret.value = new_value
 
     def _getitem_finalize_(self, ret, slc):
         pass
@@ -114,18 +120,6 @@ class Variable(AbstractContainer, Attributes):
 
     def __len__(self):
         return self.shape[0]
-
-    @property
-    def alias(self):
-        if self._alias is None:
-            ret = self.name
-        else:
-            ret = self._alias
-        return ret
-
-    @alias.setter
-    def alias(self, value):
-        self._alias = value
 
     @property
     def cfunits(self):
@@ -154,25 +148,13 @@ class Variable(AbstractContainer, Attributes):
         self._set_dimensions_(value)
 
     def _get_dimensions_(self):
-        if self._value is None:
-            ret = OrderedDict()
-        else:
-            if self._value.ndim == 0:
-                ret = OrderedDict()
-            else:
-                raise DimensionsRequiredError
-        return ret
+        return None
 
-    def _set_dimensions_(self, value):
-        if value is not None:
-            if isinstance(value, dict):
-                value = OrderedDict(value)
-            else:
-                new_value = OrderedDict()
-                for dim in get_iter(value, dtype=Dimension):
-                    new_value[dim.name] = dim
-                value = new_value
-        self._dimensions = value
+    def _set_dimensions_(self, dimensions):
+        if dimensions is not None:
+            dimensions = tuple(get_iter(dimensions, dtype=Dimension))
+        self._dimensions = dimensions
+        update_unlimited_dimension_length(self._value, dimensions)
 
     @property
     def extent(self):
@@ -246,7 +228,7 @@ class Variable(AbstractContainer, Attributes):
 
     def _get_value_(self):
         dimensions = self._dimensions
-        if dimensions is None:
+        if dimensions is None or len(dimensions) == 0:
             ret = None
         else:
             if has_unlimited_dimension(dimensions):
@@ -255,16 +237,16 @@ class Variable(AbstractContainer, Attributes):
             elif len(dimensions) > 0:
                 new_shape = get_dimension_lengths(dimensions)
                 ret = np.ma.zeros(new_shape, dtype=self.dtype, fill_value=self.fill_value)
-            else:
-                ret = None
         return ret
 
     def _set_value_(self, value):
         if value is not None:
-            if not isinstance(value, MaskedArray):
+            if not isinstance(value, MaskedArray) or value.dtype != self._dtype or value.fill_value != self._fill_value:
                 value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value, mask=False)
+            if value.mask.shape != value.shape:
+                value.mask = np.zeros(value.shape, dtype=bool)
+        update_unlimited_dimension_length(value, self._dimensions)
         self._value = value
-        update_unlimited_dimension_length(self)
 
     def cfunits_conform(self, to_units, from_units=None):
         """
@@ -350,7 +332,7 @@ class Variable(AbstractContainer, Attributes):
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
-        dimensions = self.dimensions.values()
+        dimensions = self.dimensions or tuple()
         if len(dimensions) > 0:
             dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.
@@ -371,7 +353,7 @@ class Variable(AbstractContainer, Attributes):
                 fill_value = None
             else:
                 fill_value = self.fill_value
-        var = dataset.createVariable(self.alias, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
             var[:] = self.value
         self.write_attributes_to_netcdf_object(var)
@@ -483,7 +465,7 @@ class SourcedVariable(Variable):
         try:
             dimensions = self.dimensions
             if len(dimensions) > 0:
-                slc = get_formatted_slice([d._src_idx for d in dimensions.values()], len(self.shape))
+                slc = get_formatted_slice([d._src_idx for d in dimensions], len(self.shape))
             else:
                 slc = slice(None)
             var = ds.variables[self.name]
@@ -552,9 +534,9 @@ class BoundedVariable(SourcedVariable):
                 ndim = self._value.ndim
             if ndim == 1:
                 if value._dimensions is not None:
-                    bounds_dimension = copy(value.dimensions.values()[1])
+                    bounds_dimension = copy(value.dimensions[1])
                     bounds_dimension.name = self._name_bounds_dimension
-                    value.dimensions = [self.dimensions.values()[0], bounds_dimension]
+                    value.dimensions = [self.dimensions[0], bounds_dimension]
 
             # Set units and calendar for bounds variables.
             if value.units is None:
@@ -695,17 +677,18 @@ class BoundedVariable(SourcedVariable):
                     name_bounds = self.bounds.dimensions[1].name
                 else:
                     name_bounds = constants.OCGIS_BOUNDS
-                names = [self.dimensions.values()[0].name, name_bounds]
+                names = [self.dimensions[0].name, name_bounds]
             else:
-                names = [d.name for d in self.dimensions.values()]
+                names = [d.name for d in self.dimensions]
                 if self.bounds.dimensions is not None:
-                    name_corners = self.bounds.dimensions.values()[2].name
+                    name_corners = self.bounds.dimensions[2].name
                 else:
                     name_corners = constants.DEFAULT_NAME_CORNERS_DIMENSION
                 names.append(name_corners)
             self.bounds.create_dimensions(names=names)
-            synced_dimensions = self.bounds.dimensions
-            synced_dimensions.values()[0] = self.dimensions.values()[0]
+
+            synced_dimensions = list(self.bounds.dimensions)
+            synced_dimensions[0] = self.dimensions[0]
             self.bounds.dimensions = synced_dimensions
 
     def set_mask(self, value):
@@ -761,7 +744,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def dimensions(self):
         ret = {}
         for variable in self.itervalues():
-            for d in variable.dimensions.values():
+            for d in variable.dimensions:
                 if d not in ret:
                     ret[d.name] = d
                 else:
@@ -828,29 +811,25 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
 
 def get_dimension_lengths(dimensions):
-    return tuple([len(d) for d in dimensions.values()])
+    return tuple([len(d) for d in dimensions])
 
 
 def get_shape_from_variable(variable):
-    # tdk: RESUME: allow shapes without dimensions
-    dimensions = variable.dimensions
+    dimensions = variable._dimensions
     value = variable._value
-    if dimensions is not None and not has_unlimited_dimension(dimensions):
-        ret = get_dimension_lengths(dimensions)
-    elif value is None:
-        if dimensions is None:
-            ret = tuple()
-        else:
-            ret = get_dimension_lengths(dimensions)
-    else:
-        ret = value.shape
-
-    return ret
+    try:
+        shape = get_dimension_lengths(dimensions)
+    except TypeError:
+        try:
+            shape = value.shape
+        except AttributeError:
+            shape = tuple()
+    return shape
 
 
 def has_unlimited_dimension(dimensions):
     ret = False
-    for d in dimensions.values():
+    for d in dimensions:
         if d.length is None:
             ret = True
     return ret
@@ -893,22 +872,41 @@ def set_variable_metadata_from_source(variable):
     variable._allocated = True
 
 
-def update_unlimited_dimension_length(variable):
+def update_unlimited_dimension_length(variable_value, dimensions):
     """
-    Updaate unlimited dimension length if present on the variable. Update only occurs if the variable's value is
+    Update unlimited dimension length if present on the variable. Update only occurs if the variable's value is
     allocated.
-
-    :param variable: The target variable holding the dimensions.
-    :type variable: :class:`ocgis.new_interface.variable.Variable`
     """
-    if variable._value is not None:
+    if variable_value is not None:
         # Update any unlimited dimension length.
-        dimensions = variable._dimensions
         if dimensions is not None:
-            for idx, d in enumerate(dimensions.values()):
-                if d.length is None and d.length_current is None:
-                    d.length_current = variable.shape[idx]
+            aq = are_variable_and_dimensions_shape_equal(variable_value, dimensions)
+            if not aq:
+                msg = "Variable and dimension shapes must be equal."
+                raise ValueError(msg)
+            for idx, d in enumerate(dimensions):
+                if d.length is None:
+                    d.length_current = variable_value.shape[idx]
 
+
+def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
+    to_test = []
+    vshape = variable_value.shape
+    dshape = get_dimension_lengths(dimensions)
+
+    if len(vshape) != len(dshape):
+        ret = False
+    else:
+        is_unlimited = [d.length is None for d in dimensions]
+        for v, d, iu in zip(vshape, dshape, is_unlimited):
+            if iu:
+                to_append = True
+            else:
+                to_append = v == d
+            to_test.append(to_append)
+        ret = all(to_test)
+
+    return ret
 
 def set_sliced_backref_variables(ret, slc):
     slc = list(get_iter(slc))
