@@ -455,6 +455,13 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
+        # Test mask is shared.
+        value = [1, 2, 3]
+        value = np.ma.array(value, mask=[False, True, False], dtype=float)
+        var = Variable(value=value, dtype=int)
+        self.assertNumpyAll(var.value.mask, value.mask)
+        self.assertEqual(var.value.dtype, int)
+
     @attr('cfunits')
     def test_cfunits(self):
         var = self.get_variable(return_original_data=False)

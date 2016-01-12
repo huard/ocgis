@@ -92,8 +92,8 @@ class GridXY(AbstractSpatialContainer):
         x.attrs['axis'] = 'X'
         y.attrs['axis'] = 'Y'
 
-        self._x_name = x.alias
-        self._y_name = y.alias
+        self._x_name = x.name
+        self._y_name = y.name
 
         self._variables = VariableCollection(variables=(x, y))
 
@@ -336,7 +336,7 @@ class GridXY(AbstractSpatialContainer):
 
     def create_dimensions(self, names=None):
         if names is None:
-            names = [self.y.alias, self.x.alias]
+            names = [self.y.name, self.x.name]
         if self.is_vectorized:
             y_name, x_name = names
             self.y.create_dimensions(names=y_name)

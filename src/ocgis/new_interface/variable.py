@@ -242,7 +242,7 @@ class Variable(AbstractContainer, Attributes):
     def _set_value_(self, value):
         if value is not None:
             if not isinstance(value, MaskedArray) or value.dtype != self._dtype or value.fill_value != self._fill_value:
-                value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value, mask=False)
+                value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value)
             if value.mask.shape != value.shape:
                 value.mask = np.zeros(value.shape, dtype=bool)
         update_unlimited_dimension_length(value, self._dimensions)
@@ -332,7 +332,11 @@ class Variable(AbstractContainer, Attributes):
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
-        dimensions = self.dimensions or tuple()
+        dimensions = self.dimensions
+        if dimensions is None:
+            msg = 'Dimensions are required for writing to netCDF. Consider using "create_dimensions".'
+            raise ValueError(msg)
+
         if len(dimensions) > 0:
             dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.
@@ -924,7 +928,11 @@ def set_sliced_backref_variables(ret, slc):
 def get_mapped_slice(slc_src, names_src, names_dst):
     ret = [slice(None)] * len(names_dst)
     for idx, name in enumerate(names_dst):
-        idx_src = names_src.index(name)
-        ret[idx] = slc_src[idx_src]
+        try:
+            idx_src = names_src.index(name)
+        except ValueError:
+            continue
+        else:
+            ret[idx] = slc_src[idx_src]
     return tuple(ret)
 
