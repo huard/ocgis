@@ -929,3 +929,4 @@ def get_mapped_slice(slc_src, names_src, names_dst):
         idx_src = names_src.index(name)
         ret[idx] = slc_src[idx_src]
     return tuple(ret)
+
