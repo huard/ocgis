@@ -537,6 +537,20 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
 
+    def test_getitem(self):
+        # Test a dictionary slice.
+        var = Variable()
+        dslc = {'one': slice(2, 5), 'two': np.array([False, True, False, True]), 'three': 0}
+        with self.assertRaises(IndexError):
+            var[dslc]
+        value = np.ma.arange(5 * 4 * 7 * 10).reshape(5, 4, 10, 7)
+        var = Variable(value=value)
+        var.create_dimensions(['one', 'two', 'four', 'three'])
+        sub = var[dslc]
+        self.assertEqual(sub.shape, (3, 2, 10, 1))
+        sub_value = value[2:5, np.array([False, True, False, True], dtype=bool), slice(None), slice(0, 1)]
+        self.assertNumpyAll(sub.value, sub_value)
+
     def test_setitem(self):
         var = Variable('one', [4, 5, 6, 7, 8, 9])
         var.create_dimensions()
@@ -655,3 +669,21 @@ class TestVariableCollection(AbstractTestNewInterface):
         path3 = self.get_temporary_file_path('foo3.nc')
         rvc.write_netcdf(path3)
         self.assertNcEqual(path3, rd.uri)
+
+        # Test creating dimensions when writing to netCDF.
+        v = Variable(value=np.arange(2 * 4 * 3).reshape(2, 4, 3), name='hello')
+        path4 = self.get_temporary_file_path('foo4.nc')
+        with self.nc_scope(path4, 'w') as ds:
+            v.write_netcdf(ds)
+        dname = 'dim_ocgis_hello_1'
+        with self.nc_scope(path4) as ds:
+            self.assertIn(dname, ds.dimensions)
+        desired = Dimension(dname, 4)
+        self.assertEqual(v.dimensions[1], desired)
+        vc = VariableCollection.read_netcdf(path4)
+        actual = vc['hello'].dimensions[1]
+        actual = Dimension(actual.name, actual.length)
+        self.assertEqual(actual, desired)
+        path5 = self.get_temporary_file_path('foo5.nc')
+        with self.nc_scope(path5, 'w') as ds:
+            vc.write_netcdf(ds)

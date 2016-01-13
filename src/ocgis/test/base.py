@@ -610,6 +610,11 @@ class TestBase(unittest.TestCase):
         cmd.append(path)
         subprocess.check_call(cmd)
 
+    def inspect(self, **kwargs):
+        from ocgis import RequestDataset
+        rd = RequestDataset(**kwargs)
+        rd.inspect()
+
     def nc_scope(self, *args, **kwargs):
         return nc_scope(*args, **kwargs)
 

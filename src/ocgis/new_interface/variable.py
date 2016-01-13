@@ -4,6 +4,7 @@ from itertools import izip
 from netCDF4 import Dataset
 
 import numpy as np
+from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
 from ocgis import constants
@@ -63,7 +64,15 @@ class AbstractContainer(AbstractInterfaceObject):
             self._backref = new_backref
 
     def _getitem_initialize_(self, slc):
-        slc = get_formatted_slice(slc, self.ndim)
+        try:
+            slc = get_formatted_slice(slc, self.ndim)
+        except (NotImplementedError, IndexError) as e:
+            # Assume it is a dictionary slice.
+            try:
+                slc = {k: get_formatted_slice(v, 1) for k, v in slc.items()}
+            except:
+                raise e
+
         ret = self.copy()
         return ret, slc
 
@@ -96,25 +105,35 @@ class Variable(AbstractContainer, Attributes):
         self.value = value
 
     def _getitem_main_(self, ret, slc):
-        new_dimensions = None
-        new_value = None
+        dimensions = ret.dimensions
 
-        if ret.dimensions is not None:
-            new_dimensions = [d[s] for d, s in izip(ret.dimensions, get_iter(slc, dtype=slice))]
-        if ret._value is not None:
-            new_value = ret.value.__getitem__(slc)
+        if isinstance(slc, dict):
+            if dimensions is None:
+                msg = 'Dimensions are required for dictionary slices.'
+                raise IndexError(msg)
+            else:
+                names_src, new_slc = slc.keys(), slc.values()
+                names_dst = [d.name for d in dimensions]
+                new_slc = get_mapped_slice(new_slc, names_src, names_dst)
+                self._getitem_main_(ret, new_slc)
+        else:
+            new_dimensions = None
+            new_value = None
 
-        ret.dimensions = None
-        ret.value = None
+            if dimensions is not None:
+                new_dimensions = [d[s] for d, s in izip(dimensions, get_iter(slc, dtype=(slice, ndarray)))]
+            if ret._value is not None:
+                new_value = ret.value.__getitem__(slc)
 
-        ret.dimensions = new_dimensions
-        ret.value = new_value
+            ret.dimensions = None
+            ret.value = None
 
-    def _getitem_finalize_(self, ret, slc):
-        pass
+            ret.dimensions = new_dimensions
+            ret.value = new_value
 
     def __setitem__(self, slc, value):
         # tdk: order
+        # tdk:
         slc = get_formatted_slice(slc, self.ndim)
         self.value[slc] = value
 
@@ -329,14 +348,18 @@ class Variable(AbstractContainer, Attributes):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
+        if self.name is None:
+            msg = 'A variable "name" is required.'
+            raise ValueError(msg)
+
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
-        dimensions = self.dimensions
-        if dimensions is None:
-            msg = 'Dimensions are required for writing to netCDF. Consider using "create_dimensions".'
-            raise ValueError(msg)
+        if self.dimensions is None:
+            new_names = ['dim_ocgis_{}_{}'.format(self.name, ctr) for ctr in range(self.ndim)]
+            self.create_dimensions(new_names)
 
+        dimensions = self.dimensions
         if len(dimensions) > 0:
             dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.

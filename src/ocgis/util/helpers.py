@@ -304,12 +304,14 @@ def get_formatted_slice(slc, n_dims):
             ret = slc
         else:
             ret = [slice(None)] * n_dims
+    elif slc is None and n_dims == 1:
+        ret = slice(None)
     elif n_dims == 1:
         ret = _format_singleton_(slc)
     elif n_dims > 1:
         try:
             assert len(slc) == n_dims
-        except TypeError, AssertionError:
+        except (TypeError, AssertionError):
             raise IndexError("Only {0}-d slicing allowed.".format(n_dims))
         ret = map(_format_singleton_, slc)
     else:
