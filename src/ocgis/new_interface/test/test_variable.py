@@ -9,7 +9,7 @@ from ocgis import constants
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable
+from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable, ObjectType
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_are_units_equal
@@ -467,14 +467,18 @@ class TestVariable(AbstractTestNewInterface):
                  [7, 9],
                  [11]]
         v = Variable(value=value, fill_value=4)
-        self.assertEqual(v.dtype, object)
+        self.assertEqual(v.dtype, ObjectType(object))
         self.assertEqual(v.shape, (3,))
         for idx in range(v.shape[0]):
             actual = v[idx].value[0]
-            desired = np.ma.array(value[idx], fill_value=4)
-            self.assertNumpyAll(actual, desired)
+            desired = value[idx]
+            self.assertEqual(actual, desired)
 
-        v = Variable(value=value, name='foo')
+        # Test converting object arrays.
+        v = Variable(value=value, dtype=ObjectType(float))
+        self.assertEqual(v.value[0].dtype, ObjectType(float))
+
+        v = Variable(value=value, name='foo', dtype=ObjectType(np.float32))
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             v.write_netcdf(ds)
@@ -486,7 +490,7 @@ class TestVariable(AbstractTestNewInterface):
         v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'))
 
         actual = v[1].value[0]
-        self.assertNumpyAll(np.ma.array(value[1]), actual)
+        self.assertNumpyAll(np.ma.array(value[1], dtype=np.float32), actual)
 
         for idx in range(v.shape[0]):
             actual = v_actual[idx].value[0]

@@ -92,8 +92,11 @@ class ObjectType(object):
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
-    def create_vltype(self, ds, name):
-        return ds.createVLType(self.dtype, name)
+    def create_vltype(self, dataset, name):
+        if self.dtype == object:
+            msg = 'Object/ragged arrays required a non-object datatype when writing to netCDF.'
+            raise ValueError(msg)
+        return dataset.createVLType(self.dtype, name)
 
 
 class Variable(AbstractContainer, Attributes):
@@ -162,6 +165,8 @@ class Variable(AbstractContainer, Attributes):
         if self._dtype is None:
             try:
                 ret = self._value.dtype
+                if ret == object:
+                    ret = ObjectType(object)
             except AttributeError:
                 # Assume None.
                 ret = None
@@ -295,34 +300,24 @@ class Variable(AbstractContainer, Attributes):
             desired_dtype = self._dtype
             desired_fill_value = self._fill_value
 
-            if isinstance(desired_dtype, ObjectType):
-                desired_dtype = object
             if not isinstance(value, ndarray):
-                value = np.array(value, dtype=desired_dtype)
-            if desired_dtype is not None and desired_dtype != value.dtype:
+                value = np.array(value)
+                if isinstance(desired_dtype, ObjectType):
+                    if desired_dtype.dtype != object:
+                        for idx in range(value.shape[0]):
+                            value[idx] = np.array(value[idx], dtype=desired_dtype.dtype)
+            if desired_dtype is not None and desired_dtype != value.dtype and value.dtype != object:
                 try:
                     value = value.astype(desired_dtype, copy=False)
                 except TypeError:
                     value = value.astype(desired_dtype)
             if not isinstance(value, MaskedArray):
-                value = np.ma.array(value, fill_value=self._fill_value, dtype=desired_dtype)
+                value = np.ma.array(value, fill_value=self._fill_value)
             if desired_fill_value is not None and value.fill_value != desired_fill_value:
                 value.fill_value = desired_fill_value
                 value.harden_mask()
             if value.mask.shape != value.shape:
                 value.mask = np.zeros(value.shape, dtype=bool)
-            if value.dtype == object:
-                try:
-                    target = value[0][0]
-                    desired_dtype = np.array(target).dtype
-                except TypeError:
-                    # Assume true object.
-                    self.dtype = None
-                else:
-                    if desired_dtype != object:
-                        self.dtype = ObjectType(desired_dtype)
-                        for idx in iter_array(value):
-                            value[idx] = np.array(value[idx], dtype=desired_dtype)
 
         update_unlimited_dimension_length(value, self._dimensions)
 
