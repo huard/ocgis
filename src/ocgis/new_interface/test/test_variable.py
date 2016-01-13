@@ -613,7 +613,7 @@ class TestVariable(AbstractTestNewInterface):
 
 
 class TestVariableCollection(AbstractTestNewInterface):
-    def get(self):
+    def get_variablecollection(self):
         var1 = self.get_variable()
         var2 = self.get_variable(name='wunderbar')
 
@@ -647,11 +647,32 @@ class TestVariableCollection(AbstractTestNewInterface):
 
         self.assertEqual(vc.dimensions, {'x': Dimension(name='x', length=3)})
 
-        vc = self.get()
+        vc = self.get_variablecollection()
         self.assertEqual(vc.attrs, {'foo': 'bar'})
 
+    def test_getitem(self):
+        vc = self.get_variablecollection()
+        desired_shapes = deepcopy(vc.shapes)
+        slc = {'x': 1, 'y': None}
+        sub = vc[slc]
+        for v in sub.values():
+            try:
+                self.assertEqual(v.dimensions_dict['x'].length, 1)
+                if 'y' in v.dimensions_dict:
+                    self.assertEqual(v.dimensions_dict['y'].length, 2)
+            except KeyError:
+                self.assertEqual(v.ndim, 0)
+        sub.write_netcdf(self.get_temporary_file_path('foo.nc'))
+        self.assertDictEqual(vc.shapes, desired_shapes)
+        self.assertDictNotEqual(sub.shapes, desired_shapes)
+        for v in vc.values():
+            try:
+                self.assertNumpyMayShareMemory(v.value, sub[v.name].value)
+            except AssertionError:
+                self.assertEqual(v.name, 'coordinate_system')
+
     def test_write_netcdf_and_read_netcdf(self):
-        vc = self.get()
+        vc = self.get_variablecollection()
         path = self.get_temporary_file_path('foo.nc')
         vc.write_netcdf(path)
         nvc = VariableCollection.read_netcdf(path)

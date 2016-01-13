@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractproperty
+from collections import OrderedDict
 from copy import copy, deepcopy
 from itertools import izip
 from netCDF4 import Dataset
@@ -165,6 +166,17 @@ class Variable(AbstractContainer, Attributes):
     @dimensions.setter
     def dimensions(self, value):
         self._set_dimensions_(value)
+
+    @property
+    def dimensions_dict(self):
+        ret = OrderedDict()
+        try:
+            for d in self.dimensions:
+                ret[d.name] = deepcopy(d)
+        except TypeError:
+            # Assume None.
+            pass
+        return ret
 
     def _get_dimensions_(self):
         return None
@@ -767,6 +779,18 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
+    def __getitem__(self, item):
+        try:
+            ret = AbstractCollection.__getitem__(self, item)
+        except TypeError:
+            # Assume a dictionary slice.
+            ret = self.copy()
+            names = set(item.keys())
+            for k, v in self.items():
+                if v.ndim > 0 and set([d.name for d in v.dimensions]).issubset(names) > 0:
+                    ret[k] = v.__getitem__(item)
+        return ret
+
     @property
     def dimensions(self):
         ret = {}
@@ -777,6 +801,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 else:
                     assert d.length == ret[d.name].length
         return ret
+
+    @property
+    def shapes(self):
+        return OrderedDict([[k, v.shape] for k, v in self.items()])
 
     def add_variable(self, variable):
         """

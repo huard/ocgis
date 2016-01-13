@@ -83,27 +83,9 @@ class TestBase(unittest.TestCase):
     def assertAsSetEqual(self, sequence1, sequence2, msg=None):
         self.assertSetEqual(set(sequence1), set(sequence2), msg=msg)
 
-    def assertDictEqual(self, d1, d2, msg=None):
-        """
-        Asserts two dictionaries are equal. If they are not, identify the first key/value which are not equal.
-
-        :param dict d1: A dictionary to test.
-        :param dict d2: A dictionary to test.
-        :param str msg: A message to attach to an assertion error.
-        :raises: AssertionError
-        """
-
-        try:
-            unittest.TestCase.assertDictEqual(self, d1, d2, msg=msg)
-        except AssertionError:
-            for k, v in d1.iteritems():
-                try:
-                    msg = 'Issue with key "{0}". Values are {1}.'.format(k, (v, d2[k]))
-                except KeyError:
-                    msg = 'The key "{0}" was not found in the second dictionary.'.format(k)
-                    raise AssertionError(msg)
-                self.assertEqual(v, d2[k], msg=msg)
-            self.assertEqual(set(d1.keys()), set(d2.keys()))
+    def assertDictNotEqual(self, *args, **kwargs):
+        with self.assertRaises(AssertionError):
+            self.assertDictEqual(*args, **kwargs)
 
     def assertFionaMetaEqual(self, meta, actual, abs_dtype=True):
         self.assertEqual(meta['crs'], actual['crs'])
