@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractproperty
 from collections import OrderedDict
 from copy import copy, deepcopy
 from itertools import izip
-from netCDF4 import Dataset
+from netCDF4 import Dataset, VLType
 
 import numpy as np
 from numpy.core.multiarray import ndarray
@@ -45,6 +45,7 @@ class AbstractContainer(AbstractInterfaceObject):
         pass
 
     def set_mask(self, value):
+        value = np.array(value, dtype=bool)
         if value.ndim != self.ndim:
             msg = 'Mask must have same dimensions as target.'
             raise ValueError(msg)
@@ -82,6 +83,17 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def _getitem_finalize_(self, ret, slc):
         """Finalize the returned sliced object in-place."""
+
+
+class ObjectType(object):
+    def __init__(self, dtype):
+        self.dtype = np.dtype(dtype)
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def create_vltype(self, ds, name):
+        return ds.createVLType(self.dtype, name)
 
 
 class Variable(AbstractContainer, Attributes):
@@ -147,8 +159,12 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def dtype(self):
-        if self._value is not None:
-            ret = self._value.dtype
+        if self._dtype is None:
+            try:
+                ret = self._value.dtype
+            except AttributeError:
+                # Assume None.
+                ret = None
         else:
             ret = self._dtype
         return ret
@@ -197,8 +213,12 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def fill_value(self):
-        if self._value is not None:
-            ret = self._value.fill_value
+        if self._fill_value is None:
+            try:
+                ret = self._value.fill_value
+            except AttributeError:
+                # Assume None.
+                ret = None
         else:
             ret = self._fill_value
         return ret
@@ -272,11 +292,40 @@ class Variable(AbstractContainer, Attributes):
 
     def _set_value_(self, value):
         if value is not None:
-            if not isinstance(value, MaskedArray) or value.dtype != self._dtype or value.fill_value != self._fill_value:
-                value = np.ma.array(value, dtype=self._dtype, fill_value=self._fill_value)
+            desired_dtype = self._dtype
+            desired_fill_value = self._fill_value
+
+            if isinstance(desired_dtype, ObjectType):
+                desired_dtype = object
+            if not isinstance(value, ndarray):
+                value = np.array(value, dtype=desired_dtype)
+            if desired_dtype is not None and desired_dtype != value.dtype:
+                try:
+                    value = value.astype(desired_dtype, copy=False)
+                except TypeError:
+                    value = value.astype(desired_dtype)
+            if not isinstance(value, MaskedArray):
+                value = np.ma.array(value, fill_value=self._fill_value, dtype=desired_dtype)
+            if desired_fill_value is not None and value.fill_value != desired_fill_value:
+                value.fill_value = desired_fill_value
+                value.harden_mask()
             if value.mask.shape != value.shape:
                 value.mask = np.zeros(value.shape, dtype=bool)
+            if value.dtype == object:
+                try:
+                    target = value[0][0]
+                    desired_dtype = np.array(target).dtype
+                except TypeError:
+                    # Assume true object.
+                    self.dtype = None
+                else:
+                    if desired_dtype != object:
+                        self.dtype = ObjectType(desired_dtype)
+                        for idx in iter_array(value):
+                            value[idx] = np.array(value[idx], dtype=desired_dtype)
+
         update_unlimited_dimension_length(value, self._dimensions)
+
         self._value = value
 
     def cfunits_conform(self, to_units, from_units=None):
@@ -372,6 +421,11 @@ class Variable(AbstractContainer, Attributes):
             self.create_dimensions(new_names)
 
         dimensions = self.dimensions
+
+        dtype = self.dtype
+        if isinstance(dtype, ObjectType):
+            dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
+
         if len(dimensions) > 0:
             dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.
@@ -392,12 +446,21 @@ class Variable(AbstractContainer, Attributes):
                 fill_value = None
             else:
                 fill_value = self.fill_value
-        var = dataset.createVariable(self.name, self.dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+
+        var = dataset.createVariable(self.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
-            var[:] = self.value
+            try:
+                var[:] = self.value
+            except AttributeError:
+                # Assume ObjectType.
+                for idx, v in iter_array(self.value, use_mask=False, return_value=True):
+                    var[idx] = np.array(v)
+
         self.write_attributes_to_netcdf_object(var)
+
         if self.units is not None:
             var.units = self.units
+
         dataset.sync()
 
     def _get_to_conform_value_(self):
@@ -501,13 +564,14 @@ class SourcedVariable(Variable):
 
     def _get_value_from_source_(self):
         ds = self._request_dataset.driver.open()
+        desired_name = self.name or self._request_dataset.variable
         try:
             dimensions = self.dimensions
             if len(dimensions) > 0:
                 slc = get_formatted_slice([d._src_idx for d in dimensions], len(self.shape))
             else:
                 slc = slice(None)
-            var = ds.variables[self.name]
+            var = ds.variables[desired_name]
             ret = var.__getitem__(slc)
 
             # Conform the units if requested.
@@ -891,27 +955,21 @@ def has_unlimited_dimension(dimensions):
 
 
 def set_variable_metadata_from_source(variable):
-    ds = variable._request_dataset.driver.open()
+    dataset = variable._request_dataset.driver.open()
+    desired_name = variable.name or variable._request_dataset.variable
     try:
-        var = ds.variables[variable.name]
+        var = dataset.variables[desired_name]
 
         if variable._dimensions is None:
-            new_dimensions = []
-            for dim_name in var.dimensions:
-                dim = ds.dimensions[dim_name]
-                dim_length = len(dim)
-                if dim.isunlimited():
-                    length = None
-                    length_current = dim_length
-                else:
-                    length = dim_length
-                    length_current = None
-                new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
-                new_dimensions.append(new_dim)
+            desired_dimensions = var.dimensions
+            new_dimensions = get_dimensions_from_netcdf(dataset, desired_dimensions)
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
 
         if variable._dtype is None:
-            variable.dtype = deepcopy(var.dtype)
+            desired_dtype = deepcopy(var.dtype)
+            if isinstance(var.datatype, VLType):
+                desired_dtype = ObjectType(var.dtype)
+            variable.dtype = desired_dtype
 
         if variable._fill_value is None:
             variable.fill_value = deepcopy(var.__dict__.get('_FillValue'))
@@ -923,8 +981,24 @@ def set_variable_metadata_from_source(variable):
 
         variable._set_metadata_from_source_finalize_(var)
     finally:
-        ds.close()
+        dataset.close()
     variable._allocated = True
+
+
+def get_dimensions_from_netcdf(dataset, desired_dimensions):
+    new_dimensions = []
+    for dim_name in desired_dimensions:
+        dim = dataset.dimensions[dim_name]
+        dim_length = len(dim)
+        if dim.isunlimited():
+            length = None
+            length_current = dim_length
+        else:
+            length = dim_length
+            length_current = None
+        new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
+        new_dimensions.append(new_dim)
+    return new_dimensions
 
 
 def update_unlimited_dimension_length(variable_value, dimensions):

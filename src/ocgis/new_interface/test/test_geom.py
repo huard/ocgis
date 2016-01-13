@@ -77,6 +77,7 @@ class TestPointArray(AbstractTestNewInterface):
         # Test with a multi-geometry.
         mp = np.array([None])
         mp[0] = MultiPoint([Point(1, 2), Point(3, 4)])
+        # tdk: RESUME: test is failing
         pa = self.get_pointarray(value=mp)
         self.assertEqual(pa.geom_type, 'MultiPoint')
 

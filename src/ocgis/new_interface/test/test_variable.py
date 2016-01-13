@@ -435,7 +435,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(id(time), id(var.dimensions[0]))
         self.assertEqual(var.name, 'time_value')
         self.assertEqual(var.shape, (len(value),))
-        self.assertNumpyAll(var.value, np.ma.array(value))
+        self.assertNumpyAll(var.value, np.ma.array(value, dtype=var.dtype))
         sub = var[2:4]
         self.assertIsInstance(sub, Variable)
         self.assertEqual(sub.shape, (2,))
@@ -461,6 +461,37 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable(value=value, dtype=int)
         self.assertNumpyAll(var.value.mask, value.mask)
         self.assertEqual(var.value.dtype, int)
+
+    def test_init_object_array(self):
+        value = [[1, 3, 5],
+                 [7, 9],
+                 [11]]
+        v = Variable(value=value, fill_value=4)
+        self.assertEqual(v.dtype, object)
+        self.assertEqual(v.shape, (3,))
+        for idx in range(v.shape[0]):
+            actual = v[idx].value[0]
+            desired = np.ma.array(value[idx], fill_value=4)
+            self.assertNumpyAll(actual, desired)
+
+        v = Variable(value=value, name='foo')
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            v.write_netcdf(ds)
+        # self.ncdump(path)
+        with self.nc_scope(path) as ds:
+            desired = ds.variables['foo'][:]
+        for idx in np.arange(v.shape[0]):
+            self.assertNumpyAll(np.array(v.value[idx]), desired[idx])
+        v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'))
+
+        actual = v[1].value[0]
+        self.assertNumpyAll(np.ma.array(value[1]), actual)
+
+        for idx in range(v.shape[0]):
+            actual = v_actual[idx].value[0]
+            desired = v[idx].value[0]
+            self.assertNumpyAll(actual, desired)
 
     @attr('cfunits')
     def test_cfunits(self):
