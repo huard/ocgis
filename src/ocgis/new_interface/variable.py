@@ -829,8 +829,9 @@ class BoundedVariable(SourcedVariable):
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     # tdk: should test for equivalence of dimensions on variables
 
-    def __init__(self, variables=None, attrs=None, should_copy=True):
+    def __init__(self, variables=None, attrs=None, name=None, should_copy=True):
         self.should_copy = should_copy
+
         AbstractCollection.__init__(self)
         Attributes.__init__(self, attrs)
 
