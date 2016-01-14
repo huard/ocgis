@@ -25,7 +25,7 @@ class FieldBundle2(VariableCollection):
     """
 
     def __init__(self, **kwargs):
-        self.schema = {}
+        self.schema = OrderedDict()
         self._field_names = kwargs.pop('field_names', [])
         super(FieldBundle2, self).__init__(**kwargs)
 
@@ -79,9 +79,14 @@ class FieldBundle2(VariableCollection):
 
     def set_coordinate_variable(self, name, name_variable, axis=None):
         self.schema[name] = name_variable
+        desired_variable = self[name_variable]
         if axis is not None:
-            self[name_variable].attrs['axis'] = axis
-
+            desired_variable.attrs['axis'] = axis
+        desired_dimension = desired_variable.dimensions[0]
+        for var in self.fields.values():
+            new_dimensions = list(var.dimensions)
+            new_dimensions[[d.name for d in var.dimensions].index(desired_dimension.name)] = desired_dimension
+            var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
 
 class FieldBundle(AbstractInterfaceObject, Attributes):
     # tdk: retain variables for backwards compatibility

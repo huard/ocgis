@@ -21,7 +21,8 @@ class TestFieldBundle2(AbstractTestNewInterface):
             variable = BoundedVariable(value=value, name='bvar', dimensions=dims, units='kelvin')
             variables.append(variable)
 
-            value2 = value * 2
+            value2 = np.swapaxes(value * 2, 0, 1)
+            dims.reverse()
             variable2 = BoundedVariable(value=value2, name='cvar', dimensions=dims)
             variables.append(variable2)
 
@@ -53,14 +54,6 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertIn('time', fb)
         with self.assertRaises(AttributeError):
             fb.time
-
-    def test_create_dimension(self):
-        fb = self.get_fieldbundle()
-        fb._field_dimensions = []
-        fb.create_dimension('time')
-        fb.create_dimension('level')
-        self.assertIsInstance(fb.time, TemporalVariable)
-        self.assertIsInstance(fb.dimensions['time'], TemporalVariable)
 
     def test_getitem(self):
         fb = self.get_fieldbundle()
@@ -95,12 +88,20 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertEqual(fb.time.attrs['axis'], 'T')
         self.assertNotIn('axis', time.attrs)
         sub = fb[1, :]
+        for field in sub.fields.values():
+            for _, record in field.iter():
+                self.assertIn(time.name, record)
+        bvar, cvar = sub.fields.values()
+        self.assertEqual(np.mean(cvar.value / 2), np.mean(bvar.value))
+        self.assertEqual(set((cvar.value / 2).flatten().tolist()),
+                         set(bvar.value.flatten().tolist()))
         self.assertNumpyAll(sub.time.value, time[1].value)
         self.assertEqual(time.shape, (3,))
         self.assertNumpyMayShareMemory(time.value, fb.time.value)
         path = self.get_temporary_file_path('foo.nc')
         sub.write_netcdf(path)
         self.ncdump(path)
+        thh
 
 
 class TestFieldBundle(AbstractTestNewInterface):
