@@ -4,25 +4,11 @@ import numpy as np
 
 from ocgis.interface.base.crs import Spherical
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.field import FieldBundle, DSlice, FieldBundle2
+from ocgis.new_interface.field import FieldBundle, FieldBundle2
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import VariableCollection, Variable, BoundedVariable
-
-
-class TestDSlice(AbstractTestNewInterface):
-    def test(self):
-        ds = DSlice(['x', 'time', 'y'])
-        slc = (1, 3, 4)
-        res = ds.get_reordered(slc, ['time', 'y', 'x'])
-        actual = (slice(4, 5, None), slice(1, 2, None), slice(3, 4, None))
-        self.assertEqual(res, actual)
-
-        np.random.seed(1)
-        variable_value = np.random.rand(5, 3, 4)
-        variable_value_actual = variable_value[4, 1, 3]
-        self.assertEqual(variable_value_actual, variable_value[actual])
 
 
 class TestFieldBundle2(AbstractTestNewInterface):
@@ -175,8 +161,6 @@ class TestFieldBundle(AbstractTestNewInterface):
         sub_s = spatial[1:4, 1]
         backref = sub_s.grid._backref
         sub_s.grid._backref = None
-
-        print backref['tas'].shape
 
     def test(self):
         # Test with no instrumented dimensions.

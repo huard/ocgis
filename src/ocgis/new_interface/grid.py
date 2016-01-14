@@ -107,38 +107,6 @@ class GridXY(AbstractSpatialContainer):
                 msg = 'Vector coordinates may not be masked.'
                 raise ValueError(msg)
 
-        # self._corners = None
-        # self.__x__ = None
-        # self.__y__ = None
-        #
-        # try:
-        #     self._y = kwargs.pop('y')
-        #     self._x = kwargs.pop('x')
-        # except KeyError:
-        #     if 'value' not in kwargs:
-        #         msg = 'At least "x" and "y" are required to make a grid without a "value".'
-        #         raise ValueError(msg)
-        # self.corners = kwargs.pop('corners', None)
-        #
-        # name = kwargs.get('name')
-        # if self.__y__ is not None:
-        #     if self.__y__.dimensions is not None:
-        #         if self._y.ndim == 1:
-        #             dimensions = [self._y.dimensions[0], self._x.dimensions[0]]
-        #         else:
-        #             dimensions = self._y.dimensions
-        #         kwargs['dimensions'] = dimensions
-        #     if name is None:
-        #         name = [self.__y__.name, self.__x__.name]
-        # else:
-        #     if name is None:
-        #         name = ['yc', 'xc']
-        # kwargs['name'] = name
-        #
-        # super(GridXY, self).__init__(**kwargs)
-        #
-        # assert len(self.name) == 2
-
     def _getitem_main_(self, ret, slc):
         # tdk: order
         """
@@ -185,78 +153,6 @@ class GridXY(AbstractSpatialContainer):
                 self.x.bounds = None
                 # tdk: this should leverage the bounds already in place on the vectors
                 self.set_extrapolated_bounds()
-
-            # tdk: remove
-    # @property
-    # def corners(self):
-    #     """
-    #     2 x row x column x 4
-    #
-    #     2 = y, x or row, column
-    #     row
-    #     column
-    #     4 = ul, ur, lr, ll
-    #     """
-    #
-    #     if self._corners is not None:
-    #         return self._corners
-    #
-    #     y_bounds = self._y.bounds
-    #     if self._corners is None and y_bounds is not None:
-    #         x_bounds_value = self._x.bounds.value
-    #         y_bounds_value = self._y.bounds.value
-    #         if x_bounds_value is None or y_bounds_value is None:
-    #             pass
-    #         else:
-    #             dtype = self._y.value.dtype
-    #             ndim = self._y.ndim
-    #             fill = np.zeros([2] + list(self.shape) + [4], dtype=dtype)
-    #             col_bounds = x_bounds_value
-    #             row_bounds = y_bounds_value
-    #             if ndim == 1:
-    #                 for ii, jj in itertools.product(range(self.shape[0]), range(self.shape[1])):
-    #                     fill_element = fill[:, ii, jj]
-    #                     fill_element[:, 0] = row_bounds[ii, 0], col_bounds[jj, 0]
-    #                     fill_element[:, 1] = row_bounds[ii, 0], col_bounds[jj, 1]
-    #                     fill_element[:, 2] = row_bounds[ii, 1], col_bounds[jj, 1]
-    #                     fill_element[:, 3] = row_bounds[ii, 1], col_bounds[jj, 0]
-    #             else:
-    #                 fill[0] = row_bounds
-    #                 fill[1] = col_bounds
-    #
-    #             # Copy the mask structure of the underlying value.
-    #             mask_value = self.value.mask
-    #             mask_fill = np.zeros(fill.shape, dtype=bool)
-    #             for (ii, jj), m in iter_array(mask_value[0, :, :], return_value=True):
-    #                 mask_fill[:, ii, jj, :] = m
-    #             fill = np.ma.array(fill, mask=mask_fill)
-    #
-    #             self._corners = fill
-    #
-    #     return self._corners
-    #
-    # @corners.setter
-    # def corners(self, value):
-    #     if value is not None:
-    #         if not isinstance(value, np.ma.MaskedArray):
-    #             value = np.ma.array(value, mask=False)
-    #         assert value.ndim == 4
-    #         assert value.shape[3] == 4
-    #     self._corners = value
-
-    # @property
-    # def corners_esmf(self):
-    #     fill = np.zeros([2] + [element + 1 for element in self.shape], dtype=self.value.dtype)
-    #     range_row = range(self.shape[0])
-    #     range_col = range(self.shape[1])
-    #     _corners = self.corners.data
-    #     for ii, jj in itertools.product(range_row, range_col):
-    #         ref = fill[:, ii:ii + 2, jj:jj + 2]
-    #         ref[:, 0, 0] = _corners[:, ii, jj, 0]
-    #         ref[:, 0, 1] = _corners[:, ii, jj, 1]
-    #         ref[:, 1, 1] = _corners[:, ii, jj, 2]
-    #         ref[:, 1, 0] = _corners[:, ii, jj, 3]
-    #     return fill
 
     @property
     def dimensions(self):
@@ -357,6 +253,14 @@ class GridXY(AbstractSpatialContainer):
         super(GridXY, self).set_mask(value)
         for target in (self.y, self.x):
             target.set_mask(value)
+
+    @expand_needed
+    def iter(self, **kwargs):
+        name_x = self.x.name
+        value_x = self.x.value
+        for idx, record in self.y.iter(**kwargs):
+            record[name_x] = value_x[idx]
+            yield idx, record
 
     def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
         assert min_row <= max_row

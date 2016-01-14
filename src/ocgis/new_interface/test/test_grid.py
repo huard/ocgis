@@ -202,6 +202,13 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(grid.ndim, 2)
         self.assertEqual(grid.shape, (4, 3))
 
+    def test_iter(self):
+        grid = self.get_gridxy()
+        for ctr, (idx, record) in enumerate(grid.iter()):
+            self.assertIn(grid.y.name, record)
+            self.assertIn(grid.x.name, record)
+        self.assertEqual(ctr + 1, grid.shape[0] * grid.shape[1])
+
     def test_getitem(self):
         for with_dimensions in [False, True]:
             grid = self.get_gridxy(with_dimensions=with_dimensions)

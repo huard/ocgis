@@ -312,19 +312,6 @@ class FieldBundle(AbstractInterfaceObject, Attributes):
         vc.write_netcdf(*args, **kwargs)
 
 
-# tdk: remove
-class DSlice(AbstractInterfaceObject):
-    def __init__(self, names):
-        self.names = names
-
-    def get_reordered(self, slc, slc_names):
-        names = self.names
-        slc = get_formatted_slice(slc, len(names))
-        mapped = dict(zip(slc_names, slc))
-        ret = tuple([mapped[n] for n in names])
-        return ret
-
-
 def set_getitem_field_bundle(fb, slc):
     if fb.spatial is not None:
         spatial_slice = [None] * fb.spatial.ndim

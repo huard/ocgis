@@ -193,7 +193,7 @@ class Variable(AbstractContainer, Attributes):
         ret = OrderedDict()
         try:
             for d in self.dimensions:
-                ret[d.name] = deepcopy(d)
+                ret[d.name] = d
         except TypeError:
             # Assume None.
             pass
@@ -382,8 +382,23 @@ class Variable(AbstractContainer, Attributes):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
 
+    def iter(self, use_mask=True):
+        name = self.name
+        for idx, value in iter_array(self.value, use_mask=use_mask, return_value=True):
+            yld = OrderedDict()
+            try:
+                for idx_d, d in enumerate(self.dimensions):
+                    try:
+                        yld[d._variable.name] = d._variable.value[idx[idx_d]]
+                    except AttributeError:  # Assume None.
+                        pass
+            except TypeError:  # Assume None.
+                pass
+            yld[name] = value
+            yield idx, yld
+
     def get_mask(self):
-        """Return a deep copy of the object mask."""
+        """Return a deepcopy of the object mask."""
         return self.value.mask.copy()
 
     def set_mask(self, value):
@@ -788,6 +803,16 @@ class BoundedVariable(SourcedVariable):
             synced_dimensions = list(self.bounds.dimensions)
             synced_dimensions[0] = self.dimensions[0]
             self.bounds.dimensions = synced_dimensions
+
+    def iter(self, **kwargs):
+        itr = super(BoundedVariable, self).iter(**kwargs)
+        for idx, element in itr:
+            if self.bounds is not None:
+                row = self.bounds.value[idx, :]
+                lb, ub = np.min(row), np.max(row)
+                element['lb_{}'.format(self.name)] = lb
+                element['ub_{}'.format(self.name)] = ub
+            yield idx, element
 
     def set_mask(self, value):
         super(BoundedVariable, self).set_mask(value)
