@@ -95,7 +95,7 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertEqual(np.mean(cvar.value / 2), np.mean(bvar.value))
         self.assertEqual(set((cvar.value / 2).flatten().tolist()),
                          set(bvar.value.flatten().tolist()))
-        self.assertNumpyAll(sub.time.value, time[1].value)
+        self.assertNumpy9All(sub.time.value, time[1].value)
         self.assertEqual(time.shape, (3,))
         self.assertNumpyMayShareMemory(time.value, fb.time.value)
         path = self.get_temporary_file_path('foo.nc')
