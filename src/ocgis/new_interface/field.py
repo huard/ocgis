@@ -4,6 +4,7 @@ from copy import copy, deepcopy
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.geom import SpatialContainer
+from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection, Variable
 from ocgis.util.helpers import get_formatted_slice
@@ -17,16 +18,23 @@ _FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
 _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
-class FieldBundle2(VariableCollection):
+class FieldBundle2(AbstractSpatialObject):
     """
     :type fields: sequence of variable aliases
 
     >>> fields = ['tas', 'pr']
     """
+    _schema = {}
 
     def __init__(self, **kwargs):
-        self.schema = OrderedDict()
-        self._field_names = kwargs.pop('field_names', [])
+        self._variables = None
+        self._fields = None
+
+        self._schema = deepcopy(self._schema)
+
+        self.fields = kwargs.pop('fields', None)
+        self.variables = kwargs.pop('variables', None)
+        self.spatial = kwargs.pop('spatial', None)
         super(FieldBundle2, self).__init__(**kwargs)
 
     def __getitem__(self, slc):
@@ -35,7 +43,7 @@ class FieldBundle2(VariableCollection):
         else:
             target = self.fields.first()
             slc = get_formatted_slice(slc, target.ndim)
-            backref = self.copy()
+            backref = self.variables.copy()
             backref.pop(target.name)
             target._backref = backref
             sub = target.__getitem__(slc)
@@ -43,26 +51,9 @@ class FieldBundle2(VariableCollection):
             new_variables = sub._backref
             sub._backref = None
             new_variables.add_variable(sub)
-            ret.update(new_variables)
-        return ret
-
-    def __getattribute__(self, name_or_slice):
-        ga = object.__getattribute__
-        if hasattr(self, 'schema') and name_or_slice in ga(self, 'schema'):
-            ret = ga(self, '_storage')[name_or_slice]
-        else:
-            ret = ga(self, name_or_slice)
-        return ret
-
-    # def __setattr__(self, name, value):
-    #     if isinstance(value, Variable):
-    #         self.add_variable(value)
-    #     else:
-    #         object.__setattr__(self, name, value)
-
-    @property
-    def fields(self):
-        ret = VariableCollection(variables=[self[v] for v in self._field_names])
+            ret.variables.update(new_variables)
+            for field in ret.fields.values():
+                ret.fields[field.name] = new_variables[field.name]
         return ret
 
     @property
@@ -73,13 +64,45 @@ class FieldBundle2(VariableCollection):
     def dimensions_dict(self):
         return self.fields.first().dimensions_dict
 
+    @property
+    def fields(self):
+        return self._fields
+
+    @fields.setter
+    def fields(self, fields):
+        self._fields = VariableCollection(variables=fields)
+
+    @property
+    def variables(self):
+        ret = self._variables
+        ret.update(self.fields)
+        return ret
+
+    @variables.setter
+    def variables(self, variables):
+        self._variables = VariableCollection(variables=variables)
+
     def add_field(self, field):
         self.add_variable(field)
         self._field_names.append(field.name)
 
+    def get_intersects(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def get_subset_bbox(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def update_crs(self, to_crs):
+        raise NotImplementedError
+
+    def copy(self):
+        ret = copy(self)
+        ret._variables = ret.variables.copy()
+        ret._fields = ret.fields.copy()
+        return ret
+
     def set_coordinate_variable(self, name, name_variable, axis=None):
-        self.schema[name] = name_variable
-        desired_variable = self[name_variable]
+        desired_variable = self.variables[name_variable]
         if axis is not None:
             desired_variable.attrs['axis'] = axis
         desired_dimension = desired_variable.dimensions[0]
@@ -87,6 +110,19 @@ class FieldBundle2(VariableCollection):
             new_dimensions = list(var.dimensions)
             new_dimensions[[d.name for d in var.dimensions].index(desired_dimension.name)] = desired_dimension
             var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
+        setattr(self, name, desired_variable)
+
+    def set_spatial(self, spatial=None, name_x=None, name_y=None, crs=None):
+        if spatial is None:
+            x = self.pop(name_x)
+            y = self.pop(name_y)
+            grid = GridXY(x, y, crs=crs)
+            spatial = SpatialContainer(grid=grid)
+        self.spatial = spatial
+
+    def _get_extent_(self):
+        raise NotImplementedError
+
 
 class FieldBundle(AbstractInterfaceObject, Attributes):
     # tdk: retain variables for backwards compatibility

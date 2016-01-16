@@ -1058,6 +1058,7 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
 
     return ret
 
+
 def set_sliced_backref_variables(ret, slc):
     slc = list(get_iter(slc))
     backref = ret._backref

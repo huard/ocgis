@@ -34,7 +34,7 @@ class SpatialContainer(AbstractInterfaceObject):
 
         self.abstraction = abstraction
         self.point = point
-        self.poly = polygon
+        self.polygon = polygon
         self.grid = grid
 
     def __getitem__(self, slc):
