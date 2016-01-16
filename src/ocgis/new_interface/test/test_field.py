@@ -48,8 +48,7 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertAsSetEqual(fb.variables.keys(), ['bvar', 'cvar', 'time', 'level'])
         self.assertIsInstance(fb.fields['bvar'], Variable)
         self.assertIn('time', fb.variables)
-        with self.assertRaises(AttributeError):
-            fb.time
+        self.assertIsNotNone(fb.time)
 
     def test_getitem(self):
         fb = self.get_fieldbundle()

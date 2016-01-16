@@ -94,6 +94,7 @@ class FieldBundle2(AbstractSpatialObject):
     def variables(self):
         ret = self._variables
         ret.update(self.fields)
+        self.update_mapped_dimensions()
         return ret
 
     @variables.setter
@@ -119,14 +120,27 @@ class FieldBundle2(AbstractSpatialObject):
         ret._fields = ret.fields.copy()
         return ret
 
-    def set_dimension_variable(self, name, name_variable, axis=None):
+    def update_mapped_dimensions(self):
+        for name, v in self.dimension_map.items():
+            name_variable = v['variable']
+            try:
+                self.set_dimension_variable(name, name_variable)
+            except KeyError:  # Assume not in variables.
+                pass
+
+    def set_dimension_variable(self, name, name_variable):
         self.dimension_map[name]['variable'] = name_variable
-        desired_variable = self.variables[name_variable]
+        desired_variable = self._variables[name_variable]
         desired_dimension = desired_variable.dimensions[0]
-        for var in self.fields.values():
-            new_dimensions = list(var.dimensions)
-            new_dimensions[[d.name for d in var.dimensions].index(desired_dimension.name)] = desired_dimension
-            var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
+        for var in self._variables.values():
+            if var.dimensions is not None:
+                new_dimensions = list(var.dimensions)
+                try:
+                    idx = [d.name for d in var.dimensions].index(desired_dimension.name)
+                except ValueError:  # Assume dimension not in list.
+                    continue
+                new_dimensions[idx] = desired_dimension
+                var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
 
     def set_spatial(self, spatial=None, name_x=None, name_y=None, crs=None):
         if spatial is None:
