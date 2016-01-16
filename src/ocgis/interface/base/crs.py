@@ -102,6 +102,12 @@ class CoordinateReferenceSystem(object):
         sr.ImportFromProj4(to_string(self.value))
         return sr
 
+    def as_variable(self, with_proj4=True):
+        from ocgis.new_interface.variable import Variable
+        var = Variable(name=self.name)
+        var.attrs['proj4'] = self.proj4
+        return var
+
     def write_to_rootgrp(self, rootgrp, with_proj4=True):
         """
         Write the coordinate system to an open netCDF file.

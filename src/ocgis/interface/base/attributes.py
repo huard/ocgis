@@ -13,14 +13,15 @@ class Attributes(object):
 
     @property
     def attrs(self):
+        if self._attrs is None:
+            self._attrs = self._get_attrs_()
         return self._attrs
 
     @attrs.setter
     def attrs(self, value):
-        if value is None:
-            self._attrs = OrderedDict()
-        else:
-            self._attrs = OrderedDict(value)
+        if value is not None:
+            value = OrderedDict(value)
+        self._attrs = value
 
     def write_attributes_to_netcdf_object(self, target):
         """
@@ -35,3 +36,6 @@ class Attributes(object):
                 target.axis = str(v)
             else:
                 target.setncattr(k, v)
+
+    def _get_attrs_(self):
+        return OrderedDict()

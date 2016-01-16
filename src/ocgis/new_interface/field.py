@@ -9,13 +9,18 @@ from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection, Variable
 from ocgis.util.helpers import get_formatted_slice
 
-_FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
+# _FIELDBUNDLE_DIMENSIONS = ('realization', 'time', 'level', 'y', 'x', 'n_geom')
 # _FIELDBUNDLE_DIMENSIONS_MAP = dict(zip(_FIELDBUNDLE_DIMENSIONS, range(3)))
-# _AXES_MAP = dict(zip(('R', 'T', 'L', 'Y', 'X', 'G'),
-#                      ('realization', 'time', 'level', 'grid.y', 'grid.x', 'geom')))
+_DIMENSION_MAP = OrderedDict()
+_DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': 'realization'}
+_DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': 'time'}
+_DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': 'level'}
+_DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': 'y'}
+_DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': 'x'}
+_DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ngeom'}, 'variable': 'geom'}
 #
 # schema = {'T': 'time', 'Y': 'lat', 'X': 'lon'}
-_FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
+# _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
 
 
 class FieldBundle2(AbstractSpatialObject):
@@ -24,13 +29,12 @@ class FieldBundle2(AbstractSpatialObject):
 
     >>> fields = ['tas', 'pr']
     """
-    _schema = {}
 
     def __init__(self, **kwargs):
         self._variables = None
         self._fields = None
 
-        self._schema = deepcopy(self._schema)
+        self.dimension_map = deepcopy(_DIMENSION_MAP)
 
         self.fields = kwargs.pop('fields', None)
         self.variables = kwargs.pop('variables', None)
@@ -54,6 +58,20 @@ class FieldBundle2(AbstractSpatialObject):
             ret.variables.update(new_variables)
             for field in ret.fields.values():
                 ret.fields[field.name] = new_variables[field.name]
+        return ret
+
+    def __getattribute__(self, name_or_slice):
+        _getattr = object.__getattribute__
+        try:
+            ret = _getattr(self, name_or_slice)
+        except AttributeError as e:
+            try:
+                desired_dimension = _getattr(self, 'dimension_map')[name_or_slice]
+            except (KeyError, AttributeError):
+                raise e
+            else:
+                desired_dimension_variable = desired_dimension['variable']
+                ret = _getattr(self, 'variables').get(desired_dimension_variable, None)
         return ret
 
     @property
@@ -101,16 +119,14 @@ class FieldBundle2(AbstractSpatialObject):
         ret._fields = ret.fields.copy()
         return ret
 
-    def set_coordinate_variable(self, name, name_variable, axis=None):
+    def set_dimension_variable(self, name, name_variable, axis=None):
+        self.dimension_map[name]['variable'] = name_variable
         desired_variable = self.variables[name_variable]
-        if axis is not None:
-            desired_variable.attrs['axis'] = axis
         desired_dimension = desired_variable.dimensions[0]
         for var in self.fields.values():
             new_dimensions = list(var.dimensions)
             new_dimensions[[d.name for d in var.dimensions].index(desired_dimension.name)] = desired_dimension
             var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
-        setattr(self, name, desired_variable)
 
     def set_spatial(self, spatial=None, name_x=None, name_y=None, crs=None):
         if spatial is None:
@@ -119,6 +135,18 @@ class FieldBundle2(AbstractSpatialObject):
             grid = GridXY(x, y, crs=crs)
             spatial = SpatialContainer(grid=grid)
         self.spatial = spatial
+
+    def write_netcdf(self, *args, **kwargs):
+        if self.crs is not None:
+            var_crs = self.crs.as_variable()
+            self.variables.add_variable(var_crs)
+
+        for name in self.dimension_map.keys():
+            mapped_dimension = getattr(self, name)
+            if mapped_dimension is not None:
+                mapped_dimension.attrs.update(deepcopy(self.dimension_map[name]['attrs']))
+
+        VariableCollection.write_netcdf(self.variables, *args, **kwargs)
 
     def _get_extent_(self):
         raise NotImplementedError

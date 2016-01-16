@@ -360,7 +360,7 @@ class Variable(AbstractContainer, Attributes):
 
     def copy(self):
         ret = copy(self)
-        ret.attrs = ret.attrs.copy()
+        ret.attrs = ret._attrs
         return ret
 
     def create_dimensions(self, names=None):
@@ -557,6 +557,12 @@ class SourcedVariable(Variable):
 
     def _set_metadata_from_source_finalize_(self, *args, **kwargs):
         pass
+
+    def _get_attrs_(self):
+        self._attrs = Attributes._get_attrs_(self)
+        if not self._allocated and self._request_dataset is not None:
+            self._set_metadata_from_source_()
+        return self._attrs
 
     def _get_units_(self):
         if not self._allocated and self._units is None and self._request_dataset is not None:

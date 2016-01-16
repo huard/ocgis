@@ -1,11 +1,12 @@
 import numpy as np
 
+from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import FieldBundle2
 from ocgis.new_interface.geom import SpatialContainer
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
 
 
 class TestFieldBundle2(AbstractTestNewInterface):
@@ -77,18 +78,16 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertEqual(sub2.variables['level'].shape, (1,))
         self.assertEqual(sub2.variables['time'].shape, (3,))
 
-    def test_set_coordinate_variable(self):
+    def test_set_dimension_variable(self):
         fb = self.get_fieldbundle()
-        with self.assertRaises(AttributeError):
-            fb.time
+        fb.crs = WGS84()
         fb.variables.pop('time')
+        self.assertIsNone(fb.time)
         time = Variable(value=[4, 5, 6], name='time')
         time.create_dimensions('time')
         fb.variables.add_variable(time)
-        fb.set_coordinate_variable('time', 'time', axis='T')
+        fb.set_dimension_variable('time', 'time')
         self.assertNumpyAll(fb.time.value, time.value)
-        self.assertEqual(fb.time.attrs['axis'], 'T')
-        self.assertNotIn('axis', time.attrs)
         sub = fb[1, :]
         for field in sub.fields.values():
             for _, record in field.iter():
@@ -97,12 +96,18 @@ class TestFieldBundle2(AbstractTestNewInterface):
         self.assertEqual(np.mean(cvar.value / 2), np.mean(bvar.value))
         self.assertEqual(set((cvar.value / 2).flatten().tolist()),
                          set(bvar.value.flatten().tolist()))
+        self.assertNumpyAll(sub.variables['time'].value, time[1].value)
         self.assertNumpyAll(sub.time.value, time[1].value)
         self.assertEqual(time.shape, (3,))
         self.assertNumpyMayShareMemory(time.value, fb.time.value)
         path = self.get_temporary_file_path('foo.nc')
         sub.write_netcdf(path)
-        # self.ncdump(path)
+        vc = VariableCollection.read_netcdf(path)
+        self.assertEqual(vc['time'].attrs['axis'], 'T')
+        self.assertEqual(vc['level'].attrs['axis'], 'L')
+        path2 = self.get_temporary_file_path('foo1.nc')
+        vc.write_netcdf(path2)
+        self.assertNcEqual(path, path2)
 
     def test_set_spatial(self):
         x = BoundedVariable(value=[1, 2, 3], dtype=float, name='x')

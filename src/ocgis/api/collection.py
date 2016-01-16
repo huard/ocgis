@@ -68,6 +68,9 @@ class AbstractCollection(object):
         for key in self.iterkeys():
             return self._storage[key]
 
+    def get(self, *args, **kwargs):
+        return self._storage.get(*args, **kwargs)
+
     def items(self):
         return self._storage.items()
 
