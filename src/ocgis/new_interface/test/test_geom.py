@@ -17,8 +17,8 @@ from ocgis.new_interface.variable import BoundedVariable, Variable, VariableColl
 from ocgis.util.spatial.index import SpatialIndex
 
 
-class TestPointArray(AbstractTestNewInterface):
-    def get_pointarray_with_backref(self):
+class TestGeometryVariable(AbstractTestNewInterface):
+    def get_geometryvariable_with_backref(self):
         vpa = np.array([None, None, None])
         vpa[:] = [Point(1, 2), Point(3, 4), Point(5, 6)]
         value = np.arange(0, 30).reshape(10, 3)
@@ -30,24 +30,24 @@ class TestPointArray(AbstractTestNewInterface):
         return pa
 
     def test_init(self):
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         self.assertIsInstance(pa.value, MaskedArray)
         self.assertEqual(pa.ndim, 1)
 
         # Test initializing with a grid object.
         gridxy = self.get_gridxy()
         # Enforce value as none.
-        pa = self.get_pointarray(grid=gridxy, value=None)
+        pa = self.get_geometryvariable(grid=gridxy, value=None)
         self.assertIsInstance(pa.value, MaskedArray)
         self.assertEqual(pa.ndim, 2)
 
         # Test passing a "crs".
-        pa = self.get_pointarray(grid=self.get_gridxy(), crs=WGS84())
+        pa = self.get_geometryvariable(grid=self.get_gridxy(), crs=WGS84())
         self.assertEqual(pa.crs, WGS84())
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
-        pa = self.get_pointarray(grid=gridxy, value=None)
+        pa = self.get_geometryvariable(grid=gridxy, value=None)
         self.assertEqual(pa.shape, (4, 3))
         self.assertEqual(pa.ndim, 2)
         self.assertIsNone(pa._value)
@@ -57,7 +57,7 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertEqual(sub.grid.shape, (2, 1))
 
         # Test slicing with a backref.
-        pa = self.get_pointarray_with_backref()
+        pa = self.get_geometryvariable_with_backref()
         desired = pa._backref['tas'][:, 1].value
         sub = pa[1]
         backref_tas = sub._backref['tas']
@@ -67,22 +67,22 @@ class TestPointArray(AbstractTestNewInterface):
     def test_set_value(self):
         value = Point(6, 7)
         with self.assertRaises(ValueError):
-            self.get_pointarray(value=value)
+            self.get_geometryvariable(value=value)
 
     def test_geom_type(self):
         gridxy = self.get_gridxy()
-        pa = self.get_pointarray(grid=gridxy)
+        pa = self.get_geometryvariable(grid=gridxy)
         self.assertEqual(pa.geom_type, 'Point')
 
         # Test with a multi-geometry.
         mp = np.array([None])
         mp[0] = MultiPoint([Point(1, 2), Point(3, 4)])
         # tdk: RESUME: test is failing
-        pa = self.get_pointarray(value=mp)
+        pa = self.get_geometryvariable(value=mp)
         self.assertEqual(pa.geom_type, 'MultiPoint')
 
         # Test overloading.
-        pa = self.get_pointarray(value=mp, geom_type='overload')
+        pa = self.get_geometryvariable(value=mp, geom_type='overload')
         self.assertEqual(pa.geom_type, 'overload')
 
     def test_get_intersects(self):
@@ -96,7 +96,7 @@ class TestPointArray(AbstractTestNewInterface):
         self.assertIsNotNone(sub.grid.y)
 
         # Test w/out an associated grid.
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         self.assertIsNone(pa.grid)
         polygon = box(0.5, 1.5, 1.5, 2.5)
         sub = pa.get_intersects(polygon)
@@ -106,7 +106,7 @@ class TestPointArray(AbstractTestNewInterface):
 
     def test_get_intersection(self):
         for return_indices in [True, False]:
-            pa = self.get_pointarray()
+            pa = self.get_geometryvariable()
             polygon = box(0.9, 1.9, 1.5, 2.5)
             lhs = pa.get_intersection(polygon, return_indices=return_indices)
             if return_indices:
@@ -143,7 +143,7 @@ class TestPointArray(AbstractTestNewInterface):
             self.assertNumpyAll(res.value.mask, value.mask)
 
     def test_get_intersection_masked(self):
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         polygon = box(0.9, 1.9, 1.5, 2.5)
         lhs = pa.get_intersection_masked(polygon)
         self.assertTrue(lhs.value.mask[1])
@@ -151,7 +151,7 @@ class TestPointArray(AbstractTestNewInterface):
     def test_get_nearest(self):
         target1 = Point(0.5, 0.75)
         target2 = box(0.5, 0.75, 0.55, 0.755)
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         for target in [target1, target2]:
             res, slc = pa.get_nearest(target, return_indices=True)
             self.assertIsInstance(res, PointArray)
@@ -160,20 +160,20 @@ class TestPointArray(AbstractTestNewInterface):
             self.assertEqual(res.shape, (1,))
 
     def test_get_spatial_index(self):
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         si = pa.get_spatial_index()
         self.assertIsInstance(si, SpatialIndex)
         self.assertEqual(si._index.bounds, [1.0, 2.0, 3.0, 4.0])
 
     def test_get_unioned(self):
-        pa = self.get_pointarray()
+        pa = self.get_geometryvariable()
         u = pa.get_unioned()
         self.assertEqual(u.shape, (1,))
         actual = MultiPoint([[1.0, 2.0], [3.0, 4.0]])
         self.assertEqual(u.value[0], actual)
 
     def test_get_value(self):
-        pa = self.get_pointarray(grid=self.get_gridxy())
+        pa = self.get_geometryvariable(grid=self.get_gridxy())
         self.assertIsNone(pa._value)
         self.assertIsNotNone(pa.grid)
         self.assertTrue(pa.grid.is_vectorized)
@@ -183,7 +183,7 @@ class TestPointArray(AbstractTestNewInterface):
         assert_equal(pa.grid.y.value, [c.y for c in col.flat])
 
     def test_update_crs(self):
-        pa = self.get_pointarray(crs=WGS84())
+        pa = self.get_geometryvariable(crs=WGS84())
         to_crs = CoordinateReferenceSystem(epsg=2136)
         pa.update_crs(to_crs)
         self.assertEqual(pa.crs, to_crs)
@@ -196,11 +196,11 @@ class TestPointArray(AbstractTestNewInterface):
         value = [Point(2, 3), Point(4, 5), Point(5, 6)]
         mask = [False, True, False]
         value = np.ma.array(value, mask=mask, dtype=object)
-        pa = self.get_pointarray(value=value)
+        pa = self.get_geometryvariable(value=value)
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
 
     def test_write_fiona(self):
-        pa = self.get_pointarray(crs=WGS84())
+        pa = self.get_geometryvariable(crs=WGS84())
         path = self.get_temporary_file_path('foo.shp')
         pa.write_fiona(path)
         with fiona.open(path, 'r') as records:
