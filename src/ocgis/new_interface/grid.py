@@ -351,6 +351,31 @@ class GridXY(AbstractSpatialContainer):
                 maxy = row.bounds.value.max()
         return minx, miny, maxx, maxy
 
+    @property
+    def geom_type(self):
+        return super(GridXY, self).geom_type
+
+    def get_intersection(self, *args, **kwargs):
+        return super(GridXY, self).get_intersection(*args, **kwargs)
+
+    def get_intersection_masked(self, *args, **kwargs):
+        return super(GridXY, self).get_intersection_masked(*args, **kwargs)
+
+    def get_intersects_masked(self, *args, **kwargs):
+        return super(GridXY, self).get_intersects_masked(*args, **kwargs)
+
+    def get_nearest(self, *args, **kwargs):
+        return super(GridXY, self).get_nearest(*args, **kwargs)
+
+    def get_spatial_index(self, *args, **kwargs):
+        return super(GridXY, self).get_spatial_index(*args, **kwargs)
+
+    def iter_records(self, *args, **kwargs):
+        return super(GridXY, self).iter_records(*args, **kwargs)
+
+    def write_fiona(self, *args, **kwargs):
+        return super(GridXY, self).write_fiona(*args, **kwargs)
+
         # tdk: remove
         #
         # def _get_shape_(self):

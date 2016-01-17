@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 from collections import deque
 from copy import copy
 
@@ -66,6 +66,46 @@ class AbstractSpatialObject(AbstractInterfaceObject):
         :returns: A tuple with order (minx, miny, maxx, maxy).
         :rtype: tuple
         """
+
+    @abstractproperty
+    def geom_type(self):
+        """Representative geometry type."""
+
+    @abstractmethod
+    def get_intersects(self, *args, **kwargs):
+        """Perform an intersects operations."""
+
+    @abstractmethod
+    def get_intersection(self, *args, **kwargs):
+        """Perform an intersection."""
+
+    @abstractmethod
+    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
+        """Perform an intersects operation and mask non-intersecting elements."""
+
+    @abstractmethod
+    def get_intersection_masked(self, *args, **kwargs):
+        """Perform an intersection an mask non-intersecting elements."""
+
+    @abstractmethod
+    def get_nearest(self, target, return_indices=False):
+        """Get nearest element to target geometry."""
+
+    @abstractmethod
+    def get_spatial_index(self):
+        """Get the spatial index."""
+
+    @abstractmethod
+    def update_crs(self, to_crs):
+        """Update coordinate system."""
+
+    @abstractmethod
+    def iter_records(self, use_mask=True):
+        """Generate fiona-compatible records."""
+
+    @abstractmethod
+    def write_fiona(self, path, driver='ESRI Shapefile', use_mask=True):
+        """Write to fiona-compatible drivers."""
 
 
 class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
