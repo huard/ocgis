@@ -1,4 +1,3 @@
-import itertools
 from abc import ABCMeta
 from collections import deque
 from copy import copy
@@ -12,7 +11,6 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
-from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
@@ -164,21 +162,19 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
 
 
 class GeometryVariable(AbstractSpatialVariable):
-    # Flag for grid subsetting by bounding box. Bounds should not be used for points.
-    _use_bounds = False
 
     def __init__(self, **kwargs):
-        self._grid = kwargs.pop('grid', None)
         self._geom_type = kwargs.pop('geom_type', 'auto')
-
-        kwargs['name'] = kwargs.get('name', 'geom')
-
         super(GeometryVariable, self).__init__(**kwargs)
 
-    def _getitem_main_(self, ret, slc):
-        # tdk: order
-        AbstractSpatialVariable._getitem_main_(self, ret, slc)
-        ret._grid = get_none_or_slice(ret._grid, slc)
+    @property
+    def area(self):
+        r_value = self.value
+        fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
+        fill = np.ma.array(fill, mask=r_value.mask)
+        for slc, geom in iter_array(r_value, return_value=True):
+            fill[slc] = geom.area
+        return fill
 
     @property
     def dtype(self):
@@ -187,7 +183,8 @@ class GeometryVariable(AbstractSpatialVariable):
 
     @dtype.setter
     def dtype(self, value):
-        assert value == object or value is None
+        # Geometry data types are always objects. Ignore any passed value.
+        pass
 
     @property
     def geom_type(self):
@@ -198,27 +195,15 @@ class GeometryVariable(AbstractSpatialVariable):
         return self._geom_type
 
     @property
-    def grid(self):
-        # tdk: grid should be made private on point arrays
-        return self._grid
-
-    @property
     def weights(self):
-        ret = np.ones(self.value.shape, dtype=env.NP_FLOAT)
-        ret = np.ma.array(ret, mask=self.value.mask)
-        return ret
+        area = self.area
+        area.data[area.data == 0] = 1.0
+        return area / area.max()
 
     def get_intersects(self, *args, **kwargs):
         return_indices = kwargs.pop('return_indices', False)
-        # First, subset the grid by the bounding box.
-        if self.grid is not None:
-            minx, miny, maxx, maxy = args[0].bounds
-            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
-            ret = self.__getitem__(slc)
-        else:
-            ret = self
-            slc = [slice(None)] * self.ndim
-        ret = ret.get_intersects_masked(*args, **kwargs)
+        slc = [slice(None)] * self.ndim
+        ret = self.get_intersects_masked(*args, **kwargs)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
         _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
@@ -242,10 +227,10 @@ class GeometryVariable(AbstractSpatialVariable):
             obj.value[idx] = geom.intersection(args[0])
         return ret
 
-    def get_intersects_masked(self, polygon, use_spatial_index=True, keep_touches=False):
+    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
         """
-        :param polygon: The Shapely geometry to use for subsetting.
-        :type polygon: :class:`shapely.geometry.Polygon' or :class:`shapely.geometry.MultiPolygon'
+        :param geometry: The Shapely geometry to use for subsetting.
+        :type geometry: :class:`shapely.geometry.BaseGeometry'
         :param bool use_spatial_index: If ``False``, do not use the :class:`rtree.index.Index` for spatial subsetting.
          If the geometric case is simple, it may marginally improve execution times to turn this off. However, turning
          this off for a complex case will negatively impact (significantly) spatial operation execution times.
@@ -254,9 +239,6 @@ class GeometryVariable(AbstractSpatialVariable):
         :returns: A spatial variable the same geometry type.
         """
         # tdk: doc keep_touches
-        # Only polygons are acceptable for subsetting.
-        if type(polygon) not in (Polygon, MultiPolygon):
-            raise NotImplementedError(type(polygon))
 
         ret = copy(self)
         # Create the fill array and reference the mask. This is the output geometry value array.
@@ -266,16 +248,16 @@ class GeometryVariable(AbstractSpatialVariable):
         if use_spatial_index:
             si = self.get_spatial_index()
             # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
-            for idx in si.iter_intersects(polygon, self.value.reshape(-1), keep_touches=keep_touches):
+            for idx in si.iter_intersects(geometry, self.value.reshape(-1), keep_touches=keep_touches):
                 ref_fill_mask[idx] = False
         else:
             # Prepare the polygon for faster spatial operations.
-            prepared = prep(polygon)
+            prepared = prep(geometry)
             # We are not keeping touches at this point. Remember the mask is an inverse.
             for idx, geom in iter_array(self.value.reshape(-1), return_value=True):
                 bool_value = False
                 if prepared.intersects(geom):
-                    if not keep_touches and polygon.touches(geom):
+                    if not keep_touches and geometry.touches(geom):
                         bool_value = True
                 else:
                     bool_value = True
@@ -288,9 +270,6 @@ class GeometryVariable(AbstractSpatialVariable):
         # Set the returned value to the fill array.
         ret.value = fill
 
-        # Update associated masks.
-        self.set_mask(ret.get_mask())
-
         return ret
 
     def get_intersection_masked(self, *args, **kwargs):
@@ -301,22 +280,6 @@ class GeometryVariable(AbstractSpatialVariable):
             ref_value[idx] = geom.intersection(args[0])
 
         return ret
-
-    def get_mask(self):
-        if self._value is None:
-            ret = self.grid.get_mask()
-        else:
-            ret = self.value.mask
-        return ret
-
-    def set_mask(self, value):
-        if self._grid is None:
-            super(GeometryVariable, self).set_mask(value)
-        else:
-            self._grid.set_mask(value)
-            # Bypass the container set_mask to avoid duplicate loops. Call the variable superclass directory which does
-            # not adjust the mask of any backref variables.
-            AbstractSpatialVariable.set_mask(self, value)
 
     def get_nearest(self, target, return_indices=False):
         target = target.centroid
@@ -362,7 +325,6 @@ class GeometryVariable(AbstractSpatialVariable):
         fill[0] = unioned
 
         ret = copy(self)
-        ret._grid = None
         ret._dimensions = None
         ret._value = fill
         return ret
@@ -380,8 +342,6 @@ class GeometryVariable(AbstractSpatialVariable):
             ogr_geom.TransformTo(to_sr)
             r_value[idx] = r_loads(ogr_geom.ExportToWkb())
         self.crs = to_crs
-        # The grid is not longer representative of the data.
-        self._grid = None
 
     def iter_records(self, use_mask=True):
         if use_mask:
@@ -389,12 +349,12 @@ class GeometryVariable(AbstractSpatialVariable):
         else:
             to_itr = self.value.data.flat
         r_geom_class = GEOM_TYPE_MAPPING[self.geom_type]
-        name_uid = constants.HEADERS.ID_GEOMETRY.upper()
+
         for idx, geom in enumerate(to_itr):
             # Convert geometry to a multi-geometry if needed.
             if not isinstance(geom, r_geom_class):
                 geom = r_geom_class([geom])
-            feature = {'properties': {name_uid: idx}, 'geometry': mapping(geom)}
+            feature = {'properties': {}, 'geometry': mapping(geom)}
             yield feature
 
     def write_fiona(self, path, driver='ESRI Shapefile', use_mask=True):
@@ -402,65 +362,16 @@ class GeometryVariable(AbstractSpatialVariable):
             crs = None
         else:
             crs = self.crs.value
-        name_uid = constants.HEADERS.ID_GEOMETRY.upper()
         schema = {'geometry': self.geom_type,
-                  'properties': {name_uid: 'int'}}
+                  'properties': {}}
 
         with fiona.open(path, 'w', driver=driver, crs=crs, schema=schema) as f:
             for record in self.iter_records(use_mask=use_mask):
                 f.write(record)
         return path
 
-    def _get_dimensions_(self):
-        if self.grid is not None:
-            ret = self.grid.dimensions
-        else:
-            ret = self._dimensions
-        return ret
-
     def _get_extent_(self):
-        if self.grid is None:
-            raise NotImplementedError
-        else:
-            return self.grid.extent
-
-    def _get_geometry_fill_(self, shape=None):
-        if shape is None:
-            shape = self.grid.shape
-            mask = self.grid.get_mask()
-        else:
-            mask = False
-        fill = np.ma.array(np.zeros(shape), mask=mask, dtype=object)
-
-        return fill
-
-    def _get_shape_(self):
-        ret = super(GeometryVariable, self)._get_shape_()
-        # If there is a grid, return this shape. The superclass relies on dimensions and private values.
-        if len(ret) == 0 and self.grid is not None:
-            ret = self.grid.shape
-        return ret
-
-    def _get_value_(self):
-        fill = self._get_geometry_fill_()
-
-        # Create geometries for all the underlying coordinates regardless if the data is masked.
-        x_data = self.grid.x.value
-        y_data = self.grid.y.value
-
-        r_data = fill.data
-        if self.grid.is_vectorized:
-            for idx_row in range(y_data.shape[0]):
-                for idx_col in range(x_data.shape[0]):
-                    pt = Point(x_data[idx_col], y_data[idx_row])
-                    r_data[idx_row, idx_col] = pt
-        else:
-            for idx_row, idx_col in iter_array(y_data, use_mask=False):
-                y = y_data[idx_row, idx_col]
-                x = x_data[idx_row, idx_col]
-                pt = Point(x, y)
-                r_data[idx_row, idx_col] = pt
-        return fill
+        raise NotImplementedError
 
     def _set_value_(self, value):
         if not isinstance(value, ndarray) and value is not None:
@@ -474,61 +385,6 @@ class GeometryVariable(AbstractSpatialVariable):
             for idx, element in enumerate(itr):
                 value[idx] = element
         super(GeometryVariable, self)._set_value_(value)
-
-
-class PointArray(GeometryVariable):
-    pass
-
-
-class PolygonArray(PointArray):
-    _use_bounds = True
-
-    def __init__(self, **kwargs):
-        super(PolygonArray, self).__init__(**kwargs)
-
-    @property
-    def area(self):
-        r_value = self.value
-        fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
-        fill = np.ma.array(fill, mask=r_value.mask)
-        for (ii, jj), geom in iter_array(r_value, return_value=True):
-            fill[ii, jj] = geom.area
-        return fill
-
-    @property
-    def weights(self):
-        return self.area / self.area.max()
-
-    def _get_value_(self):
-        fill = self._get_geometry_fill_()
-        r_data = fill.data
-        grid = self.grid
-
-        if grid.is_vectorized and grid.has_bounds:
-            ref_row_bounds = grid.y.bounds.value.data
-            ref_col_bounds = grid.x.bounds.value.data
-            for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
-                row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
-                col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
-                r_data[idx_row, idx_col] = Polygon(
-                    [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
-        else:
-            # We want geometries for everything even if masked.
-            x_corners = grid.x.bounds.value.data
-            y_corners = grid.y.bounds.value.data
-            # tdk: we should be able to avoid the creation of this corners array
-            corners = np.vstack((y_corners, x_corners))
-            corners = corners.reshape([2] + list(x_corners.shape))
-            range_row = range(grid.shape[0])
-            range_col = range(grid.shape[1])
-
-            for row, col in itertools.product(range_row, range_col):
-                current_corner = corners[:, row, col]
-                coords = np.hstack((current_corner[1, :].reshape(-1, 1),
-                                    current_corner[0, :].reshape(-1, 1)))
-                polygon = Polygon(coords)
-                r_data[row, col] = polygon
-        return fill
 
 
 def get_geom_type(data):

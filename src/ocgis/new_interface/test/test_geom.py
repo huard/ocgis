@@ -38,15 +38,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertIsInstance(gvar.value, MaskedArray)
         self.assertEqual(gvar.ndim, 1)
 
-        # Test initializing with a grid object.
-        gridxy = self.get_gridxy()
-        # Enforce value as none.
-        gvar = self.get_geometryvariable(grid=gridxy, value=None)
-        self.assertIsInstance(gvar.value, MaskedArray)
-        self.assertEqual(gvar.ndim, 2)
-
         # Test passing a "crs".
-        gvar = self.get_geometryvariable(grid=self.get_gridxy(), crs=WGS84())
+        gvar = self.get_geometryvariable(crs=WGS84())
         self.assertEqual(gvar.crs, WGS84())
 
         # Test using lines.
@@ -63,6 +56,10 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertEqual(gvar2.geom_type, lines.geom_type)
             self.assertTrue(gvar2.shape[0] > 0)
             self.assertFalse(gvar2.value.mask.any())
+
+    def test_area(self):
+        gvar = self.get_geometryvariable()
+        self.assertTrue(np.all(gvar.area == 0))
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
@@ -211,6 +208,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         mask = [False, True, False]
         value = np.ma.array(value, mask=mask, dtype=object)
         pa = self.get_geometryvariable(value=value)
+        print pa.weights
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
 
     def test_write_fiona(self):

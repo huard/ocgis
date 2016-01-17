@@ -254,6 +254,91 @@ class GridXY(AbstractSpatialContainer):
         for target in (self.y, self.x):
             target.set_mask(value)
 
+    def get_intersects(self, *args, **kwargs):
+        return_indices = kwargs.pop('return_indices', False)
+        # First, subset the grid by the bounding box.
+        if self.grid is not None:
+            minx, miny, maxx, maxy = args[0].bounds
+            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
+            ret = self.__getitem__(slc)
+        else:
+            ret = self
+            slc = [slice(None)] * self.ndim
+        ret = ret.get_intersects_masked(*args, **kwargs)
+        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
+        # columns should be trimmed.
+        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+        # Use the adjustments to trim the returned data object.
+        ret = ret.__getitem__(adjust)
+        # Adjust the returned slices.
+        if return_indices:
+            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+            ret = (ret, ret_slc)
+
+        return ret
+
+    def _get_geometry_fill_(self, shape=None):
+        if shape is None:
+            shape = self.grid.shape
+            mask = self.grid.get_mask()
+        else:
+            mask = False
+        fill = np.ma.array(np.zeros(shape), mask=mask, dtype=object)
+
+        return fill
+
+    def _get_value_point_(self):
+        fill = self._get_geometry_fill_()
+
+        # Create geometries for all the underlying coordinates regardless if the data is masked.
+        x_data = self.grid.x.value
+        y_data = self.grid.y.value
+
+        r_data = fill.data
+        if self.grid.is_vectorized:
+            for idx_row in range(y_data.shape[0]):
+                for idx_col in range(x_data.shape[0]):
+                    pt = Point(x_data[idx_col], y_data[idx_row])
+                    r_data[idx_row, idx_col] = pt
+        else:
+            for idx_row, idx_col in iter_array(y_data, use_mask=False):
+                y = y_data[idx_row, idx_col]
+                x = x_data[idx_row, idx_col]
+                pt = Point(x, y)
+                r_data[idx_row, idx_col] = pt
+        return fill
+
+    def _get_value_polygon_(self):
+        fill = self._get_geometry_fill_()
+        r_data = fill.data
+        grid = self.grid
+
+        if grid.is_vectorized and grid.has_bounds:
+            ref_row_bounds = grid.y.bounds.value.data
+            ref_col_bounds = grid.x.bounds.value.data
+            for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
+                row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
+                col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
+                r_data[idx_row, idx_col] = Polygon(
+                    [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
+        else:
+            # We want geometries for everything even if masked.
+            x_corners = grid.x.bounds.value.data
+            y_corners = grid.y.bounds.value.data
+            # tdk: we should be able to avoid the creation of this corners array
+            corners = np.vstack((y_corners, x_corners))
+            corners = corners.reshape([2] + list(x_corners.shape))
+            range_row = range(grid.shape[0])
+            range_col = range(grid.shape[1])
+
+            for row, col in itertools.product(range_row, range_col):
+                current_corner = corners[:, row, col]
+                coords = np.hstack((current_corner[1, :].reshape(-1, 1),
+                                    current_corner[0, :].reshape(-1, 1)))
+                polygon = Polygon(coords)
+                r_data[row, col] = polygon
+        return fill
+
     @expand_needed
     def iter(self, **kwargs):
         name_x = self.x.name
