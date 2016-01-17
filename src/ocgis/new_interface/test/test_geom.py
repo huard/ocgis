@@ -412,3 +412,4 @@ class TestSpatialContainer(AbstractTestNewInterface):
             self.assertTrue(sc.grid.get_mask().all())
             self.assertFalse(subset.grid.get_mask().all())
             self.assertFalse(subset.point.get_mask().all())
+
