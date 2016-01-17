@@ -8,6 +8,7 @@ import numpy as np
 from numpy.core.multiarray import ndarray
 from shapely import wkb
 from shapely.geometry import Point, Polygon, MultiPolygon, mapping, MultiPoint
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
@@ -173,11 +174,6 @@ class GeometryVariable(AbstractSpatialVariable):
         kwargs['name'] = kwargs.get('name', 'geom')
 
         super(GeometryVariable, self).__init__(**kwargs)
-
-        if self._value is None:
-            if self._grid is None:
-                msg = 'A "value" or "grid" is required.'
-                raise ValueError(msg)
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
@@ -468,8 +464,15 @@ class GeometryVariable(AbstractSpatialVariable):
 
     def _set_value_(self, value):
         if not isinstance(value, ndarray) and value is not None:
-            msg = 'Geometry values must be NumPy arrays to avoid automatic shapely transformations.'
-            raise ValueError(msg)
+            if isinstance(value, BaseGeometry):
+                itr = [value]
+                shape = 1
+            else:
+                itr = value
+                shape = len(value)
+            value = np.zeros(shape, dtype=self.dtype)
+            for idx, element in enumerate(itr):
+                value[idx] = element
         super(GeometryVariable, self)._set_value_(value)
 
 
@@ -482,11 +485,6 @@ class PolygonArray(PointArray):
 
     def __init__(self, **kwargs):
         super(PolygonArray, self).__init__(**kwargs)
-
-        if self._value is None:
-            if not self.grid.has_bounds:
-                msg = 'Grid bounds/corners must be available.'
-                raise GridDeficientError(msg)
 
     @property
     def area(self):

@@ -5,12 +5,12 @@ import numpy as np
 from numpy.ma import MaskedArray
 from numpy.testing.utils import assert_equal
 from shapely import wkt
-from shapely.geometry import Point, box, MultiPoint
+from shapely.geometry import Point, box, MultiPoint, LineString
+from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
-from ocgis.exc import GridDeficientError
 from ocgis.interface.base.crs import WGS84
-from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer
+from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer, GeometryVariable
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
@@ -30,20 +30,39 @@ class TestGeometryVariable(AbstractTestNewInterface):
         return pa
 
     def test_init(self):
-        pa = self.get_geometryvariable()
-        self.assertIsInstance(pa.value, MaskedArray)
-        self.assertEqual(pa.ndim, 1)
+        # Test empty.
+        gvar = GeometryVariable()
+        self.assertEqual(gvar.dtype, object)
+
+        gvar = self.get_geometryvariable()
+        self.assertIsInstance(gvar.value, MaskedArray)
+        self.assertEqual(gvar.ndim, 1)
 
         # Test initializing with a grid object.
         gridxy = self.get_gridxy()
         # Enforce value as none.
-        pa = self.get_geometryvariable(grid=gridxy, value=None)
-        self.assertIsInstance(pa.value, MaskedArray)
-        self.assertEqual(pa.ndim, 2)
+        gvar = self.get_geometryvariable(grid=gridxy, value=None)
+        self.assertIsInstance(gvar.value, MaskedArray)
+        self.assertEqual(gvar.ndim, 2)
 
         # Test passing a "crs".
-        pa = self.get_geometryvariable(grid=self.get_gridxy(), crs=WGS84())
-        self.assertEqual(pa.crs, WGS84())
+        gvar = self.get_geometryvariable(grid=self.get_gridxy(), crs=WGS84())
+        self.assertEqual(gvar.crs, WGS84())
+
+        # Test using lines.
+        line1 = LineString([(0, 0), (1, 1)])
+        line2 = LineString([(1, 1), (2, 2)])
+        gvar = GeometryVariable(value=[line1, line2])
+        self.assertTrue(gvar.value[1].almost_equals(line2))
+        self.assertEqual(gvar.geom_type, line1.geom_type)
+        lines = MultiLineString([line1, line2])
+        lines2 = [lines, lines]
+        for actual in [lines, lines2, lines]:
+            gvar2 = GeometryVariable(value=actual)
+            self.assertTrue(gvar2.value[0].almost_equals(lines))
+            self.assertEqual(gvar2.geom_type, lines.geom_type)
+            self.assertTrue(gvar2.shape[0] > 0)
+            self.assertFalse(gvar2.value.mask.any())
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
@@ -63,11 +82,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
         backref_tas = sub._backref['tas']
         self.assertNumpyAll(backref_tas.value, desired)
         self.assertEqual(backref_tas.shape, (10, 1))
-
-    def test_set_value(self):
-        value = Point(6, 7)
-        with self.assertRaises(ValueError):
-            self.get_geometryvariable(value=value)
 
     def test_geom_type(self):
         gridxy = self.get_gridxy()
@@ -267,21 +281,10 @@ class TestPolygonArray(AbstractTestNewInterface):
         return ret
 
     def test_init(self):
-        with self.assertRaises(ValueError):
-            PolygonArray()
-
         row = BoundedVariable(value=[2, 3], name='row')
         col = BoundedVariable(value=[4, 5], name='col')
         grid = GridXY(col, row)
         self.assertIsNone(grid._archetype.bounds)
-        # Corners are not available.
-        with self.assertRaises(GridDeficientError):
-            PolygonArray(grid=grid)
-
-        grid = GridXY(col, row)
-        # Corners are not available.
-        with self.assertRaises(GridDeficientError):
-            PolygonArray(grid=grid)
 
         row = BoundedVariable(value=[2, 3], name='row')
         row.set_extrapolated_bounds()
