@@ -1,9 +1,10 @@
 import numpy as np
+from shapely.geometry import Point
 
-from ocgis.interface.base.crs import WGS84
+from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import FieldBundle2
-from ocgis.new_interface.geom import SpatialContainer
+from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
@@ -108,16 +109,38 @@ class TestFieldBundle2(AbstractTestNewInterface):
         vc.write_netcdf(path2)
         self.assertNcEqual(path, path2)
 
-    def test_set_spatial(self):
+    def test_spatial(self):
         x = BoundedVariable(value=[1, 2, 3], dtype=float, name='x')
         x.create_dimensions('x')
         y = BoundedVariable(value=[10, 20, 30, 40], dtype=float, name='y')
         y.create_dimensions('y')
 
         fb = FieldBundle2(variables=[x, y])
-        fb.set_spatial(name_x='x', name_y='y')
-        self.assertIsInstance(fb.spatial, SpatialContainer)
-        self.assertNumpyAll(fb.spatial.grid.x.value, x.value)
+        fb.spatial.grid.x.value[:] = 50
+        self.assertTrue(np.all(fb.variables['x'].value == 50))
+        spatial = fb.spatial
+        desired_crs = CoordinateReferenceSystem(epsg=2136)
+        spatial.grid.crs = desired_crs
+        fb2 = FieldBundle2(spatial=spatial)
+        self.assertEqual(desired_crs, fb2.crs)
+        self.assertTrue(np.all(fb2.x.value == 50))
+        path = self.get_temporary_file_path('foo.nc')
+        fb2.write_netcdf(path)
+        # self.ncdump(path)
+
+        value = np.array([Point(1, 2), Point(3, 4), Point(5, 6)], dtype=object)
+        point = PointArray(value=value, name='geom', crs=WGS84())
+        point.create_dimensions('ngeom')
+        fb3 = FieldBundle2(variables=[point])
+        self.assertIsInstance(fb3.spatial.point, PointArray)
+        self.assertIsNone(fb3.spatial.grid)
+        sheep = Variable(name='sheep', value=[1, 2, 3])
+        sheep.create_dimensions('ngeom')
+        fb3.variables.add_variable(sheep)
+        sub = fb3[1]
+        self.assertEqual(sub.spatial.shape, (1,))
+        self.assertTrue(sub.spatial.point.value[0].almost_equals(value[1]))
+        self.assertEqual(sub.crs, WGS84())
 
 # class TestFieldBundle(AbstractTestNewInterface):
 #     def setUp(self):

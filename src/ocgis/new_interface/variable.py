@@ -301,7 +301,7 @@ class Variable(AbstractContainer, Attributes):
             desired_fill_value = self._fill_value
 
             if not isinstance(value, ndarray):
-                value = np.array(value)
+                value = np.array(value, dtype=desired_dtype)
                 if isinstance(desired_dtype, ObjectType):
                     if desired_dtype.dtype != object:
                         for idx in range(value.shape[0]):

@@ -16,7 +16,7 @@ from ocgis import env
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -111,6 +111,15 @@ class SpatialContainer(AbstractInterfaceObject):
     @property
     def shape(self):
         return get_grid_or_geom_attr(self, 'shape')
+
+    def as_variable_collection(self):
+        ret = VariableCollection()
+        if self._grid is not None:
+            ret.add_variable(self._grid.x)
+            ret.add_variable(self._grid.y)
+        for geom in filter(lambda x: x is not None, [self._point, self._polygon]):
+            ret.add_variable(geom)
+        return ret
 
     def copy(self):
         return copy(self)
