@@ -8,6 +8,7 @@ from shapely.geometry import Point
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -84,6 +85,14 @@ class TestGridXY(AbstractTestNewInterface):
         grid = GridXY(x, y)
         assert_equal(grid.x.value, [1])
         assert_equal(grid.y.value, [2])
+
+        # Test point and polygon representations.
+        grid = self.get_gridxy(crs=WGS84())
+        targets = ['point', 'polygon']
+        targets = [getattr(grid, t) for t in targets]
+        for t in targets:
+            self.assertIsInstance(t, GeometryVariable)
+        thh
 
     # tdk: remove
     # def test_corners(self):
