@@ -162,7 +162,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
         AbstractSpatialObject.__init__(self, crs=crs)
 
 
-class PointArray(AbstractSpatialVariable):
+class GeometryVariable(AbstractSpatialVariable):
     # Flag for grid subsetting by bounding box. Bounds should not be used for points.
     _use_bounds = False
 
@@ -172,7 +172,7 @@ class PointArray(AbstractSpatialVariable):
 
         kwargs['name'] = kwargs.get('name', 'geom')
 
-        super(PointArray, self).__init__(**kwargs)
+        super(GeometryVariable, self).__init__(**kwargs)
 
         if self._value is None:
             if self._grid is None:
@@ -315,7 +315,7 @@ class PointArray(AbstractSpatialVariable):
 
     def set_mask(self, value):
         if self._grid is None:
-            super(PointArray, self).set_mask(value)
+            super(GeometryVariable, self).set_mask(value)
         else:
             self._grid.set_mask(value)
             # Bypass the container set_mask to avoid duplicate loops. Call the variable superclass directory which does
@@ -439,7 +439,7 @@ class PointArray(AbstractSpatialVariable):
         return fill
 
     def _get_shape_(self):
-        ret = super(PointArray, self)._get_shape_()
+        ret = super(GeometryVariable, self)._get_shape_()
         # If there is a grid, return this shape. The superclass relies on dimensions and private values.
         if len(ret) == 0 and self.grid is not None:
             ret = self.grid.shape
@@ -470,7 +470,11 @@ class PointArray(AbstractSpatialVariable):
         if not isinstance(value, ndarray) and value is not None:
             msg = 'Geometry values must be NumPy arrays to avoid automatic shapely transformations.'
             raise ValueError(msg)
-        super(PointArray, self)._set_value_(value)
+        super(GeometryVariable, self)._set_value_(value)
+
+
+class PointArray(GeometryVariable):
+    pass
 
 
 class PolygonArray(PointArray):
