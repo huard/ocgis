@@ -1,4 +1,4 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from collections import deque
 from copy import copy
 
@@ -6,16 +6,15 @@ import fiona
 import numpy as np
 from numpy.core.multiarray import ndarray
 from shapely import wkb
-from shapely.geometry import Point, Polygon, MultiPolygon, mapping, MultiPoint
+from shapely.geometry import Point, Polygon, MultiPolygon, mapping, MultiPoint, box
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
-from ocgis import env
+from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
-from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -23,6 +22,65 @@ CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeo
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
 
 GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoint, 'MultiPolygon': MultiPolygon}
+
+
+class AbstractSpatialObject(AbstractInterfaceObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, **kwargs):
+        self._crs = None
+
+        self.crs = kwargs.pop('crs', None)
+
+        super(AbstractSpatialObject, self).__init__(**kwargs)
+
+    @property
+    def crs(self):
+        return self._crs
+
+    @crs.setter
+    def crs(self, value):
+        if value is not None:
+            assert isinstance(value, CoordinateReferenceSystem)
+        self._crs = value
+
+    @property
+    def envelope(self):
+        return box(*self.extent)
+
+    @property
+    def extent(self):
+        return self._get_extent_()
+
+    @abstractmethod
+    def update_crs(self, to_crs):
+        """Update coordinate system in-place."""
+
+    def write_netcdf(self, dataset):
+        if self.crs is not None:
+            self.crs.write_to_rootgrp(dataset)
+
+    @abstractmethod
+    def _get_extent_(self):
+        """
+        :returns: A tuple with order (minx, miny, maxx, maxy).
+        :rtype: tuple
+        """
+
+
+class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, **kwargs):
+        crs = kwargs.pop('crs', None)
+        backref = kwargs.pop('backref', None)
+
+        AbstractContainer.__init__(self, backref=backref)
+        AbstractSpatialObject.__init__(self, crs=crs)
+
+    def write_netcdf(self, dataset, **kwargs):
+        self._variables.write_netcdf(dataset, **kwargs)
+        AbstractSpatialObject.write_netcdf(self, dataset)
 
 
 class SpatialContainer(AbstractInterfaceObject):

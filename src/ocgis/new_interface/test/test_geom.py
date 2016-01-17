@@ -1,3 +1,4 @@
+import itertools
 from unittest import SkipTest
 
 import fiona
@@ -10,8 +11,8 @@ from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
-from ocgis.new_interface.geom import PointArray, PolygonArray, SpatialContainer, GeometryVariable
-from ocgis.new_interface.grid import GridXY
+from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
+from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
 from ocgis.util.spatial.index import SpatialIndex
@@ -25,7 +26,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         tas = Variable(name='tas', value=value)
         tas.create_dimensions(['time', 'ngeom'])
         backref = VariableCollection(variables=[tas])
-        pa = PointArray(value=vpa, backref=backref)
+        pa = GeometryVariable(value=vpa, backref=backref)
         pa.create_dimensions('ngeom')
         return pa
 
@@ -63,14 +64,13 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
-        pa = self.get_geometryvariable(grid=gridxy, value=None)
+        pa = get_geometry_variable(get_point_geometry_array, gridxy)
         self.assertEqual(pa.shape, (4, 3))
         self.assertEqual(pa.ndim, 2)
-        self.assertIsNone(pa._value)
+        self.assertIsNotNone(pa._value)
         sub = pa[2:4, 1]
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
-        self.assertEqual(sub.grid.shape, (2, 1))
 
         # Test slicing with a backref.
         pa = self.get_geometryvariable_with_backref()
@@ -81,14 +81,12 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(backref_tas.shape, (10, 1))
 
     def test_geom_type(self):
-        gridxy = self.get_gridxy()
-        pa = self.get_geometryvariable(grid=gridxy)
-        self.assertEqual(pa.geom_type, 'Point')
+        gvar = GeometryVariable(value=Point(1, 2))
+        self.assertEqual(gvar.geom_type, 'Point')
 
         # Test with a multi-geometry.
         mp = np.array([None])
         mp[0] = MultiPoint([Point(1, 2), Point(3, 4)])
-        # tdk: RESUME: test is failing
         pa = self.get_geometryvariable(value=mp)
         self.assertEqual(pa.geom_type, 'MultiPoint')
 
@@ -100,18 +98,26 @@ class TestGeometryVariable(AbstractTestNewInterface):
         x = BoundedVariable(value=[1, 2, 3, 4, 5], name='x')
         y = BoundedVariable(value=[10, 20, 30, 40, 50], name='y')
         grid = GridXY(x=x, y=y)
-        pa = PointArray(grid=grid)
+        pa = get_geometry_variable(get_point_geometry_array, grid)
         polygon = box(2.5, 15, 4.5, 45)
         sub, slc = pa.get_intersects(polygon, return_indices=True)
-        self.assertIsNotNone(sub.grid.x)
-        self.assertIsNotNone(sub.grid.y)
+        self.assertEqual(sub.shape, (3, 2))
+        desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
+        desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
+        desired_points_slc = pa[slc].value.flat
+        for desired_points in [desired_points_manual, desired_points_slc]:
+            for pt in desired_points:
+                found = False
+                for pt_actual in sub.value.flat:
+                    if pt_actual.almost_equals(pt):
+                        found = True
+                        break
+                self.assertTrue(found)
 
         # Test w/out an associated grid.
         pa = self.get_geometryvariable()
-        self.assertIsNone(pa.grid)
         polygon = box(0.5, 1.5, 1.5, 2.5)
         sub = pa.get_intersects(polygon)
-        self.assertIsNone(sub.grid)
         self.assertEqual(sub.shape, (1,))
         self.assertEqual(sub.value[0], Point(1, 2))
 
@@ -130,8 +136,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         x = self.get_variable_x()
         y = self.get_variable_y()
         grid = GridXY(x=x, y=y)
-        pa = PointArray(grid=grid, crs=WGS84())
-        self.assertIsNotNone(pa.grid)
+        pa = get_geometry_variable(get_point_geometry_array, grid, crs=WGS84())
         poly = wkt.loads(
             'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
         actual_mask = np.array([[True, True, False, True], [True, False, True, True], [True, True, False, True]])
@@ -143,12 +148,11 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertNumpyAll(actual_mask, ret.value.mask)
             for element in ret.value.data.flat:
                 self.assertIsInstance(element, Point)
-            self.assertIsNotNone(pa.grid)
 
             # Test pre-masked values in geometry are okay for intersects operation.
             value = [Point(1, 1), Point(2, 2), Point(3, 3)]
             value = np.ma.array(value, mask=[False, True, False], dtype=object)
-            pa2 = PointArray(value=value)
+            pa2 = GeometryVariable(value=value)
             b = box(0, 0, 5, 5)
             res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
             self.assertNumpyAll(res.value.mask, value.mask)
@@ -165,7 +169,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         pa = self.get_geometryvariable()
         for target in [target1, target2]:
             res, slc = pa.get_nearest(target, return_indices=True)
-            self.assertIsInstance(res, PointArray)
+            self.assertIsInstance(res, GeometryVariable)
             self.assertEqual(res.value[0], Point(1, 2))
             self.assertEqual(slc, (0,))
             self.assertEqual(res.shape, (1,))
@@ -182,16 +186,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(u.shape, (1,))
         actual = MultiPoint([[1.0, 2.0], [3.0, 4.0]])
         self.assertEqual(u.value[0], actual)
-
-    def test_get_value(self):
-        pa = self.get_geometryvariable(grid=self.get_gridxy())
-        self.assertIsNone(pa._value)
-        self.assertIsNotNone(pa.grid)
-        self.assertTrue(pa.grid.is_vectorized)
-        value = pa.value
-        self.assertTrue(pa.grid.is_vectorized)
-        col = value[:, 0]
-        assert_equal(pa.grid.y.value, [c.y for c in col.flat])
 
     def test_update_crs(self):
         pa = self.get_geometryvariable(crs=WGS84())
@@ -220,7 +214,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         # Test with a multi-geometry.
         pts = np.ma.array([Point(1, 2), MultiPoint([Point(3, 4), Point(5, 6)])], dtype=object, mask=False)
-        pa = PointArray(value=pts)
+        pa = GeometryVariable(value=pts)
         pa.write_fiona(path)
         with fiona.open(path) as source:
             self.assertEqual(source.schema['geometry'], 'MultiPoint')
@@ -229,7 +223,9 @@ class TestGeometryVariable(AbstractTestNewInterface):
         raise SkipTest
 
 
-class TestPolygonArray(AbstractTestNewInterface):
+class TestGeometryVariablePolygons(AbstractTestNewInterface):
+    """Test a geometry variable using polygons."""
+
     @property
     def polygon_value(self):
         polys = [['POLYGON ((-100.5 39.5, -100.5 40.5, -99.5 40.5, -99.5 39.5, -100.5 39.5))',
@@ -268,7 +264,7 @@ class TestPolygonArray(AbstractTestNewInterface):
         xb = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='xb')
         x = BoundedVariable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
         grid = GridXY(x=x, y=y)
-        poly = PolygonArray(grid=grid)
+        poly = get_geometry_variable(get_polygon_geometry_array, grid)
         return poly
 
     def get_shapely_from_wkt_array(self, wkts):
@@ -289,12 +285,9 @@ class TestPolygonArray(AbstractTestNewInterface):
         col = BoundedVariable(value=[4, 5], name='col')
         col.set_extrapolated_bounds()
         grid = GridXY(y=row, x=col)
-        poly = PolygonArray(grid=grid)
+        poly = get_geometry_variable(get_polygon_geometry_array, grid, name='geom')
         self.assertEqual(poly.name, 'geom')
         self.assertEqual(poly.geom_type, 'Polygon')
-
-        # Test bounds are used for bbox subset.
-        self.assertTrue(PolygonArray._use_bounds)
 
     def test_area_and_weights(self):
         poly = self.get_polygonarray()
@@ -314,26 +307,6 @@ class TestPolygonArray(AbstractTestNewInterface):
             self.assertTrue(p.intersects(u.value[0]))
 
         raise self.ToTest('test backref variables are spatially weighted')
-
-    def test_get_value(self):
-        """Test ordering of vertices when creating from corners is slightly different."""
-
-        keywords = dict(expanded=[False, True])
-        for k in self.iter_product_keywords(keywords, as_namedtuple=True):
-            poly = self.get_polygonarray()
-            self.assertTrue(poly.grid.has_bounds)
-            if k.expanded:
-                poly.grid.expand()
-                self.assertFalse(poly.grid.is_vectorized)
-            else:
-                self.assertTrue(poly.grid.is_vectorized)
-            if k.expanded:
-                actual = self.polygon_value_alternate_ordering
-            else:
-                actual = self.polygon_value
-            self.assertIsNone(poly._value)
-            value_poly = poly.value
-            self.assertGeometriesAlmostEquals(value_poly, actual)
 
 
 class TestSpatialContainer(AbstractTestNewInterface):

@@ -5,7 +5,7 @@ import numpy as np
 from shapely.geometry import Point
 
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.geom import PointArray
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
 from ocgis.test.base import TestBase
@@ -79,7 +79,7 @@ class AbstractTestNewInterface(TestBase):
     def get_geometryvariable(self, **kwargs):
         if kwargs.get('value') is None:
             kwargs['value'] = kwargs.pop('value', deepcopy(_VALUE_POINT_ARRAY))
-        pa = PointArray(**kwargs)
+        pa = GeometryVariable(**kwargs)
         return pa
 
     def get_request_dataset(self):

@@ -1,15 +1,15 @@
-from abc import abstractmethod, ABCMeta
+import itertools
 from copy import copy
 
 import numpy as np
-from shapely.geometry import box
+from shapely.geometry import Polygon, Point
 
-from ocgis import constants, CoordinateReferenceSystem
+from ocgis import constants
 from ocgis.exc import EmptySubsetError
-from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
+from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_reduced_slice
+from ocgis.util.helpers import get_reduced_slice, iter_array
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -22,65 +22,6 @@ def expand_needed(func):
         return func(*args, **kwargs)
 
     return func_wrapper
-
-
-class AbstractSpatialObject(AbstractInterfaceObject):
-    __metaclass__ = ABCMeta
-
-    def __init__(self, **kwargs):
-        self._crs = None
-
-        self.crs = kwargs.pop('crs', None)
-
-        super(AbstractSpatialObject, self).__init__(**kwargs)
-
-    @property
-    def crs(self):
-        return self._crs
-
-    @crs.setter
-    def crs(self, value):
-        if value is not None:
-            assert isinstance(value, CoordinateReferenceSystem)
-        self._crs = value
-
-    @property
-    def envelope(self):
-        return box(*self.extent)
-
-    @property
-    def extent(self):
-        return self._get_extent_()
-
-    @abstractmethod
-    def update_crs(self, to_crs):
-        """Update coordinate system in-place."""
-
-    def write_netcdf(self, dataset):
-        if self.crs is not None:
-            self.crs.write_to_rootgrp(dataset)
-
-    @abstractmethod
-    def _get_extent_(self):
-        """
-        :returns: A tuple with order (minx, miny, maxx, maxy).
-        :rtype: tuple
-        """
-
-
-class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
-    __metaclass__ = ABCMeta
-
-    def __init__(self, **kwargs):
-        crs = kwargs.pop('crs', None)
-        backref = kwargs.pop('backref', None)
-
-        AbstractContainer.__init__(self, backref=backref)
-        AbstractSpatialObject.__init__(self, crs=crs)
-
-    def write_netcdf(self, dataset, **kwargs):
-        self._variables.write_netcdf(dataset, **kwargs)
-        AbstractSpatialObject.write_netcdf(self, dataset)
 
 
 class GridXY(AbstractSpatialContainer):
@@ -276,68 +217,6 @@ class GridXY(AbstractSpatialContainer):
             ret = (ret, ret_slc)
 
         return ret
-
-    def _get_geometry_fill_(self, shape=None):
-        if shape is None:
-            shape = self.grid.shape
-            mask = self.grid.get_mask()
-        else:
-            mask = False
-        fill = np.ma.array(np.zeros(shape), mask=mask, dtype=object)
-
-        return fill
-
-    def _get_value_point_(self):
-        fill = self._get_geometry_fill_()
-
-        # Create geometries for all the underlying coordinates regardless if the data is masked.
-        x_data = self.grid.x.value
-        y_data = self.grid.y.value
-
-        r_data = fill.data
-        if self.grid.is_vectorized:
-            for idx_row in range(y_data.shape[0]):
-                for idx_col in range(x_data.shape[0]):
-                    pt = Point(x_data[idx_col], y_data[idx_row])
-                    r_data[idx_row, idx_col] = pt
-        else:
-            for idx_row, idx_col in iter_array(y_data, use_mask=False):
-                y = y_data[idx_row, idx_col]
-                x = x_data[idx_row, idx_col]
-                pt = Point(x, y)
-                r_data[idx_row, idx_col] = pt
-        return fill
-
-    def _get_value_polygon_(self):
-        fill = self._get_geometry_fill_()
-        r_data = fill.data
-        grid = self.grid
-
-        if grid.is_vectorized and grid.has_bounds:
-            ref_row_bounds = grid.y.bounds.value.data
-            ref_col_bounds = grid.x.bounds.value.data
-            for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
-                row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
-                col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
-                r_data[idx_row, idx_col] = Polygon(
-                    [(col_min, row_min), (col_min, row_max), (col_max, row_max), (col_max, row_min)])
-        else:
-            # We want geometries for everything even if masked.
-            x_corners = grid.x.bounds.value.data
-            y_corners = grid.y.bounds.value.data
-            # tdk: we should be able to avoid the creation of this corners array
-            corners = np.vstack((y_corners, x_corners))
-            corners = corners.reshape([2] + list(x_corners.shape))
-            range_row = range(grid.shape[0])
-            range_col = range(grid.shape[1])
-
-            for row, col in itertools.product(range_row, range_col):
-                current_corner = corners[:, row, col]
-                coords = np.hstack((current_corner[1, :].reshape(-1, 1),
-                                    current_corner[0, :].reshape(-1, 1)))
-                polygon = Polygon(coords)
-                r_data[row, col] = polygon
-        return fill
 
     @expand_needed
     def iter(self, **kwargs):
@@ -586,3 +465,65 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
 #                 grid._x.dimensions = grid.dimensions
 
 
+def get_geometry_fill(shape, mask=False):
+    return np.ma.array(np.zeros(shape), mask=mask, dtype=object)
+
+
+def get_polygon_geometry_array(grid):
+    fill = get_geometry_fill(grid.shape)
+    r_data = fill.data
+
+    if grid.is_vectorized and grid.has_bounds:
+        ref_row_bounds = grid.y.bounds.value.data
+        ref_col_bounds = grid.x.bounds.value.data
+        for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
+            row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
+            col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
+            r_data[idx_row, idx_col] = Polygon([(col_min, row_min), (col_min, row_max),
+                                                (col_max, row_max), (col_max, row_min)])
+    else:
+        # We want geometries for everything even if masked.
+        x_corners = grid.x.bounds.value.data
+        y_corners = grid.y.bounds.value.data
+        # tdk: we should be able to avoid the creation of this corners array
+        corners = np.vstack((y_corners, x_corners))
+        corners = corners.reshape([2] + list(x_corners.shape))
+        range_row = range(grid.shape[0])
+        range_col = range(grid.shape[1])
+
+        for row, col in itertools.product(range_row, range_col):
+            current_corner = corners[:, row, col]
+            coords = np.hstack((current_corner[1, :].reshape(-1, 1),
+                                current_corner[0, :].reshape(-1, 1)))
+            polygon = Polygon(coords)
+            r_data[row, col] = polygon
+    return fill
+
+
+def get_point_geometry_array(grid):
+    fill = get_geometry_fill(grid.shape)
+
+    # Create geometries for all the underlying coordinates regardless if the data is masked.
+    x_data = grid.x.value
+    y_data = grid.y.value
+
+    r_data = fill.data
+    if grid.is_vectorized:
+        for idx_row in range(y_data.shape[0]):
+            for idx_col in range(x_data.shape[0]):
+                pt = Point(x_data[idx_col], y_data[idx_row])
+                r_data[idx_row, idx_col] = pt
+    else:
+        for idx_row, idx_col in iter_array(y_data, use_mask=False):
+            y = y_data[idx_row, idx_col]
+            x = x_data[idx_row, idx_col]
+            pt = Point(x, y)
+            r_data[idx_row, idx_col] = pt
+    return fill
+
+
+def get_geometry_variable(func, grid, **kwargs):
+    kwargs = kwargs.copy()
+    value = func(grid)
+    kwargs['value'] = value
+    return GeometryVariable(**kwargs)

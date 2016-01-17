@@ -275,6 +275,26 @@ class TestGridXY(AbstractTestNewInterface):
         sub.set_mask(np.array([[False, False]]))
         self.assertEqual(grid.get_mask().sum(), 2)
 
+    def test_get_value_polygons(self):
+        """Test ordering of vertices when creating from corners is slightly different."""
+
+        keywords = dict(expanded=[False, True])
+        for k in self.iter_product_keywords(keywords, as_namedtuple=True):
+            poly = self.get_polygonarray()
+            self.assertTrue(poly.grid.has_bounds)
+            if k.expanded:
+                poly.grid.expand()
+                self.assertFalse(poly.grid.is_vectorized)
+            else:
+                self.assertTrue(poly.grid.is_vectorized)
+            if k.expanded:
+                actual = self.polygon_value_alternate_ordering
+            else:
+                actual = self.polygon_value
+            self.assertIsNone(poly._value)
+            value_poly = poly.value
+            self.assertGeometriesAlmostEquals(value_poly, actual)
+
     def test_resolution(self):
         for grid in self.get_iter_gridxy():
             self.assertEqual(grid.resolution, 1.)
