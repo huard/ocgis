@@ -27,7 +27,7 @@ def expand_needed(func):
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, crs=None, backref=None):
+    def __init__(self, x, y, point=None, polygon=None, geom_type='auto', crs=None, backref=None):
         x = x.copy()
         y = y.copy()
         x.attrs['axis'] = 'X'
@@ -36,7 +36,14 @@ class GridXY(AbstractSpatialContainer):
         self._x_name = x.name
         self._y_name = y.name
 
-        self._variables = VariableCollection(variables=(x, y))
+        new_variables = [x, y]
+        for target in [point, polygon]:
+            if target is not None:
+                target = target.copy()
+                target.attrs['axis'] = 'geom'
+                new_variables.append(target)
+
+        self._variables = VariableCollection(variables=new_variables)
 
         super(GridXY, self).__init__(crs=crs, backref=backref)
 
@@ -124,6 +131,15 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
+    def point(self):
+        try:
+            ret = self._variables['point']
+        except KeyError:
+            ret = get_geometry_variable(get_point_geometry_array, self, attrs={'axis': 'geom'})
+            self._variables.add_variable(ret)
+        return ret
+
+    @property
     def x(self):
         return self._variables[self._x_name]
 
@@ -194,29 +210,6 @@ class GridXY(AbstractSpatialContainer):
         super(GridXY, self).set_mask(value)
         for target in (self.y, self.x):
             target.set_mask(value)
-
-    def get_intersects(self, *args, **kwargs):
-        return_indices = kwargs.pop('return_indices', False)
-        # First, subset the grid by the bounding box.
-        if self.grid is not None:
-            minx, miny, maxx, maxy = args[0].bounds
-            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
-            ret = self.__getitem__(slc)
-        else:
-            ret = self
-            slc = [slice(None)] * self.ndim
-        ret = ret.get_intersects_masked(*args, **kwargs)
-        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
-        # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
-        # Use the adjustments to trim the returned data object.
-        ret = ret.__getitem__(adjust)
-        # Adjust the returned slices.
-        if return_indices:
-            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
-            ret = (ret, ret_slc)
-
-        return ret
 
     @expand_needed
     def iter(self, **kwargs):
@@ -354,6 +347,29 @@ class GridXY(AbstractSpatialContainer):
     @property
     def geom_type(self):
         return super(GridXY, self).geom_type
+
+    def get_intersects(self, *args, **kwargs):
+        return_indices = kwargs.pop('return_indices', False)
+        # First, subset the grid by the bounding box.
+        if self.grid is not None:
+            minx, miny, maxx, maxy = args[0].bounds
+            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
+            ret = self.__getitem__(slc)
+        else:
+            ret = self
+            slc = [slice(None)] * self.ndim
+        ret = ret.get_intersects_masked(*args, **kwargs)
+        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
+        # columns should be trimmed.
+        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+        # Use the adjustments to trim the returned data object.
+        ret = ret.__getitem__(adjust)
+        # Adjust the returned slices.
+        if return_indices:
+            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+            ret = (ret, ret_slc)
+
+        return ret
 
     def get_intersection(self, *args, **kwargs):
         return super(GridXY, self).get_intersection(*args, **kwargs)
