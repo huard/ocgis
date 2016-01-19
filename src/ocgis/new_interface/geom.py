@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod, abstractproperty
+from abc import ABCMeta, abstractmethod
 from collections import deque
 from copy import copy
 
@@ -67,25 +67,13 @@ class AbstractSpatialObject(AbstractInterfaceObject):
         :rtype: tuple
         """
 
-    @abstractproperty
-    def geom_type(self):
-        """Representative geometry type."""
-
     @abstractmethod
     def get_intersects(self, *args, **kwargs):
         """Perform an intersects operations."""
 
     @abstractmethod
-    def get_intersection(self, *args, **kwargs):
-        """Perform an intersection."""
-
-    @abstractmethod
     def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
         """Perform an intersects operation and mask non-intersecting elements."""
-
-    @abstractmethod
-    def get_intersection_masked(self, *args, **kwargs):
-        """Perform an intersection an mask non-intersecting elements."""
 
     @abstractmethod
     def get_nearest(self, target, return_indices=False):

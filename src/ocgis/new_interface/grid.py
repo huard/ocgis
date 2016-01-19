@@ -374,25 +374,32 @@ class GridXY(AbstractSpatialContainer):
         return minx, miny, maxx, maxy
 
     @property
-    def geom_type(self):
-        if self._geom_type == 'auto':
-            ret = self.get_optimal_geometry()
-        else:
-            ret = getattr(self, self._geom_type)
+    def abstraction(self):
+        if self._abstraction is None:
+            if self.has_bounds:
+                ret = 'polygon'
+            else:
+                ret = 'point'
         return ret
 
-    def get_optimal_geometry(self):
-        return self.polygon or self.point
+    @abstraction.setter
+    def abstraction(self, abstraction):
+        self._abstraction = abstraction
+
+    @property
+    def abstraction_geometry(self):
+        return getattr(self, self.abstraction)
 
     def get_intersects(self, *args, **kwargs):
-        # tdk: this should be determined by the abstraction
-        use_bounds = True
+        if self.abstraction == 'polygon':
+            use_bounds = True
+        else:
+            use_bounds = False
 
         return_indices = kwargs.pop('return_indices', False)
         minx, miny, maxx, maxy = args[0].bounds
         ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=use_bounds)
-        new_mask = ret.geom.get_intersects_masked(*args, **kwargs).get_mask()
-        ret.set_mask(new_mask)
+        new_mask = ret.get_intersects_masked(*args, **kwargs).get_mask()
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
         _, adjust = get_trimmed_array_by_mask(new_mask, return_adjustments=True)
@@ -405,93 +412,27 @@ class GridXY(AbstractSpatialContainer):
 
         return ret
 
-    def get_intersection(self, *args, **kwargs):
-        return super(GridXY, self).get_intersection(*args, **kwargs)
-
-    def get_intersection_masked(self, *args, **kwargs):
-        return super(GridXY, self).get_intersection_masked(*args, **kwargs)
-
     def get_intersects_masked(self, *args, **kwargs):
-        return super(GridXY, self).get_intersects_masked(*args, **kwargs)
-
-    def get_nearest(self, *args, **kwargs):
-        return super(GridXY, self).get_nearest(*args, **kwargs)
-
-    def get_spatial_index(self, *args, **kwargs):
-        return super(GridXY, self).get_spatial_index(*args, **kwargs)
-
-    def iter_records(self, *args, **kwargs):
-        return super(GridXY, self).iter_records(*args, **kwargs)
-
-    def write_fiona(self, *args, **kwargs):
-        return super(GridXY, self).write_fiona(*args, **kwargs)
-
-        # tdk: remove
-        #
-        # def _get_shape_(self):
-        #     if self.is_vectorized:
-        #         ret = (self._y.shape[0], self._x.shape[0])
-        #     else:
-        #         ret = self._y.shape
-        #     return ret
-        # tdk: remove
-        # ret = super(GridXY, self)._get_shape_()
-        # if len(ret) == 0:
-        #     if self.is_vectorized:
-        # # Trim the first dimension. It is always 2 for grids.
-        # if len(ret) == 3:
-        #     ret = tuple(list(ret)[1:])
-        # assert len(ret) == 2
+        ret = self.copy()
+        new_mask = self.abstraction_geometry.get_itersects_mask(*args, **kwargs)
+        # tdk: this unecessarily sets the mask of the abstraction geometry twice.
+        ret.set_mask(new_mask)
         return ret
 
-        # tdk: remove
-        # def _get_value_(self):
-        #     if self._value is None:
-        #         x = self._x
-        #         y = self._y
-        #         if self.is_vectorized:
-        #             new_x, new_y = np.meshgrid(x.value, y.value)
-        #             shp = (2, len(y), len(x))
-        #         else:
-        #             new_x, new_y = x.value, y.value
-        #             shp = [2] + list(new_x.shape)
-        #
-        #         fill = np.zeros(shp)
-        #         fill[0, ...] = new_y
-        #         fill[1, ...] = new_x
-        #
-        #         self._set_value_(fill)
-        #
-        #     return self._value
-        #
-        # def _validate_value_(self, value):
-        #     if self._dimensions is not None and self._y is not None:
-        #         assert value.shape[1:] == self.shape
-        #         assert value.shape[0] == 2
+    def get_nearest(self, *args, **kwargs):
+        ret = self.copy()
+        _, slc = self.abstraction_geometry.get_nearest(*args, **kwargs)
+        ret = ret.__getitem__(slc)
+        return ret
 
+    def get_spatial_index(self, *args, **kwargs):
+        return self.abstraction_geometry.get_spatial_index(*args, **kwargs)
 
-# tdk: remove
-# def get_dimension_variable(axis_string, gridxy, idx, variable_name):
-#     if gridxy.dimensions is not None:
-#         dimensions = gridxy.dimensions
-#     else:
-#         dimensions = None
-#     attrs = OrderedDict({'axis': axis_string})
-#     # Only write the corners if they have been loaded.
-#     if gridxy._corners is not None:
-#         if dimensions is not None:
-#             dim_ncorners = Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)
-#             dimensions_corners = list(dimensions) + [dim_ncorners]
-#         else:
-#             dimensions_corners = None
-#         corners = Variable(name='{}_corners'.format(variable_name), dimensions=dimensions_corners,
-#                            value=gridxy.corners[idx, :, :, :])
-#         attrs.update({'bounds': corners.name})
-#     else:
-#         corners = None
-#     ret = BoundedVariable(name=variable_name, dimensions=dimensions, attrs=attrs,
-#                           bounds=corners, value=gridxy.value[idx, :, :])
-#     return ret
+    def iter_records(self, *args, **kwargs):
+        return self.abstraction_geometry.iter_records(self, *args, **kwargs)
+
+    def write_fiona(self, *args, **kwargs):
+        return self.abstraction_geometry.write_fiona(*args, **kwargs)
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
@@ -518,26 +459,6 @@ def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
     for ii, geom in enumerate(geomcol):
         value_col[ii] = geom.GetX()
         value_row[ii] = geom.GetY()
-
-
-#tdk: remove
-# def update_xy_dimensions(grid):
-#     """
-#     Update dimensions on "x" and "y" grid components.
-#
-#     :param grid: The target grid object.
-#     :type grid: :class:`ocgis.new_interface.grid.GridXY`
-#     """
-#     if grid.__y__ is not None:
-#         for n, d in zip(grid.name, (grid._y, grid._x)):
-#             d.name = n
-#         if grid.dimensions is not None:
-#             if grid.is_vectorized:
-#                 grid._y.dimensions = grid.dimensions[0]
-#                 grid._x.dimensions = grid.dimensions[1]
-#             else:
-#                 grid._y.dimensions = grid.dimensions
-#                 grid._x.dimensions = grid.dimensions
 
 
 def get_geometry_fill(shape, mask=False):
