@@ -5,7 +5,7 @@ import numpy as np
 from shapely.geometry import Polygon, Point
 
 from ocgis import constants
-from ocgis.exc import EmptySubsetError
+from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
@@ -477,7 +477,7 @@ def get_polygon_geometry_array(grid):
             col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
             r_data[idx_row, idx_col] = Polygon([(col_min, row_min), (col_min, row_max),
                                                 (col_max, row_max), (col_max, row_min)])
-    else:
+    elif not grid.is_vectorized and grid.has_bounds:
         # We want geometries for everything even if masked.
         x_corners = grid.x.bounds.value.data
         y_corners = grid.y.bounds.value.data
@@ -493,6 +493,10 @@ def get_polygon_geometry_array(grid):
                                 current_corner[0, :].reshape(-1, 1)))
             polygon = Polygon(coords)
             r_data[row, col] = polygon
+    else:
+        msg = 'A grid must have bounds/corners to construct polygons. Consider using "set_extrapolated_bounds".'
+        raise GridDeficientError(msg)
+
     return fill
 
 

@@ -9,7 +9,7 @@ from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.util.helpers import make_poly, iter_array
@@ -297,20 +297,18 @@ class TestGridXY(AbstractTestNewInterface):
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
 
-        keywords = dict(expanded=[False, True])
+        keywords = dict(with_bounds=[False, True])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
-            poly = self.get_polygonarray()
-            self.assertTrue(poly.grid.has_bounds)
-            if k.expanded:
-                poly.grid.expand()
-                self.assertFalse(poly.grid.is_vectorized)
-            else:
-                self.assertTrue(poly.grid.is_vectorized)
-            if k.expanded:
-                actual = self.polygon_value_alternate_ordering
-            else:
+            grid = self.get_polygon_array_grid(with_bounds=k.with_bounds)
+            if k.with_bounds:
                 actual = self.polygon_value
-            self.assertIsNone(poly._value)
+                self.assertTrue(grid.is_vectorized)
+            else:
+                grid.set_extrapolated_bounds()
+                grid.expand()
+                self.assertFalse(grid.is_vectorized)
+                actual = self.polygon_value_alternate_ordering
+            poly = GeometryVariable(value=get_polygon_geometry_array(grid))
             value_poly = poly.value
             self.assertGeometriesAlmostEquals(value_poly, actual)
 

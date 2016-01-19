@@ -140,13 +140,20 @@ class AbstractTestNewInterface(TestBase):
         return self.get_shapely_from_wkt_array(polys)
 
     def get_polygonarray(self):
-        yb = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='yb')
-        y = BoundedVariable(value=[40.0, 39.0, 38.0], name='y', bounds=yb)
-        xb = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='xb')
-        x = BoundedVariable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
-        grid = GridXY(x=x, y=y)
+        grid = self.get_polygon_array_grid()
         poly = get_geometry_variable(get_polygon_geometry_array, grid)
         return poly
+
+    def get_polygon_array_grid(self, with_bounds=True):
+        if with_bounds:
+            xb = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='xb')
+            yb = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='yb')
+        else:
+            xb, yb = [None, None]
+        x = BoundedVariable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
+        y = BoundedVariable(value=[40.0, 39.0, 38.0], name='y', bounds=yb)
+        grid = GridXY(x=x, y=y)
+        return grid
 
     def get_shapely_from_wkt_array(self, wkts):
         ret = np.array(wkts)
