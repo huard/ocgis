@@ -88,11 +88,19 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test point and polygon representations.
         grid = self.get_gridxy(crs=WGS84())
+        grid.set_extrapolated_bounds()
         targets = ['point', 'polygon']
         targets = [getattr(grid, t) for t in targets]
         for t in targets:
             self.assertIsInstance(t, GeometryVariable)
-        thh
+        sub = grid[1, 1]
+        targets = ['point', 'polygon']
+        for t in targets:
+            self.assertIn(t, sub._variables)
+        targets = [getattr(sub, t) for t in targets]
+        for t in targets:
+            self.assertEqual(t.shape, (1, 1))
+            self.assertIsInstance(t, GeometryVariable)
 
     # tdk: remove
     # def test_corners(self):
@@ -223,6 +231,8 @@ class TestGridXY(AbstractTestNewInterface):
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
+            self.assertNotIn('point', sub._variables)
+            self.assertNotIn('polygon', sub._variables)
             self.assertEqual(sub.x.value, 102.)
             self.assertEqual(sub.y.value, 42.)
 

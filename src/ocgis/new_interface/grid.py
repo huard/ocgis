@@ -7,9 +7,9 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_reduced_slice, iter_array
+from ocgis.util.helpers import get_reduced_slice, iter_array, get_trimmed_array_by_mask, get_added_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -37,7 +37,7 @@ class GridXY(AbstractSpatialContainer):
         self._y_name = y.name
 
         new_variables = [x, y]
-        for target in [point, polygon]:
+        for target, attr_name in zip([point, polygon], ['point', 'polygon']):
             if target is not None:
                 target = target.copy()
                 target.attrs['axis'] = 'geom'
@@ -74,7 +74,16 @@ class GridXY(AbstractSpatialContainer):
         else:
             y = ret.y[slc[0], slc[1]]
             x = ret.x[slc[0], slc[1]]
-        ret._variables = VariableCollection(variables=(x, y))
+        new_variables = [x, y]
+
+        if 'point' in ret._variables:
+            point = ret.point[slc[0], slc[1]]
+            new_variables.append(point)
+        if 'polygon' in ret._variables:
+            polygon = ret.polygon[slc[0], slc[1]]
+            new_variables.append(polygon)
+
+        ret._variables = VariableCollection(variables=new_variables)
 
     def expand(self):
         # tdk: doc
@@ -135,9 +144,31 @@ class GridXY(AbstractSpatialContainer):
         try:
             ret = self._variables['point']
         except KeyError:
-            ret = get_geometry_variable(get_point_geometry_array, self, attrs={'axis': 'geom'})
+            ret = get_geometry_variable(get_point_geometry_array, self, name='point', attrs={'axis': 'geom'})
             self._variables.add_variable(ret)
         return ret
+
+    @point.setter
+    def point(self, value):
+        if value is not None:
+            self._variables[value.name] = value
+
+    @property
+    def polygon(self):
+        try:
+            ret = self._variables['polygon']
+        except KeyError:
+            if not self.has_bounds:
+                ret = None
+            else:
+                ret = get_geometry_variable(get_polygon_geometry_array, self, name='polygon', attrs={'axis': 'geom'})
+                self._variables.add_variable(ret)
+        return ret
+
+    @polygon.setter
+    def polygon(self, value):
+        if value is not None:
+            self._variables[value.name] = value
 
     @property
     def x(self):
@@ -145,7 +176,6 @@ class GridXY(AbstractSpatialContainer):
 
     @x.setter
     def x(self, value):
-        assert isinstance(value, Variable)
         self._variables[self._x_name] = value
 
     @property
@@ -154,7 +184,6 @@ class GridXY(AbstractSpatialContainer):
 
     @y.setter
     def y(self, value):
-        assert isinstance(value, Variable)
         self._variables[self._y_name] = value
 
     @property
@@ -208,7 +237,7 @@ class GridXY(AbstractSpatialContainer):
     @expand_needed
     def set_mask(self, value):
         super(GridXY, self).set_mask(value)
-        for target in (self.y, self.x):
+        for target in self._variables.values():
             target.set_mask(value)
 
     @expand_needed
@@ -346,22 +375,27 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def geom_type(self):
-        return super(GridXY, self).geom_type
+        if self._geom_type == 'auto':
+            ret = self.get_optimal_geometry()
+        else:
+            ret = getattr(self, self._geom_type)
+        return ret
+
+    def get_optimal_geometry(self):
+        return self.polygon or self.point
 
     def get_intersects(self, *args, **kwargs):
+        # tdk: this should be determined by the abstraction
+        use_bounds = True
+
         return_indices = kwargs.pop('return_indices', False)
-        # First, subset the grid by the bounding box.
-        if self.grid is not None:
-            minx, miny, maxx, maxy = args[0].bounds
-            _, slc = self.grid.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=self._use_bounds)
-            ret = self.__getitem__(slc)
-        else:
-            ret = self
-            slc = [slice(None)] * self.ndim
-        ret = ret.get_intersects_masked(*args, **kwargs)
+        minx, miny, maxx, maxy = args[0].bounds
+        ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=use_bounds)
+        new_mask = ret.geom.get_intersects_masked(*args, **kwargs).get_mask()
+        ret.set_mask(new_mask)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+        _, adjust = get_trimmed_array_by_mask(new_mask, return_adjustments=True)
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
