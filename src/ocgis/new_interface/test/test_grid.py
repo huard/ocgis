@@ -429,3 +429,4 @@ class TestGridXY(AbstractTestNewInterface):
         with self.nc_scope(path, 'r') as ds:
             self.assertEqual(['y'], [d for d in ds.variables['y'].dimensions])
             self.assertEqual(['x'], [d for d in ds.variables['x'].dimensions])
+
