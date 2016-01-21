@@ -27,7 +27,11 @@ def expand_needed(func):
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, point=None, polygon=None, geom_type='auto', crs=None, backref=None):
+    def __init__(self, x, y, point=None, polygon=None, abstraction='auto', crs=None, backref=None):
+        self._abstraction = None
+
+        self.abstraction = abstraction
+
         x = x.copy()
         y = y.copy()
         x.attrs['axis'] = 'X'
@@ -375,11 +379,13 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def abstraction(self):
-        if self._abstraction is None:
+        if self._abstraction == 'auto':
             if self.has_bounds:
                 ret = 'polygon'
             else:
                 ret = 'point'
+        else:
+            ret = self._abstraction
         return ret
 
     @abstraction.setter
@@ -414,7 +420,7 @@ class GridXY(AbstractSpatialContainer):
 
     def get_intersects_masked(self, *args, **kwargs):
         ret = self.copy()
-        new_mask = self.abstraction_geometry.get_itersects_mask(*args, **kwargs)
+        new_mask = self.abstraction_geometry.get_intersects_masked(*args, **kwargs).get_mask()
         # tdk: this unecessarily sets the mask of the abstraction geometry twice.
         ret.set_mask(new_mask)
         return ret

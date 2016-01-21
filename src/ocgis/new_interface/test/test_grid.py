@@ -1,8 +1,10 @@
 import itertools
+from copy import deepcopy
 from unittest import SkipTest
 
 import numpy as np
 from numpy.testing.utils import assert_equal
+from shapely import wkt
 from shapely.geometry import Point
 
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
@@ -70,6 +72,50 @@ class TestGridXY(AbstractTestNewInterface):
             if return_kwargs:
                 ret = (ret, k)
             yield ret
+
+    def test(self):
+        x = BoundedVariable(value=[-10, -5, 0, 5, 10], dtype=float, name='x')
+        y = BoundedVariable(value=[10, 5, 0, -5, -10], dtype=float, name='y')
+        grid = GridXY(x, y)
+        self.assertEqual(grid.abstraction, 'point')
+
+        path_points = self.get_temporary_file_path('points.shp')
+        grid.write_fiona(path_points)
+
+        path_polygon = self.get_temporary_file_path('polygons.shp')
+        grid_polygon = deepcopy(grid)
+        grid_polygon.set_extrapolated_bounds()
+        grid_polygon.write_fiona(path_polygon)
+
+        subset = 'Polygon ((-7.97491349480970513 3.3788927335640544, -8.19290657439447756 -3.08823529411760589, 4.23269896193770023 -3.59688581314874867, 4.16003460207610942 3.52422145328723957, -7.97491349480970513 3.3788927335640544))'
+        subset = wkt.loads(subset)
+
+        sub = grid.get_intersects_masked(subset)
+        print grid.get_mask()
+        self.assertTrue(grid.get_mask().all())
+        mask = sub.get_mask()
+        self.assertFalse(np.any(mask[2, 1:3]))
+        self.assertEqual(len(mask.flat) - 2, mask.sum())
+        sub = grid.get_intersects(subset)
+        # path_sub_points = self.get_temporary_file_path('points_subset.shp')
+        # sub.write_fiona(path_sub_points)
+        for target in [sub.x, sub.y]:
+            self.assertEqual(target.ndim, 1)
+        # Grid is still vectorized.
+        self.assertEqual(sub.x.value.tolist(), [-5.0, 0.0])
+        self.assertEqual(sub.y.value.tolist(), [0.0])
+
+        sub = grid_polygon.get_intersects_masked(subset)
+        self.assertTrue(grid_polygon.get_mask().all())
+        mask = sub.get_mask()
+        self.assertFalse(np.any(mask[1:-1, 0:-1]))
+        self.assertEqual(len(mask.flat) - 12, mask.sum())
+        sub = grid_polygon.get_intersects(subset)
+        path_sub_points = self.get_temporary_file_path('points_subset.shp')
+        sub.write_fiona(path_sub_points)
+        self.assertEqual(sub.x.value.tolist(), [[-5.0, 0.0]])
+        self.assertEqual(sub.y.value.tolist(), [[0.0, 0.0]])
+        tkk
 
     def test_init(self):
         crs = WGS84()
