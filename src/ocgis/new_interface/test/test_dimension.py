@@ -1,15 +1,12 @@
 import numpy as np
 from numpy.testing.utils import assert_array_equal
 
-from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
 
 
 class TestDimension(AbstractTestNewInterface):
-    def test_bases(self):
-        self.assertEqual(Dimension.__bases__, (AbstractInterfaceObject,))
 
     def test_init(self):
         dim = Dimension('foo')

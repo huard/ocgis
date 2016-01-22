@@ -608,8 +608,13 @@ def get_trimmed_array_by_mask(arr, return_adjustments=False):
         else:
             stop_col = stop_col - idx_col_adjust
 
+    if stop_row is None:
+        stop_row = start_row + 1
     slc = [slice(start_row, stop_row)]
+
     if has_col:
+        if stop_col is None:
+            stop_col = start_col + 1
         slc.append(slice(start_col, stop_col))
     ret = arr.__getitem__(slc)
 
