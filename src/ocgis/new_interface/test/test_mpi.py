@@ -7,6 +7,7 @@ from ocgis.new_interface.variable import Variable
 
 class Test(AbstractTestNewInterface):
     def test(self):
+        # tdk: test no dimension i.e. len(dimension) == 0
 
         def create_slices(length, n):
             step = int(np.ceil(float(length) / n))
@@ -21,7 +22,7 @@ class Test(AbstractTestNewInterface):
                 start = stop
             return slices
 
-        def get_slices_dimension(map_slices, slices, key, target):
+        def update_map_slices(map_slices, key, target):
             for idx, slc in enumerate(slices):
                 map_slices[idx][key] = target.__getitem__(slc)
             return map_slices
@@ -39,12 +40,17 @@ class Test(AbstractTestNewInterface):
 
         key_dimension = 'dimension'
         map_slices = {idx: {'slice': slc} for idx, slc in enumerate(slices)}
-        sliced_dimensions = get_slices_dimension(map_slices, slices, key_dimension, dimension)
+        update_map_slices(map_slices, key_dimension, dimension)
         actual_length = 0
-        for idx, sc in enumerate(sliced_dimensions.values()):
+        for idx, sc in enumerate(map_slices.values()):
             actual_length += len(sc[key_dimension])
             self.assertIn('slice', sc)
         self.assertEqual(actual_length, len(dimension))
 
         var = Variable(value=value)
+        update_map_slices(map_slices, 'variable', var)
+        actual = []
+        for v in map_slices.values():
+            actual += v['variable'].value.tolist()
+        self.assertEqual(np.mean(actual), value.mean())
         thh
