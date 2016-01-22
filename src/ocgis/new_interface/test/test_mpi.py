@@ -54,3 +54,4 @@ class Test(AbstractTestNewInterface):
             actual += v['variable'].value.tolist()
         self.assertEqual(np.mean(actual), value.mean())
         thh
+
