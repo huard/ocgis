@@ -2,6 +2,7 @@ import numpy as np
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.variable import Variable
 
 
 class Test(AbstractTestNewInterface):
@@ -20,11 +21,10 @@ class Test(AbstractTestNewInterface):
                 start = stop
             return slices
 
-        def get_slices_dimension(slices, dimension):
-            ret = {}
+        def get_slices_dimension(map_slices, slices, key, target):
             for idx, slc in enumerate(slices):
-                ret[idx] = {'slice': slc, 'dimension': dimension.__getitem__(slc)}
-            return ret
+                map_slices[idx][key] = target.__getitem__(slc)
+            return map_slices
 
         value = np.arange(100)
         self.assertEqual(len(value), 100)
@@ -37,11 +37,14 @@ class Test(AbstractTestNewInterface):
             actual += value[slc].sum()
         self.assertEqual(actual, value.sum())
 
-        sliced_dimensions = get_slices_dimension(slices, dimension)
-
+        key_dimension = 'dimension'
+        map_slices = {idx: {'slice': slc} for idx, slc in enumerate(slices)}
+        sliced_dimensions = get_slices_dimension(map_slices, slices, key_dimension, dimension)
         actual_length = 0
         for idx, sc in enumerate(sliced_dimensions.values()):
-            actual_length += len(sc['dimension'])
+            actual_length += len(sc[key_dimension])
+            self.assertIn('slice', sc)
         self.assertEqual(actual_length, len(dimension))
 
+        var = Variable(value=value)
         thh
