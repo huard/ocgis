@@ -2,6 +2,7 @@ import itertools
 
 import numpy as np
 from mpi4py import MPI
+from numpy.ma import MaskedArray
 from shapely.geometry import box
 
 from ocgis.exc import EmptySubsetError
@@ -100,23 +101,29 @@ class Test(AbstractTestNewInterface):
 
         if MPI_RANK == 0:
             grid = self.get_gridxy(with_dimensions=True)
-
+            for target in [grid.x, grid.y]:
+                self.assertFalse(isinstance(target.value, MaskedArray))
             slices = create_slices([len(d) for d in grid.dimensions], (2, 2))
 
             g_scatter = []
             for slc in slices:
                 g_scatter.append(grid.__getitem__(slc))
+
         else:
             g_scatter = None
 
         grid_local = MPI_COMM.scatter(g_scatter, root=0)
 
-        path_local = '/home/benkoziol/htmp/rank_{}.shp'.format(MPI_RANK)
-        grid_local.write_fiona(path_local)
+        # path_local = '/home/benkoziol/htmp/rank_{}.shp'.format(MPI_RANK)
+        # grid_local.write_fiona(path_local)
 
         subset = box(100.7, 39.71, 101.32, 40.29)
         try:
-            sub = grid_local.get_intersects(subset)
+            print grid_local._variables
+            sub = grid_local.get_subset_bbox(*subset.bounds)
+            print sub._variables
+            for target in [sub.x, sub.y]:
+                self.assertFalse(isinstance(target.value, MaskedArray))
         except EmptySubsetError:
             sub = None
 

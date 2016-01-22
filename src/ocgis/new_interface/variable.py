@@ -6,7 +6,6 @@ from netCDF4 import Dataset, VLType
 
 import numpy as np
 from numpy.core.multiarray import ndarray
-from numpy.ma import MaskedArray
 
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
@@ -314,13 +313,13 @@ class Variable(AbstractContainer, Attributes):
                     value = value.astype(desired_dtype, copy=False)
                 except TypeError:
                     value = value.astype(desired_dtype)
-            if not isinstance(value, MaskedArray):
-                value = np.ma.array(value, fill_value=self._fill_value)
-            if desired_fill_value is not None and value.fill_value != desired_fill_value:
-                value.fill_value = desired_fill_value
-                value.harden_mask()
-            if value.mask.shape != value.shape:
-                value.mask = np.zeros(value.shape, dtype=bool)
+                    # if not isinstance(value, MaskedArray):
+                    #     value = np.ma.array(value, fill_value=self._fill_value)
+                    # if desired_fill_value is not None and value.fill_value != desired_fill_value:
+                    #     value.fill_value = desired_fill_value
+                    #     value.harden_mask()
+                    # if value.mask.shape != value.shape:
+                    #     value.mask = np.zeros(value.shape, dtype=bool)
 
         update_unlimited_dimension_length(value, self._dimensions)
 
@@ -365,7 +364,7 @@ class Variable(AbstractContainer, Attributes):
         ret = copy(self)
         try:
             ret._value = ret._value.view()
-            ret._value.unshare_mask()
+            # ret._value.unshare_mask()
         except AttributeError:  # Assume None.
             pass
         ret.attrs = ret._attrs
@@ -407,12 +406,14 @@ class Variable(AbstractContainer, Attributes):
 
     def get_mask(self):
         """Return a deepcopy of the object mask."""
-        return self.value.mask.copy()
+        return np.zeros(self.shape, dtype=bool)
+        # return self.value.mask.copy()
 
     def set_mask(self, value):
         """Set the object mask."""
-        super(Variable, self).set_mask(value)
-        self.value.mask = value
+        pass
+        # super(Variable, self).set_mask(value)
+        # self.value.mask = value
 
     def write_netcdf(self, dataset, **kwargs):
         """
