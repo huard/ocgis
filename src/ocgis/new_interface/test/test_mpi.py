@@ -13,17 +13,20 @@ class Test(AbstractTestNewInterface):
         def create_slices(lengths, n):
             ret = []
             for length in get_iter(lengths, dtype=int):
-                step = int(np.ceil(float(length) / n))
-                print step
                 slices = [None] * n
                 start = 0
+                remaining = length
+                nlocal = n
                 for ii in range(n):
+                    step = int(np.ceil(float(remaining) / nlocal))
                     stop = start + step
                     if stop > length:
                         stop = length
                     index_element = slice(start, stop)
                     slices[ii] = index_element
+                    remaining -= (stop - start)
                     start = stop
+                    nlocal -= 1
                 ret.append(slices)
             return ret
 
@@ -45,7 +48,6 @@ class Test(AbstractTestNewInterface):
 
         n = 5
         actual = create_slices([len(d) for d in variable.dimensions[2:]], n)
-        print actual
 
         vscatter = []
         for idx in range(n):
