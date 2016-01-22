@@ -624,6 +624,15 @@ class TestVariable(AbstractTestNewInterface):
         self.assertTrue(np.all(var.value[1, 1:3] == 6700))
         self.assertAlmostEqual(var.value.mean(), 1116.66666666)
 
+    def test_set_mask(self):
+        var = Variable(value=[1, 2, 3])
+        # self.assertIsInstance(var._value, MaskedArray)
+        cpy = var.copy()
+        cpy.set_mask([False, True, False])
+        cpy.value.fill(10)
+        self.assertTrue(np.all(var.value == 10))
+        self.assertFalse(np.any(var.get_mask()))
+
     def test_shape(self):
         # Test shape with unlimited dimension.
         dim = Dimension('time')

@@ -89,10 +89,11 @@ class TestGridXY(AbstractTestNewInterface):
 
         subset = 'Polygon ((-7.97491349480970513 3.3788927335640544, -8.19290657439447756 -3.08823529411760589, 4.23269896193770023 -3.59688581314874867, 4.16003460207610942 3.52422145328723957, -7.97491349480970513 3.3788927335640544))'
         subset = wkt.loads(subset)
+        path_subset = self.get_temporary_file_path('the_subset_polygon.shp')
+        GeometryVariable(value=subset).write_fiona(path_subset)
 
         sub = grid.get_intersects_masked(subset)
-        print grid.get_mask()
-        self.assertTrue(grid.get_mask().all())
+        self.assertFalse(grid.get_mask().any())
         mask = sub.get_mask()
         self.assertFalse(np.any(mask[2, 1:3]))
         self.assertEqual(len(mask.flat) - 2, mask.sum())
@@ -106,16 +107,24 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(sub.y.value.tolist(), [0.0])
 
         sub = grid_polygon.get_intersects_masked(subset)
-        self.assertTrue(grid_polygon.get_mask().all())
+        self.assertFalse(grid_polygon.get_mask().any())
         mask = sub.get_mask()
         self.assertFalse(np.any(mask[1:-1, 0:-1]))
         self.assertEqual(len(mask.flat) - 12, mask.sum())
         sub = grid_polygon.get_intersects(subset)
         path_sub_points = self.get_temporary_file_path('points_subset.shp')
         sub.write_fiona(path_sub_points)
-        self.assertEqual(sub.x.value.tolist(), [[-5.0, 0.0]])
-        self.assertEqual(sub.y.value.tolist(), [[0.0, 0.0]])
-        tkk
+        self.assertEqual(sub.x.value.tolist(), [-10.0, -5.0, 0.0, 5.0])
+        self.assertEqual(sub.y.value.tolist(), [5.0, 0.0, -5.0])
+        self.assertEqual(grid_polygon.resolution, 5.0)
+
+        grid_polygon.expand()
+        self.assertFalse(grid_polygon.get_mask().any())
+        self.assertEqual(grid_polygon.resolution, 5)
+        min_col, min_row, max_col, max_row = subset.bounds
+        sub2_bbox = grid_polygon.get_subset_bbox(min_col, min_row, max_col, max_row)
+        sub2 = grid_polygon.get_intersects(subset)
+        self.assertNumpyAll(sub2_bbox.value_stacked, sub2.value_stacked)
 
     def test_init(self):
         crs = WGS84()
@@ -338,7 +347,7 @@ class TestGridXY(AbstractTestNewInterface):
         sub = grid.get_subset_bbox(*args, use_bounds=False)
         self.assertTrue(np.all(sub.get_mask()))
         sub.set_mask(np.array([[False, False]]))
-        self.assertEqual(grid.get_mask().sum(), 2)
+        self.assertEqual(grid.get_mask().sum(), 4)
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""

@@ -4,7 +4,6 @@ from shapely.geometry import Point
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import FieldBundle2
-from ocgis.new_interface.geom import PointArray
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection

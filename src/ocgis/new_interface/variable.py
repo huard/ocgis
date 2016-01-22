@@ -243,7 +243,7 @@ class Variable(AbstractContainer, Attributes):
         if self.value.shape[0] < 2:
             msg = 'With only a single coordinate, approximate resolution may not be determined.'
             raise ResolutionError(msg)
-        res_array = np.diff(self.value.data[0:constants.RESOLUTION_LIMIT])
+        res_array = np.diff(np.abs(self.value.data[0:constants.RESOLUTION_LIMIT]))
         ret = np.abs(res_array).mean()
         return ret
 
@@ -301,7 +301,10 @@ class Variable(AbstractContainer, Attributes):
             desired_fill_value = self._fill_value
 
             if not isinstance(value, ndarray):
-                value = np.array(value, dtype=desired_dtype)
+                array_type = desired_dtype
+                if isinstance(array_type, ObjectType):
+                    array_type = object
+                value = np.array(value, dtype=array_type)
                 if isinstance(desired_dtype, ObjectType):
                     if desired_dtype.dtype != object:
                         for idx in range(value.shape[0]):
@@ -360,6 +363,11 @@ class Variable(AbstractContainer, Attributes):
 
     def copy(self):
         ret = copy(self)
+        try:
+            ret._value = ret._value.view()
+            ret._value.unshare_mask()
+        except AttributeError:  # Assume None.
+            pass
         ret.attrs = ret._attrs
         return ret
 
@@ -911,6 +919,8 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def copy(self):
         ret = AbstractCollection.copy(self)
         ret.attrs = ret.attrs.copy()
+        for k, v in ret.items():
+            ret[k] = v.copy()
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):

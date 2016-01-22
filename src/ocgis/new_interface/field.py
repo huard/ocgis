@@ -1,8 +1,8 @@
 from collections import OrderedDict
 from copy import copy, deepcopy
 
-from ocgis.new_interface.geom import SpatialContainer
-from ocgis.new_interface.grid import GridXY, AbstractSpatialObject
+from ocgis.new_interface.geom import SpatialContainer, AbstractSpatialObject
+from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.helpers import get_formatted_slice
 

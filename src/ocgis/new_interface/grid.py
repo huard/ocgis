@@ -2,7 +2,7 @@ import itertools
 from copy import copy
 
 import numpy as np
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, box
 
 from ocgis import constants
 from ocgis.exc import EmptySubsetError, GridDeficientError
@@ -198,8 +198,8 @@ class GridXY(AbstractSpatialContainer):
             to_mean = [y.resolution, x.resolution]
         else:
             resolution_limit = constants.RESOLUTION_LIMIT
-            targets = [np.diff(y.value[0:resolution_limit, :], axis=0),
-                       np.diff(x.value[:, 0:resolution_limit], axis=1)]
+            targets = [np.abs(np.diff(np.abs(y.value[0:resolution_limit, :]), axis=0)),
+                       np.abs(np.diff(np.abs(x.value[:, 0:resolution_limit]), axis=1))]
             to_mean = [np.mean(t) for t in targets]
         ret = np.mean(to_mean)
         return ret
@@ -213,11 +213,21 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
+    def value_stacked(self):
+        y = self.y.value
+        x = self.x.value
+        fill = np.ma.zeros([2] + list(y.shape))
+        fill[0] = y
+        fill[1] = x
+        return fill
+
+    @property
     def _archetype(self):
         return self.y
 
     def copy(self):
         ret = copy(self)
+        ret._variables = ret._variables.copy()
         return ret
 
     def create_dimensions(self, names=None):
@@ -256,8 +266,7 @@ class GridXY(AbstractSpatialContainer):
         assert min_row <= max_row
         assert min_col <= max_col
 
-        if self.y.ndim == 2:
-            assert not use_bounds
+        if not self.is_vectorized:
             r_row = self.y.value.data
             r_col = self.x.value.data
             real_idx_row = np.arange(0, r_row.shape[0])
@@ -296,6 +305,92 @@ class GridXY(AbstractSpatialContainer):
                     raise EmptySubsetError(origin='X')
                 else:
                     raise
+
+            if self.has_bounds:
+                row_start, row_stop = row_slc.start, row_slc.stop
+                col_start, col_stop = col_slc.start, col_slc.stop
+                subset_polygon = box(min_col, min_row, max_col, max_row)
+
+                add_row_top = False
+                if row_start != 0:
+                    if col_start != 0:
+                        col_select_start = col_start - 1
+                    else:
+                        col_select_start = 0
+                    col_select_stop = col_stop + 1
+                    row_select = row_start - 1
+                    for col_select in range(col_select_start, col_select_stop):
+                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
+                            add_row_top = True
+                            break
+
+                add_row_bottom = False
+                if row_stop != (self.x.shape[0] - 1):
+                    if col_start != 0:
+                        col_select_start = col_start - 1
+                    else:
+                        col_select_start = 0
+                    col_select_stop = col_stop + 1
+                    row_select = row_stop
+                    for col_select in range(col_select_start, col_select_stop):
+                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
+                            add_row_bottom = True
+                            break
+
+                add_col_left = False
+                if col_start != 0:
+                    if row_start != 0:
+                        row_select_start = row_start - 1
+                    else:
+                        row_select_start = row_start
+                    row_select_stop = row_stop + 1
+                    col_select = col_start
+                    for row_select in range(row_select_start, row_select_stop):
+                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
+                            add_col_left = True
+                            break
+
+                add_col_right = False
+                if col_stop != self.y.shape[1]:
+                    if row_start != 0:
+                        row_select_start = row_start - 1
+                    else:
+                        row_select_start = row_start
+                    row_select_stop = row_stop + 1
+                    col_select = col_stop
+                    for row_select in range(row_select_start, row_select_stop):
+                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
+                            add_col_right = True
+                            break
+
+                if add_row_top:
+                    row_slc_start = row_slc.start - 1
+                else:
+                    row_slc_start = row_slc.start
+                if add_row_bottom:
+                    row_slc_stop = row_slc.stop + 1
+                else:
+                    row_slc_stop = row_slc.stop
+                row_slc = slice(row_slc_start, row_slc_stop)
+
+                if add_col_left:
+                    col_slc_start = col_slc.start - 1
+                else:
+                    col_slc_start = col_slc.start
+                if add_col_right:
+                    col_slc_stop = col_slc.stop + 1
+                else:
+                    col_slc_stop = col_slc.stop
+                col_slc = slice(col_slc_start, col_slc_stop)
+
         else:
             new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
                                                       use_bounds=use_bounds)
@@ -533,3 +628,23 @@ def get_geometry_variable(func, grid, **kwargs):
     value = func(grid)
     kwargs['value'] = value
     return GeometryVariable(**kwargs)
+
+
+def is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=True):
+    coordinates_polygon = []
+    for cx, cy in zip(corners_x.flat, corners_y.flat):
+        coordinates_polygon.append([cx, cy])
+
+    polygon = Polygon(coordinates_polygon)
+    touches = subset_polygon.touches(polygon)
+    intersects = subset_polygon.intersects(polygon)
+
+    if intersects:
+        if closed and touches:
+            ret = False
+        else:
+            ret = True
+    else:
+        ret = False
+
+    return ret
