@@ -53,8 +53,8 @@ class GridXY(AbstractSpatialContainer):
 
         if self.is_vectorized:
             try:
-                assert not x.get_mask().any()
-                assert not y.get_mask().any()
+                assert not x.mask.any()
+                assert not y.mask.any()
             except AssertionError:
                 msg = 'Vector coordinates may not be masked.'
                 raise ValueError(msg)
@@ -571,8 +571,8 @@ def get_polygon_geometry_array(grid):
     r_data = fill.data
 
     if grid.is_vectorized and grid.has_bounds:
-        ref_row_bounds = grid.y.bounds.value.data
-        ref_col_bounds = grid.x.bounds.value.data
+        ref_row_bounds = grid.y.bounds.value
+        ref_col_bounds = grid.x.bounds.value
         for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
             row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
             col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()

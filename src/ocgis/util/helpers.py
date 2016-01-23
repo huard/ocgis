@@ -563,58 +563,56 @@ def get_trimmed_array_by_mask(arr, return_adjustments=False):
 
     # Row 0 to end.
     start_row = 0
+    masked_rows = [start_row]
     for idx_row in range(arr.shape[0]):
         if _mask[idx_row, ...].all():
             start_row += 1
+            masked_rows.append(start_row)
         else:
             break
+    start_row = max(masked_rows)
 
     # Row end to 0.
-    stop_row = 0
-    idx_row_adjust = 1
-    for __ in range(arr.shape[0]):
-        if _mask[stop_row - idx_row_adjust, ...].all():
-            idx_row_adjust += 1
+    stop_row = _mask.shape[0]
+    masked_rows = [stop_row]
+    for adjust in range(arr.shape[0]):
+        adjust += 1
+        row_to_test = stop_row - adjust
+        if _mask[row_to_test, ...].all():
+            masked_rows.append(row_to_test)
         else:
-            idx_row_adjust -= 1
             break
-    if idx_row_adjust == 0:
-        stop_row = None
-    else:
-        stop_row = stop_row - idx_row_adjust
+    stop_row = min(masked_rows)
 
     if arr.ndim == 2:
         has_col = True
 
-        # Column 0 to end.
+        # col 0 to end.
         start_col = 0
+        masked_cols = [start_col]
         for idx_col in range(arr.shape[1]):
             if _mask[:, idx_col].all():
                 start_col += 1
+                masked_cols.append(start_col)
             else:
                 break
+        start_col = max(masked_cols)
 
-        # Column end to 0.
-        stop_col = 0
-        idx_col_adjust = 1
-        for __ in range(arr.shape[0]):
-            if _mask[:, stop_col - idx_col_adjust, ].all():
-                idx_col_adjust += 1
+        # col end to 0.
+        stop_col = _mask.shape[1]
+        masked_cols = [stop_col]
+        for adjust in range(arr.shape[1]):
+            adjust += 1
+            col_to_test = stop_col - adjust
+            if _mask[:, col_to_test].all():
+                masked_cols.append(col_to_test)
             else:
-                idx_col_adjust -= 1
                 break
-        if idx_col_adjust == 0:
-            stop_col = None
-        else:
-            stop_col = stop_col - idx_col_adjust
+        stop_col = min(masked_cols)
 
-    if stop_row is None:
-        stop_row = start_row + 1
     slc = [slice(start_row, stop_row)]
 
     if has_col:
-        if stop_col is None:
-            stop_col = start_col + 1
         slc.append(slice(start_col, stop_col))
     ret = arr.__getitem__(slc)
 

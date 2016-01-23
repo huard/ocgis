@@ -381,6 +381,13 @@ class Test2(TestBase):
         res = get_optimal_slice_from_array(arr)
         self.assertEqual(res, slice(1, 5))
 
+    def test_get_trimmed_array_by_mask(self):
+        mask = [[True, False, False, True], [True, False, False, True], [True, False, False, True]]
+        mask = np.array(mask)
+        desired = np.zeros((3, 2), dtype=bool)
+        actual, slc = get_trimmed_array_by_mask(mask, return_adjustments=True)
+        self.assertNumpyAll(actual, desired)
+
     def test_get_trimmed_array_by_mask_by_bool(self):
         arr = np.zeros((4,4),dtype=bool)
         arr[-1,:] = True
@@ -412,7 +419,7 @@ class Test2(TestBase):
         self.assertNumpyAll(ret,arr[1:-1,1:-1])
         self.assertTrue(np.may_share_memory(ret,arr))
         ret,adjust = get_trimmed_array_by_mask(arr,return_adjustments=True)
-        self.assertEqual(adjust,{'col': slice(1, -1), 'row': slice(1, -1)})
+        self.assertEqual(adjust, (slice(1, 3, None), slice(1, 3, None)))
 
     def test_get_trimmed_array_by_mask_none_masked(self):
         arr = np.random.rand(4,4)
@@ -420,7 +427,6 @@ class Test2(TestBase):
         ret,adjust = get_trimmed_array_by_mask(arr,return_adjustments=True)
         self.assertNumpyAll(ret,arr)
         self.assertTrue(np.may_share_memory(ret,arr))
-        self.assertEqual(adjust,{'col': slice(0, None), 'row': slice(0, None)})
 
     def test_get_trimmed_array_by_mask_interior_masked(self):
         arr = np.random.rand(4,4)
@@ -436,7 +442,6 @@ class Test2(TestBase):
         arr = np.ma.array(arr,mask=True)
         ret,adjust = get_trimmed_array_by_mask(arr,return_adjustments=True)
         self.assertEqual(ret.shape,(0,0))
-        self.assertEqual(adjust,{'col': slice(4, -5), 'row': slice(4, -5)})
 
     def test_get_trimmed_array_by_mask_1d(self):
         arr = np.ma.array([1, 2, 3], mask=[True, False, True])

@@ -255,9 +255,9 @@ class GeometryVariable(AbstractSpatialVariable):
 
     @property
     def area(self):
-        r_value = self.value
+        r_value = self.masked_value
         fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
-        fill = np.ma.array(fill, mask=r_value.mask)
+        fill = np.ma.array(fill, mask=self.mask)
         for slc, geom in iter_array(r_value, return_value=True):
             fill[slc] = geom.area
         return fill
@@ -277,7 +277,7 @@ class GeometryVariable(AbstractSpatialVariable):
         # Geometry objects may change part counts during operations. It is better to scan and update the geometry types
         # to account for these operations.
         if self._geom_type == 'auto':
-            self._geom_type = get_geom_type(self.value.data)
+            self._geom_type = get_geom_type(self.value)
         return self._geom_type
 
     @property
@@ -292,7 +292,7 @@ class GeometryVariable(AbstractSpatialVariable):
         ret = self.get_intersects_masked(*args, **kwargs)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+        _, adjust = get_trimmed_array_by_mask(ret.mask, return_adjustments=True)
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
@@ -326,10 +326,12 @@ class GeometryVariable(AbstractSpatialVariable):
         """
         # tdk: doc keep_touches
 
-        ret = copy(self)
+        ret = self.copy()
+        original_mask = ret.mask.copy()
         # Create the fill array and reference the mask. This is the output geometry value array.
-        fill = np.ma.array(ret.value, mask=True)
-        ref_fill_mask = fill.mask.reshape(-1)
+        fill = ret.mask.copy()
+        fill.fill(True)
+        ref_fill_mask = fill.reshape(-1)
 
         if use_spatial_index:
             si = self.get_spatial_index()
@@ -354,7 +356,7 @@ class GeometryVariable(AbstractSpatialVariable):
             raise EmptySubsetError(self.name)
 
         # Set the returned value to the fill array.
-        ret.value = fill
+        ret.mask = np.logical_or(fill, original_mask)
 
         return ret
 
@@ -397,7 +399,7 @@ class GeometryVariable(AbstractSpatialVariable):
         Unions _unmasked_ geometry objects.
         """
 
-        to_union = [geom for geom in self.value.compressed().flat]
+        to_union = [geom for geom in self.masked_value.compressed().flat]
         processed_to_union = deque()
         for geom in to_union:
             if isinstance(geom, MultiPolygon) or isinstance(geom, MultiPoint):
@@ -417,7 +419,7 @@ class GeometryVariable(AbstractSpatialVariable):
 
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
-        r_value = self.value.data.reshape(-1)
+        r_value = self.value.reshape(-1)
         r_loads = wkb.loads
         r_create = ogr.CreateGeometryFromWkb
         to_sr = to_crs.sr
@@ -431,9 +433,9 @@ class GeometryVariable(AbstractSpatialVariable):
 
     def iter_records(self, use_mask=True):
         if use_mask:
-            to_itr = self.value.compressed()
+            to_itr = self.masked_value.compressed()
         else:
-            to_itr = self.value.data.flat
+            to_itr = self.value.flat
         r_geom_class = GEOM_TYPE_MAPPING[self.geom_type]
 
         for idx, geom in enumerate(to_itr):
