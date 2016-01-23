@@ -2,7 +2,7 @@ from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-from numpy.ma import MaskedArray
+from numpy.core.multiarray import ndarray
 from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
@@ -377,6 +377,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.shape, tuple())
         self.assertEqual(var.dimensions, None)
         self.assertEqual(var.value, None)
+        self.assertEqual(var.mask, None)
         # Test setting the dimensions.
         var.dimensions = Dimension('five', 5)
         self.assertEqual(var.shape, (5,))
@@ -401,7 +402,7 @@ class TestVariable(AbstractTestNewInterface):
         # Test a scalar variable.
         v = Variable(value=2.0)
         self.assertEqual(v.value, 2.0)
-        self.assertIsInstance(v.value, MaskedArray)
+        self.assertIsInstance(v.value, ndarray)
         self.assertEqual(v.shape, tuple())
         self.assertEqual(v.value.dtype, np.float)
         self.assertEqual(v.dimensions, None)
@@ -417,7 +418,7 @@ class TestVariable(AbstractTestNewInterface):
 
         # Test with dimensions only.
         v = Variable(dimensions=[Dimension('a', 3), Dimension('b', 8)], dtype=np.int8, fill_value=2)
-        self.assertNumpyAll(v.value, np.ma.zeros((3, 8), dtype=np.int8, fill_value=2))
+        self.assertNumpyAll(v.value, np.zeros((3, 8), dtype=np.int8))
 
         # Test with an unlimited dimension.
         v = Variable(dimensions=Dimension('unlimited'))
@@ -426,15 +427,15 @@ class TestVariable(AbstractTestNewInterface):
 
         # Test value converted to dtype and fill_value.
         value = [4.5, 5.5, 6.5]
-        desired = np.ma.array(value, dtype=np.int8, fill_value=4)
+        desired = np.array(value, dtype=np.int8)
         var = Variable(value=value, dtype=np.int8, fill_value=4)
         self.assertNumpyAll(var.value, desired)
         var.value = None
-        var.value = np.ma.array(value)
+        var.value = np.array(value)
         self.assertNumpyAll(var.value, desired)
         var.value = None
         var.value = desired
-        assert_equal(var.value.mask, [False, False, False])
+        assert_equal(var.mask, [True, False, False])
 
         time, value, var = self.get_variable()
 
@@ -442,7 +443,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(id(time), id(var.dimensions[0]))
         self.assertEqual(var.name, 'time_value')
         self.assertEqual(var.shape, (len(value),))
-        self.assertNumpyAll(var.value, np.ma.array(value, dtype=var.dtype))
+        self.assertNumpyAll(var.value, np.array(value, dtype=var.dtype))
         sub = var[2:4]
         self.assertIsInstance(sub, Variable)
         self.assertEqual(sub.shape, (2,))
@@ -452,13 +453,13 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable('foo', value=value, dimensions=time, dtype=dtype, fill_value=fill_value)
         self.assertEqual(var.dtype, dtype)
         self.assertEqual(var.value.dtype, dtype)
-        self.assertEqual(var.value.fill_value, fill_value)
+        self.assertEqual(var.fill_value, fill_value)
 
         var = Variable('foo', value=[4, 5, 6])
         var.create_dimensions()
         self.assertEqual(var.shape, (3,))
         self.assertEqual(var.dtype, var.value.dtype)
-        self.assertEqual(var.fill_value, var.value.fill_value)
+        self.assertEqual(var.fill_value, var.fill_value)
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
@@ -466,7 +467,7 @@ class TestVariable(AbstractTestNewInterface):
         value = [1, 2, 3]
         value = np.ma.array(value, mask=[False, True, False], dtype=float)
         var = Variable(value=value, dtype=int)
-        self.assertNumpyAll(var.value.mask, value.mask)
+        self.assertNumpyAll(var.mask, value.mask)
         self.assertEqual(var.value.dtype, int)
 
     def test_init_object_array(self):
@@ -496,7 +497,7 @@ class TestVariable(AbstractTestNewInterface):
             self.assertNumpyAll(np.array(v.value[idx]), desired[idx])
         v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'))
 
-        actual = v[1].value[0]
+        actual = v[1].masked_value[0]
         self.assertNumpyAll(np.ma.array(value[1], dtype=np.float32), actual)
 
         for idx in range(v.shape[0]):
@@ -520,7 +521,7 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable(name='tas', units='celsius', value=original_value, attrs=attrs)
         self.assertEqual(len(var.attrs), 2)
         var.cfunits_conform(units_kelvin)
-        self.assertNumpyAll(var.value, np.ma.array([278.15] * 3))
+        self.assertNumpyAll(var.masked_value, np.ma.array([278.15] * 3, fill_value=var.fill_value))
         self.assertEqual(var.cfunits, units_kelvin)
         self.assertEqual(var.units, 'kelvin')
         self.assertEqual(len(var.attrs), 0)
@@ -551,7 +552,8 @@ class TestVariable(AbstractTestNewInterface):
         value = np.ma.array(data=[5, 5, 5], mask=[False, True, False])
         var = Variable(name='tas', units=get_units_object('celsius'), value=value)
         var.cfunits_conform(get_units_object('kelvin'))
-        self.assertNumpyAll(np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False]), var.value)
+        desired = np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False], fill_value=var.fill_value)
+        self.assertNumpyAll(var.masked_value, desired)
 
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
@@ -563,9 +565,9 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(var.value.mean(), var2.value.mean())
         var3 = var2[2:4]
         var3.value[:] = 200
-        var3.value.mask[:] = True
+        var3.mask[:] = True
         self.assertAlmostEqual(var.value.mean(), 133.33333333)
-        self.assertFalse(var.get_mask().any())
+        self.assertFalse(var.mask.any())
         var2.attrs['way'] = 'out'
         self.assertEqual(len(var.attrs), 0)
         self.assertEqual(len(var3.attrs), 0)
@@ -585,13 +587,13 @@ class TestVariable(AbstractTestNewInterface):
         dslc = {'one': slice(2, 5), 'two': np.array([False, True, False, True]), 'three': 0}
         with self.assertRaises(IndexError):
             var[dslc]
-        value = np.ma.arange(5 * 4 * 7 * 10).reshape(5, 4, 10, 7)
+        value = np.ma.arange(5 * 4 * 7 * 10, fill_value=100).reshape(5, 4, 10, 7)
         var = Variable(value=value)
         var.create_dimensions(['one', 'two', 'four', 'three'])
         sub = var[dslc]
         self.assertEqual(sub.shape, (3, 2, 10, 1))
         sub_value = value[2:5, np.array([False, True, False, True], dtype=bool), slice(None), slice(0, 1)]
-        self.assertNumpyAll(sub.value, sub_value)
+        self.assertNumpyAll(sub.masked_value, sub_value)
 
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
@@ -624,14 +626,25 @@ class TestVariable(AbstractTestNewInterface):
         self.assertTrue(np.all(var.value[1, 1:3] == 6700))
         self.assertAlmostEqual(var.value.mean(), 1116.66666666)
 
-    def test_set_mask(self):
+    def test_mask(self):
+        var = Variable(value=[1, 2, 3], mask=[False, True, False])
+        assert_equal(var.mask, [False, True, False])
+        value = np.ma.array([1, 2, 3], mask=[False, True, False])
+        var = Variable(value=value)
+        assert_equal(var.mask, [False, True, False])
+
         var = Variable(value=[1, 2, 3])
-        # self.assertIsInstance(var._value, MaskedArray)
+        self.assertIsNotNone(var.mask)
         cpy = var.copy()
-        cpy.set_mask([False, True, False])
+        cpy.mask = [False, True, False]
         cpy.value.fill(10)
         self.assertTrue(np.all(var.value == 10))
-        self.assertFalse(np.any(var.get_mask()))
+        self.assertFalse(var.mask.any())
+
+        var = Variable(value=np.random.rand(2, 3, 4), fill_value=200)
+        var.value[1, 1] = 200
+        self.assertTrue(np.all(var.mask[1, 1]))
+        self.assertEqual(var.mask.sum(), 4)
 
     def test_shape(self):
         # Test shape with unlimited dimension.
@@ -647,7 +660,10 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)
-        var.value.mask[1] = True
+        self.assertIsNone(var.fill_value)
+        self.assertIsNone(var._mask)
+        var.mask[1] = True
+        self.assertIsNotNone(var.fill_value)
         var.attrs['axis'] = 'not_an_ally'
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:

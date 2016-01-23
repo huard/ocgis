@@ -6,6 +6,7 @@ from netCDF4 import Dataset, VLType
 
 import numpy as np
 from numpy.core.multiarray import ndarray
+from numpy.ma import MaskedArray
 
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
@@ -101,23 +102,26 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
-    def __init__(self, name=None, value=None, dimensions=None, dtype=None, attrs=None, fill_value=None, units=None,
-                 backref=None):
+    def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
+                 units=None, backref=None):
         Attributes.__init__(self, attrs=attrs)
         AbstractContainer.__init__(self, backref=backref)
 
         self._dimensions = None
         self._value = None
         self._dtype = None
-        self._fill_value = None
         self._units = None
+        self._mask = None
+
+        self._fill_value = fill_value
 
         self.name = name
         self.units = units
         self.dtype = dtype
-        self.fill_value = fill_value
         self.dimensions = dimensions
         self.value = value
+        if mask is not None:
+            self.mask = mask
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -134,17 +138,21 @@ class Variable(AbstractContainer, Attributes):
         else:
             new_dimensions = None
             new_value = None
+            new_mask = None
 
             if dimensions is not None:
                 new_dimensions = [d[s] for d, s in izip(dimensions, get_iter(slc, dtype=(slice, ndarray)))]
             if ret._value is not None:
                 new_value = ret.value.__getitem__(slc)
+            if ret._mask is not None:
+                new_mask = ret.mask.__getitem__(slc)
 
             ret.dimensions = None
             ret.value = None
 
             ret.dimensions = new_dimensions
             ret.value = new_value
+            ret.mask = new_mask
 
     def __setitem__(self, slc, value):
         # tdk: order
@@ -217,19 +225,7 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def fill_value(self):
-        if self._fill_value is None:
-            try:
-                ret = self._value.fill_value
-            except AttributeError:
-                # Assume None.
-                ret = None
-        else:
-            ret = self._fill_value
-        return ret
-
-    @fill_value.setter
-    def fill_value(self, value):
-        self._fill_value = value
+        return self._fill_value
 
     @property
     def ndim(self):
@@ -242,7 +238,7 @@ class Variable(AbstractContainer, Attributes):
         if self.value.shape[0] < 2:
             msg = 'With only a single coordinate, approximate resolution may not be determined.'
             raise ResolutionError(msg)
-        res_array = np.diff(np.abs(self.value.data[0:constants.RESOLUTION_LIMIT]))
+        res_array = np.diff(np.abs(self.value[0:constants.RESOLUTION_LIMIT]))
         ret = np.abs(res_array).mean()
         return ret
 
@@ -281,6 +277,33 @@ class Variable(AbstractContainer, Attributes):
     def value(self, value):
         self._set_value_(value)
 
+    @property
+    def mask(self):
+        if self._mask is None and self.value is not None:
+            self._mask = np.zeros(self.shape, dtype=bool)
+            fill_value = self.fill_value
+            if fill_value is not None:
+                is_equal = self.value == fill_value
+                self._mask[is_equal] = True
+            else:
+                self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
+        return self._mask
+
+    @mask.setter
+    def mask(self, mask):
+        if mask is not None:
+            mask = np.array(mask)
+            assert mask.shape == self.shape
+        self._mask = mask
+
+    @property
+    def masked_value(self):
+        if isinstance(self.dtype, ObjectType):
+            dtype = object
+        else:
+            dtype = self.dtype
+        return np.ma.array(self.value, mask=self.mask, dtype=dtype, fill_value=self.fill_value)
+
     def _get_value_(self):
         dimensions = self._dimensions
         if dimensions is None or len(dimensions) == 0:
@@ -291,13 +314,22 @@ class Variable(AbstractContainer, Attributes):
                 raise ValueError(msg)
             elif len(dimensions) > 0:
                 new_shape = get_dimension_lengths(dimensions)
-                ret = np.ma.zeros(new_shape, dtype=self.dtype, fill_value=self.fill_value)
+                ret = np.zeros(new_shape, dtype=self.dtype)
         return ret
 
     def _set_value_(self, value):
         if value is not None:
+            if isinstance(value, MaskedArray):
+                self._fill_value = value.fill_value
+                mask = value.mask.copy()
+                if np.isscalar(mask):
+                    new_mask = np.zeros(value.shape, dtype=bool)
+                    new_mask.fill(mask)
+                    mask = new_mask
+                self._mask = mask
+                value = value.data
+
             desired_dtype = self._dtype
-            desired_fill_value = self._fill_value
 
             if not isinstance(value, ndarray):
                 array_type = desired_dtype
@@ -313,13 +345,6 @@ class Variable(AbstractContainer, Attributes):
                     value = value.astype(desired_dtype, copy=False)
                 except TypeError:
                     value = value.astype(desired_dtype)
-                    # if not isinstance(value, MaskedArray):
-                    #     value = np.ma.array(value, fill_value=self._fill_value)
-                    # if desired_fill_value is not None and value.fill_value != desired_fill_value:
-                    #     value.fill_value = desired_fill_value
-                    #     value.harden_mask()
-                    # if value.mask.shape != value.shape:
-                    #     value.mask = np.zeros(value.shape, dtype=bool)
 
         update_unlimited_dimension_length(value, self._dimensions)
 
@@ -364,7 +389,6 @@ class Variable(AbstractContainer, Attributes):
         ret = copy(self)
         try:
             ret._value = ret._value.view()
-            # ret._value.unshare_mask()
         except AttributeError:  # Assume None.
             pass
         ret.attrs = ret._attrs
@@ -403,17 +427,6 @@ class Variable(AbstractContainer, Attributes):
                 pass
             yld[name] = value
             yield idx, yld
-
-    def get_mask(self):
-        """Return a deepcopy of the object mask."""
-        return np.zeros(self.shape, dtype=bool)
-        # return self.value.mask.copy()
-
-    def set_mask(self, value):
-        """Set the object mask."""
-        pass
-        # super(Variable, self).set_mask(value)
-        # self.value.mask = value
 
     def write_netcdf(self, dataset, **kwargs):
         """
@@ -457,7 +470,7 @@ class Variable(AbstractContainer, Attributes):
                 create_dimension_or_pass(dim, dataset)
             dimensions = [d.name for d in dimensions]
         # Only use the fill value if something is masked.
-        if len(dimensions) > 0 and not file_only and self.get_mask().any():
+        if len(dimensions) > 0 and not file_only and self.mask.any():
             fill_value = self.fill_value
         else:
             # Copy from original attributes.
@@ -469,7 +482,7 @@ class Variable(AbstractContainer, Attributes):
         var = dataset.createVariable(self.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
             try:
-                var[:] = self.value
+                var[:] = self.masked_value
             except AttributeError:
                 # Assume ObjectType.
                 for idx, v in iter_array(self.value, use_mask=False, return_value=True):
@@ -483,7 +496,7 @@ class Variable(AbstractContainer, Attributes):
         dataset.sync()
 
     def _get_to_conform_value_(self):
-        return self.value
+        return self.masked_value
 
     def _set_to_conform_value_(self, value):
         self.value = value
