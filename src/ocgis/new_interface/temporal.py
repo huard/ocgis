@@ -105,7 +105,7 @@ class TemporalVariable(BoundedVariable):
             raise CannotFormatTimeError('value_datetime')
         if self._value_datetime is None:
             if get_datetime_conversion_state(self.value[0]):
-                self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.mask, ndmin=1,
+                self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.get_mask(), ndmin=1,
                                                    fill_value=None)
             else:
                 self._value_datetime = self.masked_value
@@ -115,7 +115,7 @@ class TemporalVariable(BoundedVariable):
     def value_numtime(self):
         if self._value_numtime is None:
             if not get_datetime_conversion_state(self.value[0]):
-                self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.mask, ndmin=1)
+                self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.get_mask(), ndmin=1)
             else:
                 self._value_numtime = self.masked_value
         return self._value_numtime
