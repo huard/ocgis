@@ -196,7 +196,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertTrue(bv._has_extrapolated_bounds)
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
-        bounds_mask = bv.bounds.mask
+        bounds_mask = bv.bounds.get_mask()
         self.assertTrue(np.all(bounds_mask[1, :]))
         self.assertEqual(bounds_mask.sum(), 2)
 
@@ -225,10 +225,10 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
         return bv
 
-    def test_mask(self):
+    def test_get_mask(self):
         bv = self.get_boundedvariable(with_bounds=True)
-        bv.mask = [False, True, False]
-        bounds_mask = bv.bounds.mask
+        bv.set_mask([False, True, False])
+        bounds_mask = bv.bounds.get_mask()
         self.assertTrue(np.all(bounds_mask[1, :]))
         self.assertEqual(bounds_mask.sum(), 2)
 
@@ -239,8 +239,8 @@ class TestBoundedVariable(AbstractTestNewInterface):
         mask = np.array([[False, True],
                          [False, False],
                          [True, False]], dtype=bool)
-        bv.mask = mask
-        bounds_mask = bv.bounds.mask
+        bv.set_mask(mask)
+        bounds_mask = bv.bounds.get_mask()
         for slc in ((0, 1), (2, 0)):
             self.assertTrue(np.all(bounds_mask[slc]))
         self.assertEqual(bounds_mask.sum(), 8)
@@ -377,7 +377,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.shape, tuple())
         self.assertEqual(var.dimensions, None)
         self.assertEqual(var.value, None)
-        self.assertEqual(var.mask, None)
+        self.assertEqual(var.get_mask(), None)
         # Test setting the dimensions.
         var.dimensions = Dimension('five', 5)
         self.assertEqual(var.shape, (5,))
@@ -435,7 +435,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(var.value, desired)
         var.value = None
         var.value = desired
-        assert_equal(var.mask, [True, False, False])
+        assert_equal(var.get_mask(), [True, False, False])
 
         time, value, var = self.get_variable()
 
@@ -463,11 +463,12 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
+    def test_tdk(self):
         # Test mask is shared.
         value = [1, 2, 3]
         value = np.ma.array(value, mask=[False, True, False], dtype=float)
         var = Variable(value=value, dtype=int)
-        self.assertNumpyAll(var.mask, value.mask)
+        self.assertNumpyAll(var.get_mask(), value.mask)
         self.assertEqual(var.value.dtype, int)
 
     def test_init_object_array(self):
@@ -498,7 +499,8 @@ class TestVariable(AbstractTestNewInterface):
         v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'))
 
         actual = v[1].masked_value[0]
-        self.assertNumpyAll(np.ma.array(value[1], dtype=np.float32), actual)
+        desired = np.ma.array(value[1], dtype=np.float32, mask=True)
+        self.assertNumpyAll(desired, actual)
 
         for idx in range(v.shape[0]):
             actual = v_actual[idx].value[0]
@@ -565,9 +567,11 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(var.value.mean(), var2.value.mean())
         var3 = var2[2:4]
         var3.value[:] = 200
-        var3.mask[:] = True
+        new_mask = var3.get_mask()
+        new_mask.fill(True)
+        var3.set_mask(new_mask)
         self.assertAlmostEqual(var.value.mean(), 133.33333333)
-        self.assertFalse(var.mask.any())
+        self.assertFalse(var.get_mask().any())
         var2.attrs['way'] = 'out'
         self.assertEqual(len(var.attrs), 0)
         self.assertEqual(len(var3.attrs), 0)
@@ -626,25 +630,25 @@ class TestVariable(AbstractTestNewInterface):
         self.assertTrue(np.all(var.value[1, 1:3] == 6700))
         self.assertAlmostEqual(var.value.mean(), 1116.66666666)
 
-    def test_mask(self):
+    def test_get_mask(self):
         var = Variable(value=[1, 2, 3], mask=[False, True, False])
-        assert_equal(var.mask, [False, True, False])
+        assert_equal(var.get_mask(), [False, True, False])
         value = np.ma.array([1, 2, 3], mask=[False, True, False])
         var = Variable(value=value)
-        assert_equal(var.mask, [False, True, False])
+        assert_equal(var.get_mask(), [False, True, False])
 
         var = Variable(value=[1, 2, 3])
-        self.assertIsNotNone(var.mask)
+        self.assertIsNotNone(var.get_mask())
         cpy = var.copy()
-        cpy.mask = [False, True, False]
+        cpy.set_mask([False, True, False])
         cpy.value.fill(10)
         self.assertTrue(np.all(var.value == 10))
-        self.assertFalse(var.mask.any())
+        self.assertFalse(var.get_mask().any())
 
         var = Variable(value=np.random.rand(2, 3, 4), fill_value=200)
         var.value[1, 1] = 200
-        self.assertTrue(np.all(var.mask[1, 1]))
-        self.assertEqual(var.mask.sum(), 4)
+        self.assertTrue(np.all(var.get_mask()[1, 1]))
+        self.assertEqual(var.get_mask().sum(), 4)
 
     def test_shape(self):
         # Test shape with unlimited dimension.
@@ -662,7 +666,9 @@ class TestVariable(AbstractTestNewInterface):
         var = self.get_variable(return_original_data=False)
         self.assertIsNone(var.fill_value)
         self.assertIsNone(var._mask)
-        var.mask[1] = True
+        new_mask = var.get_mask()
+        new_mask[1] = True
+        var.set_mask(new_mask)
         self.assertIsNotNone(var.fill_value)
         var.attrs['axis'] = 'not_an_ally'
         path = self.get_temporary_file_path('out.nc')
