@@ -56,7 +56,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertTrue(gvar2.value[0].almost_equals(lines))
             self.assertEqual(gvar2.geom_type, lines.geom_type)
             self.assertTrue(gvar2.shape[0] > 0)
-            self.assertFalse(gvar2.mask.any())
+            self.assertFalse(gvar2.get_mask().any())
 
     def test_area(self):
         gvar = self.get_geometryvariable()
@@ -147,7 +147,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         for k in self.iter_product_keywords(keywords):
             ret = pa.get_intersects_masked(poly, use_spatial_index=k.use_spatial_index)
-            self.assertNumpyAll(actual_mask, ret.mask)
+            self.assertNumpyAll(actual_mask, ret.get_mask())
             for element in ret.value.flat:
                 self.assertIsInstance(element, Point)
 
@@ -157,13 +157,13 @@ class TestGeometryVariable(AbstractTestNewInterface):
             pa2 = GeometryVariable(value=value)
             b = box(0, 0, 5, 5)
             res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
-            self.assertNumpyAll(res.mask, value.mask)
+            self.assertNumpyAll(res.get_mask(), value.mask)
 
     def test_get_intersection_masked(self):
         pa = self.get_geometryvariable()
         polygon = box(0.9, 1.9, 1.5, 2.5)
         lhs = pa.get_intersection_masked(polygon)
-        self.assertTrue(lhs.mask[1])
+        self.assertTrue(lhs.get_mask()[1])
 
     def test_get_nearest(self):
         target1 = Point(0.5, 0.75)
@@ -260,7 +260,7 @@ class TestGeometryVariablePolygons(AbstractTestNewInterface):
         for p in poly.value.flat:
             self.assertTrue(p.intersects(u.value[0]))
 
-        raise self.ToTest('test backref variables are spatially weighted')
+        raise SkipTest('test backref variables are spatially weighted')
 
 
 class TestSpatialContainer(AbstractTestNewInterface):

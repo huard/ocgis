@@ -24,9 +24,9 @@ class AbstractTestNewInterface(TestBase):
             return a.almost_equals(b)
 
         vfunc = np.vectorize(_almost_equals_, otypes=[bool])
-        to_test = vfunc(a.data, b.data)
+        to_test = vfunc(a.value, b.value)
         self.assertTrue(to_test.all())
-        self.assertNumpyAll(a.mask, b.mask)
+        self.assertNumpyAll(a.get_mask(), b.get_mask())
 
     def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False,
                    with_value_mask=False, with_backref=False):

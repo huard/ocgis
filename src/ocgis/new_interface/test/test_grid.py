@@ -269,7 +269,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
         grid.expand()
         for target in [grid.x, grid.y]:
-            self.assertFalse(target.mask.any())
+            self.assertFalse(target.get_mask().any())
         self.assertFalse(grid.is_vectorized)
         self.assertEqual(grid.ndim, 2)
         self.assertEqual(grid.shape, (4, 3))
@@ -314,7 +314,7 @@ class TestGridXY(AbstractTestNewInterface):
     def test_mask(self):
         grid = self.get_gridxy()
         self.assertTrue(grid.is_vectorized)
-        mask = grid.mask
+        mask = grid.get_mask()
         self.assertEqual(mask.ndim, 2)
         self.assertFalse(np.any(mask))
         self.assertTrue(grid.is_vectorized)
@@ -340,16 +340,19 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test mask is not shared with subsetted grid.
         grid = self.get_gridxy()
-        new_mask = grid.mask
+        new_mask = grid.get_mask()
         new_mask[:, 1] = True
-        grid.mask = new_mask
+        grid.set_mask(new_mask)
+        self.assertIsNone(grid._mask)
         args = (101.5, 40.5, 102.5, 42.5)
         self.assertFalse(grid.has_bounds)
 
         sub = grid.get_subset_bbox(*args, use_bounds=False)
-        self.assertTrue(np.all(sub.mask))
-        sub.set_mask(np.array([[False, False]]))
-        self.assertEqual(grid.mask.sum(), 4)
+        self.assertTrue(np.all(sub.get_mask()))
+        new_mask = sub.get_mask()
+        new_mask.fill(False)
+        sub.set_mask(new_mask)
+        self.assertEqual(grid.get_mask().sum(), 4)
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
@@ -366,8 +369,7 @@ class TestGridXY(AbstractTestNewInterface):
                 self.assertFalse(grid.is_vectorized)
                 actual = self.polygon_value_alternate_ordering
             poly = GeometryVariable(value=get_polygon_geometry_array(grid))
-            value_poly = poly.value
-            self.assertGeometriesAlmostEquals(value_poly, actual)
+            self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
 
     def test_resolution(self):
         for grid in self.get_iter_gridxy():

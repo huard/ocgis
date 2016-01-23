@@ -103,7 +103,7 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
         crs = kwargs.pop('crs', None)
         backref = kwargs.pop('backref', None)
 
-        AbstractContainer.__init__(self, backref=backref)
+        AbstractContainer.__init__(self, kwargs.pop('mask', None), backref=backref)
         AbstractSpatialObject.__init__(self, crs=crs)
 
     def write_netcdf(self, dataset, **kwargs):
@@ -257,7 +257,7 @@ class GeometryVariable(AbstractSpatialVariable):
     def area(self):
         r_value = self.masked_value
         fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
-        fill = np.ma.array(fill, mask=self.mask)
+        fill = np.ma.array(fill, mask=self.get_mask())
         for slc, geom in iter_array(r_value, return_value=True):
             fill[slc] = geom.area
         return fill
@@ -292,7 +292,7 @@ class GeometryVariable(AbstractSpatialVariable):
         ret = self.get_intersects_masked(*args, **kwargs)
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(ret.mask, return_adjustments=True)
+        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
@@ -327,9 +327,9 @@ class GeometryVariable(AbstractSpatialVariable):
         # tdk: doc keep_touches
 
         ret = self.copy()
-        original_mask = ret.mask.copy()
+        original_mask = ret.get_mask().copy()
         # Create the fill array and reference the mask. This is the output geometry value array.
-        fill = ret.mask.copy()
+        fill = original_mask.copy()
         fill.fill(True)
         ref_fill_mask = fill.reshape(-1)
 
@@ -356,7 +356,7 @@ class GeometryVariable(AbstractSpatialVariable):
             raise EmptySubsetError(self.name)
 
         # Set the returned value to the fill array.
-        ret.mask = np.logical_or(fill, original_mask)
+        ret.set_mask(np.logical_or(fill, original_mask))
 
         return ret
 

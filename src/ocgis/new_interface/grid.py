@@ -53,8 +53,8 @@ class GridXY(AbstractSpatialContainer):
 
         if self.is_vectorized:
             try:
-                assert not x.mask.any()
-                assert not y.mask.any()
+                assert not x.get_mask().any()
+                assert not y.get_mask().any()
             except AssertionError:
                 msg = 'Vector coordinates may not be masked.'
                 raise ValueError(msg)
@@ -241,18 +241,20 @@ class GridXY(AbstractSpatialContainer):
             self.y.create_dimensions(names=names)
             self.x.create_dimensions(names=names)
 
-    def _get_mask_(self):
+    def get_mask(self):
         if self.is_vectorized:
             ret = np.zeros(self.shape, dtype=bool)
         else:
-            ret = self._archetype.mask
+            ret = self._archetype.get_mask()
         return ret
 
     @expand_needed
-    def _set_mask_(self, value):
-        super(GridXY, self)._set_mask_(value)
+    def set_mask(self, value):
+        super(GridXY, self).set_mask(value)
+        # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
+        self._mask = None
         for target in self._variables.values():
-            target.mask = value
+            target.set_mask(value)
 
     @expand_needed
     def iter(self, **kwargs):
@@ -400,6 +402,9 @@ class GridXY(AbstractSpatialContainer):
             col_slc = get_reduced_slice(col_indices)
 
         ret = self[row_slc, col_slc]
+        # Set the mask to update variables only for non-vectorized grids.
+        if not self.is_vectorized:
+            ret.set_mask(self.get_mask()[row_slc, col_slc])
 
         if return_indices:
             ret = (ret, (row_slc, col_slc))
@@ -431,13 +436,13 @@ class GridXY(AbstractSpatialContainer):
         # and column vectors).
         y = self.y
         x = self.x
-        value_row = y.value.data.reshape(-1)
-        value_col = x.value.data.reshape(-1)
+        value_row = y.value.reshape(-1)
+        value_col = x.value.reshape(-1)
         update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
 
         if y.bounds is not None:
-            corner_row = y.bounds.value.data.reshape(-1)
-            corner_col = x.bounds.value.data.reshape(-1)
+            corner_row = y.bounds.value.reshape(-1)
+            corner_col = x.bounds.value.reshape(-1)
             update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
 
         self.crs = to_crs
@@ -582,8 +587,8 @@ def get_polygon_geometry_array(grid):
                                                 (col_max, row_max), (col_max, row_min)])
     elif not grid.is_vectorized and grid.has_bounds:
         # We want geometries for everything even if masked.
-        x_corners = grid.x.bounds.value.data
-        y_corners = grid.y.bounds.value.data
+        x_corners = grid.x.bounds.value
+        y_corners = grid.y.bounds.value
         # tdk: we should be able to avoid the creation of this corners array
         corners = np.vstack((y_corners, x_corners))
         corners = corners.reshape([2] + list(x_corners.shape))
