@@ -2,11 +2,11 @@ import itertools
 
 import numpy as np
 from mpi4py import MPI
-from numpy.ma import MaskedArray
 from shapely.geometry import box
 
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_iter
@@ -92,6 +92,10 @@ class Test(AbstractTestNewInterface):
         gathered = MPI_COMM.gather(grid_local, root=0)
         print gathered
 
+    def write_fiona(self, obj, name):
+        path = self.get_temporary_file_path('/home/benkoziol/htmp/ocgis/out_{}.shp'.format(name))
+        obj.write_fiona(path)
+
     def test_tdk(self):
         MPI_COMM = MPI.COMM_WORLD
         MPI_SIZE = MPI_COMM.Get_size()
@@ -99,38 +103,44 @@ class Test(AbstractTestNewInterface):
 
         self.assertEqual(MPI_SIZE, 4)
 
-        if MPI_RANK == 0:
-            grid = self.get_gridxy(with_dimensions=True)
-            for target in [grid.x, grid.y]:
-                self.assertFalse(isinstance(target.value, MaskedArray))
-            slices = create_slices([len(d) for d in grid.dimensions], (2, 2))
+        subset = box(100.7, 39.71, 103.34, 40.31)
 
+        if MPI_RANK == 0:
+            variable = GeometryVariable(value=subset)
+            self.write_fiona(variable, 'subset')
+
+            grid = self.get_gridxy(with_dimensions=True)
+            self.write_fiona(grid, 'grid')
+            slices = create_slices([len(d) for d in grid.dimensions], (2, 2))
             g_scatter = []
             for slc in slices:
                 g_scatter.append(grid.__getitem__(slc))
-
         else:
             g_scatter = None
 
         grid_local = MPI_COMM.scatter(g_scatter, root=0)
 
+        self.write_fiona(grid_local, 'rank{}'.format(MPI_RANK))
         # path_local = '/home/benkoziol/htmp/rank_{}.shp'.format(MPI_RANK)
         # grid_local.write_fiona(path_local)
 
-        subset = box(100.7, 39.71, 101.32, 40.29)
         try:
-            print grid_local._variables
             sub = grid_local.get_subset_bbox(*subset.bounds)
-            print sub._variables
-            for target in [sub.x, sub.y]:
-                self.assertFalse(isinstance(target.value, MaskedArray))
         except EmptySubsetError:
             sub = None
 
         subs = MPI_COMM.gather(sub, root=0)
 
         MPI_COMM.Barrier()
-        thh
+
+        if MPI_RANK == 0:
+            subset_grid = subs[0]
+            print subs
+            self.assertEqual(subset_grid.shape, (1, 1))
+            self.write_fiona(subset_grid, 'subset_grid')
+            print subs
+
+        print thh
 
         # MPI_COMM.Barrier()
         # path = self.get_temporary_file_path('out.shp')
