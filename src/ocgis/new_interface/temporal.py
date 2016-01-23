@@ -105,18 +105,19 @@ class TemporalVariable(BoundedVariable):
             raise CannotFormatTimeError('value_datetime')
         if self._value_datetime is None:
             if get_datetime_conversion_state(self.value[0]):
-                self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.get_mask(), ndmin=1)
+                self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.mask, ndmin=1,
+                                                   fill_value=None)
             else:
-                self._value_datetime = self.value
+                self._value_datetime = self.masked_value
         return self._value_datetime
 
     @property
     def value_numtime(self):
         if self._value_numtime is None:
             if not get_datetime_conversion_state(self.value[0]):
-                self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.get_mask(), ndmin=1)
+                self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.mask, ndmin=1)
             else:
-                self._value_numtime = self.value
+                self._value_numtime = self.masked_value
         return self._value_numtime
 
     @property
@@ -335,8 +336,8 @@ class TemporalVariable(BoundedVariable):
 
         # Swap the value/bounds references from datetime to numtime for the duration for the write.
         if not get_datetime_conversion_state(self.value[0]):
-            self._value = self.value_numtime
-            self._bounds._value = self.bounds_numtime.value
+            self.value = self.value_numtime
+            self.bounds.value = self.bounds_numtime.value
             swapped_value_bounds = True
         else:
             swapped_value_bounds = False
@@ -349,8 +350,8 @@ class TemporalVariable(BoundedVariable):
 
         # Return the value and bounds to their original state.
         if swapped_value_bounds:
-            self._value = self.value_datetime
-            self._bounds._value = self.bounds_datetime.value
+            self.value = self.value_datetime
+            self.bounds._value = self.bounds_datetime.value
 
     def write_attributes_to_netcdf_object(self, target):
         super(TemporalVariable, self).write_attributes_to_netcdf_object(target)
@@ -617,6 +618,8 @@ class TemporalVariable(BoundedVariable):
         # Wipe the original values.
         self._value_numtime = None
         self._value_datetime = None
+        self._bounds_numtime = None
+        self._bounds_datetime = None
         # Set the new value.
         self.value = value
 

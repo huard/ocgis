@@ -243,7 +243,7 @@ class Variable(AbstractContainer, Attributes):
         return target.compressed().min(), target.compressed().max()
 
     def _get_extent_target_(self):
-        return self.value
+        return self.masked_value
 
     @property
     def fill_value(self):
@@ -305,7 +305,8 @@ class Variable(AbstractContainer, Attributes):
             dtype = object
         else:
             dtype = self.dtype
-        return np.ma.array(self.value, mask=self.mask, dtype=dtype, fill_value=self.fill_value)
+        ret = np.ma.array(self.value, mask=self.mask, dtype=dtype, fill_value=self.fill_value)
+        return ret
 
     def _get_value_(self):
         dimensions = self._dimensions
@@ -638,14 +639,16 @@ class BoundedVariable(SourcedVariable):
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
+        bounds = ret.bounds
+        ret.bounds = None
+
         super(BoundedVariable, self)._getitem_main_(ret, slc)
-        if ret.bounds is not None:
-            if ret.bounds.ndim == 2:
-                bounds = ret.bounds[slc, :]
+
+        if bounds is not None:
+            if bounds.ndim == 2:
+                bounds = bounds[slc, :]
             else:
-                bounds = ret.bounds[slc[0], slc[1], :]
-        else:
-            bounds = None
+                bounds = bounds[slc[0], slc[1], :]
         ret.bounds = bounds
 
     @property
@@ -860,7 +863,7 @@ class BoundedVariable(SourcedVariable):
         if self.bounds is None:
             ret = super(BoundedVariable, self)._get_extent_target_()
         else:
-            ret = self.bounds.value
+            ret = self.bounds.masked_value
         return ret
 
     def _get_mask_(self):
