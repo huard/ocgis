@@ -1,12 +1,12 @@
 import itertools
-from unittest import SkipTest
 
 import fiona
 import numpy as np
+from nose.plugins.skip import SkipTest
 from numpy.ma import MaskedArray
 from numpy.testing.utils import assert_equal
 from shapely import wkt
-from shapely.geometry import Point, box, MultiPoint, LineString
+from shapely.geometry import Point, box, MultiPoint, LineString, MultiPolygon
 from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
@@ -120,6 +120,23 @@ class TestGeometryVariable(AbstractTestNewInterface):
         sub = pa.get_intersects(polygon)
         self.assertEqual(sub.shape, (1,))
         self.assertEqual(sub.value[0], Point(1, 2))
+
+    def test_tdk(self):
+        # Test no masked data is returned.
+        snames = ['Hawaii', 'Utah', 'France']
+        snames = Variable(name='state_names', value=snames)
+        snames.create_dimensions('ngeom')
+        backref = VariableCollection(variables=snames)
+        pts = [Point(1, 2), Point(3, 4), Point(4, 5)]
+        subset = MultiPolygon([Point(1, 2).buffer(0.1), Point(4, 5).buffer(0.1)])
+        gvar = GeometryVariable(value=pts, backref=backref)
+        gvar.create_dimensions('ngeom')
+        sub, slc = gvar.get_intersects(subset, return_indices=True)
+        self.assertFalse(sub.get_mask().any())
+
+        desired = snames.value[slc]
+        actual = sub._backref[snames.name].value
+        self.assertNumpyAll(actual, desired)
 
     def test_get_intersection(self):
         for return_indices in [True, False]:
@@ -264,6 +281,8 @@ class TestGeometryVariablePolygons(AbstractTestNewInterface):
 
 
 class TestSpatialContainer(AbstractTestNewInterface):
+    def setUp(self):
+        raise SkipTest('may be removing spatial container')
 
     def test_init(self):
         to_crs = CoordinateReferenceSystem(epsg=4326)

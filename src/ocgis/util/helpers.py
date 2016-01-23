@@ -10,6 +10,7 @@ from tempfile import mkdtemp
 import fiona
 import numpy as np
 from fiona.crs import from_epsg
+from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 from shapely.geometry import Point
 from shapely.geometry.geo import mapping
@@ -293,19 +294,22 @@ def get_formatted_slice(slc, n_dims):
         elif isinstance(single_slc, (list, tuple)):
             if len(single_slc) == 1 and isinstance(single_slc[0], slice):
                 ret = single_slc[0]
+            elif len(single_slc) == 1 and isinstance(single_slc[0], ndarray):
+                ret = get_optimal_slice_from_array(single_slc[0])
             else:
                 ret = get_optimal_slice_from_array(np.array(single_slc, ndmin=1))
         else:
             raise NotImplementedError(single_slc, n_dims)
         return ret
 
-    if isinstance(slc, slice) and slc == slice(None):
+    slice_none = slice(None)
+    if isinstance(slc, slice) and slc == slice_none:
         if n_dims == 1:
             ret = slc
         else:
-            ret = [slice(None)] * n_dims
+            ret = [slice_none] * n_dims
     elif slc is None and n_dims == 1:
-        ret = slice(None)
+        ret = slice_none
     elif n_dims == 1:
         ret = _format_singleton_(slc)
     elif n_dims > 1:
@@ -316,7 +320,6 @@ def get_formatted_slice(slc, n_dims):
         ret = map(_format_singleton_, slc)
     else:
         raise NotImplementedError((slc, n_dims))
-
     return ret
 
 

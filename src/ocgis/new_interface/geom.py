@@ -290,14 +290,22 @@ class GeometryVariable(AbstractSpatialVariable):
         return_indices = kwargs.pop('return_indices', False)
         slc = [slice(None)] * self.ndim
         ret = self.get_intersects_masked(*args, **kwargs)
-        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
-        # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+
+        if self.ndim == 1:
+            # For one-dimensional data, assume it is unstructured and compress the returned data.
+            adjust = np.where(np.invert(ret.get_mask()))
+            ret_slc = adjust
+        else:
+            # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
+            # columns should be trimmed.
+            _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
+            # Adjust the return indices to account for the possible mask trimming.
+            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
-        # Adjust the returned slices.
+
         if return_indices:
-            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
             ret = (ret, ret_slc)
 
         return ret

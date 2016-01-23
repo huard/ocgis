@@ -475,6 +475,11 @@ class Test2(TestBase):
         self.assertTrue(get_is_date_between(lower, upper, month=12))
 
     def test_get_formatted_slice(self):
+        slc = (np.array([0, 2]),)
+        actual = get_formatted_slice(slc, 1)
+        desired = np.array([1, 2, 3, 4, 5])
+        self.assertNumpyAll(actual, np.array([0, 2]))
+        self.assertNumpyAll(desired[slc], desired[actual])
 
         ret = get_formatted_slice(slice(None,None,None),10)
         self.assertEqual(ret,[slice(None,None,None)]*10)

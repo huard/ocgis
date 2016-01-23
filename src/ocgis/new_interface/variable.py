@@ -156,6 +156,7 @@ class Variable(AbstractContainer, Attributes):
         else:
             new_dimensions = None
             new_value = None
+            new_mask = None
 
             if dimensions is not None:
                 new_dimensions = [d[s] for d, s in izip(dimensions, get_iter(slc, dtype=(slice, ndarray)))]
@@ -169,6 +170,8 @@ class Variable(AbstractContainer, Attributes):
 
             ret.dimensions = new_dimensions
             ret.value = new_value
+            if new_mask is not None:
+                ret.set_mask(new_mask)
 
     def __setitem__(self, slc, value):
         # tdk: order
