@@ -241,18 +241,18 @@ class GridXY(AbstractSpatialContainer):
             self.y.create_dimensions(names=names)
             self.x.create_dimensions(names=names)
 
-    def get_mask(self):
+    def _get_mask_(self):
         if self.is_vectorized:
             ret = np.zeros(self.shape, dtype=bool)
         else:
-            ret = self._archetype.get_mask()
+            ret = self._archetype.mask
         return ret
 
     @expand_needed
-    def set_mask(self, value):
-        super(GridXY, self).set_mask(value)
+    def _set_mask_(self, value):
+        super(GridXY, self)._set_mask_(value)
         for target in self._variables.values():
-            target.set_mask(value)
+            target.mask = value
 
     @expand_needed
     def iter(self, **kwargs):
@@ -267,8 +267,8 @@ class GridXY(AbstractSpatialContainer):
         assert min_col <= max_col
 
         if not self.is_vectorized:
-            r_row = self.y.value.data
-            r_col = self.x.value.data
+            r_row = self.y.value
+            r_col = self.x.value
             real_idx_row = np.arange(0, r_row.shape[0])
             real_idx_col = np.arange(0, r_col.shape[1])
 
@@ -320,8 +320,8 @@ class GridXY(AbstractSpatialContainer):
                     col_select_stop = col_stop + 1
                     row_select = row_start - 1
                     for col_select in range(col_select_start, col_select_stop):
-                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
                         if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
                             add_row_top = True
                             break
@@ -335,8 +335,8 @@ class GridXY(AbstractSpatialContainer):
                     col_select_stop = col_stop + 1
                     row_select = row_stop
                     for col_select in range(col_select_start, col_select_stop):
-                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
                         if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
                             add_row_bottom = True
                             break
@@ -350,8 +350,8 @@ class GridXY(AbstractSpatialContainer):
                     row_select_stop = row_stop + 1
                     col_select = col_start
                     for row_select in range(row_select_start, row_select_stop):
-                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
                         if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
                             add_col_left = True
                             break
@@ -365,8 +365,8 @@ class GridXY(AbstractSpatialContainer):
                     row_select_stop = row_stop + 1
                     col_select = col_stop
                     for row_select in range(row_select_start, row_select_stop):
-                        corners_x = self.x.bounds.value.data[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value.data[row_select, col_select].flatten()
+                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
+                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
                         if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
                             add_col_right = True
                             break
@@ -445,18 +445,20 @@ class GridXY(AbstractSpatialContainer):
     def _get_extent_(self):
         #tdk: test, doc
         if not self.is_vectorized:
-            corners = self.corners
-            if corners is not None:
-                minx = corners[1].min()
-                miny = corners[0].min()
-                maxx = corners[1].max()
-                maxy = corners[0].max()
+            if self.has_bounds:
+                x_bounds = self.x.bounds.value
+                y_bounds = self.y.bounds.value
+                minx = x_bounds.min()
+                miny = y_bounds.min()
+                maxx = x_bounds.max()
+                maxy = y_bounds.max()
             else:
-                value = self.value
-                minx = value[1, :, :].min()
-                miny = value[0, :, :].min()
-                maxx = value[1, :, :].max()
-                maxy = value[0, :, :].max()
+                x_value = self.x.value
+                y_value = self.y.value
+                minx = x_value.min()
+                miny = y_value.min()
+                maxx = x_value.max()
+                maxy = y_value.max()
         else:
             row = self.y
             col = self.x

@@ -24,7 +24,11 @@ from ocgis.util.units import get_units_object, get_conformed_units
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, backref=None):
+    def __init__(self, mask=None, backref=None):
+        self._mask = mask
+
+        self.mask = mask
+
         if backref is not None:
             assert isinstance(backref, VariableCollection)
 
@@ -47,44 +51,46 @@ class AbstractContainer(AbstractInterfaceObject):
 
     @property
     def mask(self):
-        if self._mask is None and self.value is not None:
+        if self._mask is None:
             self._mask = self._get_mask_()
         return self._mask
 
     def _get_mask_(self):
-        ret = np.zeros(self.shape, dtype=bool)
-        fill_value = self.fill_value
-        if fill_value is not None:
-            is_equal = self.value == fill_value
-            ret[is_equal] = True
+        if self._value is None:
+            ret = None
         else:
-            self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
+            ret = np.zeros(self.shape, dtype=bool)
+            fill_value = self.fill_value
+            if fill_value is not None:
+                is_equal = self.value == fill_value
+                ret[is_equal] = True
+            else:
+                self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
         return ret
 
     @mask.setter
     def mask(self, mask):
-        self._set_mask_(mask)
+        if mask is not None:
+            self._set_mask_(mask)
 
     def _set_mask_(self, mask):
-        if mask is not None:
-            mask = np.array(mask)
-            assert mask.shape == self.shape
+        mask = np.array(mask)
+        assert mask.shape == self.shape
 
-            if self._backref is not None:
-                names_container = [d.name for d in self.dimensions]
-                new_backref = VariableCollection(attrs=self._backref.attrs.copy())
-                mask_container = mask
-                for k, v in self._backref.items():
-                    names_variable = [d.name for d in v.dimensions]
-                    mask_variable = v.mask
-                    for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
-                        if value_mask_container:
-                            mapped_slice = get_mapped_slice(slc, names_container, names_variable)
-                            mask_variable[mapped_slice] = True
-                    v.mask = mask_variable
-                    new_backref.add_variable(v)
-                self._backref = new_backref
-
+        if self._backref is not None:
+            names_container = [d.name for d in self.dimensions]
+            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
+            mask_container = mask
+            for k, v in self._backref.items():
+                names_variable = [d.name for d in v.dimensions]
+                mask_variable = v.mask
+                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
+                    if value_mask_container:
+                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
+                        mask_variable[mapped_slice] = True
+                v.mask = mask_variable
+                new_backref.add_variable(v)
+            self._backref = new_backref
         self._mask = mask
 
     def _getitem_initialize_(self, slc):
