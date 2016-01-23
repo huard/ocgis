@@ -1,3 +1,4 @@
+import itertools
 from abc import ABCMeta, abstractproperty
 from collections import OrderedDict
 from copy import copy, deepcopy
@@ -44,26 +45,47 @@ class AbstractContainer(AbstractInterfaceObject):
     def dimensions(self):
         pass
 
-    def set_mask(self, value):
-        value = np.array(value, dtype=bool)
-        if value.ndim != self.ndim:
-            msg = 'Mask must have same dimensions as target.'
-            raise ValueError(msg)
+    @property
+    def mask(self):
+        if self._mask is None and self.value is not None:
+            self._mask = self._get_mask_()
+        return self._mask
 
-        if self._backref is not None:
-            names_container = [d.name for d in self.dimensions]
-            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
-            mask_container = value
-            for k, v in self._backref.items():
-                names_variable = [d.name for d in v.dimensions]
-                mask_variable = v.get_mask()
-                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
-                    if value_mask_container:
-                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
-                        mask_variable[mapped_slice] = True
-                v.set_mask(mask_variable)
-                new_backref.add_variable(v)
-            self._backref = new_backref
+    def _get_mask_(self):
+        ret = np.zeros(self.shape, dtype=bool)
+        fill_value = self.fill_value
+        if fill_value is not None:
+            is_equal = self.value == fill_value
+            ret[is_equal] = True
+        else:
+            self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
+        return ret
+
+    @mask.setter
+    def mask(self, mask):
+        self._set_mask_(mask)
+
+    def _set_mask_(self, mask):
+        if mask is not None:
+            mask = np.array(mask)
+            assert mask.shape == self.shape
+
+            if self._backref is not None:
+                names_container = [d.name for d in self.dimensions]
+                new_backref = VariableCollection(attrs=self._backref.attrs.copy())
+                mask_container = mask
+                for k, v in self._backref.items():
+                    names_variable = [d.name for d in v.dimensions]
+                    mask_variable = v.mask
+                    for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
+                        if value_mask_container:
+                            mapped_slice = get_mapped_slice(slc, names_container, names_variable)
+                            mask_variable[mapped_slice] = True
+                    v.mask = mask_variable
+                    new_backref.add_variable(v)
+                self._backref = new_backref
+
+        self._mask = mask
 
     def _getitem_initialize_(self, slc):
         try:
@@ -276,25 +298,6 @@ class Variable(AbstractContainer, Attributes):
     @value.setter
     def value(self, value):
         self._set_value_(value)
-
-    @property
-    def mask(self):
-        if self._mask is None and self.value is not None:
-            self._mask = np.zeros(self.shape, dtype=bool)
-            fill_value = self.fill_value
-            if fill_value is not None:
-                is_equal = self.value == fill_value
-                self._mask[is_equal] = True
-            else:
-                self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
-        return self._mask
-
-    @mask.setter
-    def mask(self, mask):
-        if mask is not None:
-            mask = np.array(mask)
-            assert mask.shape == self.shape
-        self._mask = mask
 
     @property
     def masked_value(self):
@@ -552,16 +555,9 @@ class SourcedVariable(Variable):
 
     @property
     def fill_value(self):
-        if self._fill_value is None and not self._allocated:
-            if self._value is None:
-                self._set_metadata_from_source_()
-            else:
-                return self._value.fill_value
+        if self._fill_value is None and not self._allocated and self._request_dataset is not None:
+            self._set_metadata_from_source_()
         return self._fill_value
-
-    @fill_value.setter
-    def fill_value(self, value):
-        self._fill_value = value
 
     def _get_dimensions_(self):
         if self._request_dataset is None:
@@ -791,7 +787,7 @@ class BoundedVariable(SourcedVariable):
             bounds_value = get_bounds_from_1d(self.value)
         else:
             # tdk: consider renaming this functions to get_bounds_from_2d
-            bounds_value = get_extrapolated_corners_esmf(self.value.data)
+            bounds_value = get_extrapolated_corners_esmf(self.value)
             bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
 
         dimensions = self.dimensions
@@ -808,7 +804,7 @@ class BoundedVariable(SourcedVariable):
         self._has_extrapolated_bounds = True
 
         # This will synchronize the bounds mask with the variable's mask.
-        self.set_mask(self.get_mask())
+        set_bounds_mask_from_parent(self.mask, self.bounds)
 
     def create_dimensions(self, names=None):
         super(BoundedVariable, self).create_dimensions(names)
@@ -842,17 +838,6 @@ class BoundedVariable(SourcedVariable):
                 element['ub_{}'.format(self.name)] = ub
             yield idx, element
 
-    def set_mask(self, value):
-        super(BoundedVariable, self).set_mask(value)
-
-        bounds = self.bounds
-        if bounds is not None:
-            bounds_mask = np.zeros(bounds.shape, dtype=bool)
-            for slc, mask_value in iter_array(value, return_value=True):
-                if mask_value:
-                    bounds_mask[slc] = mask_value
-            bounds.set_mask(bounds_mask)
-
     def write_netcdf(self, *args, **kwargs):
         super(BoundedVariable, self).write_netcdf(*args, **kwargs)
         if self.bounds is not None:
@@ -877,6 +862,17 @@ class BoundedVariable(SourcedVariable):
         else:
             ret = self.bounds.value
         return ret
+
+    def _get_mask_(self):
+        ret = super(BoundedVariable, self)._get_mask_()
+        if ret is not None and self.bounds is not None:
+            set_bounds_mask_from_parent(ret, self.bounds)
+        return ret
+
+    def _set_mask_(self, mask):
+        super(BoundedVariable, self)._set_mask_(mask)
+        if mask is not None and self.bounds is not None:
+            set_bounds_mask_from_parent(self._mask, self.bounds)
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
@@ -1023,7 +1019,7 @@ def set_variable_metadata_from_source(variable):
             variable.dtype = desired_dtype
 
         if variable._fill_value is None:
-            variable.fill_value = deepcopy(var.__dict__.get('_FillValue'))
+            variable._fill_value = deepcopy(var.__dict__.get('_FillValue'))
 
         if variable._units is None:
             variable.units = deepcopy(var.__dict__.get('units'))
@@ -1113,3 +1109,16 @@ def get_mapped_slice(slc_src, names_src, names_dst):
             ret[idx] = slc_src[idx_src]
     return tuple(ret)
 
+
+def set_bounds_mask_from_parent(mask, bounds):
+    if mask.ndim == 1:
+        mask_bounds = mask.reshape(-1, 1)
+        mask_bounds = np.hstack((mask_bounds, mask_bounds))
+    elif mask.ndim == 2:
+        mask_bounds = np.zeros(list(mask.shape) + [4], dtype=bool)
+        for idx_row, idx_col in itertools.product(range(mask.shape[0]), range(mask.shape[1])):
+            if mask[idx_row, idx_col]:
+                mask_bounds[idx_row, idx_col, :] = True
+    else:
+        raise NotImplementedError(mask.ndim)
+    bounds.mask = mask_bounds

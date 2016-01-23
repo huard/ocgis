@@ -102,12 +102,12 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertEqual(bv.bounds.units, 'celsius')
         bv.cfunits_conform(get_units_object('kelvin'))
         self.assertEqual(bv.bounds.units, 'kelvin')
-        self.assertNumpyAll(bv.bounds.value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
+        self.assertNumpyAll(bv.bounds.masked_value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
 
         # Test conforming without bounds.
         bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
         bv.cfunits_conform('kelvin')
-        self.assertNumpyAll(bv.value, np.ma.array([278.15, 283.15, 288.15]))
+        self.assertNumpyAll(bv.masked_value, np.ma.array([278.15, 283.15, 288.15]))
 
     def test_getitem(self):
         bv = self.get_boundedvariable()
@@ -157,9 +157,9 @@ class TestBoundedVariable(AbstractTestNewInterface):
             vdim_between = vdim.get_between(2.5, 2.5)
             self.assertEqual(len(vdim_between), 1)
             if key == 'original':
-                self.assertNumpyAll(vdim_between.bounds.value, np.ma.array([[2.5, 7.5]]))
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[2.5, 7.5]]))
             else:
-                self.assertNumpyAll(vdim_between.bounds.value, np.ma.array([[7.5, 2.5]]))
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[7.5, 2.5]]))
 
             # If the interval is closed and the subset range falls only on bounds value then the subset will be empty.
             with self.assertRaises(EmptySubsetError):
@@ -179,8 +179,8 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bounds = Variable('bounds', bounds)
         vdim = BoundedVariable('foo', value=value, bounds=bounds)
         ret = vdim.get_between(3, 4.5, use_bounds=False)
-        self.assertNumpyAll(ret.value, np.ma.array([3.]))
-        self.assertNumpyAll(ret.bounds.value, np.ma.array([[2., 4.]]))
+        self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
+        self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
 
     def test_iter(self):
         bv = self.get_boundedvariable()
@@ -196,7 +196,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertTrue(bv._has_extrapolated_bounds)
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
-        bounds_mask = bv.bounds.get_mask()
+        bounds_mask = bv.bounds.mask
         self.assertTrue(np.all(bounds_mask[1, :]))
         self.assertEqual(bounds_mask.sum(), 2)
 
@@ -204,7 +204,7 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bv = self.get_boundedvariable_2d()
         self.assertIsNone(bv.bounds)
         bv.set_extrapolated_bounds()
-        bounds_value = bv.bounds.value
+        bounds_value = bv.bounds.masked_value
         actual = [[[2.25, 2.75, 1.75, 1.25], [2.75, 3.25, 2.25, 1.75]],
                   [[1.25, 1.75, 0.75, 0.25], [1.75, 2.25, 1.25, 0.75]],
                   [[0.25, 0.75, -0.25, -0.75], [0.75, 1.25, 0.25, -0.25]]]
@@ -225,10 +225,10 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
         return bv
 
-    def test_set_mask(self):
+    def test_mask(self):
         bv = self.get_boundedvariable(with_bounds=True)
-        bv.set_mask(np.array([False, True, False]))
-        bounds_mask = bv.bounds.get_mask()
+        bv.mask = [False, True, False]
+        bounds_mask = bv.bounds.mask
         self.assertTrue(np.all(bounds_mask[1, :]))
         self.assertEqual(bounds_mask.sum(), 2)
 
@@ -239,8 +239,8 @@ class TestBoundedVariable(AbstractTestNewInterface):
         mask = np.array([[False, True],
                          [False, False],
                          [True, False]], dtype=bool)
-        bv.set_mask(mask)
-        bounds_mask = bv.bounds.get_mask()
+        bv.mask = mask
+        bounds_mask = bv.bounds.mask
         for slc in ((0, 1), (2, 0)):
             self.assertTrue(np.all(bounds_mask[slc]))
         self.assertEqual(bounds_mask.sum(), 8)
@@ -283,7 +283,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = SourcedVariable(value=[1, 2, 3], name='foo')
         sv.create_dimensions()
         self.assertEqual(sv.dtype, np.int)
-        self.assertEqual(sv.fill_value, 999999)
+        self.assertEqual(sv.masked_value.fill_value, 999999)
         self.assertEqual(sv.shape, (3,))
         self.assertEqual(len(sv.dimensions), 1)
         sv.create_dimensions(names=['time'])
