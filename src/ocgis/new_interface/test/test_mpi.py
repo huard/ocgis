@@ -9,7 +9,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import get_iter
+from ocgis.util.helpers import get_iter, get_optimal_slice_from_array
 
 
 def create_slices(lengths, ns):
@@ -96,6 +96,13 @@ class Test(AbstractTestNewInterface):
         path = self.get_temporary_file_path('/home/benkoziol/htmp/ocgis/out_{}.shp'.format(name))
         obj.write_fiona(path)
 
+    def test_get_local_to_global_slices(self):
+        slices_global = (slice(2, 4, None), slice(0, 2, None))
+        slices_local = (slice(0, 1, None), slice(0, 2, None))
+
+        lm = get_local_to_global_slices(slices_global, slices_local)
+        self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
+
     def test_tdk(self):
         MPI_COMM = MPI.COMM_WORLD
         MPI_SIZE = MPI_COMM.Get_size()
@@ -157,7 +164,6 @@ class Test(AbstractTestNewInterface):
             self.write_fiona(subset_grid, 'subset_grid')
             print subs
 
-        MPI_COMM.Barrier()
         print thh
 
         # MPI_COMM.Barrier()
@@ -187,3 +193,10 @@ class Test(AbstractTestNewInterface):
             actual += v['variable'].value.tolist()
         self.assertEqual(np.mean(actual), value.mean())
         thh
+
+
+def get_local_to_global_slices(slices_global, slices_local):
+    ga = [np.arange(s.start, s.stop) for s in slices_global]
+    lm = [get_optimal_slice_from_array(ga[idx][slices_local[idx]]) for idx in range(len(slices_local))]
+    lm = tuple(lm)
+    return lm
