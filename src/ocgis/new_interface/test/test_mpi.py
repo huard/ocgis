@@ -86,8 +86,6 @@ class Test(AbstractTestNewInterface):
         self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
 
     def test_grid_get_intersects(self):
-        self.assertEqual(MPI_SIZE, 4)
-
         subset = box(100.7, 39.71, 102.30, 42.30)
 
         if MPI_RANK == 0:
@@ -124,7 +122,18 @@ class Test(AbstractTestNewInterface):
 
 def get_mpi_grid_get_intersects(grid, subset):
     if MPI_RANK == 0:
-        slices_global = create_slices([len(d) for d in grid.dimensions], (2, 2))
+        size_min = 2
+        if MPI_SIZE == 1:
+            distribute = [1, 1]
+        elif MPI_SIZE <= (size_min + 1):
+            distribute = [MPI_SIZE, 1]
+        else:
+            distribute = int(np.ceil(MPI_SIZE / size_min))
+            distribute = [distribute, MPI_SIZE - distribute]
+        print distribute
+        assert distribute[0] * distribute[1] == MPI_SIZE
+
+        slices_global = create_slices([len(d) for d in grid.dimensions], distribute)
         g_scatter = [grid[slc] for slc in slices_global]
     else:
         g_scatter = None
