@@ -85,7 +85,7 @@ class Test(AbstractTestNewInterface):
         lm = get_local_to_global_slices(slices_global, slices_local)
         self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
 
-    def test_tdk(self):
+    def test_grid_get_intersects(self):
         self.assertEqual(MPI_SIZE, 4)
 
         subset = box(100.7, 39.71, 102.30, 42.30)
@@ -98,7 +98,9 @@ class Test(AbstractTestNewInterface):
         else:
             grid = None
 
-        grid_sub = get_mpi_grid_get_subset_bbox(grid, subset)
+        res = get_mpi_grid_get_intersects(grid, subset)
+        if MPI_RANK == 0:
+            grid_sub, slc_ret, = res
 
         if MPI_RANK == 0:
             write_fiona_htmp(grid_sub, 'grid_sub')
@@ -106,13 +108,14 @@ class Test(AbstractTestNewInterface):
             desired = np.array(desired)
             self.assertNumpyAll(grid_sub.value_stacked, desired)
             self.assertFalse(np.any(grid_sub.get_mask()))
+            self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
         else:
-            self.assertIsNone(grid_sub)
+            self.assertIsNone(res)
 
     MPI_COMM.Barrier()
 
 
-def get_mpi_grid_get_subset_bbox(grid, subset):
+def get_mpi_grid_get_intersects(grid, subset):
     if MPI_RANK == 0:
         slices_global = create_slices([len(d) for d in grid.dimensions], (2, 2))
         g_scatter = [grid[slc] for slc in slices_global]
@@ -158,8 +161,9 @@ def get_mpi_grid_get_subset_bbox(grid, subset):
         start_row, stop_row = min(row['starts']), max(row['stops'])
         start_col, stop_col = min(col['starts']), max(col['stops'])
 
-        fill_grid = grid[start_row: stop_row, start_col:stop_col]
-        return fill_grid
+        slc_ret = (slice(start_row, stop_row), slice(start_col, stop_col))
+        fill_grid = grid[slc_ret]
+        return fill_grid, slc_ret
     else:
         return None
 
