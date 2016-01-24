@@ -106,9 +106,9 @@ class Test(AbstractTestNewInterface):
             write_fiona_htmp(grid_sub, 'grid_sub')
             desired = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]], [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
             desired = np.array(desired)
+            self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
             self.assertNumpyAll(grid_sub.value_stacked, desired)
             self.assertFalse(np.any(grid_sub.get_mask()))
-            self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
         else:
             self.assertIsNone(res)
 
@@ -126,7 +126,7 @@ def get_mpi_grid_get_intersects(grid, subset):
     write_fiona_htmp(grid_local, 'rank{}'.format(MPI_RANK))
 
     try:
-        sub, slc = grid_local.get_subset_bbox(*subset.bounds, return_indices=True)
+        sub, slc = grid_local.get_intersects(subset, return_indices=True)
     except EmptySubsetError:
         sub = None
         slc = None
