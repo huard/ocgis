@@ -103,7 +103,7 @@ class Test(AbstractTestNewInterface):
 
         self.assertEqual(MPI_SIZE, 4)
 
-        subset = box(100.7, 39.71, 103.34, 40.31)
+        subset = box(100.7, 39.71, 102.30, 42.30)
 
         if MPI_RANK == 0:
             variable = GeometryVariable(value=subset)
