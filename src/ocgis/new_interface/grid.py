@@ -9,7 +9,7 @@ from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_reduced_slice, iter_array, get_trimmed_array_by_mask, get_added_slice
+from ocgis.util.helpers import get_reduced_slice, iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -516,9 +516,8 @@ class GridXY(AbstractSpatialContainer):
         ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
         if return_indices:
-            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+            ret_slc = get_local_to_global_slices(slc, adjust)
             ret = (ret, ret_slc)
-
         return ret
 
     def get_intersects_masked(self, *args, **kwargs):

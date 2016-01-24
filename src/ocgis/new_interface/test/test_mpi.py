@@ -11,7 +11,7 @@ from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import get_iter, get_optimal_slice_from_array
+from ocgis.util.helpers import get_iter, get_local_to_global_slices
 
 
 def create_slices(lengths, ns):
@@ -113,11 +113,8 @@ class Test(AbstractTestNewInterface):
             desired_manual = np.array(desired_manual)
             for desc, desired, desired_slc in zip(['serial', 'mpi'], [desired_serial, desired_manual],
                                                   [slc_ret_serial, slc_ret]):
-                print desc
-                if desc == 'mpi':
-                    continue
-                self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
-                self.assertNumpyAll(grid_sub.value_stacked, desired_slc)
+                self.assertEqual(slc_ret, desired_slc)
+                self.assertNumpyAll(grid_sub.value_stacked, desired)
                 self.assertFalse(np.any(grid_sub.get_mask()))
         else:
             self.assertIsNone(res)
@@ -176,13 +173,6 @@ def get_mpi_grid_get_intersects(grid, subset):
         return fill_grid, slc_ret
     else:
         return None
-
-
-def get_local_to_global_slices(slices_global, slices_local):
-    ga = [np.arange(s.start, s.stop) for s in slices_global]
-    lm = [get_optimal_slice_from_array(ga[idx][slices_local[idx]]) for idx in range(len(slices_local))]
-    lm = tuple(lm)
-    return lm
 
 
 def write_fiona_htmp(obj, name):

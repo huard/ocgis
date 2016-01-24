@@ -5,7 +5,7 @@ from unittest import SkipTest
 import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
@@ -353,6 +353,17 @@ class TestGridXY(AbstractTestNewInterface):
         new_mask.fill(False)
         sub.set_mask(new_mask)
         self.assertEqual(grid.get_mask().sum(), 4)
+
+    def test_get_intersects(self):
+        subset = box(100.7, 39.71, 102.30, 42.30)
+        desired_manual = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]],
+                          [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
+        desired_manual = np.array(desired_manual)
+
+        grid = self.get_gridxy(with_dimensions=True)
+        sub, sub_slc = grid.get_intersects(subset, return_indices=True)
+        self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
+        self.assertNumpyAll(sub.value_stacked, desired_manual)
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
