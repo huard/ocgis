@@ -1,13 +1,14 @@
 import itertools
+import os
 from copy import deepcopy
 
 import numpy as np
-from mpi4py import MPI
 from shapely.geometry import box
 
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
+from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
 from ocgis.util.helpers import get_iter, get_optimal_slice_from_array
@@ -77,26 +78,6 @@ class Test(AbstractTestNewInterface):
 
             # path_shp_grid = self.get_temporary_file_path('grid.shp')
 
-    def test_pickle(self):
-        MPI_COMM = MPI.COMM_WORLD
-        MPI_SIZE = MPI_COMM.Get_size()
-        MPI_RANK = MPI_COMM.Get_rank()
-
-        if MPI_RANK == 0:
-            grid = self.get_gridxy()
-            to_scatter = [grid, grid]
-        else:
-            to_scatter = None
-
-        grid_local = MPI_COMM.scatter(to_scatter, root=0)
-        print grid_local.x.value
-        gathered = MPI_COMM.gather(grid_local, root=0)
-        print gathered
-
-    def write_fiona(self, obj, name):
-        path = self.get_temporary_file_path('/home/benkoziol/htmp/ocgis/out_{}.shp'.format(name))
-        obj.write_fiona(path)
-
     def test_get_local_to_global_slices(self):
         slices_global = (slice(2, 4, None), slice(0, 2, None))
         slices_local = (slice(0, 1, None), slice(0, 2, None))
@@ -105,77 +86,82 @@ class Test(AbstractTestNewInterface):
         self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
 
     def test_tdk(self):
-        MPI_COMM = MPI.COMM_WORLD
-        MPI_SIZE = MPI_COMM.Get_size()
-        MPI_RANK = MPI_COMM.Get_rank()
-
         self.assertEqual(MPI_SIZE, 4)
 
         subset = box(100.7, 39.71, 102.30, 42.30)
 
         if MPI_RANK == 0:
             variable = GeometryVariable(value=subset)
-            self.write_fiona(variable, 'subset')
-
+            write_fiona_htmp(variable, 'subset')
             grid = self.get_gridxy(with_dimensions=True)
-            self.write_fiona(grid, 'grid')
-            slices_global = create_slices([len(d) for d in grid.dimensions], (2, 2))
-            g_scatter = []
-            for slc in slices_global:
-                g_scatter.append(grid.__getitem__(slc))
+            write_fiona_htmp(grid, 'grid')
         else:
-            g_scatter = None
+            grid = None
 
-        grid_local = MPI_COMM.scatter(g_scatter, root=0)
-
-        self.write_fiona(grid_local, 'rank{}'.format(MPI_RANK))
-        # path_local = '/home/benkoziol/htmp/rank_{}.shp'.format(MPI_RANK)
-        # grid_local.write_fiona(path_local)
-
-        try:
-            sub, slc = grid_local.get_subset_bbox(*subset.bounds, return_indices=True)
-        except EmptySubsetError:
-            sub = None
-            slc = None
-
-        subs = MPI_COMM.gather(sub, root=0)
-        slices_local = MPI_COMM.gather(slc, root=0)
+        grid_sub = get_mpi_grid_get_subset_bbox(grid, subset)
 
         if MPI_RANK == 0:
-            for rank, sub in enumerate(subs):
-                if sub is not None:
-                    self.write_fiona(sub, 'not_empty_rank{}'.format(rank))
+            write_fiona_htmp(grid_sub, 'grid_sub')
+            desired = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]], [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
+            desired = np.array(desired)
+            self.assertNumpyAll(grid_sub.value_stacked, desired)
+            self.assertFalse(np.any(grid_sub.get_mask()))
+        else:
+            self.assertIsNone(grid_sub)
 
-            as_global = []
-            for global_slice, local_slice in zip(slices_global, slices_local):
-                if local_slice is not None:
-                    app = get_local_to_global_slices(global_slice, local_slice)
-                else:
-                    app = None
-                as_global.append(app)
+    MPI_COMM.Barrier()
 
-            slice_map_template = {'starts': [], 'stops': []}
-            slice_map = {}
-            keys = ['row', 'col']
-            for key in keys:
-                slice_map[key] = deepcopy(slice_map_template)
-            for idx, sub in enumerate(subs):
-                if sub is not None:
-                    for key, idx_slice in zip(keys, [0, 1]):
-                        slice_map[key]['starts'].append(as_global[idx][idx_slice].start)
-                        slice_map[key]['stops'].append(as_global[idx][idx_slice].stop)
-            row, col = slice_map['row'], slice_map['col']
-            start_row, stop_row = min(row['starts']), max(row['stops'])
-            start_col, stop_col = min(col['starts']), max(col['stops'])
 
-            fill_grid = grid[start_row: stop_row, start_col:stop_col]
+def get_mpi_grid_get_subset_bbox(grid, subset):
+    if MPI_RANK == 0:
+        slices_global = create_slices([len(d) for d in grid.dimensions], (2, 2))
+        g_scatter = [grid[slc] for slc in slices_global]
+    else:
+        g_scatter = None
+    grid_local = MPI_COMM.scatter(g_scatter, root=0)
 
-            self.write_fiona(fill_grid, 'fill_grid')
+    write_fiona_htmp(grid_local, 'rank{}'.format(MPI_RANK))
 
-            import ipdb;
-            ipdb.set_trace()
+    try:
+        sub, slc = grid_local.get_subset_bbox(*subset.bounds, return_indices=True)
+    except EmptySubsetError:
+        sub = None
+        slc = None
 
-        thh
+    subs = MPI_COMM.gather(sub, root=0)
+    slices_local = MPI_COMM.gather(slc, root=0)
+
+    if MPI_RANK == 0:
+        for rank, sub in enumerate(subs):
+            if sub is not None:
+                write_fiona_htmp(sub, 'not_empty_rank{}'.format(rank))
+
+        as_global = []
+        for global_slice, local_slice in zip(slices_global, slices_local):
+            if local_slice is not None:
+                app = get_local_to_global_slices(global_slice, local_slice)
+            else:
+                app = None
+            as_global.append(app)
+
+        slice_map_template = {'starts': [], 'stops': []}
+        slice_map = {}
+        keys = ['row', 'col']
+        for key in keys:
+            slice_map[key] = deepcopy(slice_map_template)
+        for idx, sub in enumerate(subs):
+            if sub is not None:
+                for key, idx_slice in zip(keys, [0, 1]):
+                    slice_map[key]['starts'].append(as_global[idx][idx_slice].start)
+                    slice_map[key]['stops'].append(as_global[idx][idx_slice].stop)
+        row, col = slice_map['row'], slice_map['col']
+        start_row, stop_row = min(row['starts']), max(row['stops'])
+        start_col, stop_col = min(col['starts']), max(col['stops'])
+
+        fill_grid = grid[start_row: stop_row, start_col:stop_col]
+        return fill_grid
+    else:
+        return None
 
 
 def get_local_to_global_slices(slices_global, slices_local):
@@ -183,3 +169,8 @@ def get_local_to_global_slices(slices_global, slices_local):
     lm = [get_optimal_slice_from_array(ga[idx][slices_local[idx]]) for idx in range(len(slices_local))]
     lm = tuple(lm)
     return lm
+
+
+def write_fiona_htmp(obj, name):
+    path = os.path.join('/home/benkoziol/htmp/ocgis', 'out_{}.shp'.format(name))
+    obj.write_fiona(path)

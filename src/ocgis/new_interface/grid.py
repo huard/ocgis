@@ -213,12 +213,13 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
+    @expand_needed
     def value_stacked(self):
         y = self.y.value
         x = self.x.value
-        fill = np.ma.zeros([2] + list(y.shape))
-        fill[0] = y
-        fill[1] = x
+        fill = np.zeros([2] + list(y.shape))
+        fill[0, :, :] = y
+        fill[1, :, :] = x
         return fill
 
     @property
