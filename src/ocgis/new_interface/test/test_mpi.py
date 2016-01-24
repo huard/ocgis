@@ -11,42 +11,64 @@ from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
-from ocgis.util.helpers import get_iter, get_local_to_global_slices
+from ocgis.util.helpers import get_local_to_global_slices, get_optimal_slice_from_array
 
 
-def create_slices(lengths, ns):
-    ret = []
-    for length, n in zip(get_iter(lengths, dtype=int), get_iter(ns, dtype=int)):
-        slices = [None] * n
-        start = 0
-        remaining = length
-        nlocal = n
-        for ii in range(n):
-            step = int(np.ceil(float(remaining) / nlocal))
-            stop = start + step
-            if stop > length:
-                stop = length
-            index_element = slice(start, stop)
-            slices[ii] = index_element
-            remaining -= (stop - start)
-            start = stop
-            nlocal -= 1
-        ret.append(slices)
-    ret = [ii for ii in itertools.product(*ret)]
+def create_slices(size, shape):
+    remaining = size
+    if size == 1:
+        ret = (tuple([slice(None)] * len(shape)),)
+    else:
+        while remaining != 0:
+            slices_ii_shape = []
+            for idx_shape, ii_shape in enumerate(shape):
+                if remaining <= 0:
+                    app_slices_ii_shape = [slice(None)]
+                else:
+                    if remaining < ii_shape:
+                        sections = remaining
+                    else:
+                        sections = ii_shape
+                    splits = np.array_split(np.arange(ii_shape), sections)
+                    slices = [get_optimal_slice_from_array(split) for split in splits]
+                    app_slices_ii_shape = slices
+                    remaining -= len(slices)
+                slices_ii_shape.append(app_slices_ii_shape)
+        ret = [slices for slices in itertools.product(*slices_ii_shape)]
     return tuple(ret)
+
+
+    # ret = []
+    # for length, n in zip(get_iter(lengths, dtype=int), get_iter(ns, dtype=int)):
+    #     slices = [None] * n
+    #     start = 0
+    #     remaining = length
+    #     nlocal = n
+    #     for ii in range(n):
+    #         step = int(np.ceil(float(remaining) / nlocal))
+    #         stop = start + step
+    #         if stop > length:
+    #             stop = length
+    #         index_element = slice(start, stop)
+    #         slices[ii] = index_element
+    #         remaining -= (stop - start)
+    #         start = stop
+    #         nlocal -= 1
+    #     ret.append(slices)
+    # ret = [ii for ii in itertools.product(*ret)]
 
 class Test(AbstractTestNewInterface):
     def test_create_slices(self):
-        lengths = [4]
-        ns = [2]
-        actual = create_slices(lengths, ns)
-        self.assertEqual(actual, ((slice(0, 2, None),), (slice(2, 4, None),)))
+        size = 1
+        shape = (4, 3)
+        actual = create_slices(size, shape)
+        self.assertEqual(actual, (tuple([slice(None)] * 2),))
 
-        lengths = [4, 5]
-        ns = [2, 2]
-        actual = create_slices(lengths, ns)
-        self.assertEqual(actual, ((slice(0, 2, None), slice(0, 3, None)), (slice(0, 2, None), slice(3, 5, None)),
-                                  (slice(2, 4, None), slice(0, 3, None)), (slice(2, 4, None), slice(3, 5, None))))
+        size = 2
+        actual = create_slices(size, shape)
+        desired = ((slice(0, 2, None), slice(None)), (slice(2, 4, None), slice(None)))
+        self.assertEqual(actual, desired)
+        print '#tdk !!!!!!!!!!!'
 
     def test(self):
         # tdk: test no dimension i.e. len(dimension) == 0
