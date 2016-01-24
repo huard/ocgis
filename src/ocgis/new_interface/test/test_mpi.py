@@ -1,4 +1,5 @@
 import itertools
+from copy import deepcopy
 
 import numpy as np
 from mpi4py import MPI
@@ -118,9 +119,9 @@ class Test(AbstractTestNewInterface):
 
             grid = self.get_gridxy(with_dimensions=True)
             self.write_fiona(grid, 'grid')
-            slices = create_slices([len(d) for d in grid.dimensions], (2, 2))
+            slices_global = create_slices([len(d) for d in grid.dimensions], (2, 2))
             g_scatter = []
-            for slc in slices:
+            for slc in slices_global:
                 g_scatter.append(grid.__getitem__(slc))
         else:
             g_scatter = None
@@ -138,60 +139,42 @@ class Test(AbstractTestNewInterface):
             slc = None
 
         subs = MPI_COMM.gather(sub, root=0)
-        subs_slices = MPI_COMM.gather(slc, root=0)
+        slices_local = MPI_COMM.gather(slc, root=0)
 
         if MPI_RANK == 0:
             for rank, sub in enumerate(subs):
                 if sub is not None:
                     self.write_fiona(sub, 'not_empty_rank{}'.format(rank))
 
-            row = {'starts': [], 'stops': []}
-            col = {'starts': [], 'stops': []}
+            as_global = []
+            for global_slice, local_slice in zip(slices_global, slices_local):
+                if local_slice is not None:
+                    app = get_local_to_global_slices(global_slice, local_slice)
+                else:
+                    app = None
+                as_global.append(app)
+
+            slice_map_template = {'starts': [], 'stops': []}
+            slice_map = {}
+            keys = ['row', 'col']
+            for key in keys:
+                slice_map[key] = deepcopy(slice_map_template)
             for idx, sub in enumerate(subs):
                 if sub is not None:
-                    for target, idx_slice in zip([row, col], [0, 1]):
-                        target['starts'].append(slices[idx][idx_slice].start)
-                        target['stops'].append(slices[idx][idx_slice].stop)
+                    for key, idx_slice in zip(keys, [0, 1]):
+                        slice_map[key]['starts'].append(as_global[idx][idx_slice].start)
+                        slice_map[key]['stops'].append(as_global[idx][idx_slice].stop)
+            row, col = slice_map['row'], slice_map['col']
             start_row, stop_row = min(row['starts']), max(row['stops'])
             start_col, stop_col = min(col['starts']), max(col['stops'])
 
-            result = grid
+            fill_grid = grid[start_row: stop_row, start_col:stop_col]
+
+            self.write_fiona(fill_grid, 'fill_grid')
+
             import ipdb;
             ipdb.set_trace()
-            subset_grid = subs[0]
-            print subs
-            self.assertEqual(subset_grid.shape, (1, 1))
-            self.write_fiona(subset_grid, 'subset_grid')
-            print subs
 
-        print thh
-
-        # MPI_COMM.Barrier()
-        # path = self.get_temporary_file_path('out.shp')
-        # serial_sub.write_fiona(path)
-        # grid.write_fiona(path_shp_grid)
-        # new_slc = get_mapped_slice(new_slc, names_src, names_dst)
-        # for v in vscatter:
-        #     print v.shape
-        # print actual
-
-        thh
-
-        key_dimension = 'dimension'
-        map_slices = {idx: {'slice': slc} for idx, slc in enumerate(slices)}
-        update_map_slices(map_slices, key_dimension, dimension)
-        actual_length = 0
-        for idx, sc in enumerate(map_slices.values()):
-            actual_length += len(sc[key_dimension])
-            self.assertIn('slice', sc)
-        self.assertEqual(actual_length, len(dimension))
-
-        var = Variable(value=value)
-        update_map_slices(map_slices, 'variable', var)
-        actual = []
-        for v in map_slices.values():
-            actual += v['variable'].value.tolist()
-        self.assertEqual(np.mean(actual), value.mean())
         thh
 
 
