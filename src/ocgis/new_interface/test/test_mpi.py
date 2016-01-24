@@ -104,11 +104,21 @@ class Test(AbstractTestNewInterface):
 
         if MPI_RANK == 0:
             write_fiona_htmp(grid_sub, 'grid_sub')
-            desired = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]], [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
-            desired = np.array(desired)
-            self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
-            self.assertNumpyAll(grid_sub.value_stacked, desired)
-            self.assertFalse(np.any(grid_sub.get_mask()))
+
+            grid_sub_serial, slc_ret_serial = grid.get_intersects(subset, return_indices=True)
+            desired_serial = grid_sub_serial.value_stacked
+
+            desired_manual = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]],
+                              [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
+            desired_manual = np.array(desired_manual)
+            for desc, desired, desired_slc in zip(['serial', 'mpi'], [desired_serial, desired_manual],
+                                                  [slc_ret_serial, slc_ret]):
+                print desc
+                if desc == 'mpi':
+                    continue
+                self.assertEqual(slc_ret, (slice(0, 3, None), slice(0, 2, None)))
+                self.assertNumpyAll(grid_sub.value_stacked, desired_slc)
+                self.assertFalse(np.any(grid_sub.get_mask()))
         else:
             self.assertIsNone(res)
 
