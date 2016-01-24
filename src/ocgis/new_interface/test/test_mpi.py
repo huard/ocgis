@@ -72,6 +72,18 @@ class Test(AbstractTestNewInterface):
         lm = get_local_to_global_slices(slices_global, slices_local)
         self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
 
+    def test_reshape(self):
+        grid = self.get_gridxy(with_dimensions=True)
+        if not grid.is_vectorized:
+            raise self.ToTest
+        print grid.shape
+        to_reshape = deepcopy(grid)
+        to_reshape.expand()
+        print to_reshape.y.value
+        print to_reshape.x.value
+
+        pass
+
     def test_grid_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
 
