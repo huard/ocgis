@@ -130,6 +130,7 @@ def get_mpi_grid_get_intersects(grid, subset):
         else:
             distribute = int(np.ceil(MPI_SIZE / size_min))
             distribute = [distribute, MPI_SIZE - distribute]
+        distribute = [4, 3]
         print distribute
         assert distribute[0] * distribute[1] == MPI_SIZE
 
