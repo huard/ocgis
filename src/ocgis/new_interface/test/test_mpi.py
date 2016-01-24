@@ -125,21 +125,39 @@ class Test(AbstractTestNewInterface):
         # grid_local.write_fiona(path_local)
 
         try:
-            sub = grid_local.get_subset_bbox(*subset.bounds)
+            sub, slc = grid_local.get_subset_bbox(*subset.bounds, return_indices=True)
         except EmptySubsetError:
             sub = None
+            slc = None
 
         subs = MPI_COMM.gather(sub, root=0)
-
-        MPI_COMM.Barrier()
+        subs_slices = MPI_COMM.gather(slc, root=0)
 
         if MPI_RANK == 0:
+            for rank, sub in enumerate(subs):
+                if sub is not None:
+                    self.write_fiona(sub, 'not_empty_rank{}'.format(rank))
+
+            row = {'starts': [], 'stops': []}
+            col = {'starts': [], 'stops': []}
+            for idx, sub in enumerate(subs):
+                if sub is not None:
+                    for target, idx_slice in zip([row, col], [0, 1]):
+                        target['starts'].append(slices[idx][idx_slice].start)
+                        target['stops'].append(slices[idx][idx_slice].stop)
+            start_row, stop_row = min(row['starts']), max(row['stops'])
+            start_col, stop_col = min(col['starts']), max(col['stops'])
+
+            result = grid
+            import ipdb;
+            ipdb.set_trace()
             subset_grid = subs[0]
             print subs
             self.assertEqual(subset_grid.shape, (1, 1))
             self.write_fiona(subset_grid, 'subset_grid')
             print subs
 
+        MPI_COMM.Barrier()
         print thh
 
         # MPI_COMM.Barrier()
