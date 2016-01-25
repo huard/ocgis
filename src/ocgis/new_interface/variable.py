@@ -135,8 +135,16 @@ class Variable(AbstractContainer, Attributes):
         self.name = name
         self.units = units
         self.dtype = dtype
-        self.dimensions = dimensions
+
+        create_dimensions = False
+        if dimensions is not None:
+            if isinstance(list(get_iter(dimensions, dtype=(basestring, Dimension)))[0], basestring):
+                create_dimensions = True
+            else:
+                self.dimensions = dimensions
         self.value = value
+        if create_dimensions:
+            self.create_dimensions(names=dimensions)
 
         # The mask is updated in _set_value_. Use the internal reference to ensure it is not overwritten.
         if mask is None:
