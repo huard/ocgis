@@ -7,6 +7,7 @@ from shapely.geometry import Polygon, Point, box
 from ocgis import constants
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import get_reduced_slice, iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
@@ -655,3 +656,69 @@ def is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=Tr
         ret = False
 
     return ret
+
+
+def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
+    if keep_touches:
+        ret = np.logical_and(arr >= lower, arr <= upper)
+    else:
+        ret = np.logical_and(arr > lower, arr < upper)
+    return ret
+
+
+def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy):
+    if MPI_RANK == 0:
+        has_bounds = grid.has_bounds
+        is_vectorized = grid.is_vectorized
+        if has_bounds:
+            if is_vectorized:
+                n_bounds = 2
+            else:
+                n_bounds = 4
+            x = grid.x.bounds.value.reshape(-1, n_bounds)
+            y = grid.y.bounds.value.reshape(-1, n_bounds)
+        else:
+            x = grid.x.value.reshape(-1, 1)
+            y = grid.y.value.reshape(-1, 1)
+        sections_x = np.array_split(x, MPI_SIZE)
+        sections_y = np.array_split(y, MPI_SIZE)
+    else:
+        assert grid is None
+        sections_x = None
+        sections_y = None
+        has_bounds = None
+        is_vectorized = None
+
+    has_bounds = MPI_COMM.bcast(has_bounds, root=0)
+    is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
+    section_x = MPI_COMM.scatter(sections_x, root=0)
+    section_y = MPI_COMM.scatter(sections_y, root=0)
+    res_x = np.array(get_arr_intersects_bounds(section_x, minx, maxx))
+    res_y = np.array(get_arr_intersects_bounds(section_y, miny, maxy))
+    if has_bounds:
+        if len(res_x) > 0:
+            res_x = np.any(res_x, axis=1)
+        if len(res_y) > 0:
+            res_y = np.any(res_y, axis=1)
+    res_x = res_x.reshape(-1)
+    res_y = res_y.reshape(-1)
+    if is_vectorized:
+        res_x, res_y = [np.invert(target) for target in [res_x, res_y]]
+    res_x = MPI_COMM.gather(res_x, root=0)
+    res_y = MPI_COMM.gather(res_y, root=0)
+
+    if MPI_RANK == 0:
+        res_x = hgather(res_x)
+        res_y = hgather(res_y)
+        if is_vectorized:
+            slc = []
+            for target in [res_y, res_x]:
+                _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
+                slc.append(slc_target[0])
+            slc = tuple(slc)
+        else:
+            res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
+            _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
+        return slc
+    else:
+        return None

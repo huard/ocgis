@@ -11,10 +11,45 @@ from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.util.helpers import make_poly, iter_array
+
+
+class Test(AbstractTestNewInterface):
+    def test_grid_get_subset_bbox_slice(self):
+
+        minx = 101.5
+        miny = 40.5
+        maxx = 102.5
+        maxy = 42.
+
+        for is_vectorized, has_bounds in itertools.product([False, True], [False, True]):
+            if MPI_RANK == 0:
+                grid = self.get_gridxy(with_dimensions=True)
+                if not is_vectorized:
+                    grid.expand()
+                if has_bounds:
+                    grid.set_extrapolated_bounds()
+            else:
+                grid = None
+
+            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
+
+            if MPI_RANK == 0:
+                if has_bounds:
+                    desired = (slice(0, 3, None), slice(0, 3, None))
+                else:
+                    desired = (slice(1, 3, None), slice(1, 2, None))
+                self.assertEqual(grid.has_bounds, has_bounds)
+                self.assertEqual(grid.is_vectorized, is_vectorized)
+                self.assertEqual(slc, desired)
+            else:
+                self.assertIsNone(slc)
+
+            MPI_COMM.Barrier()
 
 
 class TestGridXY(AbstractTestNewInterface):
