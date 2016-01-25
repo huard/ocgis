@@ -28,7 +28,8 @@ class Test(AbstractTestNewInterface):
         maxx = 102.5
         maxy = 42.
 
-        for is_vectorized, has_bounds, use_bounds in itertools.product([True, False], [False, True], [True, False]):
+        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
+                                                                                     [True, False], [True, False]):
             if MPI_RANK == 0:
                 grid = self.get_gridxy(with_dimensions=True)
                 if not is_vectorized:
@@ -38,13 +39,20 @@ class Test(AbstractTestNewInterface):
             else:
                 grid = None
 
-            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=use_bounds)
+            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=use_bounds,
+                                             keep_touches=keep_touches)
 
             if MPI_RANK == 0:
-                if has_bounds and use_bounds:
-                    desired = (slice(0, 3, None), slice(0, 3, None))
+                if keep_touches:
+                    if has_bounds and use_bounds:
+                        desired = (slice(0, 3, None), slice(0, 3, None))
+                    else:
+                        desired = (slice(1, 3, None), slice(1, 2, None))
                 else:
-                    desired = (slice(1, 3, None), slice(1, 2, None))
+                    if has_bounds and use_bounds:
+                        desired = (slice(1, 3, None), slice(0, 3, None))
+                    else:
+                        desired = (slice(1, 2, None), slice(1, 2, None))
                 self.assertEqual(grid.has_bounds, has_bounds)
                 self.assertEqual(grid.is_vectorized, is_vectorized)
                 self.assertEqual(slc, desired)
@@ -357,19 +365,19 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
 
     def test_get_subset_bbox(self):
-        keywords = dict(bounds=[True, False], closed=[True, False])
+        keywords = dict(bounds=[True, False], use_bounds=[True, False])
 
         for k in self.iter_product_keywords(keywords):
             y = self.get_variable_y(bounds=k.bounds)
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
-            bg = grid.get_subset_bbox(-99, 39, -98, 39, closed=False)
+            bg = grid.get_subset_bbox(-99, 39, -98, 39)
             self.assertNotEqual(grid.shape, bg.shape)
             self.assertTrue(bg.is_vectorized)
             with self.assertRaises(EmptySubsetError):
-                grid.get_subset_bbox(1000, 1000, 1001, 10001, closed=k.closed)
+                grid.get_subset_bbox(1000, 1000, 1001, 10001, use_bounds=k.use_bounds)
 
-            bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, closed=k.closed)
+            bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, use_bounds=k.use_bounds)
             for target in ['x', 'y']:
                 original = getattr(grid, target).value
                 sub = getattr(bg2, target).value

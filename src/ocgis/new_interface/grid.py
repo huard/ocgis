@@ -535,7 +535,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True):
+def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
     if MPI_RANK == 0:
         has_bounds = grid.has_bounds
         is_vectorized = grid.is_vectorized
@@ -562,8 +562,8 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True):
     is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
     section_x = MPI_COMM.scatter(sections_x, root=0)
     section_y = MPI_COMM.scatter(sections_y, root=0)
-    res_x = np.array(get_arr_intersects_bounds(section_x, minx, maxx))
-    res_y = np.array(get_arr_intersects_bounds(section_y, miny, maxy))
+    res_x = np.array(get_arr_intersects_bounds(section_x, minx, maxx, keep_touches=keep_touches))
+    res_y = np.array(get_arr_intersects_bounds(section_y, miny, maxy, keep_touches=keep_touches))
 
     if has_bounds and use_bounds:
         if len(res_x) > 0:
