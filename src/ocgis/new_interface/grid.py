@@ -537,6 +537,8 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
 
 def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
     if MPI_RANK == 0:
+        assert grid.x._value is None  # tdk: remove
+        assert grid.y._value is None  # tdk: remove
         has_bounds = grid.has_bounds
         is_vectorized = grid.is_vectorized
         if has_bounds and use_bounds:
@@ -553,6 +555,8 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
         if has_bounds and use_bounds:
             sections_x_bounds = np.array_split(x_bounds, MPI_SIZE)
             sections_y_bounds = np.array_split(y_bounds, MPI_SIZE)
+        assert grid.x._value is None  # tdk: remove
+        assert grid.y._value is None  #tdk: remove
     else:
         assert grid is None
         sections_x_centers = None
