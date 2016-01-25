@@ -544,36 +544,56 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
                 n_bounds = 2
             else:
                 n_bounds = 4
-            x = grid.x.bounds.value.reshape(-1, n_bounds)
-            y = grid.y.bounds.value.reshape(-1, n_bounds)
-        else:
-            x = grid.x.value.reshape(-1, 1)
-            y = grid.y.value.reshape(-1, 1)
-        sections_x = np.array_split(x, MPI_SIZE)
-        sections_y = np.array_split(y, MPI_SIZE)
+            x_bounds = grid.x.bounds.value.reshape(-1, n_bounds)
+            y_bounds = grid.y.bounds.value.reshape(-1, n_bounds)
+        x_centers = grid.x.value.reshape(-1, 1)
+        y_centers = grid.y.value.reshape(-1, 1)
+        sections_x_centers = np.array_split(x_centers, MPI_SIZE)
+        sections_y_centers = np.array_split(y_centers, MPI_SIZE)
+        if has_bounds and use_bounds:
+            sections_x_bounds = np.array_split(x_bounds, MPI_SIZE)
+            sections_y_bounds = np.array_split(y_bounds, MPI_SIZE)
     else:
         assert grid is None
-        sections_x = None
-        sections_y = None
+        sections_x_centers = None
+        sections_y_centers = None
+        sections_x_bounds = None
+        sections_y_bounds = None
         has_bounds = None
         is_vectorized = None
 
     has_bounds = MPI_COMM.bcast(has_bounds, root=0)
     is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
-    section_x = MPI_COMM.scatter(sections_x, root=0)
-    section_y = MPI_COMM.scatter(sections_y, root=0)
-    res_x = np.array(get_arr_intersects_bounds(section_x, minx, maxx, keep_touches=keep_touches))
-    res_y = np.array(get_arr_intersects_bounds(section_y, miny, maxy, keep_touches=keep_touches))
-
+    section_x_centers = MPI_COMM.scatter(sections_x_centers, root=0)
+    section_y_centers = MPI_COMM.scatter(sections_y_centers, root=0)
     if has_bounds and use_bounds:
-        if len(res_x) > 0:
-            res_x = np.any(res_x, axis=1)
-        if len(res_y) > 0:
-            res_y = np.any(res_y, axis=1)
-    res_x = res_x.reshape(-1)
-    res_y = res_y.reshape(-1)
+        section_x_bounds = MPI_COMM.scatter(sections_x_bounds, root=0)
+        section_y_bounds = MPI_COMM.scatter(sections_y_bounds, root=0)
+
+    res_x_centers = np.array(get_arr_intersects_bounds(section_x_centers, minx, maxx, keep_touches=keep_touches))
+    res_y_centers = np.array(get_arr_intersects_bounds(section_y_centers, miny, maxy, keep_touches=keep_touches))
+    if has_bounds and use_bounds:
+        res_x_bounds = np.array(get_arr_intersects_bounds(section_x_bounds, minx, maxx, keep_touches=keep_touches))
+        res_y_bounds = np.array(get_arr_intersects_bounds(section_y_bounds, miny, maxy, keep_touches=keep_touches))
+        if len(res_x_bounds) > 0:
+            res_x_bounds = np.any(res_x_bounds, axis=1)
+        if len(res_y_bounds) > 0:
+            res_y_bounds = np.any(res_y_bounds, axis=1)
+
+    res_x_centers = res_x_centers.reshape(-1)
+    res_y_centers = res_y_centers.reshape(-1)
+    if has_bounds and use_bounds:
+        res_x_bounds = res_x_bounds.reshape(-1)
+        res_y_bounds = res_y_bounds.reshape(-1)
+        res_x = np.logical_or(res_x_centers, res_x_bounds)
+        res_y = np.logical_or(res_y_centers, res_y_bounds)
+    else:
+        res_x = res_x_centers
+        res_y = res_y_centers
+
     if is_vectorized:
         res_x, res_y = [np.invert(target) for target in [res_x, res_y]]
+
     res_x = MPI_COMM.gather(res_x, root=0)
     res_y = MPI_COMM.gather(res_y, root=0)
 

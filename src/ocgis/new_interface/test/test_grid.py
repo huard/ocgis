@@ -29,7 +29,7 @@ class Test(AbstractTestNewInterface):
         maxy = 42.
 
         for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
-                                                                                     [True, False], [True, False]):
+                                                                                     [False, True], [True, False]):
             if MPI_RANK == 0:
                 grid = self.get_gridxy(with_dimensions=True)
                 if not is_vectorized:
