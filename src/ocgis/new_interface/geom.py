@@ -287,7 +287,7 @@ class GeometryVariable(AbstractSpatialVariable):
         return area / area.max()
 
     def get_intersects(self, *args, **kwargs):
-        return_indices = kwargs.pop('return_indices', False)
+        return_slice = kwargs.pop('return_slice', False)
         slc = [slice(None)] * self.ndim
         ret = self.get_intersects_masked(*args, **kwargs)
 
@@ -305,7 +305,7 @@ class GeometryVariable(AbstractSpatialVariable):
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
 
-        if return_indices:
+        if return_slice:
             ret = (ret, ret_slc)
 
         return ret

@@ -421,7 +421,7 @@ class TestGridXY(AbstractTestNewInterface):
         desired_manual = np.array(desired_manual)
 
         grid = self.get_gridxy(with_dimensions=True)
-        sub, sub_slc = grid.get_intersects(subset, return_indices=True)
+        sub, sub_slc = grid.get_intersects(subset, return_slice=True)
         self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
         self.assertNumpyAll(sub.value_stacked, desired_manual)
 

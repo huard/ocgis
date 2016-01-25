@@ -375,9 +375,9 @@ class GridXY(AbstractSpatialContainer):
         else:
             use_bounds = False
 
-        return_indices = kwargs.pop('return_indices', False)
+        return_slice = kwargs.pop('return_slice', False)
         minx, miny, maxx, maxy = args[0].bounds
-        ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_indices=True, use_bounds=use_bounds)
+        ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_slice=True, use_bounds=use_bounds)
         new_mask = ret.get_intersects_masked(*args, **kwargs).get_mask()
         # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
         # columns should be trimmed.
@@ -385,7 +385,7 @@ class GridXY(AbstractSpatialContainer):
         # Use the adjustments to trim the returned data object.
         ret = ret.__getitem__(adjust)
         # Adjust the returned slices.
-        if return_indices:
+        if return_slice:
             ret_slc = get_local_to_global_slices(slc, adjust)
             ret = (ret, ret_slc)
         return ret
