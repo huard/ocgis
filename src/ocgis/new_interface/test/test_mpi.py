@@ -90,7 +90,7 @@ class Test(AbstractTestNewInterface):
             else:
                 grid = None
 
-            slc = grid_get_subset_bbox(grid, minx, miny, maxx, maxy)
+            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
             if MPI_RANK == 0:
                 if has_bounds:
@@ -207,7 +207,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox(grid, minx, miny, maxx, maxy):
+def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy):
     if MPI_RANK == 0:
         has_bounds = grid.has_bounds
         is_vectorized = grid.is_vectorized
