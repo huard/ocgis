@@ -17,7 +17,7 @@ from shapely.geometry.geo import mapping
 from shapely.geometry.polygon import Polygon
 from shapely.wkb import loads as wkb_loads
 
-from ocgis.exc import SingleElementError, ShapeError
+from ocgis.exc import SingleElementError, ShapeError, AllElementsMaskedError
 
 
 class ProgressBar(object):
@@ -563,6 +563,9 @@ def get_trimmed_array_by_mask(arr, return_adjustments=False):
             _mask = arr
         else:
             raise NotImplementedError('Array type is not implemented.')
+
+    if _mask.all():
+        raise AllElementsMaskedError
 
     # Row 0 to end.
     start_row = 0

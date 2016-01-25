@@ -5,7 +5,7 @@ import numpy as np
 from shapely.geometry import Polygon, Point
 
 from ocgis import constants
-from ocgis.exc import GridDeficientError
+from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
@@ -600,15 +600,18 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     if MPI_RANK == 0:
         res_x = hgather(res_x)
         res_y = hgather(res_y)
-        if is_vectorized:
-            slc = []
-            for target in [res_y, res_x]:
-                _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
-                slc.append(slc_target[0])
-            slc = tuple(slc)
-        else:
-            res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
-            _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
+        try:
+            if is_vectorized:
+                slc = []
+                for target in [res_y, res_x]:
+                    _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
+                    slc.append(slc_target[0])
+                slc = tuple(slc)
+            else:
+                res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
+                _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
+        except AllElementsMaskedError:
+            raise EmptySubsetError('grid')
         return slc
     else:
         return None

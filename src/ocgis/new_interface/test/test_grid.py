@@ -22,7 +22,20 @@ from ocgis.util.helpers import make_poly, iter_array
 class Test(AbstractTestNewInterface):
     @attr('mpi')
     def test_grid_get_subset_bbox_slice(self):
+        # Test with an empty subset.
+        minx, miny, maxx, maxy = 1000., 1000., 1100., 1100.
+        if MPI_RANK == 0:
+            grid = self.get_gridxy()
+        else:
+            grid = None
 
+        if MPI_RANK == 0:
+            with self.assertRaises(EmptySubsetError):
+                grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
+        else:
+            self.assertIsNone(grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy))
+
+        # Test combinations.
         minx = 101.5
         miny = 40.5
         maxx = 102.5

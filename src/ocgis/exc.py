@@ -237,9 +237,15 @@ class EmptySubsetError(SubsetException):
         self.origin = origin
 
     def __str__(self):
-        msg = 'A subset operation on variable "{0}" returned empty.'.format(self.origin)
+        msg = 'A subset operation on element "{0}" returned empty.'.format(self.origin)
         return msg
 
+
+class AllElementsMaskedError(OcgException):
+    """Raised when all elements are masked."""
+
+    def __str__(self):
+        return "All elements are masked."
 
 class NoUnitsError(OcgException):
     """Raised when a :class:`cfunits.Units` object is constructed from ``None``."""
