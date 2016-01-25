@@ -86,15 +86,17 @@ class Test(AbstractTestNewInterface):
         maxx = 102.5
         maxy = 42.
 
+        is_vectorized = False
+
         if MPI_RANK == 0:
             grid = self.get_gridxy(with_dimensions=True)
-            grid.expand()
-            grid.set_extrapolated_bounds()
+            if not is_vectorized:
+                grid.expand()
+            # grid.set_extrapolated_bounds()
             # x = grid.x.bounds.value.reshape(-1, 4)
             # y = grid.y.bounds.value.reshape(-1, 4)
-            x = grid.x.value.reshape(-1, 1)
-            y = grid.y.value.reshape(-1, 1)
-            original_shape = grid.shape
+            x = grid.x.value.reshape(-1)
+            y = grid.y.value.reshape(-1)
             sections_x = np.array_split(x, MPI_SIZE)
             sections_y = np.array_split(y, MPI_SIZE)
         else:
@@ -103,16 +105,28 @@ class Test(AbstractTestNewInterface):
 
         section_x = MPI_COMM.scatter(sections_x, root=0)
         section_y = MPI_COMM.scatter(sections_y, root=0)
+
         res_x = np.array(intersects(section_x, minx, maxx))
         res_y = np.array(intersects(section_y, miny, maxy))
-        res = np.logical_and(res_x, res_y)
-        res = np.any(res, axis=1)
 
-        intersected = MPI_COMM.gather(res, root=0)
+        if is_vectorized:
+            res_x, res_y = [np.invert(target) for target in [res_x, res_y]]
+
+        res_x = MPI_COMM.gather(res_x, root=0)
+        res_y = MPI_COMM.gather(res_y, root=0)
 
         if MPI_RANK == 0:
-            res = hgather(intersected).reshape(*original_shape)
-            _, slc = get_trimmed_array_by_mask(np.invert(res), return_adjustments=True)
+            res_x = hgather(res_x)
+            res_y = hgather(res_y)
+            if is_vectorized:
+                slc = []
+                for target in [res_y, res_x]:
+                    _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
+                    slc.append(slc_target[0])
+                slc = tuple(slc)
+            else:
+                res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
+                _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
             self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
 
         MPI_COMM.Barrier()
