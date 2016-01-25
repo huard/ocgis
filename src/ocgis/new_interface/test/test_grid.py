@@ -75,6 +75,7 @@ class Test(AbstractTestNewInterface):
             else:
                 self.assertIsNone(slc)
 
+    # tdk: merge
     def test_tdk(self):
         # Test against a file.
         minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.

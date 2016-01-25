@@ -121,7 +121,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (1,))
         self.assertEqual(sub.value[0], Point(1, 2))
 
-    def test_tdk(self):
         # Test no masked data is returned.
         snames = ['Hawaii', 'Utah', 'France']
         snames = Variable(name='state_names', value=snames)

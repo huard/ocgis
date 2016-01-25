@@ -463,7 +463,6 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[1]
         self.assertEqual(sub.shape, (1,))
 
-    def test_tdk(self):
         # Test mask is shared.
         value = [1, 2, 3]
         value = np.ma.array(value, mask=[False, True, False], dtype=float)
