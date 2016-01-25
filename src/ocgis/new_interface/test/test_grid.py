@@ -15,10 +15,12 @@ from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_ge
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.test.base import attr
 from ocgis.util.helpers import make_poly, iter_array
 
 
 class Test(AbstractTestNewInterface):
+    @attr('mpi')
     def test_grid_get_subset_bbox_slice(self):
 
         minx = 101.5
@@ -26,7 +28,7 @@ class Test(AbstractTestNewInterface):
         maxx = 102.5
         maxy = 42.
 
-        for is_vectorized, has_bounds in itertools.product([False, True], [False, True]):
+        for is_vectorized, has_bounds, use_bounds in itertools.product([True, False], [False, True], [True, False]):
             if MPI_RANK == 0:
                 grid = self.get_gridxy(with_dimensions=True)
                 if not is_vectorized:
@@ -36,10 +38,10 @@ class Test(AbstractTestNewInterface):
             else:
                 grid = None
 
-            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
+            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=use_bounds)
 
             if MPI_RANK == 0:
-                if has_bounds:
+                if has_bounds and use_bounds:
                     desired = (slice(0, 3, None), slice(0, 3, None))
                 else:
                     desired = (slice(1, 3, None), slice(1, 2, None))

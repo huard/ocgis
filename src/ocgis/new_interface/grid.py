@@ -2,15 +2,15 @@ import itertools
 from copy import copy
 
 import numpy as np
-from shapely.geometry import Polygon, Point, box
+from shapely.geometry import Polygon, Point
 
 from ocgis import constants
-from ocgis.exc import EmptySubsetError, GridDeficientError
+from ocgis.exc import GridDeficientError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import get_reduced_slice, iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
+from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -266,150 +266,19 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_subset_bbox(self, min_col, min_row, max_col, max_row, return_indices=False, closed=True, use_bounds=True):
-        assert min_row <= max_row
-        assert min_col <= max_col
+    def get_subset_bbox(self, minx, miny, maxx, maxy, return_slice=False, use_bounds=True):
+        assert minx <= maxx
+        assert miny <= maxy
 
-        if not self.is_vectorized:
-            r_row = self.y.value
-            r_col = self.x.value
-            real_idx_row = np.arange(0, r_row.shape[0])
-            real_idx_col = np.arange(0, r_col.shape[1])
+        slc_row, slc_col = grid_get_subset_bbox_slice(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
 
-            if closed:
-                lower_row = r_row > min_row
-                upper_row = r_row < max_row
-                lower_col = r_col > min_col
-                upper_col = r_col < max_col
-            else:
-                lower_row = r_row >= min_row
-                upper_row = r_row <= max_row
-                lower_col = r_col >= min_col
-                upper_col = r_col <= max_col
-
-            idx_row = np.logical_and(lower_row, upper_row)
-            idx_col = np.logical_and(lower_col, upper_col)
-
-            keep_row = np.any(idx_row, axis=1)
-            keep_col = np.any(idx_col, axis=0)
-
-            # Slice reduction may fail due to empty bounding box returns. Catch these value errors and re-purpose as
-            # subset errors.
-            try:
-                row_slc = get_reduced_slice(real_idx_row[keep_row])
-            except ValueError:
-                if real_idx_row[keep_row].shape[0] == 0:
-                    raise EmptySubsetError(origin='Y')
-                else:
-                    raise
-            try:
-                col_slc = get_reduced_slice(real_idx_col[keep_col])
-            except ValueError:
-                if real_idx_col[keep_col].shape[0] == 0:
-                    raise EmptySubsetError(origin='X')
-                else:
-                    raise
-
-            if self.has_bounds:
-                row_start, row_stop = row_slc.start, row_slc.stop
-                col_start, col_stop = col_slc.start, col_slc.stop
-                subset_polygon = box(min_col, min_row, max_col, max_row)
-
-                add_row_top = False
-                if row_start != 0:
-                    if col_start != 0:
-                        col_select_start = col_start - 1
-                    else:
-                        col_select_start = 0
-                    col_select_stop = col_stop + 1
-                    row_select = row_start - 1
-                    for col_select in range(col_select_start, col_select_stop):
-                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
-                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
-                            add_row_top = True
-                            break
-
-                add_row_bottom = False
-                if row_stop != (self.x.shape[0] - 1):
-                    if col_start != 0:
-                        col_select_start = col_start - 1
-                    else:
-                        col_select_start = 0
-                    col_select_stop = col_stop + 1
-                    row_select = row_stop
-                    for col_select in range(col_select_start, col_select_stop):
-                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
-                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
-                            add_row_bottom = True
-                            break
-
-                add_col_left = False
-                if col_start != 0:
-                    if row_start != 0:
-                        row_select_start = row_start - 1
-                    else:
-                        row_select_start = row_start
-                    row_select_stop = row_stop + 1
-                    col_select = col_start
-                    for row_select in range(row_select_start, row_select_stop):
-                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
-                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
-                            add_col_left = True
-                            break
-
-                add_col_right = False
-                if col_stop != self.y.shape[1]:
-                    if row_start != 0:
-                        row_select_start = row_start - 1
-                    else:
-                        row_select_start = row_start
-                    row_select_stop = row_stop + 1
-                    col_select = col_stop
-                    for row_select in range(row_select_start, row_select_stop):
-                        corners_x = self.x.bounds.value[row_select, col_select].flatten()
-                        corners_y = self.y.bounds.value[row_select, col_select].flatten()
-                        if is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=closed):
-                            add_col_right = True
-                            break
-
-                if add_row_top:
-                    row_slc_start = row_slc.start - 1
-                else:
-                    row_slc_start = row_slc.start
-                if add_row_bottom:
-                    row_slc_stop = row_slc.stop + 1
-                else:
-                    row_slc_stop = row_slc.stop
-                row_slc = slice(row_slc_start, row_slc_stop)
-
-                if add_col_left:
-                    col_slc_start = col_slc.start - 1
-                else:
-                    col_slc_start = col_slc.start
-                if add_col_right:
-                    col_slc_stop = col_slc.stop + 1
-                else:
-                    col_slc_stop = col_slc.stop
-                col_slc = slice(col_slc_start, col_slc_stop)
-
-        else:
-            new_row, row_indices = self.y.get_between(min_row, max_row, return_indices=True, closed=closed,
-                                                      use_bounds=use_bounds)
-            new_col, col_indices = self.x.get_between(min_col, max_col, return_indices=True, closed=closed,
-                                                      use_bounds=use_bounds)
-            row_slc = get_reduced_slice(row_indices)
-            col_slc = get_reduced_slice(col_indices)
-
-        ret = self[row_slc, col_slc]
+        ret = self[slc_row, slc_col]
         # Set the mask to update variables only for non-vectorized grids.
         if not self.is_vectorized:
-            ret.set_mask(self.get_mask()[row_slc, col_slc])
+            ret.set_mask(self.get_mask()[slc_row, slc_col])
 
-        if return_indices:
-            ret = (ret, (row_slc, col_slc))
+        if return_slice:
+            ret = (ret, (slc_row, slc_col))
 
         return ret
 
@@ -666,11 +535,11 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy):
+def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True):
     if MPI_RANK == 0:
         has_bounds = grid.has_bounds
         is_vectorized = grid.is_vectorized
-        if has_bounds:
+        if has_bounds and use_bounds:
             if is_vectorized:
                 n_bounds = 2
             else:
@@ -695,7 +564,8 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy):
     section_y = MPI_COMM.scatter(sections_y, root=0)
     res_x = np.array(get_arr_intersects_bounds(section_x, minx, maxx))
     res_y = np.array(get_arr_intersects_bounds(section_y, miny, maxy))
-    if has_bounds:
+
+    if has_bounds and use_bounds:
         if len(res_x) > 0:
             res_x = np.any(res_x, axis=1)
         if len(res_y) > 0:
