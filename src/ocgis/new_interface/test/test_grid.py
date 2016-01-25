@@ -36,6 +36,8 @@ class Test(AbstractTestNewInterface):
                     grid.expand()
                 if has_bounds:
                     grid.set_extrapolated_bounds()
+                self.write_fiona_htmp(grid, 'grid')
+                self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
             else:
                 grid = None
 
@@ -48,14 +50,14 @@ class Test(AbstractTestNewInterface):
                         desired = (slice(0, 3, None), slice(0, 3, None))
                     else:
                         desired = (slice(1, 3, None), slice(1, 2, None))
-                        # else:
-                        #     if has_bounds and use_bounds:
-                        #         desired = (slice(1, 3, None), slice(0, 3, None))
-                        #     else:
-                        #         desired = (slice(1, 2, None), slice(1, 2, None))
-                    self.assertEqual(grid.has_bounds, has_bounds)
-                    self.assertEqual(grid.is_vectorized, is_vectorized)
-                    self.assertEqual(slc, desired)
+                else:
+                    if has_bounds and use_bounds:
+                        desired = (slice(1, 3, None), slice(1, 2, None))
+                    else:
+                        desired = (slice(1, 2, None), slice(1, 2, None))
+                self.assertEqual(grid.has_bounds, has_bounds)
+                self.assertEqual(grid.is_vectorized, is_vectorized)
+                self.assertEqual(slc, desired)
             else:
                 self.assertIsNone(slc)
 

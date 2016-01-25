@@ -1,3 +1,4 @@
+import os
 from abc import ABCMeta
 from copy import deepcopy
 
@@ -161,3 +162,8 @@ class AbstractTestNewInterface(TestBase):
         ret = vfunc(ret)
         ret = np.ma.array(ret, mask=False)
         return ret
+
+    @staticmethod
+    def write_fiona_htmp(obj, name):
+        path = os.path.join('/home/benkoziol/htmp/ocgis', 'out_{}.shp'.format(name))
+        obj.write_fiona(path)

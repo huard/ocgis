@@ -1,5 +1,4 @@
 import itertools
-import os
 from copy import deepcopy
 
 import numpy as np
@@ -160,7 +159,3 @@ def get_mpi_grid_get_intersects(grid, subset):
     else:
         return None
 
-
-def write_fiona_htmp(obj, name):
-    path = os.path.join('/home/benkoziol/htmp/ocgis', 'out_{}.shp'.format(name))
-    obj.write_fiona(path)
