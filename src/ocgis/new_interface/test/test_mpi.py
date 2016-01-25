@@ -9,7 +9,7 @@ from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.util.helpers import get_local_to_global_slices, get_optimal_slice_from_array
+from ocgis.util.helpers import get_local_to_global_slices, get_optimal_slice_from_array, get_trimmed_array_by_mask
 
 
 def create_slices(size, shape):
@@ -81,25 +81,22 @@ class Test(AbstractTestNewInterface):
                 ret = np.logical_and(arr > lower, arr < upper)
             return ret
 
-        minx = 102.
+        minx = 101.5
         miny = 41.
-        maxx = 102.
+        maxx = 102.5
         maxy = 42.
 
         if MPI_RANK == 0:
             grid = self.get_gridxy(with_dimensions=True)
             grid.expand()
-            x = np.array([[101, 102, 103],
-                          [101, 102, 103],
-                          [101, 102, 103],
-                          [101, 102, 103]], dtype=float)
-            y = np.array([[40, 40, 40],
-                          [41, 41, 41],
-                          [42, 42, 42],
-                          [43, 43, 43]], dtype=float)
-            original_shape = y.shape
-            sections_x = np.array_split(x.reshape(-1), MPI_SIZE)
-            sections_y = np.array_split(y.reshape(-1), MPI_SIZE)
+            grid.set_extrapolated_bounds()
+            # x = grid.x.bounds.value.reshape(-1, 4)
+            # y = grid.y.bounds.value.reshape(-1, 4)
+            x = grid.x.value.reshape(-1, 1)
+            y = grid.y.value.reshape(-1, 1)
+            original_shape = grid.shape
+            sections_x = np.array_split(x, MPI_SIZE)
+            sections_y = np.array_split(y, MPI_SIZE)
         else:
             sections_x = None
             sections_y = None
@@ -109,11 +106,16 @@ class Test(AbstractTestNewInterface):
         res_x = np.array(intersects(section_x, minx, maxx))
         res_y = np.array(intersects(section_y, miny, maxy))
         res = np.logical_and(res_x, res_y)
+        res = np.any(res, axis=1)
+
         intersected = MPI_COMM.gather(res, root=0)
 
         if MPI_RANK == 0:
             res = hgather(intersected).reshape(*original_shape)
-            print res
+            _, slc = get_trimmed_array_by_mask(np.invert(res), return_adjustments=True)
+            self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
+
+        MPI_COMM.Barrier()
 
     def test_grid_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
