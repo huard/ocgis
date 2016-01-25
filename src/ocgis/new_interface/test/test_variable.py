@@ -661,6 +661,16 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(sub.dimensions[0]), 1)
         self.assertEqual(sub.shape, (1,))
 
+    def test_reshape(self):
+        value = np.arange(0, 12).reshape(4, 3)
+        mask = np.zeros(value.shape, dtype=bool)
+        mask[1, 1] = True
+        var = Variable(value=value, mask=mask)
+        self.assertEqual(var.get_mask().sum(), 1)
+        rs = var.reshape(-1)
+        self.assertNumpyAll(rs.value, value.reshape(-1))
+        self.assertNumpyAll(rs.get_mask(), mask.reshape(-1))
+
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)
         self.assertIsNone(var.fill_value)

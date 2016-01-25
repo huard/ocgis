@@ -139,7 +139,9 @@ class Variable(AbstractContainer, Attributes):
         self.value = value
 
         # The mask is updated in _set_value_. Use the internal reference to ensure it is not overwritten.
-        AbstractContainer.__init__(self, mask or self._mask, backref=backref)
+        if mask is None:
+            mask = self._mask
+        AbstractContainer.__init__(self, mask, backref=backref)
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -431,6 +433,20 @@ class Variable(AbstractContainer, Attributes):
                 pass
             yld[name] = value
             yield idx, yld
+
+    def reshape(self, *args, **kwargs):
+        if self._backref is not None:
+            # tdk: needs implementation
+            raise NotImplementedError('backref cannot be reshaped')
+        # tdk: test with source index
+        # tdk: test with unlimited dimensions
+        ret = self.copy()
+        ret.dimensions = None
+        mask = ret._mask
+        ret.value = ret.value.reshape(*args)
+        if mask is not None:
+            ret.set_mask(mask.reshape(*args))
+        return ret
 
     def write_netcdf(self, dataset, **kwargs):
         """
