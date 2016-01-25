@@ -82,54 +82,71 @@ class Test(AbstractTestNewInterface):
             return ret
 
         minx = 101.5
-        miny = 41.
+        miny = 40.5
         maxx = 102.5
         maxy = 42.
 
-        is_vectorized = False
-
-        if MPI_RANK == 0:
-            grid = self.get_gridxy(with_dimensions=True)
-            if not is_vectorized:
-                grid.expand()
-            # grid.set_extrapolated_bounds()
-            # x = grid.x.bounds.value.reshape(-1, 4)
-            # y = grid.y.bounds.value.reshape(-1, 4)
-            x = grid.x.value.reshape(-1)
-            y = grid.y.value.reshape(-1)
-            sections_x = np.array_split(x, MPI_SIZE)
-            sections_y = np.array_split(y, MPI_SIZE)
-        else:
-            sections_x = None
-            sections_y = None
-
-        section_x = MPI_COMM.scatter(sections_x, root=0)
-        section_y = MPI_COMM.scatter(sections_y, root=0)
-
-        res_x = np.array(intersects(section_x, minx, maxx))
-        res_y = np.array(intersects(section_y, miny, maxy))
-
-        if is_vectorized:
-            res_x, res_y = [np.invert(target) for target in [res_x, res_y]]
-
-        res_x = MPI_COMM.gather(res_x, root=0)
-        res_y = MPI_COMM.gather(res_y, root=0)
-
-        if MPI_RANK == 0:
-            res_x = hgather(res_x)
-            res_y = hgather(res_y)
-            if is_vectorized:
-                slc = []
-                for target in [res_y, res_x]:
-                    _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
-                    slc.append(slc_target[0])
-                slc = tuple(slc)
+        for is_vectorized, has_bounds in itertools.product([False, True], [False, True]):
+            if MPI_RANK == 0:
+                grid = self.get_gridxy(with_dimensions=True)
+                if not is_vectorized:
+                    grid.expand()
+                if has_bounds:
+                    grid.set_extrapolated_bounds()
+                    if is_vectorized:
+                        n_bounds = 2
+                    else:
+                        n_bounds = 4
+                    x = grid.x.bounds.value.reshape(-1, n_bounds)
+                    y = grid.y.bounds.value.reshape(-1, n_bounds)
+                else:
+                    x = grid.x.value.reshape(-1, 1)
+                    y = grid.y.value.reshape(-1, 1)
+                sections_x = np.array_split(x, MPI_SIZE)
+                sections_y = np.array_split(y, MPI_SIZE)
             else:
-                res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
-                _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
-            self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
+                sections_x = None
+                sections_y = None
 
-        MPI_COMM.Barrier()
+            section_x = MPI_COMM.scatter(sections_x, root=0)
+            section_y = MPI_COMM.scatter(sections_y, root=0)
+
+            res_x = np.array(intersects(section_x, minx, maxx))
+            res_y = np.array(intersects(section_y, miny, maxy))
+
+            if has_bounds:
+                if len(res_x) > 0:
+                    res_x = np.any(res_x, axis=1)
+                if len(res_y) > 0:
+                    res_y = np.any(res_y, axis=1)
+            res_x = res_x.reshape(-1)
+            res_y = res_y.reshape(-1)
+
+            if is_vectorized:
+                res_x, res_y = [np.invert(target) for target in [res_x, res_y]]
+
+            res_x = MPI_COMM.gather(res_x, root=0)
+            res_y = MPI_COMM.gather(res_y, root=0)
+
+            if MPI_RANK == 0:
+                res_x = hgather(res_x)
+                res_y = hgather(res_y)
+                if is_vectorized:
+                    slc = []
+                    for target in [res_y, res_x]:
+                        _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
+                        slc.append(slc_target[0])
+                    slc = tuple(slc)
+                else:
+                    res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
+                    _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
+                if has_bounds:
+                    desired = (slice(0, 3, None), slice(0, 3, None))
+                else:
+                    desired = (slice(1, 3, None), slice(1, 2, None))
+                self.assertEqual(slc, desired)
+
+            MPI_COMM.Barrier()
 
     def test_grid_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
