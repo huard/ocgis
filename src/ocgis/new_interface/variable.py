@@ -534,6 +534,7 @@ class Variable(AbstractContainer, Attributes):
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
         self._conform_units_to = None
+        self._set_ops = OrderedDict()
 
         # Flag to indicate if metadata already from source.
         self._allocated = False
@@ -585,6 +586,15 @@ class SourcedVariable(Variable):
             self._set_metadata_from_source_()
         return self._fill_value
 
+    def reshape(self, *args, **kwargs):
+        if self._value is not None and self._allocated and self._request_dataset is not None:
+            return super(SourcedVariable, self).reshape(*args, **kwargs)
+        else:
+            ret = self.copy()
+            ret._set_ops['reshape'] = {'args': args, 'kwargs': {}, 'dimensions': ret.dimensions}
+            ret.dimensions = None
+        return ret
+
     def _get_dimensions_(self):
         if self._request_dataset is None:
             ret = super(SourcedVariable, self)._get_dimensions_()
@@ -594,9 +604,7 @@ class SourcedVariable(Variable):
         return ret
 
     def _set_metadata_from_source_(self):
-        if self._allocated:
-            raise ValueError('Variable metadata already read from source.')
-        else:
+        if not self._allocated:
             set_variable_metadata_from_source(self)
 
     def _set_metadata_from_source_finalize_(self, *args, **kwargs):
@@ -626,13 +634,18 @@ class SourcedVariable(Variable):
         ds = self._request_dataset.driver.open()
         desired_name = self.name or self._request_dataset.variable
         try:
+            variable = ds.variables[desired_name]
+            ret = variable
+
+            for k, v in self._set_ops.items():
+                if k == 'reshape':
+                    ret = get_variable_value(variable, v['dimensions'])
+                    ret = ret.reshape(*v['args'], **v['kwargs'])
+                else:
+                    raise NotImplementedError(k)
+
             dimensions = self.dimensions
-            if len(dimensions) > 0:
-                slc = get_formatted_slice([d._src_idx for d in dimensions], len(self.shape))
-            else:
-                slc = slice(None)
-            var = ds.variables[desired_name]
-            ret = var.__getitem__(slc)
+            ret = get_variable_value(ret, dimensions)
 
             # Conform the units if requested.
             if self.conform_units_to is not None:
@@ -1144,3 +1157,12 @@ def set_bounds_mask_from_parent(mask, bounds):
     else:
         raise NotImplementedError(mask.ndim)
     bounds.set_mask(mask_bounds)
+
+
+def get_variable_value(variable, dimensions):
+    if dimensions is not None and len(dimensions) > 0:
+        slc = get_formatted_slice([d._src_idx for d in dimensions], len(dimensions))
+    else:
+        slc = slice(None)
+    ret = variable.__getitem__(slc)
+    return ret

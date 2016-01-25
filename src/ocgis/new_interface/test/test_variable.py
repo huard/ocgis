@@ -327,46 +327,20 @@ class TestSourcedVariable(AbstractTestNewInterface):
 
     def test_reshape(self):
         value = np.arange(0, 12).reshape(4, 3)
-        mask = np.zeros(value.shape, dtype=bool)
-        mask[1, 1] = True
-        svar = Variable(name='change', value=value, mask=mask, dimensions=['four', 'three'])
+        svar = Variable(name='change', value=value, dimensions=['four', 'three'])
 
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             svar.write_netcdf(ds)
-        self.ncdump(path)
+        # self.ncdump(path)
 
         rd = RequestDataset(path)
         svar = SourcedVariable(name='change', request_dataset=rd)
         self.assertIsNone(svar._value)
-
-        _set_ops = OrderedDict()
-        _set_ops['reshape'] = {'args': (-1,), 'kwargs': {}, 'dimensions': svar.dimensions}
-
-        tyui
-
-        for d in svar.dimensions:
-            print d.name
-            print d._src_idx
-
-        four, three = svar.dimensions
-        print four._src_idx
-        print three._src_idx
-        idx_col, idx_row = np.meshgrid(three._src_idx, four._src_idx)
-        print idx_row, idx_col
-        print idx_row.reshape(-1)
-        print idx_col.reshape(-1)
-
-        with self.nc_scope(path) as ds:
-            var = ds.variables['change']
-            print var[:]
-            print var[idx_row.reshape(-1), idx_row.reshape(-1)]
-        thh
-
         rs = svar.reshape(-1)
-
+        self.assertIsNone(rs.dimensions)
+        self.assertIsNone(rs._value)
         self.assertNumpyAll(rs.value, value.reshape(-1))
-        self.assertNumpyAll(rs.get_mask(), mask.reshape(-1))
         self.assertIsNone(rs.dimensions)
 
     def test_get_dimensions(self):
