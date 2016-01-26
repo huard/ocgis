@@ -38,13 +38,13 @@ def create_slices(size, shape):
 class Test(AbstractTestNewInterface):
     def test_two_to_one(self):
         shape_global = (4, 3)
-        idx_global = np.arange(12)
+        idx_global = np.arange(12).reshape(shape_global)
         print idx_global
         print idx_global.reshape(shape_global)
 
         actual = np.array([4, 5, 6, 7])
-        bounds_rows = np.arange(shape_global[0])
-        bounds_rows = np.hstack()
+        print idx_global[actual]
+
 
     def test_create_slices(self):
         size = 1

@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice
-from ocgis.new_interface.mpi import MPI_RANK
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -81,17 +81,18 @@ class Test(AbstractTestNewInterface):
         minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.
 
         if MPI_RANK == 0:
-            grid_to_write = self.get_gridxy()
             path_grid = self.get_temporary_file_path('grid.nc')
+            grid_to_write = self.get_gridxy()
             grid_to_write.write_netcdf(path_grid)
             desired = (slice(1, 3, None), slice(1, 2, None))
-
             rd = RequestDataset(uri=path_grid)
-            x = BoundedVariable(name=grid_to_write.x.name, request_dataset=rd)
-            y = BoundedVariable(name=grid_to_write.y.name, request_dataset=rd)
-            grid = GridXY(x, y)
         else:
-            grid = None
+            rd = None
+
+        rd = MPI_COMM.bcast(rd, root=0)
+        x = BoundedVariable(name='x', request_dataset=rd)
+        y = BoundedVariable(name='y', request_dataset=rd)
+        grid = GridXY(x, y)
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
@@ -101,6 +102,8 @@ class Test(AbstractTestNewInterface):
             self.assertEqual(slc, desired)
         else:
             self.assertIsNone(slc)
+
+        MPI_COMM.Barrier()
 
 
 class TestGridXY(AbstractTestNewInterface):

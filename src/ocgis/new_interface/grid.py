@@ -10,7 +10,8 @@ from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
+from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, \
+    get_optimal_slice_from_array
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -539,46 +540,71 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     if MPI_RANK == 0:
         assert grid.x._value is None  # tdk: remove
         assert grid.y._value is None  # tdk: remove
+        assert grid.is_vectorized  # tdk: remove
         has_bounds = grid.has_bounds
         is_vectorized = grid.is_vectorized
-        if has_bounds and use_bounds:
-            if is_vectorized:
-                n_bounds = 2
-            else:
-                n_bounds = 4
-            x_bounds = grid.x.bounds.value.reshape(-1, n_bounds)
-            y_bounds = grid.y.bounds.value.reshape(-1, n_bounds)
-        x_centers = grid.x.value.reshape(-1, 1)
-        y_centers = grid.y.value.reshape(-1, 1)
-        sections_x_centers = np.array_split(x_centers, MPI_SIZE)
-        sections_y_centers = np.array_split(y_centers, MPI_SIZE)
-        if has_bounds and use_bounds:
-            sections_x_bounds = np.array_split(x_bounds, MPI_SIZE)
-            sections_y_bounds = np.array_split(y_bounds, MPI_SIZE)
+        # if has_bounds and use_bounds:
+        #     if is_vectorized:
+        #         n_bounds = 2
+        #     else:
+        #         n_bounds = 4
+        #     x_bounds = grid.x.bounds.value.reshape(-1, n_bounds)
+        #     y_bounds = grid.y.bounds.value.reshape(-1, n_bounds)
+        # x_centers = grid.x.value.reshape(-1, 1)
+        # y_centers = grid.y.value.reshape(-1, 1)
+        # sections_x_centers = np.array_split(x_centers, MPI_SIZE)
+        # sections_y_centers = np.array_split(y_centers, MPI_SIZE)
+        sections_x = np.array_split(np.arange(grid.shape[1]), MPI_SIZE)
+        sections_y = np.array_split(np.arange(grid.shape[0]), MPI_SIZE)
+        # if has_bounds and use_bounds:
+        #     sections_x_bounds = np.array_split(x_bounds, MPI_SIZE)
+        #     sections_y_bounds = np.array_split(y_bounds, MPI_SIZE)
         assert grid.x._value is None  # tdk: remove
         assert grid.y._value is None  #tdk: remove
     else:
-        assert grid is None
-        sections_x_centers = None
-        sections_y_centers = None
-        sections_x_bounds = None
-        sections_y_bounds = None
-        has_bounds = None
-        is_vectorized = None
+        sections_x = None
+        sections_y = None
 
-    has_bounds = MPI_COMM.bcast(has_bounds, root=0)
-    is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
-    section_x_centers = MPI_COMM.scatter(sections_x_centers, root=0)
-    section_y_centers = MPI_COMM.scatter(sections_y_centers, root=0)
-    if has_bounds and use_bounds:
-        section_x_bounds = MPI_COMM.scatter(sections_x_bounds, root=0)
-        section_y_bounds = MPI_COMM.scatter(sections_y_bounds, root=0)
+    has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
-    res_x_centers = np.array(get_arr_intersects_bounds(section_x_centers, minx, maxx, keep_touches=keep_touches))
-    res_y_centers = np.array(get_arr_intersects_bounds(section_y_centers, miny, maxy, keep_touches=keep_touches))
+    # has_bounds = MPI_COMM.bcast(has_bounds, root=0)
+    # is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
+    section_x = MPI_COMM.scatter(sections_x, root=0)
+    section_y = MPI_COMM.scatter(sections_y, root=0)
+
+    try:
+        slc_x = get_optimal_slice_from_array(section_x)
+    except ValueError:
+        x_centers = np.array([], dtype=grid.x.dtype)
+    else:
+        x_centers = grid.x[slc_x].value
+
+    try:
+        slc_y = get_optimal_slice_from_array(section_y)
+    except ValueError:
+        y_centers = np.array([], dtype=grid.y.dtype)
+    else:
+        y_centers = grid.y[slc_y].value
+
+    assert grid.x._value is None  # tdk: remove
+    assert grid.y._value is None  # tdk: remove
+
+    # x_centers, y_centers = grid.x[slc_x].value, grid.y[slc_y].value
+
     if has_bounds and use_bounds:
-        res_x_bounds = np.array(get_arr_intersects_bounds(section_x_bounds, minx, maxx, keep_touches=keep_touches))
-        res_y_bounds = np.array(get_arr_intersects_bounds(section_y_bounds, miny, maxy, keep_touches=keep_touches))
+        if is_vectorized:
+            n_bounds = 2
+        else:
+            n_bounds = 4
+        x_bounds, y_bounds = grid.x.bounds.value, grid.y.bounds.value
+        x_bounds = x_bounds.reshape(-1, n_bounds)
+        y_bounds = y_bounds.reshape(-1, n_bounds)
+
+    res_x_centers = np.array(get_arr_intersects_bounds(x_centers, minx, maxx, keep_touches=keep_touches))
+    res_y_centers = np.array(get_arr_intersects_bounds(y_centers, miny, maxy, keep_touches=keep_touches))
+    if has_bounds and use_bounds:
+        res_x_bounds = np.array(get_arr_intersects_bounds(x_bounds, minx, maxx, keep_touches=keep_touches))
+        res_y_bounds = np.array(get_arr_intersects_bounds(y_bounds, miny, maxy, keep_touches=keep_touches))
         if len(res_x_bounds) > 0:
             res_x_bounds = np.any(res_x_bounds, axis=1)
         if len(res_y_bounds) > 0:
