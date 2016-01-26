@@ -93,6 +93,8 @@ class Test(AbstractTestNewInterface):
         else:
             grid = None
 
+        self.assertTrue(grid.is_vectorized)
+        self.assertIsNone(grid.x._value)
         slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
         if MPI_RANK == 0:
