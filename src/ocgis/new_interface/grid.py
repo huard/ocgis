@@ -550,10 +550,10 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     section_x = MPI_COMM.scatter(sections_x, root=0)
     section_y = MPI_COMM.scatter(sections_y, root=0)
 
-    res_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, section_x,
-                                         use_bounds)
-    res_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, section_y,
-                                         use_bounds)
+    res_x, grid_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, section_x,
+                                                 use_bounds)
+    res_y, grid_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, section_y,
+                                                 use_bounds)
 
     res_x = MPI_COMM.gather(res_x, root=0)
     res_y = MPI_COMM.gather(res_y, root=0)
@@ -615,4 +615,4 @@ def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_to
             res_target = np.invert(res_target)
         else:
             res_target = res_target_centers
-    return res_target
+    return res_target, grid_target
