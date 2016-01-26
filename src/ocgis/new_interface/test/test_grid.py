@@ -100,7 +100,6 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             x_value = hgather([x for x in x_value if x is not None])
             print x_value
-            print slc
 
         if MPI_RANK == 0:
             self.assertEqual(slc, desired)
