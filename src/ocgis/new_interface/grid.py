@@ -538,37 +538,15 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
 
 def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
     if MPI_RANK == 0:
-        # assert grid.x._value is None  # tdk: remove
-        # assert grid.y._value is None  # tdk: remove
         assert grid.is_vectorized  # tdk: remove
-        # has_bounds = grid.has_bounds
-        # is_vectorized = grid.is_vectorized
-        # if has_bounds and use_bounds:
-        #     if is_vectorized:
-        #         n_bounds = 2
-        #     else:
-        #         n_bounds = 4
-        #     x_bounds = grid.x.bounds.value.reshape(-1, n_bounds)
-        #     y_bounds = grid.y.bounds.value.reshape(-1, n_bounds)
-        # x_centers = grid.x.value.reshape(-1, 1)
-        # y_centers = grid.y.value.reshape(-1, 1)
-        # sections_x_centers = np.array_split(x_centers, MPI_SIZE)
-        # sections_y_centers = np.array_split(y_centers, MPI_SIZE)
         sections_x = np.array_split(np.arange(grid.shape[1]), MPI_SIZE)
         sections_y = np.array_split(np.arange(grid.shape[0]), MPI_SIZE)
-        # if has_bounds and use_bounds:
-        #     sections_x_bounds = np.array_split(x_bounds, MPI_SIZE)
-        #     sections_y_bounds = np.array_split(y_bounds, MPI_SIZE)
-        # assert grid.x._value is None  # tdk: remove
-        # assert grid.y._value is None  #tdk: remove
     else:
         sections_x = None
         sections_y = None
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
-    # has_bounds = MPI_COMM.bcast(has_bounds, root=0)
-    # is_vectorized = MPI_COMM.bcast(is_vectorized, root=0)
     section_x = MPI_COMM.scatter(sections_x, root=0)
     section_y = MPI_COMM.scatter(sections_y, root=0)
 
@@ -600,38 +578,41 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
         return None
 
 
-def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_touches, maxx, minx, section_x,
+def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_touches, max_target, min_target,
+                                 section_target,
                                  use_bounds):
     try:
-        slc_x = get_optimal_slice_from_array(section_x)
+        slc_target = get_optimal_slice_from_array(section_target)
     except ValueError:
-        x_centers = np.array([], dtype=grid_target.dtype)
+        target_centers = np.array([], dtype=grid_target.dtype)
     else:
-        grid_x = grid_target[slc_x]
-        x_centers = grid_x.value
+        grid_target = grid_target[slc_target]
+        target_centers = grid_target.value
     if has_bounds and use_bounds:
         if is_vectorized:
             n_bounds = 2
         else:
             n_bounds = 4
-        if len(x_centers) > 0:
-            x_bounds = grid_x.bounds.value
-            x_bounds = x_bounds.reshape(-1, n_bounds)
-    res_x_centers = np.array(get_arr_intersects_bounds(x_centers, minx, maxx, keep_touches=keep_touches))
+        if len(target_centers) > 0:
+            target_bounds = grid_target.bounds.value
+            target_bounds = target_bounds.reshape(-1, n_bounds)
+    res_target_centers = np.array(
+        get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
     if has_bounds and use_bounds:
-        if len(res_x_centers) > 0:
-            res_x_bounds = np.array(get_arr_intersects_bounds(x_bounds, minx, maxx, keep_touches=keep_touches))
-            res_x_bounds = np.any(res_x_bounds, axis=1)
-            res_x_bounds = res_x_bounds.reshape(-1)
-    res_x_centers = res_x_centers.reshape(-1)
+        if len(res_target_centers) > 0:
+            res_target_bounds = np.array(
+                get_arr_intersects_bounds(target_bounds, min_target, max_target, keep_touches=keep_touches))
+            res_target_bounds = np.any(res_target_bounds, axis=1)
+            res_target_bounds = res_target_bounds.reshape(-1)
+    res_target_centers = res_target_centers.reshape(-1)
     if has_bounds and use_bounds:
-        if len(x_centers) > 0:
-            res_x = np.logical_or(res_x_centers, res_x_bounds)
+        if len(target_centers) > 0:
+            res_target = np.logical_or(res_target_centers, res_target_bounds)
     else:
-        res_x = res_x_centers
+        res_target = res_target_centers
     if is_vectorized:
-        if len(x_centers) > 0:
-            res_x = np.invert(res_x)
+        if len(target_centers) > 0:
+            res_target = np.invert(res_target)
         else:
-            res_x = res_x_centers
-    return res_x
+            res_target = res_target_centers
+    return res_target
