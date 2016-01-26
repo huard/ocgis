@@ -555,6 +555,9 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     res_y, grid_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, section_y,
                                                  use_bounds)
 
+    grid.x = grid_x
+    grid.y = grid_y
+
     res_x = MPI_COMM.gather(res_x, root=0)
     res_y = MPI_COMM.gather(res_y, root=0)
 
