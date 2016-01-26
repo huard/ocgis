@@ -96,10 +96,11 @@ class Test(AbstractTestNewInterface):
         slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
         x_value = MPI_COMM.gather(grid.x._value, root=0)
+        y_value = MPI_COMM.gather(grid.y._value, root=0)
 
         if MPI_RANK == 0:
             x_value = hgather([x for x in x_value if x is not None])
-            print x_value
+            y_value = hgather([y for y in y_value if y is not None])
 
         if MPI_RANK == 0:
             self.assertEqual(slc, desired)

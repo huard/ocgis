@@ -555,26 +555,21 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     res_y, grid_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, section_y,
                                                  use_bounds)
 
-    if len(res_x) > 0:
-        grid.x = grid_x
-    if len(res_y) > 0:
-        grid.y = grid_y
-
-    res_x = MPI_COMM.gather(res_x, root=0)
-    res_y = MPI_COMM.gather(res_y, root=0)
+    res_x_gather = MPI_COMM.gather(res_x, root=0)
+    res_y_gather = MPI_COMM.gather(res_y, root=0)
 
     if MPI_RANK == 0:
-        res_x = hgather(res_x)
-        res_y = hgather(res_y)
+        res_x_gather = hgather(res_x_gather)
+        res_y_gather = hgather(res_y_gather)
         try:
             if is_vectorized:
                 slc = []
-                for target in [res_y, res_x]:
+                for target in [res_y_gather, res_x_gather]:
                     _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
                     slc.append(slc_target[0])
                 slc = tuple(slc)
             else:
-                res = np.invert(np.logical_and(res_x, res_y).reshape(grid.shape))
+                res = np.invert(np.logical_and(res_x_gather, res_y_gather).reshape(grid.shape))
                 _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
         except AllElementsMaskedError:
             raise EmptySubsetError('grid')
@@ -582,6 +577,14 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
         slc = None
 
     slc = MPI_COMM.bcast(slc, root=0)
+
+    slc_y, slc_x = slc
+    if len(section_x) > 0:
+        if slc_x.start >= np.min(section_x) and slc_x.stop >= np.max(section_x):
+            grid.x = grid_x
+    if len(section_y) > 0:
+        if slc_y.start >= np.min(section_y) and slc_y.stop >= np.max(section_y):
+            grid.y = grid_y
 
     if MPI_RANK == 0:
         return slc
