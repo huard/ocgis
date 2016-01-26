@@ -25,10 +25,8 @@ class Test(AbstractTestNewInterface):
     def test_grid_get_subset_bbox_slice(self):
         # Test with an empty subset.
         minx, miny, maxx, maxy = 1000., 1000., 1100., 1100.
-        if MPI_RANK == 0:
-            grid = self.get_gridxy()
-        else:
-            grid = None
+
+        grid = self.get_gridxy()
 
         if MPI_RANK == 0:
             with self.assertRaises(EmptySubsetError):
@@ -42,18 +40,18 @@ class Test(AbstractTestNewInterface):
         maxx = 102.5
         maxy = 42.
 
-        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
+        # tdk: add false to is_vectorized
+        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, True], [False, True],
                                                                                      [False, True], [True, False]):
+            grid = self.get_gridxy(with_dimensions=True)
+            if not is_vectorized:
+                grid.expand()
+            if has_bounds:
+                grid.set_extrapolated_bounds()
+
             if MPI_RANK == 0:
-                grid = self.get_gridxy(with_dimensions=True)
-                if not is_vectorized:
-                    grid.expand()
-                if has_bounds:
-                    grid.set_extrapolated_bounds()
-                    # self.write_fiona_htmp(grid, 'grid')
-                    # self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
-            else:
-                grid = None
+                self.write_fiona_htmp(grid, 'grid')
+                self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
 
             slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=use_bounds,
                                              keep_touches=keep_touches)
