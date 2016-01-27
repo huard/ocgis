@@ -7,6 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
+from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
@@ -580,11 +581,20 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
 
     slc_y, slc_x = slc
     if len(section_x) > 0:
-        if slc_x.start >= np.min(section_x) and slc_x.stop >= np.max(section_x):
-            grid.x = grid_x
+        if not np.all(res_x) and slc_x.start >= np.min(section_x) and slc_x.stop >= np.max(section_x):
+            grid.x._value = grid_x._value[np.invert(res_x)]
+        else:
+            grid.x._value = None
     if len(section_y) > 0:
-        if slc_y.start >= np.min(section_y) and slc_y.stop >= np.max(section_y):
-            grid.y = grid_y
+        log.debug('res_y {}'.format(res_y))
+        log.debug('slc_y {}'.format(slc_y))
+        log.debug('section_y {}'.format(section_y))
+        if not np.all(res_y) and slc_y.start >= np.min(section_y) and slc_y.stop >= np.max(section_y):
+            log.debug('subsetting y')
+            grid.y._value = grid_y._value[np.invert(res_y)]
+            log.debug('grid.y._value {}'.format(grid.y._value))
+        else:
+            grid.y._value = None
 
     if MPI_RANK == 0:
         return slc

@@ -13,6 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice
+from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -20,7 +21,44 @@ from ocgis.test.base import attr
 from ocgis.util.helpers import make_poly, iter_array
 
 
+def are_indices_in_slice(indices, slc):
+    imin, imax = np.min(indices), np.max(indices)
+    start, stop = slc.start, slc.stop
+
+    ret = False
+    if len(indices) == 1:
+        if start <= imin and stop > imax:
+            ret = True
+    elif stop > imin:
+        if (start <= imin or start <= imax) and ((stop > (imax - 1)) or stop < imax):
+            ret = True
+    return ret
+
+
 class Test(AbstractTestNewInterface):
+    def test_are_indices_in_slice(self):
+        slc = slice(1, 3)
+        indices = np.array([2, 3])
+        actual = are_indices_in_slice(indices, slc)
+        self.assertTrue(actual)
+        actual = are_indices_in_slice(np.array([2]), slc)
+        self.assertTrue(actual)
+        actual = are_indices_in_slice(np.array([0, 1, 2, 3, 4]), slc)
+        self.assertTrue(actual)
+        actual = are_indices_in_slice(np.array([0, 1, 2]), slc)
+        self.assertTrue(actual)
+        actual = are_indices_in_slice(np.array([2, 3, 4]), slc)
+        self.assertTrue(actual)
+
+        actual = are_indices_in_slice(np.array([0]), slc)
+        self.assertFalse(actual)
+        actual = are_indices_in_slice(np.array([3]), slc)
+        self.assertFalse(actual)
+        actual = are_indices_in_slice(np.array([3, 4, 5]), slc)
+        self.assertFalse(actual)
+        actual = are_indices_in_slice(np.array([-1, 0]), slc)
+        self.assertFalse(actual)
+
     @attr('mpi')
     def test_grid_get_subset_bbox_slice(self):
         # Test with an empty subset.
@@ -94,6 +132,7 @@ class Test(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
         slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
+        log.debug('slc {}'.format(slc))
 
         x_value = MPI_COMM.gather(grid.x._value, root=0)
         y_value = MPI_COMM.gather(grid.y._value, root=0)
@@ -101,6 +140,8 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             x_value = hgather([x for x in x_value if x is not None])
             y_value = hgather([y for y in y_value if y is not None])
+            log.debug('x_value {}'.format(x_value))
+            log.debug('y_value {}'.format(y_value))
 
         if MPI_RANK == 0:
             self.assertEqual(slc, desired)
