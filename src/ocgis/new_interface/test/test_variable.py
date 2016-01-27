@@ -7,7 +7,7 @@ from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
 from ocgis import constants
-from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError
+from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable, ObjectType
@@ -259,9 +259,12 @@ class TestBoundedVariable(AbstractTestNewInterface):
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
-    def get_sourcedvariable(self, name='tas'):
-        data = self.get_request_dataset()
-        sv = SourcedVariable(name, request_dataset=data)
+    def get_sourcedvariable(self, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'tas'
+        if 'request_dataset' not in kwargs:
+            kwargs['request_dataset'] = self.get_request_dataset()
+        sv = SourcedVariable(**kwargs)
         self.assertIsNone(sv._value)
         self.assertIsNone(sv._dimensions)
         self.assertIsNone(sv._dtype)
@@ -288,6 +291,12 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(len(sv.dimensions), 1)
         sv.create_dimensions(names=['time'])
         self.assertIsNotNone(sv.dimensions)
+
+        # Test protecting data.
+        sv = self.get_sourcedvariable(protected=True)
+        with self.assertRaises(PayloadProtectedError):
+            sv.value
+        self.assertIsNone(sv._value)
 
     def test_conform_units_to(self):
         with self.assertRaises(ValueError):
@@ -324,24 +333,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sub._value)
         self.assertIsNone(sub.dimensions[0].length)
         self.assertEqual(sub.dimensions[0].length_current, 10)
-
-    def test_reshape(self):
-        value = np.arange(0, 12).reshape(4, 3)
-        svar = Variable(name='change', value=value, dimensions=['four', 'three'])
-
-        path = self.get_temporary_file_path('foo.nc')
-        with self.nc_scope(path, 'w') as ds:
-            svar.write_netcdf(ds)
-        # self.ncdump(path)
-
-        rd = RequestDataset(path)
-        svar = SourcedVariable(name='change', request_dataset=rd)
-        self.assertIsNone(svar._value)
-        rs = svar.reshape(-1)
-        self.assertIsNone(rs.dimensions)
-        self.assertIsNone(rs._value)
-        self.assertNumpyAll(rs.value, value.reshape(-1))
-        self.assertIsNone(rs.dimensions)
 
     def test_get_dimensions(self):
         sv = self.get_sourcedvariable()

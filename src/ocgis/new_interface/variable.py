@@ -536,7 +536,6 @@ class Variable(AbstractContainer, Attributes):
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
         self._conform_units_to = None
-        self._set_ops = OrderedDict()
 
         # Flag to indicate if metadata already from source.
         self._allocated = False
@@ -590,15 +589,6 @@ class SourcedVariable(Variable):
             self._set_metadata_from_source_()
         return self._fill_value
 
-    def reshape(self, *args, **kwargs):
-        if self._value is not None and self._allocated and self._request_dataset is not None:
-            return super(SourcedVariable, self).reshape(*args, **kwargs)
-        else:
-            ret = self.copy()
-            ret._set_ops['reshape'] = {'args': args, 'kwargs': {}, 'dimensions': ret.dimensions}
-            ret.dimensions = None
-        return ret
-
     def _get_dimensions_(self):
         if self._request_dataset is None:
             ret = super(SourcedVariable, self)._get_dimensions_()
@@ -642,17 +632,7 @@ class SourcedVariable(Variable):
         desired_name = self.name or self._request_dataset.variable
         try:
             variable = ds.variables[desired_name]
-            ret = variable
-
-            for k, v in self._set_ops.items():
-                if k == 'reshape':
-                    ret = get_variable_value(variable, v['dimensions'])
-                    ret = ret.reshape(*v['args'], **v['kwargs'])
-                else:
-                    raise NotImplementedError(k)
-
-            dimensions = self.dimensions
-            ret = get_variable_value(ret, dimensions)
+            ret = get_variable_value(variable, self.dimensions)
 
             # Conform the units if requested.
             if self.conform_units_to is not None:
