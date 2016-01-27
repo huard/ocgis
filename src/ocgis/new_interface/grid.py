@@ -581,7 +581,7 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
 
     slc_y, slc_x = slc
     if len(section_x) > 0:
-        if not np.all(res_x) and slc_x.start >= np.min(section_x) and slc_x.stop >= np.max(section_x):
+        if not np.all(res_x) and are_indices_in_slice(section_x, slc_x):
             grid.x._value = grid_x._value[np.invert(res_x)]
         else:
             grid.x._value = None
@@ -589,7 +589,7 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
         log.debug('res_y {}'.format(res_y))
         log.debug('slc_y {}'.format(slc_y))
         log.debug('section_y {}'.format(section_y))
-        if not np.all(res_y) and slc_y.start >= np.min(section_y) and slc_y.stop >= np.max(section_y):
+        if not np.all(res_y) and are_indices_in_slice(section_y, slc_y):
             log.debug('subsetting y')
             grid.y._value = grid_y._value[np.invert(res_y)]
             log.debug('grid.y._value {}'.format(grid.y._value))
@@ -640,3 +640,17 @@ def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_to
         else:
             res_target = res_target_centers
     return res_target, grid_target
+
+
+def are_indices_in_slice(indices, slc):
+    imin, imax = np.min(indices), np.max(indices)
+    start, stop = slc.start, slc.stop
+
+    ret = False
+    if len(indices) == 1:
+        if start <= imin and stop > imax:
+            ret = True
+    elif stop > imin:
+        if (start <= imin or start <= imax) and ((stop > (imax - 1)) or stop < imax):
+            ret = True
+    return ret
