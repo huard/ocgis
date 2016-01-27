@@ -683,12 +683,13 @@ class TestVariable(AbstractTestNewInterface):
         value = np.arange(0, 12).reshape(4, 3)
         mask = np.zeros(value.shape, dtype=bool)
         mask[1, 1] = True
-        var = Variable(value=value, mask=mask, dimensions=['four', 'three'])
+        var = Variable(value=value, mask=mask, dimensions=['four', 'three'], name='malleable')
         self.assertEqual(var.get_mask().sum(), 1)
-        rs = var.reshape(-1)
+        rs = var.reshape(-1, dimension_name='four_three')
         self.assertNumpyAll(rs.value, value.reshape(-1))
         self.assertNumpyAll(rs.get_mask(), mask.reshape(-1))
-        self.assertIsNone(rs.dimensions)
+        self.assertEqual(rs.dimensions[0], Dimension('four_three', 12))
+        rs2 = rs.reshape(4, 3, dimension_name=['four', 'three'])
 
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)

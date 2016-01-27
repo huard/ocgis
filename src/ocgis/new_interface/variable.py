@@ -443,6 +443,7 @@ class Variable(AbstractContainer, Attributes):
             yield idx, yld
 
     def reshape(self, *args, **kwargs):
+        dimension_name = kwargs.pop('dimension_name', None)
         if self._backref is not None:
             # tdk: needs implementation
             raise NotImplementedError('backref cannot be reshaped')
@@ -452,6 +453,7 @@ class Variable(AbstractContainer, Attributes):
         ret.dimensions = None
         mask = ret._mask
         ret.value = ret.value.reshape(*args)
+        ret.create_dimensions(names=dimension_name)
         if mask is not None:
             ret.set_mask(mask.reshape(*args))
         return ret
