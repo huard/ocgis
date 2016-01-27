@@ -2,10 +2,12 @@ import itertools
 from copy import deepcopy
 
 import numpy as np
+from mpi4py.MPI import COMM_NULL
 from shapely.geometry import box
 
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable
+from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.util.helpers import get_local_to_global_slices, get_optimal_slice_from_array
@@ -36,12 +38,16 @@ def create_slices(size, shape):
 
 
 class Test(AbstractTestNewInterface):
-    def test_two_to_one(self):
-        shape_global = (4, 3)
-        idx_global = np.arange(12).reshape(shape_global)
-        print idx_global
+    def test_groups(self):
+        world_group = MPI_COMM.Get_group()
+        sub_group = world_group.Incl([0, 1])
+        new_comm = MPI_COMM.Create(sub_group)
+        if new_comm != COMM_NULL:
+            log.debug(new_comm.Get_size())
 
-        np = 5
+        if new_comm != COMM_NULL:
+            sub_group.Free()
+            new_comm.Free()
 
     def test_create_slices(self):
         size = 1
@@ -68,8 +74,8 @@ class Test(AbstractTestNewInterface):
         size = 5
         shape = (4, 3)
         actual = create_slices(size, shape)
-        for a in actual:
-            print a
+        self.assertEqual(actual, ((slice(0, 1, None), slice(0, 3, None)), (slice(1, 2, None), slice(0, 3, None)),
+                                  (slice(2, 3, None), slice(0, 3, None)), (slice(3, 4, None), slice(0, 3, None))))
 
     def test_get_local_to_global_slices(self):
         slices_global = (slice(2, 4, None), slice(0, 2, None))
