@@ -7,7 +7,7 @@ from shapely.geometry import box
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.logging import log
-from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM, create_slices, create_nd_slices
+from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM, create_slices, create_nd_slices, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.util.helpers import get_local_to_global_slices
 
@@ -70,14 +70,24 @@ class Test(AbstractTestNewInterface):
 
     def test_tdk(self):
 
+        size = (1, 1)
+        shape = (4, 3)
+        actual = create_nd_slices(size, shape)
+        self.assertEqual(actual, ((slice(0, 4, None), slice(0, 3, None)),))
+
         size = (2, 1)
         shape = (4, 3)
         actual = create_nd_slices(size, shape)
-        print actual
-        for a in actual:
-            print a
-        self.assertEqual(len(actual), 2)
+        self.assertEqual(actual, ((slice(0, 2, None), slice(0, 3, None)), (slice(2, 4, None), slice(0, 3, None))))
 
+        size = (4, 2)
+        shape = (4, 3)
+        actual = create_nd_slices(size, shape)
+        to_test = np.arange(12).reshape(*shape)
+        pieces = []
+        for a in actual:
+            pieces.append(to_test[a].reshape(-1))
+        self.assertNumpyAll(hgather(pieces).reshape(*shape), to_test)
 
     def test_get_local_to_global_slices(self):
         slices_global = (slice(2, 4, None), slice(0, 2, None))

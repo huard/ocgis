@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 
 from ocgis.util.helpers import get_optimal_slice_from_array
@@ -91,5 +93,5 @@ def create_nd_slices(splits, shape):
     ret = [None] * len(shape)
     for idx, (split, shp) in enumerate(zip(splits, shape)):
         ret[idx] = create_slices(shp, split)
-    print ret
+    ret = [slices for slices in itertools.product(*ret)]
     return tuple(ret)
