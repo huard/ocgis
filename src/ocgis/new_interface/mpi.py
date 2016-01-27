@@ -1,5 +1,3 @@
-import itertools
-
 import numpy as np
 
 from ocgis.util.helpers import get_optimal_slice_from_array
@@ -89,29 +87,9 @@ def vgather(elements):
     return fill
 
 
-def create_nd_slices(size, shape, np_map=None):
-    if np_map is None:
-        np_map = [True] * len(shape)
-
-    remaining = size
-    if size == 1:
-        ret = [tuple([slice(0, s) for s in shape])]
-    else:
-        slices_ii_shape = []
-        for idx_shape, ii_shape in enumerate(shape):
-            if remaining <= 0:
-                app_slices_ii_shape = [slice(0, ii_shape)]
-            else:
-                if np_map[idx_shape]:
-                    if remaining < ii_shape:
-                        sections = remaining
-                    else:
-                        sections = ii_shape
-                    slices = create_slices(ii_shape, sections)
-                    app_slices_ii_shape = slices
-                    remaining -= len(slices)
-                else:
-                    app_slices_ii_shape = [slice(0, ii_shape)]
-            slices_ii_shape.append(app_slices_ii_shape)
-        ret = [slices for slices in itertools.product(*slices_ii_shape)]
+def create_nd_slices(splits, shape):
+    ret = [None] * len(shape)
+    for idx, (split, shp) in enumerate(zip(splits, shape)):
+        ret[idx] = create_slices(shp, split)
+    print ret
     return tuple(ret)

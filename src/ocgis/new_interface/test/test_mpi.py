@@ -70,13 +70,13 @@ class Test(AbstractTestNewInterface):
 
     def test_tdk(self):
 
-        size = 6
+        size = (2, 1)
         shape = (4, 3)
         actual = create_nd_slices(size, shape)
         print actual
         for a in actual:
             print a
-        self.assertEqual(len(actual), 6)
+        self.assertEqual(len(actual), 2)
 
 
     def test_get_local_to_global_slices(self):
