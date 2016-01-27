@@ -247,6 +247,12 @@ class AllElementsMaskedError(OcgException):
     def __str__(self):
         return "All elements are masked."
 
+
+class PayloadProtectedError(OcgException):
+    def __str__(self):
+        return 'Payload may not be loaded from source until "protected" is False.'
+
+
 class NoUnitsError(OcgException):
     """Raised when a :class:`cfunits.Units` object is constructed from ``None``."""
 

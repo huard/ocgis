@@ -12,7 +12,7 @@ from numpy.ma import MaskedArray
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
-    ResolutionError, NoUnitsError, DimensionsRequiredError
+    ResolutionError, NoUnitsError, DimensionsRequiredError, PayloadProtectedError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
@@ -541,6 +541,8 @@ class SourcedVariable(Variable):
         # Flag to indicate if metadata already from source.
         self._allocated = False
 
+        self.protected = kwargs.pop('protected', False)
+
         self.conform_units_to = kwargs.pop('conform_units_to', None)
         self._request_dataset = kwargs.pop('request_dataset', None)
 
@@ -633,6 +635,9 @@ class SourcedVariable(Variable):
         return ret
 
     def _get_value_from_source_(self):
+        if self.protected:
+            raise PayloadProtectedError
+
         ds = self._request_dataset.driver.open()
         desired_name = self.name or self._request_dataset.variable
         try:
