@@ -127,8 +127,8 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             x_value = hgather([x for x in x_value if x is not None])
             y_value = hgather([y for y in y_value if y is not None])
-            log.debug('x_value {}'.format(x_value))
-            log.debug('y_value {}'.format(y_value))
+            self.assertNumpyAll(x_value, np.array([102.]))
+            self.assertNumpyAll(y_value, np.array([41., 42.]))
 
         if MPI_RANK == 0:
             self.assertEqual(slc, desired)

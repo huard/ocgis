@@ -7,7 +7,6 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
@@ -586,13 +585,8 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
         else:
             grid.x._value = None
     if len(section_y) > 0:
-        log.debug('res_y {}'.format(res_y))
-        log.debug('slc_y {}'.format(slc_y))
-        log.debug('section_y {}'.format(section_y))
         if not np.all(res_y) and are_indices_in_slice(section_y, slc_y):
-            log.debug('subsetting y')
             grid.y._value = grid_y._value[np.invert(res_y)]
-            log.debug('grid.y._value {}'.format(grid.y._value))
         else:
             grid.y._value = None
 
