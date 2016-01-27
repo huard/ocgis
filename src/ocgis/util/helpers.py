@@ -931,6 +931,7 @@ def get_temp_path(suffix='', name=None, nest=False, only_dir=False, wd=None, dir
 
 
 def get_local_to_global_slices(slices_global, slices_local):
+    # tdk: optimize: remove np.arange
     ga = [np.arange(s.start, s.stop) for s in slices_global]
     lm = [get_optimal_slice_from_array(ga[idx][slices_local[idx]]) for idx in range(len(slices_local))]
     lm = tuple(lm)

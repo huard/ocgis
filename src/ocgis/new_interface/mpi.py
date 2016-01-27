@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 
 try:
@@ -44,10 +46,10 @@ def create_slices(length, size=MPI_SIZE):
         stop = start + step
         if stop > length:
             stop = length
-        index_element = [start, stop]
+        index_element = slice(start, stop)
         indexes[ii] = index_element
         start = stop
-    return indexes
+    return tuple(indexes)
 
 
 def dgather(elements):
@@ -89,3 +91,25 @@ def vgather(elements):
         fill[start:stop, :] = e
         start = stop
     return fill
+
+
+def create_nd_slices(size, shape):
+    remaining = size
+    if size == 1:
+        ret = [tuple([slice(0, s) for s in shape])]
+    else:
+        slices_ii_shape = []
+        for idx_shape, ii_shape in enumerate(shape):
+            if remaining <= 0:
+                app_slices_ii_shape = [slice(0, ii_shape)]
+            else:
+                if remaining < ii_shape:
+                    sections = remaining
+                else:
+                    sections = ii_shape
+                slices = create_slices(ii_shape, sections)
+                app_slices_ii_shape = slices
+                remaining -= len(slices)
+            slices_ii_shape.append(app_slices_ii_shape)
+        ret = [slices for slices in itertools.product(*slices_ii_shape)]
+    return tuple(ret)

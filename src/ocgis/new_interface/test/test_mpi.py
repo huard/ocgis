@@ -1,4 +1,3 @@
-import itertools
 from copy import deepcopy
 
 import numpy as np
@@ -8,33 +7,9 @@ from shapely.geometry import box
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.logging import log
-from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM
+from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM, create_slices, create_nd_slices
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.util.helpers import get_local_to_global_slices, get_optimal_slice_from_array
-
-
-def create_slices(size, shape):
-    remaining = size
-    if size == 1:
-        ret = [tuple([slice(0, s) for s in shape])]
-    else:
-        slices_ii_shape = []
-        for idx_shape, ii_shape in enumerate(shape):
-            if remaining <= 0:
-                app_slices_ii_shape = [slice(0, ii_shape)]
-            else:
-                if remaining < ii_shape:
-                    sections = remaining
-                else:
-                    sections = ii_shape
-                # tdk: optimize: remove np.arange generation
-                splits = np.array_split(np.arange(ii_shape), sections)
-                slices = [get_optimal_slice_from_array(split) for split in splits]
-                app_slices_ii_shape = slices
-                remaining -= len(slices)
-            slices_ii_shape.append(app_slices_ii_shape)
-        ret = [slices for slices in itertools.product(*slices_ii_shape)]
-    return tuple(ret)
+from ocgis.util.helpers import get_local_to_global_slices
 
 
 class Test(AbstractTestNewInterface):
@@ -49,20 +24,20 @@ class Test(AbstractTestNewInterface):
             sub_group.Free()
             new_comm.Free()
 
-    def test_create_slices(self):
+    def test_create_nd_slices(self):
         size = 1
         shape = (4, 3)
-        actual = create_slices(size, shape)
+        actual = create_nd_slices(size, shape)
         self.assertEqual(actual, ((slice(0, 4, None), slice(0, 3, None)),))
 
         size = 2
-        actual = create_slices(size, shape)
+        actual = create_nd_slices(size, shape)
         desired = ((slice(0, 2, None), slice(0, 3)), (slice(2, 4, None), slice(0, 3)))
         self.assertEqual(actual, desired)
 
         size = 12
         shape = (4, 3)
-        actual = create_slices(size, shape)
+        actual = create_nd_slices(size, shape)
         desired = ((slice(0, 1, None), slice(0, 1, None)), (slice(0, 1, None), slice(1, 2, None)),
                    (slice(0, 1, None), slice(2, 3, None)), (slice(1, 2, None), slice(0, 1, None)),
                    (slice(1, 2, None), slice(1, 2, None)), (slice(1, 2, None), slice(2, 3, None)),
@@ -73,7 +48,7 @@ class Test(AbstractTestNewInterface):
 
         size = 5
         shape = (4, 3)
-        actual = create_slices(size, shape)
+        actual = create_nd_slices(size, shape)
         self.assertEqual(actual, ((slice(0, 1, None), slice(0, 3, None)), (slice(1, 2, None), slice(0, 3, None)),
                                   (slice(2, 3, None), slice(0, 3, None)), (slice(3, 4, None), slice(0, 3, None))))
 
