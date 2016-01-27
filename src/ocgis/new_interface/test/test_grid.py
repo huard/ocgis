@@ -14,7 +14,6 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice, \
     are_indices_in_slice
-from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -53,11 +52,8 @@ class Test(AbstractTestNewInterface):
 
         grid = self.get_gridxy()
 
-        if MPI_RANK == 0:
-            with self.assertRaises(EmptySubsetError):
-                grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
-        else:
-            self.assertIsNone(grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy))
+        with self.assertRaises(EmptySubsetError):
+            grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
         # Test combinations.
         minx = 101.5
@@ -98,7 +94,6 @@ class Test(AbstractTestNewInterface):
             else:
                 self.assertIsNone(slc)
 
-    def test_tdk(self):
         # Test against a file.
         minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.
 
@@ -119,7 +114,6 @@ class Test(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
         slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
-        log.debug('slc {}'.format(slc))
 
         x_value = MPI_COMM.gather(grid.x._value, root=0)
         y_value = MPI_COMM.gather(grid.y._value, root=0)

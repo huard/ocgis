@@ -557,8 +557,8 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
 
     res_x_gather = MPI_COMM.gather(res_x, root=0)
     res_y_gather = MPI_COMM.gather(res_y, root=0)
-
     if MPI_RANK == 0:
+        raise_empty_subset = False
         res_x_gather = hgather(res_x_gather)
         res_y_gather = hgather(res_y_gather)
         try:
@@ -572,9 +572,15 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
                 res = np.invert(np.logical_and(res_x_gather, res_y_gather).reshape(grid.shape))
                 _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
         except AllElementsMaskedError:
-            raise EmptySubsetError('grid')
+            raise_empty_subset = True
     else:
         slc = None
+        raise_empty_subset = None
+
+    raise_empty_subset = MPI_COMM.bcast(raise_empty_subset)
+
+    if raise_empty_subset:
+        raise EmptySubsetError('grid')
 
     slc = MPI_COMM.bcast(slc, root=0)
 
