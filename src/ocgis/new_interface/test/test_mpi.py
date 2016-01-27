@@ -40,11 +40,8 @@ class Test(AbstractTestNewInterface):
         shape_global = (4, 3)
         idx_global = np.arange(12).reshape(shape_global)
         print idx_global
-        print idx_global.reshape(shape_global)
 
-        actual = np.array([4, 5, 6, 7])
-        print idx_global[actual]
-
+        np = 5
 
     def test_create_slices(self):
         size = 1
