@@ -298,9 +298,14 @@ class TestSourcedVariable(AbstractTestNewInterface):
             sv.value
         self.assertIsNone(sv._value)
 
-    def test_get_scatter_elements(self):
+    def test_get_scatter_slices(self):
         sv = self.get_sourcedvariable(protected=True)
-        print sv.get_scatter_elements(100, np_map=[1, None, None])
+        actual = sv.get_scatter_slices((1, 2, 2))
+        desired = ((slice(0, 3650, None), slice(0, 32, None), slice(0, 64, None)),
+                   (slice(0, 3650, None), slice(0, 32, None), slice(64, 128, None)),
+                   (slice(0, 3650, None), slice(32, 64, None), slice(0, 64, None)),
+                   (slice(0, 3650, None), slice(32, 64, None), slice(64, 128, None)))
+        self.assertEqual(actual, desired)
 
     def test_conform_units_to(self):
         with self.assertRaises(ValueError):

@@ -428,13 +428,9 @@ class Variable(AbstractContainer, Attributes):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
 
-    def get_scatter_elements(self, np, np_map=None):
-        slices = create_nd_slices(np, self.shape, np_map=np_map)
-        ret = [None] * len(slices)
-        for idx, slc in enumerate(slices):
-            fill = {'variable': self[slc], 'slice': slc}
-            ret[idx] = fill
-        return ret
+    def get_scatter_slices(self, splits):
+        slices = create_nd_slices(splits, self.shape)
+        return slices
 
     def iter(self, use_mask=True):
         name = self.name
