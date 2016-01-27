@@ -7,11 +7,11 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, MPI_SIZE
+from ocgis.new_interface.logging import log
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, create_nd_slices
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, \
-    get_optimal_slice_from_array
+from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -536,26 +536,36 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
+def grid_get_subset_bbox_slice(splits, grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
     if MPI_RANK == 0:
-        sections_x = np.array_split(np.arange(grid.shape[1]), MPI_SIZE)
-        sections_y = np.array_split(np.arange(grid.shape[0]), MPI_SIZE)
+        slices_grid = create_nd_slices(splits, grid.shape)
     else:
-        sections_x = None
-        sections_y = None
+        slices_grid = None
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
-    section_x = MPI_COMM.scatter(sections_x, root=0)
-    section_y = MPI_COMM.scatter(sections_y, root=0)
+    slc_grid = MPI_COMM.scatter(slices_grid, root=0)
 
-    res_x, grid_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, section_x,
-                                                 use_bounds)
-    res_y, grid_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, section_y,
-                                                 use_bounds)
+    grid_sliced = grid[slc_grid]
+
+    res_x = get_coordinate_boolean_array(grid_sliced.x, has_bounds, is_vectorized, keep_touches, maxx, minx, use_bounds)
+    res_y = get_coordinate_boolean_array(grid_sliced.y, has_bounds, is_vectorized, keep_touches, maxy, miny, use_bounds)
+
+    log.debug('slc_grid {}'.format(slc_grid))
+    log.debug('res_x {}'.format(res_x))
+    log.debug('res_y {}'.format(res_x))
+
+    if is_vectorized:
+        _, x_slice = get_trimmed_array_by_mask(res_x, return_adjustments=True)
+        _, y_slice = get_trimmed_array_by_mask(res_y, return_adjustments=True)
+        log.debug('x_slice {}'.format(x_slice))
+        log.debug('y_slice {}'.format(y_slice))
+    else:
+        raise NotImplementedError
 
     res_x_gather = MPI_COMM.gather(res_x, root=0)
     res_y_gather = MPI_COMM.gather(res_y, root=0)
+
     if MPI_RANK == 0:
         raise_empty_subset = False
         res_x_gather = hgather(res_x_gather)
@@ -583,18 +593,6 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
 
     slc = MPI_COMM.bcast(slc, root=0)
 
-    slc_y, slc_x = slc
-    if len(section_x) > 0:
-        if not np.all(res_x) and are_indices_in_slice(section_x, slc_x):
-            grid.x._value = grid_x._value[np.invert(res_x)]
-        else:
-            grid.x._value = None
-    if len(section_y) > 0:
-        if not np.all(res_y) and are_indices_in_slice(section_y, slc_y):
-            grid.y._value = grid_y._value[np.invert(res_y)]
-        else:
-            grid.y._value = None
-
     if MPI_RANK == 0:
         return slc
     else:
@@ -602,43 +600,33 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
 
 
 def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_touches, max_target, min_target,
-                                 section_target,
                                  use_bounds):
-    try:
-        slc_target = get_optimal_slice_from_array(section_target)
-    except ValueError:
-        target_centers = np.array([], dtype=grid_target.dtype)
-    else:
-        grid_target = grid_target[slc_target]
-        target_centers = grid_target.value
+    target_centers = grid_target.value
+
     if has_bounds and use_bounds:
         if is_vectorized:
             n_bounds = 2
         else:
             n_bounds = 4
-        if len(target_centers) > 0:
-            target_bounds = grid_target.bounds.value
-            target_bounds = target_bounds.reshape(-1, n_bounds)
+        target_bounds = grid_target.bounds.value.reshape(-1, n_bounds)
+
     res_target_centers = np.array(
         get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
     if has_bounds and use_bounds:
-        if len(res_target_centers) > 0:
-            res_target_bounds = np.array(
-                get_arr_intersects_bounds(target_bounds, min_target, max_target, keep_touches=keep_touches))
-            res_target_bounds = np.any(res_target_bounds, axis=1)
-            res_target_bounds = res_target_bounds.reshape(-1)
+        res_target_bounds = np.array(
+            get_arr_intersects_bounds(target_bounds, min_target, max_target, keep_touches=keep_touches))
+        res_target_bounds = np.any(res_target_bounds, axis=1)
+        res_target_bounds = res_target_bounds.reshape(-1)
     res_target_centers = res_target_centers.reshape(-1)
+
     if has_bounds and use_bounds:
-        if len(target_centers) > 0:
-            res_target = np.logical_or(res_target_centers, res_target_bounds)
+        res_target = np.logical_or(res_target_centers, res_target_bounds)
     else:
         res_target = res_target_centers
+
     if is_vectorized:
-        if len(target_centers) > 0:
-            res_target = np.invert(res_target)
-        else:
-            res_target = res_target_centers
-    return res_target, grid_target
+        res_target = np.invert(res_target)
+    return res_target
 
 
 def are_indices_in_slice(indices, slc):

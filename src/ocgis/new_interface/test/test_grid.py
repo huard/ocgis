@@ -14,7 +14,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice, \
     are_indices_in_slice
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, hgather
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -47,14 +47,19 @@ class Test(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_grid_get_subset_bbox_slice(self):
+        # tdk: try other splits
+        splits = (2, 1)
+
         # Test with an empty subset.
         minx, miny, maxx, maxy = 1000., 1000., 1100., 1100.
 
         grid = self.get_gridxy()
 
         with self.assertRaises(EmptySubsetError):
-            grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
+            grid_get_subset_bbox_slice(splits, grid, minx, miny, maxx, maxy)
 
+    def test_tdk(self):
+        splits = (2, 1)
         # Test combinations.
         minx = 101.5
         miny = 40.5
@@ -62,8 +67,8 @@ class Test(AbstractTestNewInterface):
         maxy = 42.
 
         # tdk: add true to is_vectorized
-        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, True], [False, True],
-                                                                                     [False, True], [True, False]):
+        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, True], [False, False],
+                                                                                     [False, False], [False, False]):
             grid = self.get_gridxy(with_dimensions=True)
             if not is_vectorized:
                 grid.expand()
@@ -74,7 +79,7 @@ class Test(AbstractTestNewInterface):
                 self.write_fiona_htmp(grid, 'grid')
                 self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
 
-            slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=use_bounds,
+            slc = grid_get_subset_bbox_slice(splits, grid, minx, miny, maxx, maxy, use_bounds=use_bounds,
                                              keep_touches=keep_touches)
 
             if MPI_RANK == 0:
@@ -113,16 +118,7 @@ class Test(AbstractTestNewInterface):
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
-        slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
-
-        x_value = MPI_COMM.gather(grid.x._value, root=0)
-        y_value = MPI_COMM.gather(grid.y._value, root=0)
-
-        if MPI_RANK == 0:
-            x_value = hgather([x for x in x_value if x is not None])
-            y_value = hgather([y for y in y_value if y is not None])
-            self.assertNumpyAll(x_value, np.array([102.]))
-            self.assertNumpyAll(y_value, np.array([41., 42.]))
+        slc = grid_get_subset_bbox_slice(splits, grid, minx, miny, maxx, maxy)
 
         if MPI_RANK == 0:
             self.assertEqual(slc, desired)
