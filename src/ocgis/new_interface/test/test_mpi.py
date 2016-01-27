@@ -52,6 +52,33 @@ class Test(AbstractTestNewInterface):
         self.assertEqual(actual, ((slice(0, 1, None), slice(0, 3, None)), (slice(1, 2, None), slice(0, 3, None)),
                                   (slice(2, 3, None), slice(0, 3, None)), (slice(3, 4, None), slice(0, 3, None))))
 
+        size = 100
+        shape = (3650,)
+        actual = create_nd_slices(size, shape)
+        to_test = np.arange(3650)
+        for a in actual:
+            res = to_test[a]
+            self.assertTrue(len(res) > 0)
+
+        size = 4
+        shape = (10, 4, 3)
+        actual = create_nd_slices(size, shape, np_map=[False, True, True])
+        self.assertEqual(actual, ((slice(0, 10, None), slice(0, 1, None), slice(0, 3, None)),
+                                  (slice(0, 10, None), slice(1, 2, None), slice(0, 3, None)),
+                                  (slice(0, 10, None), slice(2, 3, None), slice(0, 3, None)),
+                                  (slice(0, 10, None), slice(3, 4, None), slice(0, 3, None))))
+
+    def test_tdk(self):
+
+        size = 6
+        shape = (4, 3)
+        actual = create_nd_slices(size, shape)
+        print actual
+        for a in actual:
+            print a
+        self.assertEqual(len(actual), 6)
+
+
     def test_get_local_to_global_slices(self):
         slices_global = (slice(2, 4, None), slice(0, 2, None))
         slices_local = (slice(0, 1, None), slice(0, 2, None))

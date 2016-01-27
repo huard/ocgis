@@ -298,6 +298,10 @@ class TestSourcedVariable(AbstractTestNewInterface):
             sv.value
         self.assertIsNone(sv._value)
 
+    def test_get_scatter_elements(self):
+        sv = self.get_sourcedvariable(protected=True)
+        print sv.get_scatter_elements(100, np_map=[1, None, None])
+
     def test_conform_units_to(self):
         with self.assertRaises(ValueError):
             SourcedVariable(value=[2, 3, 4], conform_units_to='celsius', name='tas')

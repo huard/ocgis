@@ -472,11 +472,11 @@ def get_ocgis_corners_from_esmf_corners(ecorners):
     return grid_corners
 
 
-def get_optimal_slice_from_array(arr):
+def get_optimal_slice_from_array(arr, check_diff=True):
     if arr.dtype == bool:
         ret = arr
     else:
-        if np.any(np.diff(arr) > 1):
+        if check_diff and np.any(np.diff(arr) > 1):
             ret = arr
         else:
             arr_min, arr_max = arr.min(), arr.max()

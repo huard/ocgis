@@ -2,6 +2,8 @@ import itertools
 
 import numpy as np
 
+from ocgis.util.helpers import get_optimal_slice_from_array
+
 try:
     from mpi4py import MPI
 except ImportError:
@@ -38,18 +40,12 @@ MPI_SIZE = MPI_COMM.Get_size()
 MPI_RANK = MPI_COMM.Get_rank()
 
 
-def create_slices(length, size=MPI_SIZE):
-    step = int(np.ceil(float(length) / size))
-    indexes = [None] * size
-    start = 0
-    for ii in range(size):
-        stop = start + step
-        if stop > length:
-            stop = length
-        index_element = slice(start, stop)
-        indexes[ii] = index_element
-        start = stop
-    return tuple(indexes)
+def create_slices(length, size):
+    # tdk: optimize: remove np.arange
+    r = np.arange(length)
+    sections = np.array_split(r, size)
+    sections = [get_optimal_slice_from_array(s, check_diff=False) for s in sections]
+    return sections
 
 
 def dgather(elements):
@@ -93,7 +89,10 @@ def vgather(elements):
     return fill
 
 
-def create_nd_slices(size, shape):
+def create_nd_slices(size, shape, np_map=None):
+    if np_map is None:
+        np_map = [True] * len(shape)
+
     remaining = size
     if size == 1:
         ret = [tuple([slice(0, s) for s in shape])]
@@ -103,13 +102,16 @@ def create_nd_slices(size, shape):
             if remaining <= 0:
                 app_slices_ii_shape = [slice(0, ii_shape)]
             else:
-                if remaining < ii_shape:
-                    sections = remaining
+                if np_map[idx_shape]:
+                    if remaining < ii_shape:
+                        sections = remaining
+                    else:
+                        sections = ii_shape
+                    slices = create_slices(ii_shape, sections)
+                    app_slices_ii_shape = slices
+                    remaining -= len(slices)
                 else:
-                    sections = ii_shape
-                slices = create_slices(ii_shape, sections)
-                app_slices_ii_shape = slices
-                remaining -= len(slices)
+                    app_slices_ii_shape = [slice(0, ii_shape)]
             slices_ii_shape.append(app_slices_ii_shape)
         ret = [slices for slices in itertools.product(*slices_ii_shape)]
     return tuple(ret)

@@ -16,6 +16,7 @@ from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, Em
 from ocgis.interface.base.attributes import Attributes
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
+from ocgis.new_interface.mpi import create_nd_slices
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
@@ -426,6 +427,14 @@ class Variable(AbstractContainer, Attributes):
             for name, shp in izip(names, value.shape):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
+
+    def get_scatter_elements(self, np, np_map=None):
+        slices = create_nd_slices(np, self.shape, np_map=np_map)
+        ret = [None] * len(slices)
+        for idx, slc in enumerate(slices):
+            fill = {'variable': self[slc], 'slice': slc}
+            ret[idx] = fill
+        return ret
 
     def iter(self, use_mask=True):
         name = self.name
