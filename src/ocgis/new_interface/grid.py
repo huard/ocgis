@@ -8,7 +8,7 @@ from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.logging import log
-from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, create_nd_slices
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
@@ -536,36 +536,35 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox_slice(splits, grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
-    if MPI_RANK == 0:
-        slices_grid = create_nd_slices(splits, grid.shape)
-    else:
-        slices_grid = None
+def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
-    slc_grid = MPI_COMM.scatter(slices_grid, root=0)
+    res_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, use_bounds)
+    res_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, use_bounds)
 
-    grid_sliced = grid[slc_grid]
-
-    res_x = get_coordinate_boolean_array(grid_sliced.x, has_bounds, is_vectorized, keep_touches, maxx, minx, use_bounds)
-    res_y = get_coordinate_boolean_array(grid_sliced.y, has_bounds, is_vectorized, keep_touches, maxy, miny, use_bounds)
-
-    log.debug('slc_grid {}'.format(slc_grid))
     log.debug('res_x {}'.format(res_x))
     log.debug('res_y {}'.format(res_x))
 
-    if is_vectorized:
-        _, x_slice = get_trimmed_array_by_mask(res_x, return_adjustments=True)
-        _, y_slice = get_trimmed_array_by_mask(res_y, return_adjustments=True)
-        log.debug('x_slice {}'.format(x_slice))
-        log.debug('y_slice {}'.format(y_slice))
-    else:
-        raise NotImplementedError
+    try:
+        if is_vectorized:
+            _, x_slice = get_trimmed_array_by_mask(res_x, return_adjustments=True)
+            _, y_slice = get_trimmed_array_by_mask(res_y, return_adjustments=True)
+            x_slice, y_slice = x_slice[0], y_slice[0]
+        else:
+            res = np.invert(np.logical_and(res_x.reshape(*grid.shape), res_y.reshape(*grid.shape)))
+            _, (y_slice, x_slice) = get_trimmed_array_by_mask(res, return_adjustments=True)
+    except AllElementsMaskedError:
+        raise EmptySubsetError('grid')
 
-    res_x_gather = MPI_COMM.gather(res_x, root=0)
-    res_y_gather = MPI_COMM.gather(res_y, root=0)
+    log.debug('x_slice {}'.format(x_slice))
+    log.debug('y_slice {}'.format(y_slice))
 
+    return (y_slice, x_slice)
+
+
+# tdk: used for mpi stuff
+def gathering_stuff():
     if MPI_RANK == 0:
         raise_empty_subset = False
         res_x_gather = hgather(res_x_gather)
