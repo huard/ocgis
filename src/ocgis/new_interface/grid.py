@@ -538,7 +538,6 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
 
 def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
     if MPI_RANK == 0:
-        assert grid.is_vectorized  # tdk: remove
         sections_x = np.array_split(np.arange(grid.shape[1]), MPI_SIZE)
         sections_y = np.array_split(np.arange(grid.shape[0]), MPI_SIZE)
     else:

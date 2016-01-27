@@ -61,7 +61,7 @@ class Test(AbstractTestNewInterface):
         maxx = 102.5
         maxy = 42.
 
-        # tdk: add false to is_vectorized
+        # tdk: add true to is_vectorized
         for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, True], [False, True],
                                                                                      [False, True], [True, False]):
             grid = self.get_gridxy(with_dimensions=True)
@@ -94,7 +94,6 @@ class Test(AbstractTestNewInterface):
             else:
                 self.assertIsNone(slc)
 
-    def test_tdk(self):
         # Test against a file.
         minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.
 
