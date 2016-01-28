@@ -427,6 +427,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertFalse(np.any(mask))
         self.assertTrue(grid.is_vectorized)
 
+    @attr('mpi')
     def test_get_subset_bbox(self):
         keywords = dict(bounds=[True, False], use_bounds=[True, False])
 
@@ -435,16 +436,20 @@ class TestGridXY(AbstractTestNewInterface):
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
             bg = grid.get_subset_bbox(-99, 39, -98, 39)
-            self.assertNotEqual(grid.shape, bg.shape)
-            self.assertTrue(bg.is_vectorized)
+            if MPI_RANK == 0:
+                self.assertNotEqual(grid.shape, bg.shape)
+                self.assertTrue(bg.is_vectorized)
+
             with self.assertRaises(EmptySubsetError):
                 grid.get_subset_bbox(1000, 1000, 1001, 10001, use_bounds=k.use_bounds)
 
             bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, use_bounds=k.use_bounds)
-            for target in ['x', 'y']:
-                original = getattr(grid, target).value
-                sub = getattr(bg2, target).value
-                self.assertNumpyAll(original, sub)
+
+            if MPI_RANK == 0:
+                for target in ['x', 'y']:
+                    original = getattr(grid, target).value
+                    sub = getattr(bg2, target).value
+                    self.assertNumpyAll(original, sub)
 
         # Test mask is not shared with subsetted grid.
         grid = self.get_gridxy()
@@ -456,11 +461,12 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertFalse(grid.has_bounds)
 
         sub = grid.get_subset_bbox(*args, use_bounds=False)
-        self.assertTrue(np.all(sub.get_mask()))
-        new_mask = sub.get_mask()
-        new_mask.fill(False)
-        sub.set_mask(new_mask)
-        self.assertEqual(grid.get_mask().sum(), 4)
+        if MPI_RANK == 0:
+            self.assertTrue(np.all(sub.get_mask()))
+            new_mask = sub.get_mask()
+            new_mask.fill(False)
+            sub.set_mask(new_mask)
+            self.assertEqual(grid.get_mask().sum(), 4)
 
     def test_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)

@@ -270,15 +270,20 @@ class GridXY(AbstractSpatialContainer):
         assert minx <= maxx
         assert miny <= maxy
 
-        slc_row, slc_col = grid_get_subset_bbox_slice(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
+        ret, slc = grid_get_subset_bbox(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
 
-        ret = self[slc_row, slc_col]
-        # Set the mask to update variables only for non-vectorized grids.
-        if not self.is_vectorized:
-            ret.set_mask(self.get_mask()[slc_row, slc_col])
+        if MPI_RANK == 0:
+            # Set the mask to update variables only for non-vectorized grids.
+            if not self.is_vectorized:
+                ret.set_mask(self.get_mask()[slc])
 
-        if return_slice:
-            ret = (ret, (slc_row, slc_col))
+            if return_slice:
+                ret = (ret, slc)
+        else:
+            if return_slice:
+                ret = None, None
+            else:
+                ret = None
 
         return ret
 
