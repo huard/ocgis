@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, get_optimal_splits, create_nd_slices, MPI_SIZE
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
@@ -512,26 +512,6 @@ def get_geometry_variable(func, grid, **kwargs):
     return GeometryVariable(**kwargs)
 
 
-def is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=True):
-    coordinates_polygon = []
-    for cx, cy in zip(corners_x.flat, corners_y.flat):
-        coordinates_polygon.append([cx, cy])
-
-    polygon = Polygon(coordinates_polygon)
-    touches = subset_polygon.touches(polygon)
-    intersects = subset_polygon.intersects(polygon)
-
-    if intersects:
-        if closed and touches:
-            ret = False
-        else:
-            ret = True
-    else:
-        ret = False
-
-    return ret
-
-
 def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     assert lower <= upper
 
@@ -639,43 +619,6 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
     return fill_grid, slc_ret
 
 
-
-
-# tdk: used for mpi stuff
-def gathering_stuff():
-    if MPI_RANK == 0:
-        raise_empty_subset = False
-        res_x_gather = hgather(res_x_gather)
-        res_y_gather = hgather(res_y_gather)
-        try:
-            if is_vectorized:
-                slc = []
-                for target in [res_y_gather, res_x_gather]:
-                    _, slc_target = get_trimmed_array_by_mask(target, return_adjustments=True)
-                    slc.append(slc_target[0])
-                slc = tuple(slc)
-            else:
-                res = np.invert(np.logical_and(res_x_gather, res_y_gather).reshape(grid.shape))
-                _, slc = get_trimmed_array_by_mask(res, return_adjustments=True)
-        except AllElementsMaskedError:
-            raise_empty_subset = True
-    else:
-        slc = None
-        raise_empty_subset = None
-
-    raise_empty_subset = MPI_COMM.bcast(raise_empty_subset)
-
-    if raise_empty_subset:
-        raise EmptySubsetError('grid')
-
-    slc = MPI_COMM.bcast(slc, root=0)
-
-    if MPI_RANK == 0:
-        return slc
-    else:
-        return None
-
-
 def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_touches, max_target, min_target,
                                  use_bounds):
     target_centers = grid_target.value
@@ -706,18 +649,3 @@ def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_to
     if is_vectorized:
         res_target = np.invert(res_target)
     return res_target
-
-
-def are_indices_in_slice(indices, slc):
-    imin, imax = np.min(indices), np.max(indices)
-    start, stop = slc.start, slc.stop
-
-    ret = False
-    if len(indices) == 1:
-        if start <= imin and stop > imax:
-            ret = True
-    elif stop > imin:
-        if (start <= imin or start <= imax) and ((stop > (imax - 1)) or stop < imax):
-            ret = True
-    return ret
-
