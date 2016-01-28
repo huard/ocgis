@@ -541,10 +541,17 @@ def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bo
     if MPI_RANK == 0:
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
         slices_grid = create_nd_slices(splits, grid.shape)
+        if len(slices_grid) < MPI_SIZE:
+            slices_grid = list(slices_grid)
+            difference = MPI_SIZE - len(slices_grid)
+            slices_grid += ([None] * difference)
     else:
         slices_grid = None
 
     slc_grid = MPI_COMM.scatter(slices_grid, root=0)
+    if slc_grid is None:
+        return None, None
+
     grid_sliced = grid[slc_grid]
     try:
         slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
