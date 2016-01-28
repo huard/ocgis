@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, are_indices_in_slice, grid_get_subset_bbox
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -467,6 +467,23 @@ class TestGridXY(AbstractTestNewInterface):
             new_mask.fill(False)
             sub.set_mask(new_mask)
             self.assertEqual(grid.get_mask().sum(), 4)
+
+    @attr('mpi')
+    def test_get_subset_bbox_subsets_distributed(self):
+
+        if MPI_RANK == 0:
+            element = (101.5, 40.5, 102.5, 42.)
+            subs = (element, element)
+        else:
+            subs = None
+
+        subset = MPI_COMM.scatter(subs, MPI_SIZE)
+
+        grid = self.get_gridxy()
+        res = grid.get_subset_bbox(*subset)
+
+        print res.x.value
+
 
     def test_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
