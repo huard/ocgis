@@ -1,5 +1,5 @@
 import itertools
-from copy import copy
+from copy import copy, deepcopy
 
 import numpy as np
 from shapely.geometry import Polygon, Point
@@ -7,7 +7,6 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
@@ -543,9 +542,6 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     res_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, use_bounds)
     res_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, use_bounds)
 
-    log.debug('res_x {}'.format(res_x))
-    log.debug('res_y {}'.format(res_x))
-
     try:
         if is_vectorized:
             _, x_slice = get_trimmed_array_by_mask(res_x, return_adjustments=True)
@@ -557,10 +553,37 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     except AllElementsMaskedError:
         raise EmptySubsetError('grid')
 
-    log.debug('x_slice {}'.format(x_slice))
-    log.debug('y_slice {}'.format(y_slice))
-
     return (y_slice, x_slice)
+
+
+def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
+    as_global = []
+    for global_slice, local_slice in zip(slices_global, slices_local):
+        if local_slice is not None:
+            app = get_local_to_global_slices(global_slice, local_slice)
+        else:
+            app = None
+        as_global.append(app)
+
+    slice_map_template = {'starts': [], 'stops': []}
+    slice_map = {}
+    keys = ['row', 'col']
+    for key in keys:
+        slice_map[key] = deepcopy(slice_map_template)
+    for idx, sub in enumerate(grid_subs):
+        if sub is not None:
+            for key, idx_slice in zip(keys, [0, 1]):
+                slice_map[key]['starts'].append(as_global[idx][idx_slice].start)
+                slice_map[key]['stops'].append(as_global[idx][idx_slice].stop)
+    row, col = slice_map['row'], slice_map['col']
+    start_row, stop_row = min(row['starts']), max(row['stops'])
+    start_col, stop_col = min(col['starts']), max(col['stops'])
+
+    slc_ret = (slice(start_row, stop_row), slice(start_col, stop_col))
+    fill_grid = grid[slc_ret]
+    return fill_grid, slc_ret
+
+
 
 
 # tdk: used for mpi stuff

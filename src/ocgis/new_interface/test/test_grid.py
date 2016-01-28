@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox_slice, \
-    are_indices_in_slice
+    are_indices_in_slice, get_filled_grid_and_slice
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, create_nd_slices
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -48,7 +48,7 @@ class Test(AbstractTestNewInterface):
     @attr('mpi')
     def test_grid_get_subset_bbox_slice(self):
         # tdk: try other splits
-        splits = (2, 1)
+        splits = (4, 3)
 
         # Test with an empty subset.
         minx, miny, maxx, maxy = 1000., 1000., 1100., 1100.
@@ -58,14 +58,12 @@ class Test(AbstractTestNewInterface):
         with self.assertRaises(EmptySubsetError):
             grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
-        splits = (1, 1)
         # Test combinations.
         minx = 101.5
         miny = 40.5
         maxx = 102.5
         maxy = 42.
 
-        # tdk: add true to is_vectorized
         for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
                                                                                      [False, True], [True, False]):
             grid = self.get_gridxy(with_dimensions=True)
@@ -88,8 +86,19 @@ class Test(AbstractTestNewInterface):
             if MPI_RANK == 0:
                 self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
 
-            slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
-                                             keep_touches=keep_touches)
+            try:
+                slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
+                                                 keep_touches=keep_touches)
+            except EmptySubsetError:
+                slc = None
+                grid_sliced = None
+
+            slices_global = MPI_COMM.gather(slc_grid, root=0)
+            slices_local = MPI_COMM.gather(slc, root=0)
+            grid_subs = MPI_COMM.gather(grid_sliced, root=0)
+
+            if MPI_RANK == 0:
+                filled_grid, slc = get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local)
 
             if MPI_RANK == 0:
                 if keep_touches:
@@ -105,8 +114,6 @@ class Test(AbstractTestNewInterface):
                 self.assertEqual(grid.has_bounds, has_bounds)
                 self.assertEqual(grid.is_vectorized, is_vectorized)
                 self.assertEqual(slc, desired)
-            else:
-                self.assertIsNone(slc)
 
         # Test against a file.
         minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.
@@ -115,7 +122,6 @@ class Test(AbstractTestNewInterface):
             path_grid = self.get_temporary_file_path('grid.nc')
             grid_to_write = self.get_gridxy()
             grid_to_write.write_netcdf(path_grid)
-            desired = (slice(1, 3, None), slice(1, 2, None))
             rd = RequestDataset(uri=path_grid)
         else:
             rd = None
@@ -129,11 +135,9 @@ class Test(AbstractTestNewInterface):
         self.assertIsNone(grid.x._value)
         slc = grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy)
 
-        if MPI_RANK == 0:
-            self.assertEqual(slc, desired)
-        else:
-            self.assertIsNone(slc)
+        self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
 
+        # The file may be deleted before other ranks open.
         MPI_COMM.Barrier()
 
 
