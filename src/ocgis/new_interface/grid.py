@@ -550,15 +550,16 @@ def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bo
 
     slc_grid = MPI_COMM.scatter(slices_grid, root=0)
     if slc_grid is None:
-        return None, None
-
-    grid_sliced = grid[slc_grid]
-    try:
-        slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
-                                         keep_touches=keep_touches)
-    except EmptySubsetError:
         slc = None
         grid_sliced = None
+    else:
+        grid_sliced = grid[slc_grid]
+        try:
+            slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
+                                             keep_touches=keep_touches)
+        except EmptySubsetError:
+            slc = None
+            grid_sliced = None
 
     slices_global = MPI_COMM.gather(slc_grid, root=0)
     slices_local = MPI_COMM.gather(slc, root=0)
