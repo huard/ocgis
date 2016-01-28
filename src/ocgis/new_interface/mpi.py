@@ -95,3 +95,19 @@ def create_nd_slices(splits, shape):
         ret[idx] = create_slices(shp, split)
     ret = [slices for slices in itertools.product(*ret)]
     return tuple(ret)
+
+
+def get_optimal_splits(size, shape):
+    n_elements = reduce(lambda x, y: x * y, shape)
+    if size >= n_elements:
+        splits = shape
+    else:
+        even_split = int(np.power(size, 1.0 / float(len(shape))))
+        splits = [None] * len(shape)
+        for idx, shp in enumerate(shape):
+            if even_split > shp:
+                fill = shp
+            else:
+                fill = even_split
+            splits[idx] = fill
+    return tuple(splits)
