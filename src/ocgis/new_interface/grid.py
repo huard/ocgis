@@ -549,6 +549,7 @@ def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bo
         slices_grid = None
 
     slc_grid = MPI_COMM.scatter(slices_grid, root=0)
+
     if slc_grid is None:
         slc = None
         grid_sliced = None
