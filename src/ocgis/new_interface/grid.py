@@ -553,7 +553,7 @@ def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, ke
     except AllElementsMaskedError:
         raise EmptySubsetError('grid')
 
-    return (y_slice, x_slice)
+    return y_slice, x_slice
 
 
 def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):

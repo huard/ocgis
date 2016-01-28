@@ -102,12 +102,16 @@ def get_optimal_splits(size, shape):
     if size >= n_elements:
         splits = shape
     else:
-        even_split = int(np.power(size, 1.0 / float(len(shape))))
-        splits = [None] * len(shape)
-        for idx, shp in enumerate(shape):
-            if even_split > shp:
-                fill = shp
-            else:
-                fill = even_split
-            splits[idx] = fill
+        if size <= shape[0]:
+            splits = [1] * len(shape)
+            splits[0] = shape[0]
+        else:
+            even_split = int(np.power(size, 1.0 / float(len(shape))))
+            splits = [None] * len(shape)
+            for idx, shp in enumerate(shape):
+                if even_split > shp:
+                    fill = shp
+                else:
+                    fill = even_split
+                splits[idx] = fill
     return tuple(splits)
