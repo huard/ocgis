@@ -34,7 +34,7 @@ class Test(AbstractTestNewInterface):
         size = 2
         shape = (4, 3)
         splits = get_optimal_splits(size, shape)
-        self.assertEqual(splits, (4, 1))
+        self.assertEqual(splits, (2, 1))
 
     def test_create_nd_slices(self):
         size = 1

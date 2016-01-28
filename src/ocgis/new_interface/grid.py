@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, hgather, get_optimal_splits, create_nd_slices, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
@@ -528,11 +528,52 @@ def is_subset_polygon_in_corners(corners_x, corners_y, subset_polygon, closed=Tr
 
 
 def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
+    assert lower <= upper
+
     if keep_touches:
         ret = np.logical_and(arr >= lower, arr <= upper)
     else:
         ret = np.logical_and(arr > lower, arr < upper)
     return ret
+
+
+def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bounds=True):
+    if MPI_RANK == 0:
+        splits = get_optimal_splits(MPI_SIZE, grid.shape)
+        slices_grid = create_nd_slices(splits, grid.shape)
+    else:
+        slices_grid = None
+
+    slc_grid = MPI_COMM.scatter(slices_grid, root=0)
+    grid_sliced = grid[slc_grid]
+    try:
+        slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
+                                         keep_touches=keep_touches)
+    except EmptySubsetError:
+        slc = None
+        grid_sliced = None
+
+    slices_global = MPI_COMM.gather(slc_grid, root=0)
+    slices_local = MPI_COMM.gather(slc, root=0)
+    grid_subs = MPI_COMM.gather(grid_sliced, root=0)
+
+    if MPI_RANK == 0:
+        raise_empty_subset = False
+        if all([e is None for e in grid_subs]):
+            raise_empty_subset = True
+        else:
+            filled_grid, slc = get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local)
+            ret = filled_grid, slc
+    else:
+        raise_empty_subset = None
+        ret = None, None
+
+    raise_empty_subset = MPI_COMM.bcast(raise_empty_subset, root=0)
+
+    if raise_empty_subset:
+        raise EmptySubsetError('grid')
+    else:
+        return ret
 
 
 def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
@@ -634,11 +675,13 @@ def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_to
 
     res_target_centers = np.array(
         get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
+
     if has_bounds and use_bounds:
         res_target_bounds = np.array(
             get_arr_intersects_bounds(target_bounds, min_target, max_target, keep_touches=keep_touches))
         res_target_bounds = np.any(res_target_bounds, axis=1)
         res_target_bounds = res_target_bounds.reshape(-1)
+
     res_target_centers = res_target_centers.reshape(-1)
 
     if has_bounds and use_bounds:

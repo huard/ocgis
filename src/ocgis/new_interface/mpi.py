@@ -104,7 +104,7 @@ def get_optimal_splits(size, shape):
     else:
         if size <= shape[0]:
             splits = [1] * len(shape)
-            splits[0] = shape[0]
+            splits[0] = size
         else:
             even_split = int(np.power(size, 1.0 / float(len(shape))))
             splits = [None] * len(shape)
