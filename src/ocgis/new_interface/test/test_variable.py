@@ -633,14 +633,15 @@ class TestVariable(AbstractTestNewInterface):
             self.assertEqual(ctr, 5)
 
     def test_setitem(self):
-        var = Variable('one', [4, 5, 6, 7, 8, 9])
-        var.create_dimensions()
-        var[3] = 4000.5
-        self.assertEqual(var[3].value, 4000)
+        var = Variable(value=[10, 10, 10, 10, 10])
+        var2 = Variable(value=[2, 3, 4], mask=[True, True, False])
+        var[1:4] = var2
+        self.assertEqual(var.value.tolist(), [10, 2, 3, 4, 10])
+        self.assertEqual(var.get_mask().tolist(), [False, True, True, False, False])
 
+        # Test 2 dimensions.
         value = np.zeros((3, 4), dtype=int)
         var = Variable(value=value)
-        var.create_dimensions(['dim', 'dim1'])
         with self.assertRaises(IndexError):
             var[1] = 4500
         var[1, 1:3] = 6700

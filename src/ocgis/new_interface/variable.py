@@ -184,11 +184,18 @@ class Variable(AbstractContainer, Attributes):
             if new_mask is not None:
                 ret.set_mask(new_mask)
 
-    def __setitem__(self, slc, value):
+    def __setitem__(self, slc, variable_or_value):
         # tdk: order
         # tdk:
         slc = get_formatted_slice(slc, self.ndim)
-        self.value[slc] = value
+        try:
+            self.value[slc] = variable_or_value.value
+        except AttributeError:  # Assume this is an array or other object.
+            self.value[slc] = variable_or_value
+        else:
+            new_mask = self.get_mask()
+            new_mask[slc] = variable_or_value.get_mask()
+            self.set_mask(new_mask)
 
     def __len__(self):
         return self.shape[0]
