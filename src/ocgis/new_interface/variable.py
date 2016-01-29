@@ -676,10 +676,13 @@ class BoundedVariable(SourcedVariable):
 
     def __setitem__(self, slc, variable_or_value):
         super(BoundedVariable, self).__setitem__(slc, variable_or_value)
-        if variable_or_value.bounds is not None:
-            if self.bounds is None:
-                self.set_extrapolated_bounds()
-            self.bounds.value[slc, ...] = variable_or_value.bounds.value
+        try:
+            if variable_or_value.bounds is not None:
+                if self.bounds is None:
+                    self.set_extrapolated_bounds()
+                self.bounds.value[slc, ...] = variable_or_value.bounds.value
+        except AttributeError:  # Assume array or other object.
+            pass
 
     def _getitem_main_(self, ret, slc):
         # tdk: order

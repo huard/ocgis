@@ -529,6 +529,21 @@ class TestGridXY(AbstractTestNewInterface):
         grid.expand()
         self.assertEqual(grid.x.bounds.ndim, 3)
 
+    def test_setitem(self):
+        grid = self.get_gridxy()
+        self.assertNotIn('point', grid._variables)
+        self.assertFalse(np.any(grid.get_mask()))
+        grid2 = deepcopy(grid)
+        grid2.set_mask(np.ones((4, 3), dtype=bool))
+        grid2.x[:] = 111
+        grid2.y[:] = 222
+        grid2.point
+        grid[:, :] = grid2
+        self.assertTrue(np.all(grid.get_mask()))
+        self.assertIn('point', grid._variables)
+        self.assertEqual(grid.x.value.mean(), 111)
+        self.assertEqual(grid.y.value.mean(), 222)
+
     def test_set_mask(self):
         grid = self.get_gridxy()
         self.assertFalse(np.any(grid.get_mask()))

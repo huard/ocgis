@@ -10,7 +10,7 @@ from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices
+from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, get_formatted_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -59,6 +59,21 @@ class GridXY(AbstractSpatialContainer):
             except AssertionError:
                 msg = 'Vector coordinates may not be masked.'
                 raise ValueError(msg)
+
+    def __setitem__(self, slc, grid):
+        slc = get_formatted_slice(slc, self.ndim)
+        if not grid.is_vectorized and self.is_vectorized:
+            self.expand()
+        if self.is_vectorized:
+            self.x[slc[1]] = grid.x
+            self.y[slc[0]] = grid.y
+        else:
+            self.x[slc] = grid.x
+            self.y[slc] = grid.y
+        if 'point' in grid._variables:
+            self.point[slc] = grid.point
+        if 'polygon' in grid._variables:
+            self.polygon[slc] = grid.polygon
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
