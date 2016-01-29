@@ -188,6 +188,12 @@ class TestBoundedVariable(AbstractTestNewInterface):
             self.assertEqual(len(element), 3)
         self.assertEqual(idx[0], 2)
 
+    def test_setitem(self):
+        bv = self.get_boundedvariable()
+        bv2 = BoundedVariable(value=[600], bounds=Variable(value=[[500, 700]]))
+        bv[1] = bv2
+        self.assertEqual(bv.bounds.value[1, :].tolist(), [500, 700])
+
     def test_set_extrapolated_bounds(self):
         bv = self.get_boundedvariable(with_bounds=False, mask=[False, True, False])
         self.assertIsNone(bv.bounds)

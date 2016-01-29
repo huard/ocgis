@@ -674,6 +674,13 @@ class BoundedVariable(SourcedVariable):
         except DimensionsRequiredError:
             assert self._value.ndim <= 2
 
+    def __setitem__(self, slc, variable_or_value):
+        super(BoundedVariable, self).__setitem__(slc, variable_or_value)
+        if variable_or_value.bounds is not None:
+            if self.bounds is None:
+                self.set_extrapolated_bounds()
+            self.bounds.value[slc, ...] = variable_or_value.bounds.value
+
     def _getitem_main_(self, ret, slc):
         # tdk: order
         bounds = ret.bounds
