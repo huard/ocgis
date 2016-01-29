@@ -522,7 +522,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bounds=True):
+def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=True):
     if MPI_RANK == 0:
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
         slices_grid = create_nd_slices(splits, grid.shape)
@@ -541,7 +541,7 @@ def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bo
     else:
         grid_sliced = grid[slc_grid]
         try:
-            slc = grid_get_subset_bbox_slice(grid_sliced, minx, miny, maxx, maxy, use_bounds=use_bounds,
+            slc = grid_get_subset_bbox_slice(grid_sliced, bounds_sequence, use_bounds=use_bounds,
                                              keep_touches=keep_touches)
         except EmptySubsetError:
             slc = None
@@ -570,7 +570,8 @@ def grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=True, use_bo
         return ret
 
 
-def grid_get_subset_bbox_slice(grid, minx, miny, maxx, maxy, use_bounds=True, keep_touches=True):
+def grid_get_subset_bbox_slice(grid, bounds_sequence, use_bounds=True, keep_touches=True):
+    minx, miny, maxx, maxy = bounds_sequence
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 

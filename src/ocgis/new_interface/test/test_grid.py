@@ -12,7 +12,7 @@ from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, are_indices_in_slice, grid_get_subset_bbox
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -21,45 +21,19 @@ from ocgis.util.helpers import make_poly, iter_array
 
 
 class Test(AbstractTestNewInterface):
-    # tdk: remove this test and associated function
-    def test_are_indices_in_slice(self):
-        slc = slice(1, 3)
-        indices = np.array([2, 3])
-        actual = are_indices_in_slice(indices, slc)
-        self.assertTrue(actual)
-        actual = are_indices_in_slice(np.array([2]), slc)
-        self.assertTrue(actual)
-        actual = are_indices_in_slice(np.array([0, 1, 2, 3, 4]), slc)
-        self.assertTrue(actual)
-        actual = are_indices_in_slice(np.array([0, 1, 2]), slc)
-        self.assertTrue(actual)
-        actual = are_indices_in_slice(np.array([2, 3, 4]), slc)
-        self.assertTrue(actual)
-
-        actual = are_indices_in_slice(np.array([0]), slc)
-        self.assertFalse(actual)
-        actual = are_indices_in_slice(np.array([3]), slc)
-        self.assertFalse(actual)
-        actual = are_indices_in_slice(np.array([3, 4, 5]), slc)
-        self.assertFalse(actual)
-        actual = are_indices_in_slice(np.array([-1, 0]), slc)
-        self.assertFalse(actual)
 
     @attr('mpi')
     def test_grid_get_subset_bbox(self):
         # Test with an empty subset.
-        minx, miny, maxx, maxy = 1000., 1000., 1100., 1100.
+        bounds_sequence = (1000., 1000., 1100., 1100.)
 
         grid = self.get_gridxy()
 
         with self.assertRaises(EmptySubsetError):
-            grid_get_subset_bbox(grid, minx, miny, maxx, maxy)
+            grid_get_subset_bbox(grid, bounds_sequence)
 
         # Test combinations.
-        minx = 101.5
-        miny = 40.5
-        maxx = 102.5
-        maxy = 42.
+        bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
         for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
                                                                                      [False, True], [True, False]):
@@ -69,7 +43,7 @@ class Test(AbstractTestNewInterface):
             if has_bounds:
                 grid.set_extrapolated_bounds()
 
-            grid_sub, slc = grid_get_subset_bbox(grid, minx, miny, maxx, maxy, keep_touches=keep_touches,
+            grid_sub, slc = grid_get_subset_bbox(grid, bounds_sequence, keep_touches=keep_touches,
                                                  use_bounds=use_bounds)
 
             if MPI_RANK == 0:
@@ -92,7 +66,7 @@ class Test(AbstractTestNewInterface):
                 self.assertIsNone(slc)
 
         # Test against a file.
-        minx, miny, maxx, maxy = 101.5, 40.5, 102.5, 42.
+        bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
         if MPI_RANK == 0:
             path_grid = self.get_temporary_file_path('grid.nc')
@@ -112,7 +86,7 @@ class Test(AbstractTestNewInterface):
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
-        sub, slc = grid_get_subset_bbox(grid, minx, miny, maxx, maxy)
+        sub, slc = grid_get_subset_bbox(grid, bounds_sequence)
 
         if MPI_RANK == 0:
             self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
