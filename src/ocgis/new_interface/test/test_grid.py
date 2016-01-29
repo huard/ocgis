@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE, DummyMPIComm
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -36,7 +36,7 @@ class Test(AbstractTestNewInterface):
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
         for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
-                                       [MPI_COMM, MPI_COMM]):
+                                       [None, MPI_COMM]):
             is_vectorized, has_bounds, use_bounds, keep_touches, mpi_comm = combo
 
             grid = self.get_gridxy(with_dimensions=True)
@@ -48,7 +48,13 @@ class Test(AbstractTestNewInterface):
             grid_sub, slc = grid_get_subset_bbox(grid, bounds_sequence, keep_touches=keep_touches,
                                                  use_bounds=use_bounds, mpi_comm=mpi_comm)
 
-            if MPI_RANK == 0:
+            self.write_fiona_htmp(grid, 'grid')
+            self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
+
+            if mpi_comm is None:
+                mpi_comm = DummyMPIComm()
+
+            if mpi_comm.Get_rank() == 0:
                 self.assertIsInstance(grid_sub, GridXY)
                 if keep_touches:
                     if has_bounds and use_bounds:
@@ -67,7 +73,7 @@ class Test(AbstractTestNewInterface):
                 self.assertIsNone(grid_sub)
                 self.assertIsNone(slc)
 
-        # Test against a file.
+        # Test against a file. #########################################################################################
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
         if MPI_RANK == 0:
