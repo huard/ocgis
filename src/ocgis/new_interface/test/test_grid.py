@@ -35,8 +35,10 @@ class Test(AbstractTestNewInterface):
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
-        for is_vectorized, has_bounds, use_bounds, keep_touches in itertools.product([True, False], [False, True],
-                                                                                     [False, True], [True, False]):
+        for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
+                                       [MPI_COMM, MPI_COMM]):
+            is_vectorized, has_bounds, use_bounds, keep_touches, mpi_comm = combo
+
             grid = self.get_gridxy(with_dimensions=True)
             if not is_vectorized:
                 grid.expand()
@@ -44,7 +46,7 @@ class Test(AbstractTestNewInterface):
                 grid.set_extrapolated_bounds()
 
             grid_sub, slc = grid_get_subset_bbox(grid, bounds_sequence, keep_touches=keep_touches,
-                                                 use_bounds=use_bounds)
+                                                 use_bounds=use_bounds, mpi_comm=mpi_comm)
 
             if MPI_RANK == 0:
                 self.assertIsInstance(grid_sub, GridXY)
@@ -86,7 +88,7 @@ class Test(AbstractTestNewInterface):
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
-        sub, slc = grid_get_subset_bbox(grid, bounds_sequence)
+        sub, slc = grid_get_subset_bbox(grid, bounds_sequence, mpi_comm=MPI_COMM)
 
         if MPI_RANK == 0:
             self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))

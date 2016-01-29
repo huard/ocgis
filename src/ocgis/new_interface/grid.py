@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE
+from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, DummyMPIComm
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, get_formatted_slice
@@ -537,18 +537,23 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=True):
-    if MPI_RANK == 0:
+def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=True, mpi_comm=None):
+    if mpi_comm is None:
+        mpi_comm = DummyMPIComm()
+    mpi_rank = mpi_comm.Get_rank()
+    mpi_size = mpi_comm.Get_size()
+
+    if mpi_rank == 0:
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
         slices_grid = create_nd_slices(splits, grid.shape)
-        if len(slices_grid) < MPI_SIZE:
+        if len(slices_grid) < mpi_size:
             slices_grid = list(slices_grid)
-            difference = MPI_SIZE - len(slices_grid)
+            difference = mpi_size - len(slices_grid)
             slices_grid += ([None] * difference)
     else:
         slices_grid = None
 
-    slc_grid = MPI_COMM.scatter(slices_grid, root=0)
+    slc_grid = mpi_comm.scatter(slices_grid, root=0)
 
     if slc_grid is None:
         slc = None
@@ -562,11 +567,11 @@ def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=Tr
             slc = None
             grid_sliced = None
 
-    slices_global = MPI_COMM.gather(slc_grid, root=0)
-    slices_local = MPI_COMM.gather(slc, root=0)
-    grid_subs = MPI_COMM.gather(grid_sliced, root=0)
+    slices_global = mpi_comm.gather(slc_grid, root=0)
+    slices_local = mpi_comm.gather(slc, root=0)
+    grid_subs = mpi_comm.gather(grid_sliced, root=0)
 
-    if MPI_RANK == 0:
+    if mpi_rank == 0:
         raise_empty_subset = False
         if all([e is None for e in grid_subs]):
             raise_empty_subset = True
@@ -577,7 +582,7 @@ def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=Tr
         raise_empty_subset = None
         ret = None, None
 
-    raise_empty_subset = MPI_COMM.bcast(raise_empty_subset, root=0)
+    raise_empty_subset = mpi_comm.bcast(raise_empty_subset, root=0)
 
     if raise_empty_subset:
         raise EmptySubsetError('grid')
