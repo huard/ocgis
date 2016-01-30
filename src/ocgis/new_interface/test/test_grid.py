@@ -13,6 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox
+from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
@@ -114,6 +115,8 @@ class Test(AbstractTestNewInterface):
         self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
 
         grid_sub, slc = grid_get_subset_bbox(grid, subset)
+
+        log.debug(slc)
 
         # tdk: remove
         self.write_fiona_htmp(grid_sub, 'grid_sub')

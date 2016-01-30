@@ -537,11 +537,18 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=True, mpi_comm=None):
+def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None):
     if mpi_comm is None:
         mpi_comm = MPI_COMM
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
+
+    try:
+        bounds_sequence = subset.bounds
+        with_geometry = True
+    except AttributeError:  # Assume a bounds tuple.
+        bounds_sequence = subset
+        with_geometry = False
 
     if mpi_rank == 0:
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
@@ -566,6 +573,12 @@ def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=Tr
         except EmptySubsetError:
             slc = None
             grid_sliced = None
+        else:
+            if with_geometry:
+                # tdk: add use_spatial_index, add keep_touches
+                grid_sliced = grid_sliced[slc].get_intersects_masked(subset)
+                _, slc_masked = get_trimmed_array_by_mask(grid_sliced.get_mask(), return_adjustments=True)
+                slc = get_local_to_global_slices(slc, slc_masked)
 
     slices_global = mpi_comm.gather(slc_grid, root=0)
     slices_local = mpi_comm.gather(slc, root=0)
@@ -590,11 +603,8 @@ def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=Tr
         return ret
 
 
-def grid_get_subset_bbox_slice(grid, subset, use_bounds=True, keep_touches=True):
-    try:
-        minx, miny, maxx, maxy = subset.bounds
-    except AttributeError:  # Assume a bounds tuple.
-        minx, miny, maxx, maxy = subset
+def grid_get_subset_bbox_slice(grid, bounds_sequence, use_bounds=True, keep_touches=True):
+    minx, miny, maxx, maxy = bounds_sequence
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
