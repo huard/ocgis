@@ -64,6 +64,8 @@ class AbstractContainer(AbstractInterfaceObject):
         return ret
 
     def set_mask(self, mask):
+        from logging import log
+        log.debug('set_mask {}'.format(mask))
         mask = np.array(mask, dtype=bool)
         assert mask.shape == self.shape
 

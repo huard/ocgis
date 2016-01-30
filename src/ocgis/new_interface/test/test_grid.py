@@ -123,6 +123,7 @@ class Test(AbstractTestNewInterface):
             self.write_fiona_htmp(grid, 'grid')
             self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
 
+        log.debug('test payload')
         res = grid_get_subset_bbox(grid, subset)
 
         if MPI_RANK == 0:
@@ -130,13 +131,15 @@ class Test(AbstractTestNewInterface):
             # tdk: remove
             self.write_fiona_htmp(grid_sub, 'grid_sub')
 
+            log.debug('assertions')
             mask_grid_sub = grid_sub.get_mask()
-            log.debug('mask_grid_sub {}'.format(mask_grid_sub))
             self.assertTrue(np.any(mask_grid_sub))
             self.assertTrue(mask_grid_sub[1, 0])
             self.assertEqual(mask_grid_sub.sum(), 1)
         else:
             self.assertEqual(res, (None, None))
+
+        log.info('success')
 
 
 class TestGridXY(AbstractTestNewInterface):
