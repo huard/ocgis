@@ -678,6 +678,8 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
         if gs is not None:
             log.debug('gs.get_mask() {}'.format(gs.get_mask()))
             log.debug('slices_global[idx] {}'.format(slices_global[idx]))
+            log.debug('as_global {}'.format(as_global[idx]))
+            log.debug('slices_local {}'.format(slices_local[idx]))
             fill_grid[slices_global[idx]] = gs
 
     return fill_grid, slc_ret
