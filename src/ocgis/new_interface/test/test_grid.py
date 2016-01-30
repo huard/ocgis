@@ -118,6 +118,10 @@ class Test(AbstractTestNewInterface):
         # tdk: remove
         self.write_fiona_htmp(grid_sub, 'grid_sub')
 
+        mask_grid_sub = grid_sub.get_mask()
+        # tdk: use precise index
+        self.assertTrue(np.any(mask_grid_sub))
+
 
 class TestGridXY(AbstractTestNewInterface):
     def assertGridCorners(self, grid):
