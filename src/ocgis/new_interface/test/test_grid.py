@@ -35,9 +35,11 @@ class Test(AbstractTestNewInterface):
 
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
+        bounds_sequence_geometry = box(*bounds_sequence)
 
-        for combo in itertools.product([True, False], [False, True], [False, True], [True, False]):
-            is_vectorized, has_bounds, use_bounds, keep_touches = combo
+        for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
+                                       [bounds_sequence, bounds_sequence_geometry]):
+            is_vectorized, has_bounds, use_bounds, keep_touches, bounds_sequence = combo
 
             grid = self.get_gridxy(with_dimensions=True)
             if not is_vectorized:
