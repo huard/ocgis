@@ -78,14 +78,8 @@ class GridXY(AbstractSpatialContainer):
                 self.point[slc] = grid.point
             if 'polygon' in grid._variables:
                 self.polygon[slc] = grid.polygon
-            log.debug('original_mask {}'.format(original_mask))
-            log.debug('grid.get_mask() {}'.format(grid.get_mask()))
-            log.debug('slc {}'.format(slc))
             original_mask[slc] = grid.get_mask()
-            log.debug('original_mask[slc] {}'.format(original_mask))
             self.set_mask(original_mask)
-
-        log.debug('setitem grid mask {}'.format(self.get_mask()))
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
@@ -275,7 +269,6 @@ class GridXY(AbstractSpatialContainer):
             ret = np.zeros(self.shape, dtype=bool)
         else:
             ret = self._archetype.get_mask()
-            log.debug('get_mask {}'.format(ret))
         return ret
 
     @expand_needed
@@ -566,7 +559,7 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
         grid.expand()
 
     if mpi_rank == 0:
-        log.debug('split')
+        log.info('split')
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
         slices_grid = create_nd_slices(splits, grid.shape)
         if len(slices_grid) < mpi_size:
@@ -576,7 +569,7 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
     else:
         slices_grid = None
 
-    log.debug('apply')
+    log.info('apply')
     slc_grid = mpi_comm.scatter(slices_grid, root=0)
 
     if slc_grid is None:
@@ -585,7 +578,6 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
     else:
         grid_sliced = grid[slc_grid]
         try:
-            log.debug('grid_get_subset_bbox_slice')
             slc = grid_get_subset_bbox_slice(grid_sliced, bounds_sequence, use_bounds=use_bounds,
                                              keep_touches=keep_touches)
         except EmptySubsetError:
@@ -596,18 +588,16 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
             if with_geometry:
                 # tdk: add use_spatial_index
                 try:
-                    log.debug('get_intersects_masked')
                     grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches)
                 except EmptySubsetError:
                     slc = None
                     grid_sliced = None
                 else:
-                    log.debug('get_trimmed_array_by_mask')
                     _, slc_masked = get_trimmed_array_by_mask(grid_sliced.get_mask(), return_adjustments=True)
                     grid_sliced = grid_sliced[slc_masked]
                     slc = get_local_to_global_slices(slc, slc_masked)
 
-    log.debug('combine')
+    log.info('combine')
     slices_global = mpi_comm.gather(slc_grid, root=0)
     slices_local = mpi_comm.gather(slc, root=0)
     grid_subs = mpi_comm.gather(grid_sliced, root=0)
@@ -617,7 +607,6 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
         if all([e is None for e in grid_subs]):
             raise_empty_subset = True
         else:
-            log.debug('get_filled_grid_and_slice')
             filled_grid, slc = get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local)
             ret = filled_grid, slc
     else:
@@ -663,7 +652,6 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
             app = None
         as_global.append(app)
 
-    log.debug('starts, stops')
     slice_map_template = {'starts': [], 'stops': []}
     slice_map = {}
     keys = ['row', 'col']
@@ -682,15 +670,14 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
     fill_grid = grid[slc_ret]
 
     # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
-    log.debug('start fill_grid')
     new_mask = fill_grid.get_mask()
     new_mask.fill(True)
     fill_grid.set_mask(new_mask)
-    log.debug('end fill_grid {}'.format(fill_grid.get_mask()))
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
             log.debug('gs.get_mask() {}'.format(gs.get_mask()))
+            log.debug('slices_global[idx] {}'.format(slices_global[idx]))
             fill_grid[slices_global[idx]] = gs
 
     return fill_grid, slc_ret
