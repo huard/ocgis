@@ -651,6 +651,11 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
 
     slc_ret = (slice(start_row, stop_row), slice(start_col, stop_col))
     fill_grid = grid[slc_ret]
+
+    for idx, gs in enumerate(grid_subs):
+        if gs is not None:
+            fill_grid[slices_global[idx]] = gs
+
     return fill_grid, slc_ret
 
 
