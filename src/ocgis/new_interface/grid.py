@@ -579,20 +579,20 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
             grid_get_subset_bbox_slice(grid_sliced, bounds_sequence, use_bounds=use_bounds,
                                        keep_touches=keep_touches)
         except EmptySubsetError:
-            pass
+            grid_sliced = None
         else:
             if with_geometry:
                 # tdk: add use_spatial_index
                 try:
                     grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches)
                 except EmptySubsetError:
-                    pass
+                    grid_sliced = None
 
-    log.info('combine')
     slices_global = mpi_comm.gather(slc_grid, root=0)
     grid_subs = mpi_comm.gather(grid_sliced, root=0)
 
     if mpi_rank == 0:
+        log.info('combine')
         raise_empty_subset = False
         if all([e is None for e in grid_subs]):
             raise_empty_subset = True
@@ -649,18 +649,15 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     start_col, stop_col = min(col['starts']), max(col['stops'])
 
     slc_remaining = (slice(start_row, stop_row), slice(start_col, stop_col))
-    fill_grid = grid[slc_remaining]
-    log.debug('slc_remaining {}'.format(slc_remaining))
 
     # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
+    fill_grid = grid
     new_mask = fill_grid.get_mask()
     new_mask.fill(True)
     fill_grid.set_mask(new_mask)
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
-            log.debug('gs.get_mask() {}'.format(gs.get_mask()))
-            log.debug('slices_global[idx] {}'.format(slices_global[idx]))
             fill_grid[slices_global[idx]] = gs
 
     _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)

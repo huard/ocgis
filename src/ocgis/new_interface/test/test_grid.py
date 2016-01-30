@@ -133,6 +133,7 @@ class Test(AbstractTestNewInterface):
             log.info('assertions')
             mask_grid_sub = grid_sub.get_mask()
             log.debug('masked_grid_sub {}'.format(mask_grid_sub))
+            self.assertEqual(grid_sub.shape, (2, 2))
             self.assertTrue(np.any(mask_grid_sub))
             self.assertTrue(mask_grid_sub[1, 0])
             self.assertEqual(mask_grid_sub.sum(), 1)
