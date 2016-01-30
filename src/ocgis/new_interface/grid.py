@@ -7,6 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
+from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
@@ -61,6 +62,10 @@ class GridXY(AbstractSpatialContainer):
                 raise ValueError(msg)
 
     def __setitem__(self, slc, grid):
+        log.debug('grid mask {}'.format(grid.get_mask()))
+        log.debug('self mask {}'.format(self.get_mask()))
+        log.debug('x mask {}'.format(self.x.get_mask()))
+        log.debug('y mask {}'.format(self.y.get_mask()))
         slc = get_formatted_slice(slc, self.ndim)
         if not grid.is_vectorized and self.is_vectorized:
             self.expand()
@@ -74,6 +79,7 @@ class GridXY(AbstractSpatialContainer):
             self.point[slc] = grid.point
         if 'polygon' in grid._variables:
             self.polygon[slc] = grid.polygon
+        log.debug('fill_grid mask {}'.format(self.get_mask()))
 
     def _getitem_main_(self, ret, slc):
         # tdk: order
@@ -550,6 +556,9 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
         bounds_sequence = subset
         with_geometry = False
 
+    if with_geometry and grid.is_vectorized:
+        grid.expand()
+
     if mpi_rank == 0:
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
         slices_grid = create_nd_slices(splits, grid.shape)
@@ -576,11 +585,16 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
         else:
             grid_sliced = grid_sliced[slc]
             if with_geometry:
-                # tdk: add use_spatial_index, add keep_touches
-                grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches)
-                _, slc_masked = get_trimmed_array_by_mask(grid_sliced.get_mask(), return_adjustments=True)
-                grid_sliced = grid_sliced[slc_masked]
-                slc = get_local_to_global_slices(slc, slc_masked)
+                # tdk: add use_spatial_index
+                try:
+                    grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches)
+                except EmptySubsetError:
+                    slc = None
+                    grid_sliced = None
+                else:
+                    _, slc_masked = get_trimmed_array_by_mask(grid_sliced.get_mask(), return_adjustments=True)
+                    grid_sliced = grid_sliced[slc_masked]
+                    slc = get_local_to_global_slices(slc, slc_masked)
 
     slices_global = mpi_comm.gather(slc_grid, root=0)
     slices_local = mpi_comm.gather(slc, root=0)
@@ -653,8 +667,14 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global, slices_local):
     slc_ret = (slice(start_row, stop_row), slice(start_col, stop_col))
     fill_grid = grid[slc_ret]
 
+    # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
+    new_mask = fill_grid.get_mask()
+    new_mask.fill(True)
+    fill_grid.set_mask(new_mask)
+
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
+            log.debug(fill_grid.get_mask())
             fill_grid[slices_global[idx]] = gs
 
     return fill_grid, slc_ret

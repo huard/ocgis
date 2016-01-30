@@ -6,6 +6,7 @@ import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
 from shapely.geometry import Point, box
+from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
@@ -66,7 +67,11 @@ class Test(AbstractTestNewInterface):
                     else:
                         desired = (slice(1, 2, None), slice(1, 2, None))
                 self.assertEqual(grid.has_bounds, has_bounds)
-                self.assertEqual(grid.is_vectorized, is_vectorized)
+                if isinstance(bounds_sequence, BaseGeometry):
+                    # Subsetting with a geometry requires expanding the grid to mask internal elements.
+                    self.assertFalse(grid.is_vectorized)
+                else:
+                    self.assertEqual(grid.is_vectorized, is_vectorized)
                 self.assertEqual(slc, desired)
             else:
                 self.assertIsNone(grid_sub)
@@ -111,23 +116,27 @@ class Test(AbstractTestNewInterface):
         subset = wkt.loads(subset)
 
         grid = self.get_gridxy()
+        log.debug('hello world')
 
         # tdk: remove
-        self.write_fiona_htmp(grid, 'grid')
-        self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+        if MPI_RANK == 0:
+            self.write_fiona_htmp(grid, 'grid')
+            self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
 
-        grid_sub, slc = grid_get_subset_bbox(grid, subset)
+        res = grid_get_subset_bbox(grid, subset)
 
-        log.debug(slc)
+        if MPI_RANK == 0:
+            grid_sub, slc = res
+            # tdk: remove
+            self.write_fiona_htmp(grid_sub, 'grid_sub')
 
-        # tdk: remove
-        self.write_fiona_htmp(grid_sub, 'grid_sub')
-
-        mask_grid_sub = grid_sub.get_mask()
-        # tdk: use precise index
-        self.assertTrue(np.any(mask_grid_sub))
-        self.assertTrue(mask_grid_sub[1, 0])
-        self.assertEqual(mask_grid_sub.sum(), 1)
+            mask_grid_sub = grid_sub.get_mask()
+            log.debug('mask_grid_sub {}'.format(mask_grid_sub))
+            self.assertTrue(np.any(mask_grid_sub))
+            self.assertTrue(mask_grid_sub[1, 0])
+            self.assertEqual(mask_grid_sub.sum(), 1)
+        else:
+            self.assertEqual(res, (None, None))
 
 
 class TestGridXY(AbstractTestNewInterface):
