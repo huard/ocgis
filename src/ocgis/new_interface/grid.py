@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, DummyMPIComm
+from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, get_formatted_slice
@@ -539,7 +539,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
 
 def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=True, mpi_comm=None):
     if mpi_comm is None:
-        mpi_comm = DummyMPIComm()
+        mpi_comm = MPI_COMM
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
 

@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE, DummyMPIComm
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -35,9 +35,8 @@ class Test(AbstractTestNewInterface):
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
-        for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
-                                       [None, MPI_COMM]):
-            is_vectorized, has_bounds, use_bounds, keep_touches, mpi_comm = combo
+        for combo in itertools.product([True, False], [False, True], [False, True], [True, False]):
+            is_vectorized, has_bounds, use_bounds, keep_touches = combo
 
             grid = self.get_gridxy(with_dimensions=True)
             if not is_vectorized:
@@ -46,15 +45,12 @@ class Test(AbstractTestNewInterface):
                 grid.set_extrapolated_bounds()
 
             grid_sub, slc = grid_get_subset_bbox(grid, bounds_sequence, keep_touches=keep_touches,
-                                                 use_bounds=use_bounds, mpi_comm=mpi_comm)
+                                                 use_bounds=use_bounds)
 
-            self.write_fiona_htmp(grid, 'grid')
-            self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
+            # self.write_fiona_htmp(grid, 'grid')
+            # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
 
-            if mpi_comm is None:
-                mpi_comm = DummyMPIComm()
-
-            if mpi_comm.Get_rank() == 0:
+            if MPI_RANK == 0:
                 self.assertIsInstance(grid_sub, GridXY)
                 if keep_touches:
                     if has_bounds and use_bounds:
@@ -105,6 +101,22 @@ class Test(AbstractTestNewInterface):
 
         # The file may be deleted before other ranks open.
         MPI_COMM.Barrier()
+
+    @attr('mpi')
+    def test_grid_get_subset_bbox2(self):
+        subset = 'Polygon ((102.28994318181818812 42.19443181818181898, 102.37585227272727195 40.75545454545454049, 100.57892045454545382 40.69818181818181557, 100.63619318181818585 41.2422727272727272, 101.80312499999999432 41.34250000000000114, 101.69573863636364308 42.2373863636363609, 102.28994318181818812 42.19443181818181898))'
+        subset = wkt.loads(subset)
+
+        grid = self.get_gridxy()
+
+        # tdk: remove
+        self.write_fiona_htmp(grid, 'grid')
+        self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+
+        grid_sub, slc = grid_get_subset_bbox(grid, subset.bounds)
+
+        # tdk: remove
+        self.write_fiona_htmp(grid_sub, 'grid_sub')
 
 
 class TestGridXY(AbstractTestNewInterface):
