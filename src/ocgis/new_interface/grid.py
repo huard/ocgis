@@ -590,8 +590,11 @@ def grid_get_subset_bbox(grid, bounds_sequence, keep_touches=True, use_bounds=Tr
         return ret
 
 
-def grid_get_subset_bbox_slice(grid, bounds_sequence, use_bounds=True, keep_touches=True):
-    minx, miny, maxx, maxy = bounds_sequence
+def grid_get_subset_bbox_slice(grid, subset, use_bounds=True, keep_touches=True):
+    try:
+        minx, miny, maxx, maxy = subset.bounds
+    except AttributeError:  # Assume a bounds tuple.
+        minx, miny, maxx, maxy = subset
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
