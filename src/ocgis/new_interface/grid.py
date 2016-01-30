@@ -574,9 +574,10 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
             slc = None
             grid_sliced = None
         else:
+            grid_sliced = grid_sliced[slc]
             if with_geometry:
                 # tdk: add use_spatial_index, add keep_touches
-                grid_sliced = grid_sliced[slc].get_intersects_masked(subset)
+                grid_sliced = grid_sliced.get_intersects_masked(subset)
                 _, slc_masked = get_trimmed_array_by_mask(grid_sliced.get_mask(), return_adjustments=True)
                 grid_sliced = grid_sliced[slc_masked]
                 slc = get_local_to_global_slices(slc, slc_masked)

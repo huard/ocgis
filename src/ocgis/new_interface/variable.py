@@ -3,9 +3,9 @@ from abc import ABCMeta, abstractproperty
 from collections import OrderedDict
 from copy import copy, deepcopy
 from itertools import izip
-from netCDF4 import Dataset, VLType
 
 import numpy as np
+from netCDF4 import Dataset, VLType
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
@@ -680,7 +680,7 @@ class BoundedVariable(SourcedVariable):
             if variable_or_value.bounds is not None:
                 if self.bounds is None:
                     self.set_extrapolated_bounds()
-                self.bounds.value[slc, ...] = variable_or_value.bounds.value
+                self.bounds.value[slc] = variable_or_value.bounds.value
         except AttributeError:  # Assume array or other object.
             pass
 
