@@ -469,7 +469,7 @@ def get_geometry_fill(shape, mask):
 
 
 def get_polygon_geometry_array(grid):
-    fill = get_geometry_fill(grid.shape, grid.mask())
+    fill = get_geometry_fill(grid.shape, grid.get_mask())
     r_data = fill.data
 
     if grid.is_vectorized and grid.has_bounds:
@@ -622,12 +622,15 @@ def grid_get_subset_bbox_slice(grid, bounds_sequence, use_bounds=True, keep_touc
 
     try:
         if is_vectorized:
-            raise NotImplementedError
-            _, x_slice = get_trimmed_array_by_mask(res_x, return_adjustments=True)
-            _, y_slice = get_trimmed_array_by_mask(res_y, return_adjustments=True)
-            x_slice, y_slice = x_slice[0], y_slice[0]
+            if any([np.all(r) for r in [res_x, res_y]]):
+                raise AllElementsMaskedError
+            else:
+                grid.x.set_mask(res_x)
+                grid.y.set_mask(res_y)
         else:
             res = np.invert(np.logical_and(res_x.reshape(*grid.shape), res_y.reshape(*grid.shape)))
+            if np.all(res):
+                raise AllElementsMaskedError
             grid.set_mask(res)
     except AllElementsMaskedError:
         raise EmptySubsetError('grid')
@@ -663,15 +666,26 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
         as_local.append(to_append)
 
     # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
-    new_mask = fill_grid.get_mask()
-    new_mask.fill(True)
-    fill_grid.set_mask(new_mask)
+    if grid.is_vectorized:
+        for target in [fill_grid.x, fill_grid.y]:
+            new_mask = target.get_mask()
+            new_mask.fill(True)
+            target.set_mask(new_mask)
+    else:
+        new_mask = fill_grid.get_mask()
+        new_mask.fill(True)
+        fill_grid.set_mask(new_mask)
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
             fill_grid[as_local[idx]] = gs
 
-    _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)
+    if grid.is_vectorized:
+        _, y_slice = get_trimmed_array_by_mask(fill_grid.y.get_mask(), return_adjustments=True)
+        _, x_slice = get_trimmed_array_by_mask(fill_grid.x.get_mask(), return_adjustments=True)
+        slc_ret = (y_slice[0], x_slice[0])
+    else:
+        _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)
 
     fill_grid = fill_grid[slc_ret]
 
