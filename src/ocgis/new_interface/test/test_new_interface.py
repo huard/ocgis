@@ -165,5 +165,5 @@ class AbstractTestNewInterface(TestBase):
 
     @staticmethod
     def write_fiona_htmp(obj, name):
-        path = os.path.join('/home/benkoziol/htmp/ocgis', 'out_{}.shp'.format(name))
+        path = os.path.join('/home/benkoziol/htmp/ocgis', '{}.shp'.format(name))
         obj.write_fiona(path)

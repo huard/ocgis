@@ -163,13 +163,29 @@ class Test(AbstractTestNewInterface):
             self.write_fiona_htmp(grid_sub, 'multipolygon_grid_sub')
 
             mask_grid_sub = grid_sub.get_mask()
-            desired = np.array([[False, False, True], [True, False, True], [True, True, False]])
-            self.assertNumpyAll(mask_grid_sub, desired)
+            desired_mask = np.array([[False, False, True], [True, False, True], [True, True, False]])
+            self.assertNumpyAll(mask_grid_sub, desired_mask)
         else:
             self.assertEqual(res, (None, None))
 
         log.info('success')
 
+    @attr('mpi', 'data')
+    def test_grid_get_subset_bbox3(self):
+        resolution = 1.0
+        y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
+        x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
+
+        # lat_bnds = SourcedVariable(name='lat_bnds', request_dataset=rd)
+        # lon_bnds = SourcedVariable(name='lon_bnds', request_dataset=rd)
+        x = BoundedVariable(name='x', value=x)
+        y = BoundedVariable(name='y', value=y)
+
+        grid = GridXY(x, y)
+
+        self.write_fiona_htmp(grid, 'grid')
+
+        thh
 
 class TestGridXY(AbstractTestNewInterface):
     def assertGridCorners(self, grid):
