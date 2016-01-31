@@ -696,3 +696,4 @@ def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_to
     if is_vectorized:
         res_target = np.invert(res_target)
     return res_target
+
