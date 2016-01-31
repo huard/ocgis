@@ -689,6 +689,13 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
 
     fill_grid = fill_grid[slc_ret]
 
+    new_slc_ret = [None] * len(slc_ret)
+    for idx, sr in enumerate(slc_ret):
+        target_slice_remaining = slc_remaining[idx]
+        new_sr = slice(sr.start + target_slice_remaining.start, sr.stop + target_slice_remaining.start)
+        new_slc_ret[idx] = new_sr
+    slc_ret = tuple(new_slc_ret)
+
     return fill_grid, slc_ret
 
 
