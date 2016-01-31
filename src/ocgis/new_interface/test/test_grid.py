@@ -175,19 +175,24 @@ class Test(AbstractTestNewInterface):
     @attr('mpi', 'data')
     def test_grid_get_subset_bbox3(self):
         # tdk: add with bounds
-        path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
-        geoms = []
-        with fiona.open(path_shp) as source:
-            for record in source:
-                geom = shape(record['geometry'])
-                geoms.append(geom)
+        if MPI_RANK == 0:
+            path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+            geoms = []
+            with fiona.open(path_shp) as source:
+                for record in source:
+                    geom = shape(record['geometry'])
+                    geoms.append(geom)
 
-        gvar = GeometryVariable(value=geoms)
-        # self.write_fiona_htmp(gvar, 'gvar')
-        gvar_sub = gvar.get_unioned()
-        # self.write_fiona_htmp(gvar_sub, 'subset_unioned')
+            gvar = GeometryVariable(value=geoms)
+            # self.write_fiona_htmp(gvar, 'gvar')
+            gvar_sub = gvar.get_unioned()
+            # self.write_fiona_htmp(gvar_sub, 'subset_unioned')
 
-        subset = gvar_sub.value.flatten()[0]
+            subset = gvar_sub.value.flatten()[0]
+        else:
+            subset = None
+
+        subset = MPI_COMM.bcast(subset, root=0)
 
         resolution = 1.0
         y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
@@ -200,16 +205,20 @@ class Test(AbstractTestNewInterface):
 
         grid = GridXY(x, y)
 
-        grid_sub, slc = grid_get_subset_bbox(grid, subset)
+        res = grid_get_subset_bbox(grid, subset)
 
-        # self.write_fiona_htmp(grid, 'grid')
-        self.write_fiona_htmp(grid_sub, 'grid_sub')
+        if MPI_RANK == 0:
+            grid_sub, slc = res
+            # self.write_fiona_htmp(grid, 'grid')
+            self.write_fiona_htmp(grid_sub, 'grid_sub')
 
-        self.assertEqual(grid_sub.get_mask().sum(), 3506)
-        self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
+            self.assertEqual(grid_sub.get_mask().sum(), 3506)
+            self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
+            self.assertEqual(grid_sub.shape, (46, 100))
+        else:
+            self.assertEqual(res, (None, None))
 
         log.info('success')
-
 
 
 class TestGridXY(AbstractTestNewInterface):
