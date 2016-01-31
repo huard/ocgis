@@ -649,19 +649,30 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     start_col, stop_col = min(col['starts']), max(col['stops'])
 
     slc_remaining = (slice(start_row, stop_row), slice(start_col, stop_col))
+    fill_grid = grid[slc_remaining]
+
+    as_local = []
+    for target in slices_global:
+        if target is None:
+            continue
+        to_append = []
+        for target_remaining, target_element in zip(slc_remaining, target):
+            new_start = target_element.start - target_remaining.start
+            new_stop = target_element.stop - target_remaining.start
+            to_append.append(slice(new_start, new_stop))
+        as_local.append(to_append)
 
     # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
-    # fill_grid = grid[slc_remaining]
-    fill_grid = grid
     new_mask = fill_grid.get_mask()
     new_mask.fill(True)
     fill_grid.set_mask(new_mask)
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
-            fill_grid[slices_global[idx]] = gs
+            fill_grid[as_local[idx]] = gs
 
     _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)
+
     fill_grid = fill_grid[slc_ret]
 
     return fill_grid, slc_ret
