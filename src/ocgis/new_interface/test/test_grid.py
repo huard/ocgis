@@ -1,11 +1,13 @@
 import itertools
+import os
 from copy import deepcopy
 from unittest import SkipTest
 
+import fiona
 import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
-from shapely.geometry import Point, box, MultiPolygon
+from shapely.geometry import Point, box, MultiPolygon, shape
 from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
@@ -172,6 +174,21 @@ class Test(AbstractTestNewInterface):
 
     @attr('mpi', 'data')
     def test_grid_get_subset_bbox3(self):
+        # tdk: add with bounds
+        path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+        geoms = []
+        with fiona.open(path_shp) as source:
+            for record in source:
+                geom = shape(record['geometry'])
+                geoms.append(geom)
+
+        gvar = GeometryVariable(value=geoms)
+        # self.write_fiona_htmp(gvar, 'gvar')
+        gvar_sub = gvar.get_unioned()
+        # self.write_fiona_htmp(gvar_sub, 'subset_unioned')
+
+        subset = gvar_sub.value.flatten()[0]
+
         resolution = 1.0
         y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
         x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
@@ -183,9 +200,17 @@ class Test(AbstractTestNewInterface):
 
         grid = GridXY(x, y)
 
-        self.write_fiona_htmp(grid, 'grid')
+        grid_sub, slc = grid_get_subset_bbox(grid, subset)
 
-        thh
+        # self.write_fiona_htmp(grid, 'grid')
+        self.write_fiona_htmp(grid_sub, 'grid_sub')
+
+        self.assertEqual(grid_sub.get_mask().sum(), 3506)
+        self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
+
+        log.info('success')
+
+
 
 class TestGridXY(AbstractTestNewInterface):
     def assertGridCorners(self, grid):
