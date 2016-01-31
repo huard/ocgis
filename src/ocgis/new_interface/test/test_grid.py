@@ -5,7 +5,7 @@ from unittest import SkipTest
 import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
-from shapely.geometry import Point, box
+from shapely.geometry import Point, box, MultiPolygon
 from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
@@ -112,8 +112,15 @@ class Test(AbstractTestNewInterface):
     @attr('mpi', 'mpi-np2', 'mpi-np12', 'mpi-np15')
     def test_grid_get_subset_bbox2(self):
         log.info('hello world')
-        subset = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
-        subset = wkt.loads(subset)
+        subset1 = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
+        subset1 = wkt.loads(subset1)
+        subset2 = 'Polygon ((102.82100076148078927 43.17027003280225017, 103.26183018978443329 43.19503573102155514, 103.47481519447048015 42.70467490627928697, 101.38459026476100178 42.53131501874414511, 102.81604762183692969 42.86317537488285012, 102.82100076148078927 43.17027003280225017))'
+        subset2 = wkt.loads(subset2)
+
+        ################################################################################################################
+
+        # Test with a single polygon.
+        subset = subset1
 
         grid = self.get_gridxy()
 
@@ -129,13 +136,35 @@ class Test(AbstractTestNewInterface):
             # tdk: remove
             self.write_fiona_htmp(grid_sub, 'grid_sub')
 
-            log.info('assertions')
             mask_grid_sub = grid_sub.get_mask()
-            log.debug('masked_grid_sub {}'.format(mask_grid_sub))
             self.assertEqual(grid_sub.shape, (2, 2))
             self.assertTrue(np.any(mask_grid_sub))
             self.assertTrue(mask_grid_sub[1, 0])
             self.assertEqual(mask_grid_sub.sum(), 1)
+        else:
+            self.assertEqual(res, (None, None))
+
+        ################################################################################################################
+
+        # Test with a multi-polygon.
+
+        subset = MultiPolygon([subset1, subset2])
+        grid = self.get_gridxy()
+
+        # tdk: remove
+        if MPI_RANK == 0:
+            self.write_fiona_htmp(GeometryVariable(value=subset), 'multipolygon_subset')
+
+        res = grid_get_subset_bbox(grid, subset)
+
+        if MPI_RANK == 0:
+            grid_sub, slc = res
+            # tdk: remove
+            self.write_fiona_htmp(grid_sub, 'multipolygon_grid_sub')
+
+            mask_grid_sub = grid_sub.get_mask()
+            desired = np.array([[False, False, True], [True, False, True], [True, True, False]])
+            self.assertNumpyAll(mask_grid_sub, desired)
         else:
             self.assertEqual(res, (None, None))
 
