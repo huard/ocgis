@@ -651,6 +651,7 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     slc_remaining = (slice(start_row, stop_row), slice(start_col, stop_col))
 
     # The grid should be entirely masked. Section grids are subsetted to the extent of the local overlap.
+    # fill_grid = grid[slc_remaining]
     fill_grid = grid
     new_mask = fill_grid.get_mask()
     new_mask.fill(True)

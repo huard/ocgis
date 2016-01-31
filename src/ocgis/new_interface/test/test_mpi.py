@@ -80,7 +80,7 @@ class Test(AbstractTestNewInterface):
                                   (slice(0, 10, None), slice(2, 3, None), slice(0, 3, None)),
                                   (slice(0, 10, None), slice(3, 4, None), slice(0, 3, None))))
 
-    def test_tdk(self):
+    def test_create_nd_slices2(self):
 
         size = (1, 1)
         shape = (4, 3)
