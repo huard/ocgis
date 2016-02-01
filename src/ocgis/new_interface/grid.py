@@ -290,7 +290,7 @@ class GridXY(AbstractSpatialContainer):
         assert minx <= maxx
         assert miny <= maxy
 
-        ret, slc = grid_get_subset_bbox(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
+        ret, slc = grid_get_intersects(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
 
         if MPI_RANK == 0:
             # Set the mask to update variables only for non-vectorized grids.
@@ -542,7 +542,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None):
+def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None):
     if mpi_comm is None:
         mpi_comm = MPI_COMM
     mpi_rank = mpi_comm.Get_rank()
@@ -576,8 +576,8 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
     if slc_grid is not None:
         grid_sliced = grid[slc_grid]
         try:
-            grid_get_subset_bbox_slice(grid_sliced, bounds_sequence, use_bounds=use_bounds,
-                                       keep_touches=keep_touches)
+            grid_update_mask(grid_sliced, bounds_sequence, use_bounds=use_bounds,
+                             keep_touches=keep_touches)
         except EmptySubsetError:
             grid_sliced = None
         else:
@@ -611,8 +611,7 @@ def grid_get_subset_bbox(grid, subset, keep_touches=True, use_bounds=True, mpi_c
         return ret
 
 
-# tdk: rename to update get_bbox_slice
-def grid_get_subset_bbox_slice(grid, bounds_sequence, use_bounds=True, keep_touches=True):
+def grid_update_mask(grid, bounds_sequence, use_bounds=True, keep_touches=True):
     minx, miny, maxx, maxy = bounds_sequence
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized

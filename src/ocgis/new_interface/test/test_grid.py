@@ -15,7 +15,7 @@ from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_subset_bbox
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects
 from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -25,15 +25,15 @@ from ocgis.util.helpers import make_poly, iter_array
 
 
 class Test(AbstractTestNewInterface):
-    @attr('mpi')
-    def test_grid_get_subset_bbox(self):
+    @attr('mpi', 'mpi-4', 'mpi-12')
+    def test_grid_get_intersects(self):
         # Test with an empty subset.
         bounds_sequence = (1000., 1000., 1100., 1100.)
 
         grid = self.get_gridxy()
 
         with self.assertRaises(EmptySubsetError):
-            grid_get_subset_bbox(grid, bounds_sequence)
+            grid_get_intersects(grid, bounds_sequence)
 
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
@@ -49,8 +49,8 @@ class Test(AbstractTestNewInterface):
             if has_bounds:
                 grid.set_extrapolated_bounds()
 
-            grid_sub, slc = grid_get_subset_bbox(grid, bounds_sequence, keep_touches=keep_touches,
-                                                 use_bounds=use_bounds)
+            grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=keep_touches,
+                                                use_bounds=use_bounds)
 
             # self.write_fiona_htmp(grid, 'grid')
             # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
@@ -99,7 +99,7 @@ class Test(AbstractTestNewInterface):
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
-        sub, slc = grid_get_subset_bbox(grid, bounds_sequence, mpi_comm=MPI_COMM)
+        sub, slc = grid_get_intersects(grid, bounds_sequence, mpi_comm=MPI_COMM)
 
         if MPI_RANK == 0:
             self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
@@ -111,8 +111,8 @@ class Test(AbstractTestNewInterface):
         # The file may be deleted before other ranks open.
         MPI_COMM.Barrier()
 
-    @attr('mpi')
-    def test_grid_get_subset_bbox2(self):
+    @attr('mpi', 'mpi-4', 'mpi-12')
+    def test_grid_get_intersects2(self):
         log.info('hello world')
         subset1 = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
         subset1 = wkt.loads(subset1)
@@ -130,7 +130,7 @@ class Test(AbstractTestNewInterface):
         #     self.write_fiona_htmp(grid, 'grid')
         #     self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
 
-        res = grid_get_subset_bbox(grid, subset)
+        res = grid_get_intersects(grid, subset)
 
         if MPI_RANK == 0:
             grid_sub, slc = res
@@ -155,7 +155,7 @@ class Test(AbstractTestNewInterface):
         # if MPI_RANK == 0:
         #     self.write_fiona_htmp(GeometryVariable(value=subset), 'multipolygon_subset')
 
-        res = grid_get_subset_bbox(grid, subset)
+        res = grid_get_intersects(grid, subset)
 
         if MPI_RANK == 0:
             grid_sub, slc = res
@@ -170,8 +170,8 @@ class Test(AbstractTestNewInterface):
 
         log.info('success')
 
-    @attr('mpi')
-    def test_grid_get_subset_bbox3(self):
+    @attr('mpi', 'mpi-4')
+    def test_grid_get_intersects3(self):
         if MPI_RANK == 0:
             path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
             geoms = []
@@ -207,7 +207,7 @@ class Test(AbstractTestNewInterface):
             if with_bounds:
                 grid.set_extrapolated_bounds()
 
-            res = grid_get_subset_bbox(grid, subset)
+            res = grid_get_intersects(grid, subset)
 
             if MPI_RANK == 0:
                 grid_sub, slc = res
