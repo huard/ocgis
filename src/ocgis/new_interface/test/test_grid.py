@@ -174,7 +174,6 @@ class Test(AbstractTestNewInterface):
 
     @attr('mpi', 'data')
     def test_grid_get_subset_bbox3(self):
-        # tdk: add with bounds
         if MPI_RANK == 0:
             path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
             geoms = []
@@ -214,8 +213,9 @@ class Test(AbstractTestNewInterface):
 
             if MPI_RANK == 0:
                 grid_sub, slc = res
-                self.write_fiona_htmp(grid, 'grid')
-                self.write_fiona_htmp(grid_sub, 'grid_sub')
+
+                # self.write_fiona_htmp(grid, 'grid')
+                # self.write_fiona_htmp(grid_sub, 'grid_sub')
 
                 if with_bounds:
                     self.assertEqual(grid_sub.get_mask().sum(), 4595)
