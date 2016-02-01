@@ -635,6 +635,11 @@ def grid_update_mask(grid, bounds_sequence, use_bounds=True, keep_touches=True):
         raise EmptySubsetError('grid')
 
 
+def remove_nones(target):
+    ret = filter(lambda x: x is not None, target)
+    return ret
+
+
 def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     slice_map_template = {'starts': [], 'stops': []}
     slice_map = {}
