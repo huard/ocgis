@@ -126,17 +126,16 @@ class Test(AbstractTestNewInterface):
 
         grid = self.get_gridxy()
 
-        # tdk: remove
-        if MPI_RANK == 0:
-            self.write_fiona_htmp(grid, 'grid')
-            self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+        # if MPI_RANK == 0:
+        #     self.write_fiona_htmp(grid, 'grid')
+        #     self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
 
         res = grid_get_subset_bbox(grid, subset)
 
         if MPI_RANK == 0:
             grid_sub, slc = res
-            # tdk: remove
-            self.write_fiona_htmp(grid_sub, 'grid_sub')
+
+            # self.write_fiona_htmp(grid_sub, 'grid_sub')
 
             mask_grid_sub = grid_sub.get_mask()
             self.assertEqual(grid_sub.shape, (2, 2))
@@ -153,16 +152,15 @@ class Test(AbstractTestNewInterface):
         subset = MultiPolygon([subset1, subset2])
         grid = self.get_gridxy()
 
-        # tdk: remove
-        if MPI_RANK == 0:
-            self.write_fiona_htmp(GeometryVariable(value=subset), 'multipolygon_subset')
+        # if MPI_RANK == 0:
+        #     self.write_fiona_htmp(GeometryVariable(value=subset), 'multipolygon_subset')
 
         res = grid_get_subset_bbox(grid, subset)
 
         if MPI_RANK == 0:
             grid_sub, slc = res
-            # tdk: remove
-            self.write_fiona_htmp(grid_sub, 'multipolygon_grid_sub')
+
+            # self.write_fiona_htmp(grid_sub, 'multipolygon_grid_sub')
 
             mask_grid_sub = grid_sub.get_mask()
             desired_mask = np.array([[False, False, True], [True, False, True], [True, True, False]])
