@@ -195,28 +195,38 @@ class Test(AbstractTestNewInterface):
         subset = MPI_COMM.bcast(subset, root=0)
 
         resolution = 1.0
-        y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
-        x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
 
-        # lat_bnds = SourcedVariable(name='lat_bnds', request_dataset=rd)
-        # lon_bnds = SourcedVariable(name='lon_bnds', request_dataset=rd)
-        x = BoundedVariable(name='x', value=x)
-        y = BoundedVariable(name='y', value=y)
+        for with_bounds in [False, True]:
+            y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
+            x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
 
-        grid = GridXY(x, y)
+            # lat_bnds = SourcedVariable(name='lat_bnds', request_dataset=rd)
+            # lon_bnds = SourcedVariable(name='lon_bnds', request_dataset=rd)
+            x = BoundedVariable(name='x', value=x)
+            y = BoundedVariable(name='y', value=y)
 
-        res = grid_get_subset_bbox(grid, subset)
+            grid = GridXY(x, y)
 
-        if MPI_RANK == 0:
-            grid_sub, slc = res
-            # self.write_fiona_htmp(grid, 'grid')
-            self.write_fiona_htmp(grid_sub, 'grid_sub')
+            if with_bounds:
+                grid.set_extrapolated_bounds()
 
-            self.assertEqual(grid_sub.get_mask().sum(), 3506)
-            self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
-            self.assertEqual(grid_sub.shape, (46, 100))
-        else:
-            self.assertEqual(res, (None, None))
+            res = grid_get_subset_bbox(grid, subset)
+
+            if MPI_RANK == 0:
+                grid_sub, slc = res
+                self.write_fiona_htmp(grid, 'grid')
+                self.write_fiona_htmp(grid_sub, 'grid_sub')
+
+                if with_bounds:
+                    self.assertEqual(grid_sub.get_mask().sum(), 4595)
+                    self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
+                    self.assertEqual(grid_sub.shape, (53, 112))
+                else:
+                    self.assertEqual(grid_sub.get_mask().sum(), 3506)
+                    self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
+                    self.assertEqual(grid_sub.shape, (46, 100))
+            else:
+                self.assertEqual(res, (None, None))
 
         log.info('success')
 
