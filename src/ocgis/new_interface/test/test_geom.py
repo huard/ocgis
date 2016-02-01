@@ -100,7 +100,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         grid = GridXY(x=x, y=y)
         pa = get_geometry_variable(get_point_geometry_array, grid)
         polygon = box(2.5, 15, 4.5, 45)
-        sub, slc = pa.get_intersects(polygon, return_indices=True)
+        sub, slc = pa.get_intersects(polygon, return_slice=True)
         self.assertEqual(sub.shape, (3, 2))
         desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
         desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
@@ -130,7 +130,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         subset = MultiPolygon([Point(1, 2).buffer(0.1), Point(4, 5).buffer(0.1)])
         gvar = GeometryVariable(value=pts, backref=backref)
         gvar.create_dimensions('ngeom')
-        sub, slc = gvar.get_intersects(subset, return_indices=True)
+        sub, slc = gvar.get_intersects(subset, return_slice=True)
         self.assertFalse(sub.get_mask().any())
 
         desired = snames.value[slc]
@@ -141,7 +141,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         for return_indices in [True, False]:
             pa = self.get_geometryvariable()
             polygon = box(0.9, 1.9, 1.5, 2.5)
-            lhs = pa.get_intersection(polygon, return_indices=return_indices)
+            lhs = pa.get_intersection(polygon, return_slice=return_indices)
             if return_indices:
                 lhs, slc = lhs
                 # self.assertEqual(slc, (slice(0, -1, None),))

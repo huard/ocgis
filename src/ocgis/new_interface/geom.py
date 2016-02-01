@@ -313,7 +313,7 @@ class GeometryVariable(AbstractSpatialVariable):
     def get_intersection(self, *args, **kwargs):
         ret = self.get_intersects(*args, **kwargs)
         # If indices are being returned, this will be a tuple.
-        if kwargs.get('return_indices'):
+        if kwargs.get('return_slice'):
             obj = ret[0]
         else:
             obj = ret
