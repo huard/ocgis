@@ -11,7 +11,7 @@ from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_local_to_global_slices, get_formatted_slice
+from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_formatted_slice
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -287,7 +287,12 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_subset_bbox(self, bounds_or_geometry, return_slice=False, use_bounds=True):
+    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto'):
+        if use_bounds == 'auto':
+            if self.abstraction == 'polygon':
+                use_bounds = True
+            else:
+                use_bounds = False
 
         ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds)
 
@@ -393,26 +398,26 @@ class GridXY(AbstractSpatialContainer):
     def abstraction_geometry(self):
         return getattr(self, self.abstraction)
 
-    def get_intersects(self, *args, **kwargs):
-        if self.abstraction == 'polygon':
-            use_bounds = True
-        else:
-            use_bounds = False
-
-        return_slice = kwargs.pop('return_slice', False)
-        minx, miny, maxx, maxy = args[0].bounds
-        ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_slice=True, use_bounds=use_bounds)
-        new_mask = ret.get_intersects_masked(*args, **kwargs).get_mask()
-        # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
-        # columns should be trimmed.
-        _, adjust = get_trimmed_array_by_mask(new_mask, return_adjustments=True)
-        # Use the adjustments to trim the returned data object.
-        ret = ret.__getitem__(adjust)
-        # Adjust the returned slices.
-        if return_slice:
-            ret_slc = get_local_to_global_slices(slc, adjust)
-            ret = (ret, ret_slc)
-        return ret
+    # def get_intersects(self, *args, **kwargs):
+    #     if self.abstraction == 'polygon':
+    #         use_bounds = True
+    #     else:
+    #         use_bounds = False
+    #
+    #     return_slice = kwargs.pop('return_slice', False)
+    #     minx, miny, maxx, maxy = args[0].bounds
+    #     ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_slice=True, use_bounds=use_bounds)
+    #     new_mask = ret.get_intersects_masked(*args, **kwargs).get_mask()
+    #     # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
+    #     # columns should be trimmed.
+    #     _, adjust = get_trimmed_array_by_mask(new_mask, return_adjustments=True)
+    #     # Use the adjustments to trim the returned data object.
+    #     ret = ret.__getitem__(adjust)
+    #     # Adjust the returned slices.
+    #     if return_slice:
+    #         ret_slc = get_local_to_global_slices(slc, adjust)
+    #         ret = (ret, ret_slc)
+    #     return ret
 
     def get_intersects_masked(self, *args, **kwargs):
         ret = self.copy()

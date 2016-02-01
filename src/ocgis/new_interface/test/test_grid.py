@@ -17,7 +17,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects
 from ocgis.new_interface.logging import log
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, BoundedVariable
 from ocgis.test.base import attr
@@ -285,59 +285,6 @@ class TestGridXY(AbstractTestNewInterface):
                 ret = (ret, k)
             yield ret
 
-    def test(self):
-        x = BoundedVariable(value=[-10, -5, 0, 5, 10], dtype=float, name='x')
-        y = BoundedVariable(value=[10, 5, 0, -5, -10], dtype=float, name='y')
-        grid = GridXY(x, y)
-        self.assertEqual(grid.abstraction, 'point')
-
-        path_points = self.get_temporary_file_path('points.shp')
-        grid.write_fiona(path_points)
-
-        path_polygon = self.get_temporary_file_path('polygons.shp')
-        grid_polygon = deepcopy(grid)
-        grid_polygon.set_extrapolated_bounds()
-        grid_polygon.write_fiona(path_polygon)
-
-        subset = 'Polygon ((-7.97491349480970513 3.3788927335640544, -8.19290657439447756 -3.08823529411760589, 4.23269896193770023 -3.59688581314874867, 4.16003460207610942 3.52422145328723957, -7.97491349480970513 3.3788927335640544))'
-        subset = wkt.loads(subset)
-        path_subset = self.get_temporary_file_path('the_subset_polygon.shp')
-        GeometryVariable(value=subset).write_fiona(path_subset)
-
-        sub = grid.get_intersects_masked(subset)
-        self.assertFalse(grid.get_mask().any())
-        mask = sub.get_mask()
-        self.assertFalse(np.any(mask[2, 1:3]))
-        self.assertEqual(len(mask.flat) - 2, mask.sum())
-        sub = grid.get_intersects(subset)
-        # path_sub_points = self.get_temporary_file_path('points_subset.shp')
-        # sub.write_fiona(path_sub_points)
-        for target in [sub.x, sub.y]:
-            self.assertEqual(target.ndim, 1)
-        # Grid is still vectorized.
-        self.assertEqual(sub.x.value.tolist(), [-5.0, 0.0])
-        self.assertEqual(sub.y.value.tolist(), [0.0])
-
-        sub = grid_polygon.get_intersects_masked(subset)
-        self.assertFalse(grid_polygon.get_mask().any())
-        mask = sub.get_mask()
-        self.assertFalse(np.any(mask[1:-1, 0:-1]))
-        self.assertEqual(len(mask.flat) - 12, mask.sum())
-        sub = grid_polygon.get_intersects(subset)
-        path_sub_points = self.get_temporary_file_path('points_subset.shp')
-        sub.write_fiona(path_sub_points)
-        self.assertEqual(sub.x.value.tolist(), [-10.0, -5.0, 0.0, 5.0])
-        self.assertEqual(sub.y.value.tolist(), [5.0, 0.0, -5.0])
-        self.assertEqual(grid_polygon.resolution, 5.0)
-
-        grid_polygon.expand()
-        self.assertFalse(grid_polygon.get_mask().any())
-        self.assertEqual(grid_polygon.resolution, 5)
-        min_col, min_row, max_col, max_row = subset.bounds
-        sub2_bbox = grid_polygon.get_subset_bbox(min_col, min_row, max_col, max_row)
-        sub2 = grid_polygon.get_intersects(subset)
-        self.assertNumpyAll(sub2_bbox.value_stacked, sub2.value_stacked)
-
     def test_init(self):
         crs = WGS84()
         grid = self.get_gridxy(crs=crs)
@@ -368,70 +315,6 @@ class TestGridXY(AbstractTestNewInterface):
         for t in targets:
             self.assertEqual(t.shape, (1, 1))
             self.assertIsInstance(t, GeometryVariable)
-
-    # tdk: remove
-    # def test_corners(self):
-    #     # Test constructing from x/y bounds.
-    #     grid = self.get_gridxy()
-    #     grid._x = BoundedVariable(value=grid._x.value, name='x')
-    #     grid._y = BoundedVariable(value=grid._y.value, name='y')
-    #     grid._x.set_extrapolated_bounds()
-    #     grid._y.set_extrapolated_bounds()
-    #     corners = grid.corners.copy()
-    #     value = grid.value.copy()
-    #     self.assertIsNotNone(corners)
-    #     self.assertEqual(corners.shape, (2, grid._y.shape[0], grid._x.shape[0], 4))
-    #     self.assertGridCorners(grid)
-    #
-    #     # Test initializing corners with a value.
-    #     grid = GridXY(value=value, corners=corners)
-    #     self.assertIsNotNone(grid._corners)
-    #     self.assertNumpyAll(grid.corners, corners)
-    #
-    #     # Test corners are sliced.
-    #     sub = grid[2:4, 1]
-    #     self.assertEqual(sub.corners.shape, (2, 2, 1, 4))
-    #
-    #     # Test constructing with two-dimensional variables.
-    #     y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
-    #     y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
-    #                  [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
-    #                  [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
-    #                  [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
-    #     x_value = [[101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0], [101.0, 102.0, 103.0]]
-    #     x_corners = [[[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]],
-    #                  [[100.5, 101.5, 101.5, 100.5], [101.5, 102.5, 102.5, 101.5], [102.5, 103.5, 103.5, 102.5]]]
-    #
-    #     y_bounds = Variable(value=y_corners, name='y_corners')
-    #     y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-    #     y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
-    #     y.create_dimensions(names=['y', 'x'])
-    #
-    #     x_bounds = Variable(value=x_corners, name='x_corners')
-    #     x_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-    #     x = BoundedVariable(value=x_value, bounds=x_bounds, name='x')
-    #     x.create_dimensions(names=['y', 'x'])
-    #
-    #     grid = GridXY(x=x, y=y)
-    #     np.testing.assert_equal(grid.corners[0], y_corners)
-    #     np.testing.assert_equal(grid.corners[1], x_corners)
-    #
-    #     path = self.get_temporary_file_path('foo.nc')
-    #     with self.nc_scope(path, 'w') as ds:
-    #         grid.write_netcdf(ds)
-    #     # subprocess.check_call(['ncdump', path])
-    #
-    #     # Test writing with dimension variables.
-    #     self.assertIsNotNone(grid.corners)
-    #     with self.nc_scope(path, 'w') as ds:
-    #         grid.write_netcdf(ds)
-    #     # subprocess.check_call(['ncdump', path])
-    #
-    #     with self.nc_scope(path) as ds:
-    #         self.assertIn('y_corners', ds.variables)
-    #         self.assertIn('x_corners', ds.variables)
 
     def test_corners_esmf(self):
         raise SkipTest('move to test for get_esmf_corners_from_ocgis_corners')
@@ -532,7 +415,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
 
     @attr('mpi')
-    def test_get_subset_bbox(self):
+    def test_get_intersects_bounds_sequence(self):
         keywords = dict(bounds=[True, False], use_bounds=[True, False])
 
         for k in self.iter_product_keywords(keywords):
@@ -540,17 +423,17 @@ class TestGridXY(AbstractTestNewInterface):
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
             bounds_sequence = (-99, 39, -98, 39)
-            bg = grid.get_subset_bbox(bounds_sequence)
+            bg = grid.get_intersects(bounds_sequence)
             if MPI_RANK == 0:
                 self.assertNotEqual(grid.shape, bg.shape)
                 self.assertTrue(bg.is_vectorized)
 
             with self.assertRaises(EmptySubsetError):
                 bounds_sequence = (1000, 1000, 1001, 10001)
-                grid.get_subset_bbox(bounds_sequence, use_bounds=k.use_bounds)
+                grid.get_intersects(bounds_sequence, use_bounds=k.use_bounds)
 
             bounds_sequence = (-99999, 1, 1, 1000)
-            bg2 = grid.get_subset_bbox(bounds_sequence, use_bounds=k.use_bounds)
+            bg2 = grid.get_intersects(bounds_sequence, use_bounds=k.use_bounds)
 
             if MPI_RANK == 0:
                 for target in ['x', 'y']:
@@ -569,29 +452,13 @@ class TestGridXY(AbstractTestNewInterface):
         bounds_sequence = (101.5, 40.5, 102.5, 42.5)
         self.assertFalse(grid.has_bounds)
 
-        sub = grid.get_subset_bbox(bounds_sequence, use_bounds=False)
+        sub = grid.get_intersects(bounds_sequence, use_bounds=False)
         if MPI_RANK == 0:
             self.assertTrue(np.all(sub.get_mask()))
             new_mask = sub.get_mask()
             new_mask.fill(False)
             sub.set_mask(new_mask)
             self.assertEqual(grid.get_mask().sum(), 4)
-
-    @attr('mpi')
-    def test_get_subset_bbox_subsets_distributed(self):
-
-        if MPI_RANK == 0:
-            element = (101.5, 40.5, 102.5, 42.)
-            subs = (element, element)
-        else:
-            subs = None
-
-        subset = MPI_COMM.scatter(subs, MPI_SIZE)
-
-        grid = self.get_gridxy()
-        res = grid.get_subset_bbox(*subset)
-
-        print res.x.value
 
     def test_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
