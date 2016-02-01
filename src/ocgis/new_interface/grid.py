@@ -287,14 +287,15 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto'):
+    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto', use_spatial_index=True):
         if use_bounds == 'auto':
             if self.abstraction == 'polygon':
                 use_bounds = True
             else:
                 use_bounds = False
 
-        ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds)
+        ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds,
+                                       use_spatial_index=use_spatial_index)
 
         if MPI_RANK == 0:
             # Set the mask to update variables only for non-vectorized grids.
@@ -397,27 +398,6 @@ class GridXY(AbstractSpatialContainer):
     @property
     def abstraction_geometry(self):
         return getattr(self, self.abstraction)
-
-    # def get_intersects(self, *args, **kwargs):
-    #     if self.abstraction == 'polygon':
-    #         use_bounds = True
-    #     else:
-    #         use_bounds = False
-    #
-    #     return_slice = kwargs.pop('return_slice', False)
-    #     minx, miny, maxx, maxy = args[0].bounds
-    #     ret, slc = self.get_subset_bbox(minx, miny, maxx, maxy, return_slice=True, use_bounds=use_bounds)
-    #     new_mask = ret.get_intersects_masked(*args, **kwargs).get_mask()
-    #     # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
-    #     # columns should be trimmed.
-    #     _, adjust = get_trimmed_array_by_mask(new_mask, return_adjustments=True)
-    #     # Use the adjustments to trim the returned data object.
-    #     ret = ret.__getitem__(adjust)
-    #     # Adjust the returned slices.
-    #     if return_slice:
-    #         ret_slc = get_local_to_global_slices(slc, adjust)
-    #         ret = (ret, ret_slc)
-    #     return ret
 
     def get_intersects_masked(self, *args, **kwargs):
         ret = self.copy()
@@ -546,7 +526,8 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None):
+def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None,
+                        use_spatial_index=True):
     if mpi_comm is None:
         mpi_comm = MPI_COMM
     mpi_rank = mpi_comm.Get_rank()
@@ -588,7 +569,8 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
             if with_geometry:
                 # tdk: add use_spatial_index
                 try:
-                    grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches)
+                    grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches,
+                                                                    use_spatial_index=use_spatial_index)
                 except EmptySubsetError:
                     grid_sliced = None
 
