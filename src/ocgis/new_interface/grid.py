@@ -275,6 +275,7 @@ class GridXY(AbstractSpatialContainer):
     def set_mask(self, value):
         super(GridXY, self).set_mask(value)
         # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
+        self._mask = None
         for target in self._variables.values():
             target.set_mask(value)
 

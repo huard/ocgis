@@ -12,6 +12,6 @@ fh = FileHandler('/home/benkoziol/htmp/ocgis.log', bubble=True)
 fh.format_string += ' (rank={})'.format(MPI_RANK)
 fh.push_application()
 
-log = Logger('ocgis')
+log = Logger('ocgis', level='ERROR')
 # log.handlers.append(fh)
 # log.handlers.append(sh)
