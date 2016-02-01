@@ -286,11 +286,9 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_subset_bbox(self, minx, miny, maxx, maxy, return_slice=False, use_bounds=True):
-        assert minx <= maxx
-        assert miny <= maxy
+    def get_subset_bbox(self, bounds_or_geometry, return_slice=False, use_bounds=True):
 
-        ret, slc = grid_get_intersects(self, minx, miny, maxx, maxy, use_bounds=use_bounds)
+        ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds)
 
         if MPI_RANK == 0:
             # Set the mask to update variables only for non-vectorized grids.

@@ -539,15 +539,18 @@ class TestGridXY(AbstractTestNewInterface):
             y = self.get_variable_y(bounds=k.bounds)
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
-            bg = grid.get_subset_bbox(-99, 39, -98, 39)
+            bounds_sequence = (-99, 39, -98, 39)
+            bg = grid.get_subset_bbox(bounds_sequence)
             if MPI_RANK == 0:
                 self.assertNotEqual(grid.shape, bg.shape)
                 self.assertTrue(bg.is_vectorized)
 
             with self.assertRaises(EmptySubsetError):
-                grid.get_subset_bbox(1000, 1000, 1001, 10001, use_bounds=k.use_bounds)
+                bounds_sequence = (1000, 1000, 1001, 10001)
+                grid.get_subset_bbox(bounds_sequence, use_bounds=k.use_bounds)
 
-            bg2 = grid.get_subset_bbox(-99999, 1, 1, 1000, use_bounds=k.use_bounds)
+            bounds_sequence = (-99999, 1, 1, 1000)
+            bg2 = grid.get_subset_bbox(bounds_sequence, use_bounds=k.use_bounds)
 
             if MPI_RANK == 0:
                 for target in ['x', 'y']:
@@ -561,10 +564,10 @@ class TestGridXY(AbstractTestNewInterface):
         new_mask[:, 1] = True
         grid.set_mask(new_mask)
         self.assertIsNone(grid._mask)
-        args = (101.5, 40.5, 102.5, 42.5)
+        bounds_sequence = (101.5, 40.5, 102.5, 42.5)
         self.assertFalse(grid.has_bounds)
 
-        sub = grid.get_subset_bbox(*args, use_bounds=False)
+        sub = grid.get_subset_bbox(bounds_sequence, use_bounds=False)
         if MPI_RANK == 0:
             self.assertTrue(np.all(sub.get_mask()))
             new_mask = sub.get_mask()
@@ -587,7 +590,6 @@ class TestGridXY(AbstractTestNewInterface):
         res = grid.get_subset_bbox(*subset)
 
         print res.x.value
-
 
     def test_get_intersects(self):
         subset = box(100.7, 39.71, 102.30, 42.30)
