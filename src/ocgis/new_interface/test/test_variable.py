@@ -782,12 +782,16 @@ class TestVariableCollection(AbstractTestNewInterface):
         # Test with nested collections.
         vc = self.get_variablecollection()
         nvc = self.get_variablecollection(name='nest')
+        desired = Variable(name='desired', value=[101, 103])
+        nvc.add_variable(desired)
         vc.add_child(nvc)
         path = self.get_temporary_file_path('foo.nc')
         vc.write_netcdf(path)
         self.ncdump(path)
         rvc = VariableCollection.read_netcdf(path)
-        self.assertIn('nest', rvc)
+        self.assertIn('nest', rvc.children)
+        self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)
+
         raise self.ToTest('test read write of nested collections')
 
     def test_getitem(self):

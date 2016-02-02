@@ -643,9 +643,13 @@ class SourcedVariable(Variable):
             raise PayloadProtectedError
 
         ds = self._request_dataset.driver.open()
+        if self.parent is not None:
+            if self.parent.parent is not None:
+                source = ds.groups[self.parent.name]
+
         desired_name = self.name or self._request_dataset.variable
         try:
-            variable = ds.variables[desired_name]
+            variable = source.variables[desired_name]
             ret = get_variable_value(variable, self.dimensions)
 
             # Conform the units if requested.
@@ -1029,12 +1033,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return ret
 
     @staticmethod
-    def _read_from_collection_(target, request_dataset, parent=None):
-        ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent)
+    def _read_from_collection_(target, request_dataset, parent=None, name=None):
+        ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
         for name, ncvar in target.variables.iteritems():
             ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
         for name, ncgroup in target.groups.iteritems():
-            child = VariableCollection._read_from_collection_(ncgroup, request_dataset, parent=ret)
+            child = VariableCollection._read_from_collection_(ncgroup, request_dataset, parent=ret, name=name)
             ret.add_child(child)
         return ret
 
@@ -1066,13 +1070,18 @@ def has_unlimited_dimension(dimensions):
 
 def set_variable_metadata_from_source(variable):
     dataset = variable._request_dataset.driver.open()
+    source = dataset
+    if variable.parent is not None:
+        if variable.parent.parent is not None:
+            source = dataset.groups[variable.parent.name]
+
     desired_name = variable.name or variable._request_dataset.variable
     try:
-        var = dataset.variables[desired_name]
+        var = source.variables[desired_name]
 
         if variable._dimensions is None:
             desired_dimensions = var.dimensions
-            new_dimensions = get_dimensions_from_netcdf(dataset, desired_dimensions)
+            new_dimensions = get_dimensions_from_netcdf(source, desired_dimensions)
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
 
         if variable._dtype is None:
