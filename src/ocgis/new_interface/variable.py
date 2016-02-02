@@ -643,6 +643,7 @@ class SourcedVariable(Variable):
             raise PayloadProtectedError
 
         ds = self._request_dataset.driver.open()
+        source = ds
         if self.parent is not None:
             if self.parent.parent is not None:
                 source = ds.groups[self.parent.name]
