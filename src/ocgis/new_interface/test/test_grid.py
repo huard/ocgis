@@ -286,6 +286,7 @@ class TestGridXY(AbstractTestNewInterface):
             yield ret
 
     def test_init(self):
+        # tdk: RESUME: test failing
         crs = WGS84()
         grid = self.get_gridxy(crs=crs)
         self.assertIsInstance(grid, GridXY)
