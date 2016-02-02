@@ -123,7 +123,8 @@ class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units=None, backref=None):
+                 units=None, backref=None, parent=None):
+        AbstractInterfaceObject.__init__(self, parent=parent)
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -921,13 +922,14 @@ class BoundedVariable(SourcedVariable):
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
-    def __init__(self, variables=None, attrs=None, name=None, should_copy=True, parent=None):
+    def __init__(self, name=None, variables=None, attrs=None, should_copy=True, parent=None):
         self.should_copy = should_copy
         self.name = name
-        self.parent = parent
+        self.children = OrderedDict()
 
         AbstractCollection.__init__(self)
         Attributes.__init__(self, attrs)
+        AbstractInterfaceObject.__init__(self, parent=parent)
 
         if variables is not None:
             for variable in get_iter(variables, dtype=Variable):
@@ -944,6 +946,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 if v.ndim > 0 and set([d.name for d in v.dimensions]).issubset(names) > 0:
                     ret[k] = v.__getitem__(item)
         return ret
+
+    def add_child(self, child):
+        child.parent = self
+        self.children[child.name] = child
 
     @property
     def dimensions(self):
@@ -970,8 +976,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
-        if hasattr(variable, 'parent'):
-            variable.parent = self
+        variable.parent = self
 
     def copy(self):
         ret = AbstractCollection.copy(self)
@@ -1002,12 +1007,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
         try:
             self.write_attributes_to_netcdf_object(dataset)
-            for variable in self.itervalues():
-                if isinstance(variable, VariableCollection):
-                    group = Group(dataset, variable.name)
-                    variable.write_netcdf(group, **kwargs)
-                else:
-                    variable.write_netcdf(dataset, **kwargs)
+            for variable in self.values():
+                variable.write_netcdf(dataset, **kwargs)
+            for child in self.children.values():
+                group = Group(dataset, child.name)
+                child.write_netcdf(group, **kwargs)
             dataset.sync()
         finally:
             if close_dataset:
@@ -1019,11 +1023,19 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         rd = RequestDataset(uri=path)
         ds = Dataset(path)
         try:
-            ret = VariableCollection(attrs=deepcopy(ds.__dict__))
-            for name, ncvar in ds.variables.iteritems():
-                ret[name] = SourcedVariable(name=name, request_dataset=rd)
+            ret = VariableCollection._read_from_collection_(ds, rd, parent=None)
         finally:
             ds.close()
+        return ret
+
+    @staticmethod
+    def _read_from_collection_(target, request_dataset, parent=None):
+        ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent)
+        for name, ncvar in target.variables.iteritems():
+            ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
+        for name, ncgroup in target.groups.iteritems():
+            child = VariableCollection._read_from_collection_(ncgroup, request_dataset, parent=ret)
+            ret.add_child(child)
         return ret
 
 

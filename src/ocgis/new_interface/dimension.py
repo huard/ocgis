@@ -7,11 +7,13 @@ from ocgis.util.helpers import get_formatted_slice
 
 
 class Dimension(AbstractInterfaceObject):
-    def __init__(self, name, length=None, length_current=None):
+    def __init__(self, name, length=None, length_current=None, parent=None):
         self._variable = None
         self.name = name
         self.length = length
         self.length_current = length_current
+
+        super(Dimension, self).__init__(parent=parent)
 
     def __eq__(self, other):
         if other.__dict__ == self.__dict__:

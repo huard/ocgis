@@ -782,7 +782,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         # Test with nested collections.
         vc = self.get_variablecollection()
         nvc = self.get_variablecollection(name='nest')
-        vc.add_variable(nvc)
+        vc.add_child(nvc)
         path = self.get_temporary_file_path('foo.nc')
         vc.write_netcdf(path)
         self.ncdump(path)
