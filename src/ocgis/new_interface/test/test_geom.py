@@ -74,7 +74,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         # Test slicing with a backref.
         pa = self.get_geometryvariable_with_backref()
-        desired = pa._backref['tas'][:, 1].value
+        desired = pa.parent['tas'][:, 1].value
         sub = pa[1]
         backref_tas = sub._backref['tas']
         self.assertNumpyAll(backref_tas.value, desired)

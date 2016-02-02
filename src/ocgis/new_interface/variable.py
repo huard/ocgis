@@ -26,13 +26,13 @@ from ocgis.util.units import get_units_object, get_conformed_units
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, mask, backref=None):
+    def __init__(self, mask, parent=None):
         self._mask = None
 
-        if backref is not None:
-            assert isinstance(backref, VariableCollection)
+        if parent is not None:
+            assert isinstance(parent, VariableCollection)
 
-        self._backref = backref
+        self.parent = parent
         if mask is not None:
             self.set_mask(mask)
 
@@ -68,11 +68,11 @@ class AbstractContainer(AbstractInterfaceObject):
         mask = np.array(mask, dtype=bool)
         assert mask.shape == self.shape
 
-        if self._backref is not None:
+        if self.parent is not None:
             names_container = [d.name for d in self.dimensions]
-            new_backref = VariableCollection(attrs=self._backref.attrs.copy())
+            new_backref = VariableCollection(attrs=self.parent.attrs.copy())
             mask_container = mask
-            for k, v in self._backref.items():
+            for k, v in self.parent.items():
                 names_variable = [d.name for d in v.dimensions]
                 mask_variable = v.get_mask()
                 for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
@@ -81,7 +81,7 @@ class AbstractContainer(AbstractInterfaceObject):
                         mask_variable[mapped_slice] = True
                 v.set_mask(mask_variable)
                 new_backref.add_variable(v)
-            self._backref = new_backref
+            self.parent = new_backref
 
         self._mask = mask
 
@@ -123,8 +123,7 @@ class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units=None, backref=None, parent=None):
-        AbstractInterfaceObject.__init__(self, parent=parent)
+                 units=None, parent=None):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -152,7 +151,7 @@ class Variable(AbstractContainer, Attributes):
         # The mask is updated in _set_value_. Use the internal reference to ensure it is not overwritten.
         if mask is None:
             mask = self._mask
-        AbstractContainer.__init__(self, mask, backref=backref)
+        AbstractContainer.__init__(self, mask, parent=parent)
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -160,7 +159,7 @@ class Variable(AbstractContainer, Attributes):
         if isinstance(slc, dict):
             if dimensions is None:
                 msg = 'Dimensions are required for dictionary slices.'
-                raise IndexError(msg)
+                raise DimensionsRequiredError(msg)
             else:
                 names_src, new_slc = slc.keys(), slc.values()
                 names_dst = [d.name for d in dimensions]
@@ -458,7 +457,7 @@ class Variable(AbstractContainer, Attributes):
 
     def reshape(self, *args, **kwargs):
         dimension_name = kwargs.pop('dimension_name', None)
-        if self._backref is not None:
+        if self.parent is not None:
             # tdk: needs implementation
             raise NotImplementedError('backref cannot be reshaped')
         # tdk: test with source index
@@ -940,18 +939,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-    def __getitem__(self, item):
-        try:
-            ret = AbstractCollection.__getitem__(self, item)
-        except TypeError:
-            # Assume a dictionary slice.
-            ret = self.copy()
-            names = set(item.keys())
-            for k, v in self.items():
-                if v.ndim > 0 and set([d.name for d in v.dimensions]).issubset(names) > 0:
-                    ret[k] = v.__getitem__(item)
-        return ret
-
     def add_child(self, child):
         child.parent = self
         self.children[child.name] = child
@@ -1159,16 +1146,15 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
 
 
 def set_sliced_backref_variables(ret, slc):
-    slc = list(get_iter(slc))
-    backref = ret._backref
+    backref = ret.parent
     if backref is not None:
-        new_backref = VariableCollection(attrs=backref.attrs.copy())
-        names_src = [d.name for d in ret.dimensions]
         for key, variable in backref.items():
-            names_dst = [d.name for d in variable.dimensions]
-            mapped_slc = get_mapped_slice(slc, names_src, names_dst)
-            new_backref.add_variable(backref[key].__getitem__(mapped_slc))
-        ret._backref = new_backref
+            variable.parent = None
+            try:
+                backref[key] = variable.__getitem__(slc)
+            except DimensionsRequiredError:
+                pass
+            backref[key].parent = backref
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):

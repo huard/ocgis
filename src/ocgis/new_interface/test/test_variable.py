@@ -7,7 +7,8 @@ from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
 from ocgis import constants
-from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError
+from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
+    DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable, ObjectType
@@ -612,7 +613,7 @@ class TestVariable(AbstractTestNewInterface):
         # Test a dictionary slice.
         var = Variable()
         dslc = {'one': slice(2, 5), 'two': np.array([False, True, False, True]), 'three': 0}
-        with self.assertRaises(IndexError):
+        with self.assertRaises(DimensionsRequiredError):
             var[dslc]
         value = np.ma.arange(5 * 4 * 7 * 10, fill_value=100).reshape(5, 4, 10, 7)
         var = Variable(value=value)
@@ -746,8 +747,9 @@ class TestVariableCollection(AbstractTestNewInterface):
         var3.create_dimensions(names=['y', 'x'])
 
         var4 = Variable(name='coordinate_system', attrs={'proj4': '+proj=latlon'})
+        var5 = Variable(name='how_far', value=[5000., 6000., 7000., 8000.], dimensions=['loner'])
 
-        kwargs['variables'] = [var1, var2, var3, var4]
+        kwargs['variables'] = [var1, var2, var3, var4, var5]
         kwargs['attrs'] = {'foo': 'bar'}
 
         vc = VariableCollection(**kwargs)
@@ -792,26 +794,17 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)
 
-    def test_getitem(self):
+    def test_combo_as_variable_parent(self):
+        # Test slicing variables.
         vc = self.get_variablecollection()
-        desired_shapes = deepcopy(vc.shapes)
-        slc = {'x': 1, 'y': None}
-        sub = vc[slc]
-        for v in sub.values():
-            try:
-                self.assertEqual(v.dimensions_dict['x'].length, 1)
-                if 'y' in v.dimensions_dict:
-                    self.assertEqual(v.dimensions_dict['y'].length, 2)
-            except KeyError:
-                self.assertEqual(v.ndim, 0)
-        sub.write_netcdf(self.get_temporary_file_path('foo.nc'))
-        self.assertDictEqual(vc.shapes, desired_shapes)
-        self.assertDictNotEqual(sub.shapes, desired_shapes)
-        for v in vc.values():
-            try:
-                self.assertNumpyMayShareMemory(v.value, sub[v.name].value)
-            except AssertionError:
-                self.assertEqual(v.name, 'coordinate_system')
+        slc = {'x': slice(1, 2), 'y': slice(None)}
+        sub = vc['lower'][slc]
+        self.assertNumpyAll(sub.value, np.array([10, 13], dtype=np.float32).reshape(2, 1))
+        sub_vc = sub.parent
+        self.assertNumpyAll(sub_vc['foo'].value, np.array([5]))
+        self.assertNumpyAll(sub_vc['wunderbar'].value, np.array([5]))
+        self.assertEqual(sub_vc['how_far'].shape, (4,))
+        self.assertNumpyAll(sub_vc['lower'].value, sub.value)
 
     def test_write_netcdf_and_read_netcdf(self):
         vc = self.get_variablecollection()
