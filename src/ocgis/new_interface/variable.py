@@ -40,6 +40,8 @@ class AbstractContainer(AbstractInterfaceObject):
         ret, slc = self._getitem_initialize_(slc)
         self._getitem_main_(ret, slc)
         if self.parent is not None:
+            # Update the parent collection with the returned slice. This is skipped in the update occurring in
+            # set_sliced...
             self.parent[ret.name] = ret
         set_sliced_backref_variables(ret, slc)
         self._getitem_finalize_(ret, slc)
