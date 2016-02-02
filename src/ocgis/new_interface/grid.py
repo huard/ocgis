@@ -29,7 +29,7 @@ def expand_needed(func):
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, point=None, polygon=None, abstraction='auto', crs=None, backref=None):
+    def __init__(self, x, y, point=None, polygon=None, abstraction='auto', crs=None, parent=None):
         self._abstraction = None
 
         self.abstraction = abstraction
@@ -51,7 +51,7 @@ class GridXY(AbstractSpatialContainer):
 
         self._variables = VariableCollection(variables=new_variables)
 
-        super(GridXY, self).__init__(crs=crs, backref=backref)
+        super(GridXY, self).__init__(crs=crs, parent=parent)
 
         if self.is_vectorized:
             try:

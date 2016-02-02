@@ -101,9 +101,8 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
 
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
-        backref = kwargs.pop('backref', None)
 
-        AbstractContainer.__init__(self, kwargs.pop('mask', None), backref=backref)
+        AbstractContainer.__init__(self, kwargs.pop('mask', None), kwargs.pop('parent', None))
         AbstractSpatialObject.__init__(self, crs=crs)
 
     def write_netcdf(self, dataset, **kwargs):
