@@ -792,8 +792,6 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)
 
-        raise self.ToTest('test read write of nested collections')
-
     def test_getitem(self):
         vc = self.get_variablecollection()
         desired_shapes = deepcopy(vc.shapes)
