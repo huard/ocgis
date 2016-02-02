@@ -805,6 +805,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertNumpyAll(sub_vc['wunderbar'].value, np.array([5]))
         self.assertEqual(sub_vc['how_far'].shape, (4,))
         self.assertNumpyAll(sub_vc['lower'].value, sub.value)
+        self.assertIn('coordinate_system', sub_vc)
 
     def test_write_netcdf_and_read_netcdf(self):
         vc = self.get_variablecollection()

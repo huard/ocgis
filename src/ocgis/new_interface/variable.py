@@ -39,6 +39,8 @@ class AbstractContainer(AbstractInterfaceObject):
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
         self._getitem_main_(ret, slc)
+        if self.parent is not None:
+            self.parent[ret.name] = ret
         set_sliced_backref_variables(ret, slc)
         self._getitem_finalize_(ret, slc)
         return ret
@@ -1149,12 +1151,13 @@ def set_sliced_backref_variables(ret, slc):
     backref = ret.parent
     if backref is not None:
         for key, variable in backref.items():
-            variable.parent = None
-            try:
-                backref[key] = variable.__getitem__(slc)
-            except DimensionsRequiredError:
-                pass
-            backref[key].parent = backref
+            if ret.name != variable.name:
+                variable.parent = None
+                try:
+                    backref[key] = variable.__getitem__(slc)
+                except DimensionsRequiredError:
+                    pass
+                backref[key].parent = backref
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):
