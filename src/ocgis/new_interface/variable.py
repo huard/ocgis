@@ -43,7 +43,7 @@ class AbstractContainer(AbstractInterfaceObject):
             # Update the parent collection with the returned slice. This is skipped in the update occurring in
             # set_sliced...
             self.parent[ret.name] = ret
-        set_sliced_backref_variables(ret, slc)
+            set_sliced_backref_variables(ret, slc)
         self._getitem_finalize_(ret, slc)
         return ret
 
@@ -1150,16 +1150,20 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
 
 
 def set_sliced_backref_variables(ret, slc):
+    if not isinstance(slc, dict):
+        if ret.dimensions is None:
+            raise DimensionsRequiredError('Dimensions required when slicing parent variables.')
+        else:
+            slc = {ret.dimensions[idx].name: slc[idx] for idx in range(ret.ndim)}
     backref = ret.parent
-    if backref is not None:
-        for key, variable in backref.items():
-            if ret.name != variable.name:
-                variable.parent = None
-                try:
-                    backref[key] = variable.__getitem__(slc)
-                except DimensionsRequiredError:
-                    pass
-                backref[key].parent = backref
+    for key, variable in backref.items():
+        if ret.name != variable.name:
+            variable.parent = None
+            try:
+                backref[key] = variable.__getitem__(slc)
+            except DimensionsRequiredError:
+                pass
+            backref[key].parent = backref
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):

@@ -796,16 +796,18 @@ class TestVariableCollection(AbstractTestNewInterface):
 
     def test_combo_as_variable_parent(self):
         # Test slicing variables.
-        vc = self.get_variablecollection()
-        slc = {'x': slice(1, 2), 'y': slice(None)}
-        sub = vc['lower'][slc]
-        self.assertNumpyAll(sub.value, np.array([10, 13], dtype=np.float32).reshape(2, 1))
-        sub_vc = sub.parent
-        self.assertNumpyAll(sub_vc['foo'].value, np.array([5]))
-        self.assertNumpyAll(sub_vc['wunderbar'].value, np.array([5]))
-        self.assertEqual(sub_vc['how_far'].shape, (4,))
-        self.assertNumpyAll(sub_vc['lower'].value, sub.value)
-        self.assertIn('coordinate_system', sub_vc)
+        slc1 = {'x': slice(1, 2), 'y': slice(None)}
+        slc2 = [slice(None), slice(1, 2)]
+        for slc in [slc1, slc2]:
+            vc = self.get_variablecollection()
+            sub = vc['lower'][slc]
+            self.assertNumpyAll(sub.value, np.array([10, 13], dtype=np.float32).reshape(2, 1))
+            sub_vc = sub.parent
+            self.assertNumpyAll(sub_vc['foo'].value, np.array([5]))
+            self.assertNumpyAll(sub_vc['wunderbar'].value, np.array([5]))
+            self.assertEqual(sub_vc['how_far'].shape, (4,))
+            self.assertNumpyAll(sub_vc['lower'].value, sub.value)
+            self.assertIn('coordinate_system', sub_vc)
 
     def test_write_netcdf_and_read_netcdf(self):
         vc = self.get_variablecollection()
