@@ -6,6 +6,7 @@ from itertools import izip
 
 import numpy as np
 from netCDF4 import Dataset, VLType
+from netCDF4._netCDF4 import Group
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
@@ -920,10 +921,10 @@ class BoundedVariable(SourcedVariable):
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
-    # tdk: should test for equivalence of dimensions on variables
-
-    def __init__(self, variables=None, attrs=None, name=None, should_copy=True):
+    def __init__(self, variables=None, attrs=None, name=None, should_copy=True, parent=None):
         self.should_copy = should_copy
+        self.name = name
+        self.parent = parent
 
         AbstractCollection.__init__(self)
         Attributes.__init__(self, attrs)
@@ -969,6 +970,8 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
+        if hasattr(variable, 'parent'):
+            variable.parent = self
 
     def copy(self):
         ret = AbstractCollection.copy(self)
@@ -990,7 +993,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        if not isinstance(dataset_or_path, Dataset):
+        if not isinstance(dataset_or_path, (Dataset, Group)):
             dataset = Dataset(dataset_or_path, 'w')
             close_dataset = True
         else:
@@ -1000,7 +1003,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         try:
             self.write_attributes_to_netcdf_object(dataset)
             for variable in self.itervalues():
-                variable.write_netcdf(dataset, **kwargs)
+                if isinstance(variable, VariableCollection):
+                    group = Group(dataset, variable.name)
+                    variable.write_netcdf(group, **kwargs)
+                else:
+                    variable.write_netcdf(dataset, **kwargs)
             dataset.sync()
         finally:
             if close_dataset:

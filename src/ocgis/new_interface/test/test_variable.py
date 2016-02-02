@@ -738,7 +738,7 @@ class TestVariable(AbstractTestNewInterface):
 
 
 class TestVariableCollection(AbstractTestNewInterface):
-    def get_variablecollection(self):
+    def get_variablecollection(self, **kwargs):
         var1 = self.get_variable()
         var2 = self.get_variable(name='wunderbar')
 
@@ -747,7 +747,10 @@ class TestVariableCollection(AbstractTestNewInterface):
 
         var4 = Variable(name='coordinate_system', attrs={'proj4': '+proj=latlon'})
 
-        vc = VariableCollection(variables=[var1, var2, var3, var4], attrs={'foo': 'bar'})
+        kwargs['variables'] = [var1, var2, var3, var4]
+        kwargs['attrs'] = {'foo': 'bar'}
+
+        vc = VariableCollection(**kwargs)
         return vc
 
     def get_variable(self, name='foo'):
@@ -774,6 +777,18 @@ class TestVariableCollection(AbstractTestNewInterface):
 
         vc = self.get_variablecollection()
         self.assertEqual(vc.attrs, {'foo': 'bar'})
+
+    def test_combo_nested(self):
+        # Test with nested collections.
+        vc = self.get_variablecollection()
+        nvc = self.get_variablecollection(name='nest')
+        vc.add_variable(nvc)
+        path = self.get_temporary_file_path('foo.nc')
+        vc.write_netcdf(path)
+        self.ncdump(path)
+        rvc = VariableCollection.read_netcdf(path)
+        self.assertIn('nest', rvc)
+        raise self.ToTest('test read write of nested collections')
 
     def test_getitem(self):
         vc = self.get_variablecollection()
