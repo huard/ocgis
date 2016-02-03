@@ -16,6 +16,8 @@ from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_format
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
 
+_NAMES_2D = ['ocgis_yc', 'ocgis_xc']
+
 
 def expand_needed(func):
     def func_wrapper(*args, **kwargs):
@@ -29,7 +31,7 @@ def expand_needed(func):
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, point=None, polygon=None, abstraction='auto', crs=None, parent=None):
+    def __init__(self, x, y, abstraction='auto', crs=None, parent=None):
         self._abstraction = None
 
         self.abstraction = abstraction
@@ -44,12 +46,6 @@ class GridXY(AbstractSpatialContainer):
         self._polygon_name = 'ocgis_polygon'
 
         new_variables = [x, y]
-        for target, attr_name in zip([point, polygon], ['_point_name', '_polygon_name']):
-            if target is not None:
-                setattr(self, attr_name, target.name)
-                target.attrs['axis'] = 'geom'
-                new_variables.append(target)
-
         if parent is None:
             parent = VariableCollection(variables=new_variables)
         else:
@@ -65,6 +61,14 @@ class GridXY(AbstractSpatialContainer):
             except AssertionError:
                 msg = 'Vector coordinates may not be masked at initialization.'
                 raise ValueError(msg)
+
+        if self.dimensions is None:
+            if self.is_vectorized:
+                self.x.create_dimensions(names='ocgis_xc')
+                self.y.create_dimensions(names='ocgis_yc')
+            else:
+                self.x.create_dimensions(names=_NAMES_2D)
+                self.y.create_dimensions(names=_NAMES_2D)
 
     def __setitem__(self, slc, grid):
         slc = get_formatted_slice(slc, self.ndim)
@@ -107,10 +111,10 @@ class GridXY(AbstractSpatialContainer):
             x = ret.x[slc[0], slc[1]]
         new_variables = [x, y]
 
-        if self._point_name in ret._variables:
+        if self._point_name in ret.parent:
             point = ret.point[slc[0], slc[1]]
             new_variables.append(point)
-        if self._polygon_name in ret._variables:
+        if self._polygon_name in ret.parent:
             polygon = ret.polygon[slc[0], slc[1]]
             new_variables.append(polygon)
 
@@ -188,6 +192,7 @@ class GridXY(AbstractSpatialContainer):
             ret = self.parent[self._point_name]
         except KeyError:
             ret = get_geometry_variable(get_point_geometry_array, self, name=self._point_name, attrs={'axis': 'geom'})
+            ret.create_dimensions(names=_NAMES_2D)
             self.parent.add_variable(ret)
         return ret
 
@@ -207,6 +212,7 @@ class GridXY(AbstractSpatialContainer):
             else:
                 ret = get_geometry_variable(get_polygon_geometry_array, self, name=self._polygon_name,
                                             attrs={'axis': 'geom'})
+                ret.create_dimensions(names=_NAMES_2D)
                 self.parent.add_variable(ret)
         return ret
 

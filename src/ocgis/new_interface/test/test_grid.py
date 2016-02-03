@@ -292,6 +292,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('x', grid.parent)
         self.assertIn('y', grid.parent)
         self.assertEqual(grid.crs, crs)
+        self.assertEqual(grid.dimensions, (Dimension(name='ocgis_yc', length=4), Dimension(name='ocgis_xc', length=3)))
 
         # Test with different variable names.
         x = Variable(name='col', value=[1])
