@@ -262,6 +262,7 @@ class GridXY(AbstractSpatialContainer):
 
     def copy(self):
         ret = copy(self)
+        ret.parent = ret.parent.copy()
         return ret
 
     def create_dimensions(self, names=None):

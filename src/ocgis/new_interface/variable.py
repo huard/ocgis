@@ -415,7 +415,7 @@ class Variable(AbstractContainer, Attributes):
         ret = copy(self)
         try:
             ret._value = ret._value.view()
-            ret._mask = ret._mask.copy()
+            ret._mask = ret._mask.view()
         except AttributeError:  # Assume None.
             pass
         ret.attrs = ret._attrs

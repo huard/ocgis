@@ -345,8 +345,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
         self.assertEqual(grid.dimensions[0], Dimension('y', 4))
 
-        grid = self.get_gridxy()
-        self.assertIsNone(grid.dimensions)
         grid = self.get_gridxy(with_dimensions=True)
         self.assertIsNotNone(grid.dimensions)
 
@@ -380,8 +378,8 @@ class TestGridXY(AbstractTestNewInterface):
             grid = self.get_gridxy(with_dimensions=with_dimensions)
             self.assertEqual(grid.ndim, 2)
             sub = grid[2, 1]
-            self.assertNotIn('point', sub._variables)
-            self.assertNotIn('polygon', sub._variables)
+            self.assertNotIn('point', sub.parent)
+            self.assertNotIn('polygon', sub.parent)
             self.assertEqual(sub.x.value, 102.)
             self.assertEqual(sub.y.value, 42.)
 
@@ -393,17 +391,33 @@ class TestGridXY(AbstractTestNewInterface):
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
 
-        # Test with backref.
-        grid = self.get_gridxy(with_backref=True, with_dimensions=True)
-        orig_tas = grid._backref['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
-        orig_rhs = grid._backref['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]
-        sub = grid[2:4, 1]
+        # Test with parent.
+        grid = self.get_gridxy(with_parent=True, with_dimensions=True)
+        self.assertEqual(id(grid.x.parent), id(grid.y.parent))
+        orig_tas = grid.parent['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
+        orig_rhs = grid.parent['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]
+
+        grid_copy = grid.copy()
+        self.assertEqual(id(grid.x.parent), id(grid.y.parent))
+        self.assertEqual(id(grid_copy.x.parent), id(grid_copy.y.parent))
+        self.assertNotEqual(id(grid_copy), id(grid))
+        self.assertNotEqual(id(grid_copy.x), id(grid.x))
+        self.assertNotEqual(id(grid_copy.x.value), id(grid.x.value))
+        self.assertNotEqual(id(grid_copy.y), id(grid.y))
+        self.assertNotEqual(id(grid_copy.y), id(grid.y))
+        # tdk: RESUME: this is failing
+        self.assertNotEqual(id(grid_copy.y.parent), id(grid.y.parent))
+        self.assertNotEqual(id(grid_copy.y.value), id(grid.y.value))
+        self.assertNotEqual(id(grid_copy.parent), id(grid.parent))
         self.assertEqual(grid.shape, (4, 3))
-        self.assertEqual(sub._backref['tas'].shape, (10, 1, 2))
-        self.assertEqual(sub._backref['rhs'].shape, (2, 1, 10))
-        self.assertNumpyAll(sub._backref['tas'].value, orig_tas)
-        self.assertNumpyAll(sub._backref['rhs'].value, orig_rhs)
-        self.assertTrue(np.may_share_memory(sub._backref['tas'].value, grid._backref['tas'].value))
+
+        sub = grid_copy[2:4, 1]
+        self.assertEqual(grid.shape, (4, 3))
+        self.assertEqual(sub.parent['tas'].shape, (10, 1, 2))
+        self.assertEqual(sub.parent['rhs'].shape, (2, 1, 10))
+        self.assertNumpyAll(sub.parent['tas'].value, orig_tas)
+        self.assertNumpyAll(sub.parent['rhs'].value, orig_rhs)
+        self.assertTrue(np.may_share_memory(sub.parent['tas'].value, grid.parent['tas'].value))
 
     def test_mask(self):
         grid = self.get_gridxy()

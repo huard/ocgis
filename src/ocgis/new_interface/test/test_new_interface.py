@@ -30,7 +30,7 @@ class AbstractTestNewInterface(TestBase):
         self.assertNumpyAll(a.get_mask(), b.get_mask())
 
     def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False,
-                   with_value_mask=False, with_backref=False):
+                   with_value_mask=False, with_parent=False):
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
@@ -63,7 +63,7 @@ class AbstractTestNewInterface(TestBase):
             vx.set_extrapolated_bounds()
             vy.set_extrapolated_bounds()
 
-        if with_backref:
+        if with_parent:
             np.random.seed(1)
             tas = np.random.rand(10, 3, 4)
             tas = Variable(name='tas', value=tas)
@@ -73,7 +73,7 @@ class AbstractTestNewInterface(TestBase):
             rhs = Variable(name='rhs', value=rhs)
             rhs.create_dimensions(names=['y', 'x', 'time'])
 
-            kwds['backref'] = VariableCollection(variables=[tas, rhs])
+            kwds['parent'] = VariableCollection(variables=[tas, rhs])
 
         grid = GridXY(vx, vy, **kwds)
         return grid
