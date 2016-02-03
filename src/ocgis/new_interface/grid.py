@@ -182,7 +182,7 @@ class GridXY(AbstractSpatialContainer):
             ret = self.parent[self._point_name]
         except KeyError:
             ret = get_geometry_variable(get_point_geometry_array, self, name=self._point_name, attrs={'axis': 'geom'})
-            ret.create_dimensions(names=_NAMES_2D)
+            ret.create_dimensions(names=[d.name for d in self.dimensions])
             self.parent.add_variable(ret)
         return ret
 
@@ -202,7 +202,7 @@ class GridXY(AbstractSpatialContainer):
             else:
                 ret = get_geometry_variable(get_polygon_geometry_array, self, name=self._polygon_name,
                                             attrs={'axis': 'geom'})
-                ret.create_dimensions(names=_NAMES_2D)
+                ret.create_dimensions(names=[d.name for d in self.dimensions])
                 self.parent.add_variable(ret)
         return ret
 
