@@ -289,8 +289,8 @@ class TestGridXY(AbstractTestNewInterface):
         crs = WGS84()
         grid = self.get_gridxy(crs=crs)
         self.assertIsInstance(grid, GridXY)
-        self.assertIn('x', grid._variables)
-        self.assertIn('y', grid._variables)
+        self.assertIn('x', grid.parent)
+        self.assertIn('y', grid.parent)
         self.assertEqual(grid.crs, crs)
 
         # Test with different variable names.

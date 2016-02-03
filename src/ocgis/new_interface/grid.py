@@ -34,22 +34,27 @@ class GridXY(AbstractSpatialContainer):
 
         self.abstraction = abstraction
 
-        x = x.copy()
-        y = y.copy()
         x.attrs['axis'] = 'X'
         y.attrs['axis'] = 'Y'
 
         self._x_name = x.name
         self._y_name = y.name
 
+        self._point_name = 'ocgis_point'
+        self._polygon_name = 'ocgis_polygon'
+
         new_variables = [x, y]
-        for target, attr_name in zip([point, polygon], ['point', 'polygon']):
+        for target, attr_name in zip([point, polygon], ['_point_name', '_polygon_name']):
             if target is not None:
-                target = target.copy()
+                setattr(self, attr_name, target.name)
                 target.attrs['axis'] = 'geom'
                 new_variables.append(target)
 
-        self._variables = VariableCollection(variables=new_variables)
+        if parent is None:
+            parent = VariableCollection(variables=new_variables)
+        else:
+            for var in new_variables:
+                parent.add_variable(var)
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
 
@@ -58,7 +63,7 @@ class GridXY(AbstractSpatialContainer):
                 assert not x.get_mask().any()
                 assert not y.get_mask().any()
             except AssertionError:
-                msg = 'Vector coordinates may not be masked.'
+                msg = 'Vector coordinates may not be masked at initialization.'
                 raise ValueError(msg)
 
     def __setitem__(self, slc, grid):
@@ -74,9 +79,9 @@ class GridXY(AbstractSpatialContainer):
             original_mask = self.get_mask().copy()
             self.x[slc] = grid.x
             self.y[slc] = grid.y
-            if 'point' in grid._variables:
+            if self._point_name in grid._variables:
                 self.point[slc] = grid.point
-            if 'polygon' in grid._variables:
+            if self._polygon_name in grid._variables:
                 self.polygon[slc] = grid.polygon
             original_mask[slc] = grid.get_mask()
             self.set_mask(original_mask)
@@ -102,10 +107,10 @@ class GridXY(AbstractSpatialContainer):
             x = ret.x[slc[0], slc[1]]
         new_variables = [x, y]
 
-        if 'point' in ret._variables:
+        if self._point_name in ret._variables:
             point = ret.point[slc[0], slc[1]]
             new_variables.append(point)
-        if 'polygon' in ret._variables:
+        if self._polygon_name in ret._variables:
             polygon = ret.polygon[slc[0], slc[1]]
             new_variables.append(polygon)
 
@@ -168,49 +173,52 @@ class GridXY(AbstractSpatialContainer):
     @property
     def point(self):
         try:
-            ret = self._variables['point']
+            ret = self.parent[self._point_name]
         except KeyError:
-            ret = get_geometry_variable(get_point_geometry_array, self, name='point', attrs={'axis': 'geom'})
-            self._variables.add_variable(ret)
+            ret = get_geometry_variable(get_point_geometry_array, self, name=self._point_name, attrs={'axis': 'geom'})
+            self.parent.add_variable(ret)
         return ret
 
     @point.setter
     def point(self, value):
         if value is not None:
-            self._variables[value.name] = value
+            self.parent[value.name] = value
+            self._point_name = value.name
 
     @property
     def polygon(self):
         try:
-            ret = self._variables['polygon']
+            ret = self.parent[self._polygon_name]
         except KeyError:
             if not self.has_bounds:
                 ret = None
             else:
-                ret = get_geometry_variable(get_polygon_geometry_array, self, name='polygon', attrs={'axis': 'geom'})
-                self._variables.add_variable(ret)
+                ret = get_geometry_variable(get_polygon_geometry_array, self, name=self._polygon_name,
+                                            attrs={'axis': 'geom'})
+                self.parent.add_variable(ret)
         return ret
 
     @polygon.setter
     def polygon(self, value):
         if value is not None:
-            self._variables[value.name] = value
+            self.parent[value.name] = value
+            self._polygon_name = value.name
 
     @property
     def x(self):
-        return self._variables[self._x_name]
+        return self.parent[self._x_name]
 
     @x.setter
     def x(self, value):
-        self._variables[self._x_name] = value
+        self.parent[self._x_name] = value
 
     @property
     def y(self):
-        return self._variables[self._y_name]
+        return self.parent[self._y_name]
 
     @y.setter
     def y(self, value):
-        self._variables[self._y_name] = value
+        self.parent[self._y_name] = value
 
     @property
     def resolution(self):
@@ -250,7 +258,6 @@ class GridXY(AbstractSpatialContainer):
 
     def copy(self):
         ret = copy(self)
-        ret._variables = ret._variables.copy()
         return ret
 
     def create_dimensions(self, names=None):
@@ -276,7 +283,7 @@ class GridXY(AbstractSpatialContainer):
         super(GridXY, self).set_mask(value)
         # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
         self._mask = None
-        for target in self._variables.values():
+        for target in self.parent.values():
             target.set_mask(value)
 
     @expand_needed
