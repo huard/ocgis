@@ -310,8 +310,6 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertIsInstance(t, GeometryVariable)
         sub = grid[1, 1]
         targets = ['point', 'polygon']
-        for t in targets:
-            self.assertIn(t, sub._variables)
         targets = [getattr(sub, t) for t in targets]
         for t in targets:
             self.assertEqual(t.shape, (1, 1))

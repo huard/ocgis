@@ -70,6 +70,23 @@ class GridXY(AbstractSpatialContainer):
                 self.x.create_dimensions(names=_NAMES_2D)
                 self.y.create_dimensions(names=_NAMES_2D)
 
+    def __getitem__(self, slc):
+        """
+        :param slc: The slice sequence with indices corresponding to:
+
+         0 --> y-dimension
+         1 --> x-dimension
+
+        :type slc: sequence of slice-compatible arguments
+        :returns: Sliced grid.
+        :rtype: :class:`ocgis.new_interface.grid.GridXY`
+        """
+        slc = {d[idx].name: slc[idx] for idx, d in enumerate(self.dimensions)}
+        new_parent = self._archetype[slc].parent
+        ret = self.copy()
+        ret.parent = new_parent
+        return ret
+
     def __setitem__(self, slc, grid):
         slc = get_formatted_slice(slc, self.ndim)
 
@@ -89,27 +106,6 @@ class GridXY(AbstractSpatialContainer):
                 self.polygon[slc] = grid.polygon
             original_mask[slc] = grid.get_mask()
             self.set_mask(original_mask)
-
-    def _getitem_main_(self, ret, slc):
-        # tdk: order
-        """
-        :param slc: The slice sequence with indices corresponding to:
-
-         0 --> y-dimension
-         1 --> x-dimension
-
-        :type slc: sequence of slice-compatible arguments
-        :returns: Sliced grid.
-        :rtype: :class:`ocgis.new_interface.grid.GridXY`
-        """
-        slc = {d[idx].name: slc[idx] for idx, d in enumerate(self.dimensions)}
-
-        y = ret.y[slc]
-        x = ret.x
-        new_variables = [x, y]
-
-        for var in new_variables:
-            ret.parent[var.name] = var
 
     @property
     def _protected_variables(self):
