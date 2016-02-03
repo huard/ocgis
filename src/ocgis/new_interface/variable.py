@@ -934,6 +934,18 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         child.parent = self
         self.children[child.name] = child
 
+    def __getitem__(self, item):
+        try:
+            ret = AbstractCollection.__getitem__(self, item)
+        except TypeError:
+            # Assume a dictionary slice.
+            ret = self.copy()
+            names = set(item.keys())
+            for k, v in self.items():
+                if v.ndim > 0 and set([d.name for d in v.dimensions]).issubset(names) > 0:
+                    ret[k] = v.__getitem__(item)
+        return ret
+
     @property
     def dimensions(self):
         ret = {}
