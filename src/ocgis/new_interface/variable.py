@@ -1199,3 +1199,4 @@ def get_variable_value(variable, dimensions):
         slc = slice(None)
     ret = variable.__getitem__(slc)
     return ret
+
