@@ -142,12 +142,6 @@ class FieldBundle2(AbstractSpatialObject):
     def update_crs(self, to_crs):
         raise NotImplementedError
 
-    def copy(self):
-        ret = copy(self)
-        ret._variables = ret.variables.copy()
-        ret._fields = ret.fields.copy()
-        return ret
-
     def update_mapped_dimensions(self):
         for name, v in self.dimension_map.items():
             name_variable = v['variable']

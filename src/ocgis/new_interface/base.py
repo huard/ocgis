@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from copy import copy
 
 
 class AbstractInterfaceObject(object):
@@ -7,14 +8,15 @@ class AbstractInterfaceObject(object):
     def __init__(self, parent=None):
         self.parent = parent
 
-    @abstractmethod
     def copy(self):
         """Return a shallow copy of self."""
+        return copy(self)
 
     @abstractmethod
     def write_netcdf(self, *args, **kwargs):
         """Write to an open NetCDF dataset object."""
 
+    #tdk: remove this is to prevent any access to the mask attribute
     @property
     def mask(self):
         raise NotImplementedError

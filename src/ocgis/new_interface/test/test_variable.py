@@ -588,9 +588,7 @@ class TestVariable(AbstractTestNewInterface):
         var2.dimensions[0].name = 'new_time'
         self.assertEqual(var.name, 'time_value')
         self.assertNumpyMayShareMemory(var.value, var2.value)
-        print var.value
         var2.value[:] = 100
-        print var.value
         self.assertNumpyAll(var.value.mean(), var2.value.mean())
         var3 = var2[2:4]
         var3.value[:] = 200

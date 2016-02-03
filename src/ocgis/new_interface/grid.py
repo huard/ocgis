@@ -260,11 +260,6 @@ class GridXY(AbstractSpatialContainer):
     def _archetype(self):
         return self.y
 
-    def copy(self):
-        ret = copy(self)
-        ret.parent = ret.parent.copy()
-        return ret
-
     def create_dimensions(self, names=None):
         if names is None:
             names = [self.y.name, self.x.name]

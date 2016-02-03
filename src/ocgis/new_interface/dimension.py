@@ -104,8 +104,6 @@ class Dimension(AbstractInterfaceObject):
         self._variable = variable.copy()
         self._variable.dimensions = None
 
-    def copy(self):
-        return copy(self)
 
     def write_netcdf(self, dataset, **kwargs):
         create_dimension_or_pass(self, dataset)
@@ -161,12 +159,6 @@ class SourcedDimension(Dimension):
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
         self.__src_idx__ = value
-
-    def copy(self):
-        ref = self._src_idx
-        ret = super(SourcedDimension, self).copy()
-        ret.__src_idx__ = ref
-        return ret
 
 
 def create_dimension_or_pass(dim, dataset):

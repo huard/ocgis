@@ -411,16 +411,6 @@ class Variable(AbstractContainer, Attributes):
         for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
             self.attrs.pop(remove, None)
 
-    def copy(self):
-        ret = copy(self)
-        try:
-            ret._value = ret._value.view()
-            ret._mask = ret._mask.view()
-        except AttributeError:  # Assume None.
-            pass
-        ret.attrs = ret._attrs
-        return ret
-
     def create_dimensions(self, names=None):
         if names is None and self.name is None:
             msg = 'Variable "name" is required when no "names" provided to "create_dimensions".'
@@ -968,13 +958,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
         variable.parent = self
-
-    def copy(self):
-        ret = AbstractCollection.copy(self)
-        ret.attrs = ret.attrs.copy()
-        for k, v in ret.items():
-            ret[k] = v.copy()
-        return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
