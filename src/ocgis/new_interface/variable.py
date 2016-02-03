@@ -928,8 +928,7 @@ class BoundedVariable(SourcedVariable):
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
-    def __init__(self, name=None, variables=None, attrs=None, should_copy=True, parent=None):
-        self.should_copy = should_copy
+    def __init__(self, name=None, variables=None, attrs=None, parent=None):
         self.name = name
         self.children = OrderedDict()
 
@@ -965,8 +964,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
-        if self.should_copy:
-            variable = variable.copy()
         if variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
@@ -1197,4 +1194,3 @@ def get_variable_value(variable, dimensions):
         slc = slice(None)
     ret = variable.__getitem__(slc)
     return ret
-

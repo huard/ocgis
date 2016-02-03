@@ -391,11 +391,13 @@ class TestGridXY(AbstractTestNewInterface):
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
 
+    def test_tdk(self):
         # Test with parent.
         grid = self.get_gridxy(with_parent=True, with_dimensions=True)
         self.assertEqual(id(grid.x.parent), id(grid.y.parent))
-        orig_tas = grid.parent['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
-        orig_rhs = grid.parent['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]
+        #tdk: uncomment
+        # orig_tas = grid.parent['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
+        # orig_rhs = grid.parent['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]
 
         grid_copy = grid.copy()
         self.assertEqual(id(grid.x.parent), id(grid.y.parent))
