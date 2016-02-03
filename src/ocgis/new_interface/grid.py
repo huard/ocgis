@@ -114,7 +114,19 @@ class GridXY(AbstractSpatialContainer):
             polygon = ret.polygon[slc[0], slc[1]]
             new_variables.append(polygon)
 
-        ret._variables = VariableCollection(variables=new_variables)
+        for var in new_variables:
+            ret.parent[var.name] = var
+
+    @property
+    def _protected_variables(self):
+        targets = [self._x_name, self._y_name, self._point_name, self._polygon_name]
+        ret = []
+        for target in targets:
+            try:
+                ret.append(self.parent[target])
+            except KeyError:
+                pass
+        return ret
 
     def expand(self):
         # tdk: doc
