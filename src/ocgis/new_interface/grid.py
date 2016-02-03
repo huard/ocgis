@@ -102,21 +102,11 @@ class GridXY(AbstractSpatialContainer):
         :returns: Sliced grid.
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
+        slc = {d[idx].name: slc[idx] for idx, d in enumerate(self.dimensions)}
 
-        if ret.is_vectorized:
-            y = ret.y[slc[0]]
-            x = ret.x[slc[1]]
-        else:
-            y = ret.y[slc[0], slc[1]]
-            x = ret.x[slc[0], slc[1]]
+        y = ret.y[slc]
+        x = ret.x
         new_variables = [x, y]
-
-        if self._point_name in ret.parent:
-            point = ret.point[slc[0], slc[1]]
-            new_variables.append(point)
-        if self._polygon_name in ret.parent:
-            polygon = ret.polygon[slc[0], slc[1]]
-            new_variables.append(polygon)
 
         for var in new_variables:
             ret.parent[var.name] = var

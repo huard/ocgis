@@ -698,15 +698,13 @@ class BoundedVariable(SourcedVariable):
         # tdk: order
         bounds = ret.bounds
         ret.bounds = None
+        try:
+            super(BoundedVariable, self)._getitem_main_(ret, slc)
+            if bounds is not None:
+                bounds = bounds[slc]
+        finally:
+            ret.bounds = bounds
 
-        super(BoundedVariable, self)._getitem_main_(ret, slc)
-
-        if bounds is not None:
-            if bounds.ndim == 2:
-                bounds = bounds[slc, :]
-            else:
-                bounds = bounds[slc[0], slc[1], :]
-        ret.bounds = bounds
 
     @property
     def bounds(self):
