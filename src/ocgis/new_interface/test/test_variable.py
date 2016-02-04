@@ -611,6 +611,11 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(var.dimensions), 1)
 
     def test_getitem(self):
+        var = Variable(value=[1, 2, 3])
+        sub = var[1]
+        self.assertEqual(var.shape, (3,))
+        self.assertEqual(sub.shape, (1,))
+
         # Test a dictionary slice.
         var = Variable()
         dslc = {'one': slice(2, 5), 'two': np.array([False, True, False, True]), 'three': 0}
@@ -760,6 +765,14 @@ class TestVariableCollection(AbstractTestNewInterface):
         dim = Dimension('x', length=3)
         value = [4, 5, 6]
         return Variable(name=name, dimensions=dim, value=value)
+
+    def test_getitem(self):
+        vc = self.get_variablecollection()
+        slc = {'y': slice(1, 2)}
+        sub = vc[slc]
+        self.assertEqual(sub['lower'].shape, (1, 3))
+        self.assertNotEqual(sub.shapes, vc.shapes)
+        self.assertTrue(np.may_share_memory(vc['lower'].value, sub['lower'].value))
 
     def test_init(self):
         var1 = self.get_variable()

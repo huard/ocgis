@@ -391,7 +391,6 @@ class TestGridXY(AbstractTestNewInterface):
             actual_y = [[41.0, 41.0], [42.0, 42.0]]
             self.assertEqual(sub.y.value.tolist(), actual_y)
 
-    def test_tdk(self):
         # Test with parent.
         grid = self.get_gridxy(with_parent=True, with_dimensions=True)
         self.assertEqual(id(grid.x.parent), id(grid.y.parent))
@@ -555,6 +554,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(np.all(grid.y.get_mask()[1, 1]))
         self.assertTrue(np.all(grid.x.get_mask()[1, 1]))
 
+    def test_tdk(self):
         # Test with a backref.
         grid = self.get_gridxy(with_backref=True, with_dimensions=True)
         for k in ['tas', 'rhs']:

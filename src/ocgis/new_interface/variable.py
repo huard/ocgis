@@ -934,6 +934,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         child.parent = self
         self.children[child.name] = child
 
+    def copy(self):
+        ret = AbstractCollection.copy(self)
+        for v in ret.values():
+            v.parent = ret
+        return ret
+
     def __getitem__(self, item):
         try:
             ret = AbstractCollection.__getitem__(self, item)
@@ -942,8 +948,13 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             ret = self.copy()
             names = set(item.keys())
             for k, v in self.items():
-                if v.ndim > 0 and set([d.name for d in v.dimensions]).issubset(names) > 0:
-                    ret[k] = v.__getitem__(item)
+                v.parent = None
+                if v.ndim > 0:
+                    v_dimension_names = set([d.name for d in v.dimensions])
+                    if len(v_dimension_names.intersection(names)) > 0:
+                        v = v.__getitem__(item)
+                v.parent = ret
+                ret[k] = v
         return ret
 
     @property

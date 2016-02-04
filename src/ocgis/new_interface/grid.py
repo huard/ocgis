@@ -82,8 +82,8 @@ class GridXY(AbstractSpatialContainer):
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
         slc = {d[idx].name: slc[idx] for idx, d in enumerate(self.dimensions)}
-        new_parent = self._archetype[slc].parent
         ret = self.copy()
+        new_parent = ret.parent[slc]
         ret.parent = new_parent
         return ret
 
