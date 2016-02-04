@@ -629,6 +629,17 @@ class TestVariable(AbstractTestNewInterface):
         sub_value = value[2:5, np.array([False, True, False, True], dtype=bool), slice(None), slice(0, 1)]
         self.assertNumpyAll(sub.masked_value, sub_value)
 
+    def test_tdk(self):
+        # Test with a parent.
+        var = Variable(name='a', value=[1,2,3], dimensions=['one'])
+        parent = VariableCollection(variables=[var])
+        var2 = Variable(name='b', value=[11,22,33], dimensions=['one'], parent=parent)
+        self.assertIn('b', var2.parent)
+        print var2.parent.shapes
+        sub = var2[1]
+        print sub.parent.shapes
+        print var2.parent.shapes
+
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
 

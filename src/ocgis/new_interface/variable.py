@@ -38,13 +38,13 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
-        self._getitem_main_(ret, slc)
-        if ret.parent is not None:
-            # Update the parent collection with the returned slice. This is skipped in the update occurring in
-            # set_sliced...
-            ret.parent = ret.parent.copy()
-            ret.parent[ret.name] = ret
-            set_sliced_backref_variables(ret, slc)
+        if ret.parent is None:
+            self._getitem_main_(ret, slc)
+        else:
+            if not isinstance(slc, dict):
+                slc = {self.dimensions[idx].name: slc[idx] for idx in range(self.ndim)}
+            new_parent = ret.parent[slc]
+            ret = new_parent[self.name]
         self._getitem_finalize_(ret, slc)
         return ret
 
@@ -161,6 +161,10 @@ class Variable(AbstractContainer, Attributes):
         if mask is None:
             mask = self._mask
         AbstractContainer.__init__(self, mask, parent=parent)
+
+        # Add to the parent.
+        if self.parent is not None:
+            self.parent.add_variable(self, force=True)
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -982,12 +986,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def shapes(self):
         return OrderedDict([[k, v.shape] for k, v in self.items()])
 
-    def add_variable(self, variable):
+    def add_variable(self, variable, force=False):
         """
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
-        if variable.name in self:
+        if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
         variable.parent = self
@@ -1160,21 +1164,21 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
     return ret
 
 
-def set_sliced_backref_variables(ret, slc):
-    if not isinstance(slc, dict):
-        if ret.dimensions is None:
-            raise DimensionsRequiredError('Dimensions required when slicing parent variables.')
-        else:
-            slc = {ret.dimensions[idx].name: slc[idx] for idx in range(ret.ndim)}
-    backref = ret.parent
-    for key, variable in backref.items():
-        if ret.name != variable.name:
-            variable.parent = None
-            try:
-                backref[key] = variable.__getitem__(slc)
-            except DimensionsRequiredError:
-                pass
-            variable.parent = backref
+# def set_sliced_backref_variables(ret, slc):
+#     if not isinstance(slc, dict):
+#         if ret.dimensions is None:
+#             raise DimensionsRequiredError('Dimensions required when slicing parent variables.')
+#         else:
+#             slc = {ret.dimensions[idx].name: slc[idx] for idx in range(ret.ndim)}
+#     backref = ret.parent
+#     for key, variable in backref.items():
+#         if ret.name != variable.name:
+#             variable.parent = None
+#             try:
+#                 backref[key] = variable.__getitem__(slc)
+#             except DimensionsRequiredError:
+#                 pass
+#             variable.parent = backref
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):
