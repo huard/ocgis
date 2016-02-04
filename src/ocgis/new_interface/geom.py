@@ -243,7 +243,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
         Variable.__init__(self, **kwargs)
-        AbstractSpatialObject.__init__(self, crs=crs)
+        AbstractSpatialObject.__init__(self, crs=crs, parent=kwargs.get('parent'))
 
 
 class GeometryVariable(AbstractSpatialVariable):

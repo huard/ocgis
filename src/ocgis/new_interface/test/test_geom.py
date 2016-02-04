@@ -15,18 +15,19 @@ from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
+from ocgis.util.helpers import get_formatted_slice
 from ocgis.util.spatial.index import SpatialIndex
 
 
 class TestGeometryVariable(AbstractTestNewInterface):
-    def get_geometryvariable_with_backref(self):
+    def get_geometryvariable_with_parent(self):
         vpa = np.array([None, None, None])
         vpa[:] = [Point(1, 2), Point(3, 4), Point(5, 6)]
         value = np.arange(0, 30).reshape(10, 3)
         tas = Variable(name='tas', value=value)
         tas.create_dimensions(['time', 'ngeom'])
         backref = VariableCollection(variables=[tas])
-        pa = GeometryVariable(value=vpa, backref=backref)
+        pa = GeometryVariable(value=vpa, parent=backref)
         pa.create_dimensions('ngeom')
         return pa
 
@@ -73,7 +74,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(sub.value.shape, (2, 1))
 
         # Test slicing with a backref.
-        pa = self.get_geometryvariable_with_backref()
+        pa = self.get_geometryvariable_with_parent()
         desired = pa.parent['tas'][:, 1].value
         sub = pa[1]
         backref_tas = sub._backref['tas']

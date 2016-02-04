@@ -695,7 +695,12 @@ class BoundedVariable(SourcedVariable):
         try:
             super(BoundedVariable, self)._getitem_main_(ret, slc)
             if bounds is not None:
-                bounds = bounds[slc]
+                if isinstance(slc, dict):
+                    bounds = bounds[slc]
+                elif bounds.ndim == 2:
+                    bounds = bounds[slc, :]
+                else:
+                    bounds = bounds[slc[0], slc[1], :]
         finally:
             ret.bounds = bounds
 
