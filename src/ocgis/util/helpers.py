@@ -320,6 +320,13 @@ def get_formatted_slice(slc, n_dims):
         ret = map(_format_singleton_, slc)
     else:
         raise NotImplementedError((slc, n_dims))
+
+    if isinstance(ret, list):
+        ret = tuple(ret)
+    if not isinstance(ret, tuple):
+        ret = (ret,)
+
+
     return ret
 
 

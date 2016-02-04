@@ -1,4 +1,5 @@
 import itertools
+from collections import OrderedDict
 
 import fiona
 import numpy as np
@@ -27,7 +28,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
         tas = Variable(name='tas', value=value)
         tas.create_dimensions(['time', 'ngeom'])
         backref = VariableCollection(variables=[tas])
-        pa = GeometryVariable(value=vpa, parent=backref)
+        pa = GeometryVariable(value=vpa, parent=backref, name='point')
+        backref[pa.name] = pa
         pa.create_dimensions('ngeom')
         return pa
 
@@ -73,11 +75,19 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
 
+    def test_tdk(self):
         # Test slicing with a backref.
         pa = self.get_geometryvariable_with_parent()
-        desired = pa.parent['tas'][:, 1].value
+        desired = pa.parent['tas']
+        self.assertIsNotNone(pa.parent)
+        desired = desired[:, 1].value
+        self.assertIsNotNone(pa.parent)
+        desired_shapes = OrderedDict([('tas', (10, 3)), ('point', (3,))])
+        self.assertEqual(pa.parent.shapes, desired_shapes)
+        thh
+
         sub = pa[1]
-        backref_tas = sub._backref['tas']
+        backref_tas = sub.parent['tas']
         self.assertNumpyAll(backref_tas.value, desired)
         self.assertEqual(backref_tas.shape, (10, 1))
 

@@ -477,20 +477,21 @@ class Test2(TestBase):
     def test_get_formatted_slice(self):
         slc = (np.array([0, 2]),)
         actual = get_formatted_slice(slc, 1)
+        self.assertIsInstance(actual, tuple)
         desired = np.array([1, 2, 3, 4, 5])
-        self.assertNumpyAll(actual, np.array([0, 2]))
+        self.assertNumpyAll(actual[0], np.array([0, 2]))
         self.assertNumpyAll(desired[slc], desired[actual])
 
         ret = get_formatted_slice(slice(None,None,None),10)
-        self.assertEqual(ret,[slice(None,None,None)]*10)
+        self.assertEqual(ret,tuple([slice(None,None,None)]*10))
 
         ret = get_formatted_slice(0,1)
-        self.assertEqual(slice(0,1),ret)
+        self.assertEqual((slice(0,1),),ret)
         with self.assertRaises(IndexError):
             get_formatted_slice(slice(0,1),2)
 
         ret = get_formatted_slice((slice(0,1),0),2)
-        self.assertEqual(ret,[slice(0,1,None),slice(0,1,None)])
+        self.assertEqual(ret,tuple([slice(0,1,None),slice(0,1,None)]))
 
         ret = get_formatted_slice([(1,2,3),slice(None)],2)
         self.assertEqual(ret[0], slice(1, 4))
@@ -498,24 +499,24 @@ class Test2(TestBase):
         self.assertEqual(len(ret),2)
 
         ret = get_formatted_slice((1,2),1)
-        self.assertEqual(ret, slice(1, 3))
+        self.assertEqual(ret, (slice(1, 3),))
 
         ret = get_formatted_slice((1,),1)
-        self.assertEqual(ret, slice(1, 2))
+        self.assertEqual(ret, (slice(1, 2),))
 
         ret = get_formatted_slice((slice(0, -1, None),), 1)
-        self.assertEqual(ret, slice(0, -1, None, ))
+        self.assertEqual(ret, (slice(0, -1, None),))
 
         ret = get_formatted_slice((0,), 1)
-        self.assertEqual(ret, slice(0, 1))
+        self.assertEqual(ret, (slice(0, 1),))
 
         slc = [np.array([0, 1, 2], dtype=np.int32)]
         ret = get_formatted_slice(slc, 1)
-        self.assertEqual(ret, slice(0, 3))
+        self.assertEqual(ret, (slice(0, 3),))
 
         slc = np.array([True, False], dtype=bool)
         ret = get_formatted_slice(slc, 1)
-        self.assertNumpyAll(ret, slc)
+        self.assertNumpyAll(ret[0], slc)
 
     def test_set_name_attributes(self):
 

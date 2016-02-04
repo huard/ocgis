@@ -39,10 +39,11 @@ class AbstractContainer(AbstractInterfaceObject):
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
         self._getitem_main_(ret, slc)
-        if self.parent is not None:
+        if ret.parent is not None:
             # Update the parent collection with the returned slice. This is skipped in the update occurring in
             # set_sliced...
-            self.parent[ret.name] = ret
+            ret.parent = ret.parent.copy()
+            ret.parent[ret.name] = ret
             set_sliced_backref_variables(ret, slc)
         self._getitem_finalize_(ret, slc)
         return ret
@@ -99,7 +100,7 @@ class AbstractContainer(AbstractInterfaceObject):
         except (NotImplementedError, IndexError) as e:
             # Assume it is a dictionary slice.
             try:
-                slc = {k: get_formatted_slice(v, 1) for k, v in slc.items()}
+                slc = {k: get_formatted_slice(v, 1)[0] for k, v in slc.items()}
             except:
                 raise e
 
@@ -1168,12 +1169,14 @@ def set_sliced_backref_variables(ret, slc):
     backref = ret.parent
     for key, variable in backref.items():
         if ret.name != variable.name:
+            orig_parent = variable.parent
             variable.parent = None
             try:
                 backref[key] = variable.__getitem__(slc)
             except DimensionsRequiredError:
                 pass
             backref[key].parent = backref
+            variable.parent = orig_parent
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):

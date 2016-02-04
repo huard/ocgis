@@ -24,6 +24,7 @@ class Dimension(AbstractInterfaceObject):
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)
+        slc = slc[0]
         ret = self.copy()
 
         if ret._variable is not None:
