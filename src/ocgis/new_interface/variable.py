@@ -1169,14 +1169,12 @@ def set_sliced_backref_variables(ret, slc):
     backref = ret.parent
     for key, variable in backref.items():
         if ret.name != variable.name:
-            orig_parent = variable.parent
             variable.parent = None
             try:
                 backref[key] = variable.__getitem__(slc)
             except DimensionsRequiredError:
                 pass
-            backref[key].parent = backref
-            variable.parent = orig_parent
+            variable.parent = backref
 
 
 def get_mapped_slice(slc_src, names_src, names_dst):

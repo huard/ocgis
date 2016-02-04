@@ -75,16 +75,15 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
 
-    def test_tdk(self):
         # Test slicing with a backref.
         pa = self.get_geometryvariable_with_parent()
-        desired = pa.parent['tas']
+        desired_obj = pa.parent['tas']
         self.assertIsNotNone(pa.parent)
-        desired = desired[:, 1].value
+        desired = desired_obj[:, 1].value
+        self.assertNotEqual(id(pa.parent), id(desired_obj.parent))
         self.assertIsNotNone(pa.parent)
         desired_shapes = OrderedDict([('tas', (10, 3)), ('point', (3,))])
         self.assertEqual(pa.parent.shapes, desired_shapes)
-        thh
 
         sub = pa[1]
         backref_tas = sub.parent['tas']
