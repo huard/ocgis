@@ -54,14 +54,6 @@ class GridXY(AbstractSpatialContainer):
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
 
-        if self.is_vectorized:
-            try:
-                assert not x.get_mask().any()
-                assert not y.get_mask().any()
-            except AssertionError:
-                msg = 'Vector coordinates may not be masked at initialization.'
-                raise ValueError(msg)
-
         if self.dimensions is None:
             if self.is_vectorized:
                 self.x.create_dimensions(names='ocgis_xc')

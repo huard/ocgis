@@ -91,8 +91,12 @@ class Test(AbstractTestNewInterface):
 
         rd = MPI_COMM.bcast(rd, root=0)
         x = BoundedVariable(name='x', request_dataset=rd)
+        self.assertIsNone(x._value)
         y = BoundedVariable(name='y', request_dataset=rd)
+        self.assertIsNone(x._value)
+        self.assertIsNone(y._value)
         grid = GridXY(x, y)
+        self.assertIsNone(grid.x._value)
 
         # self.write_fiona_htmp(grid, 'grid')
         # self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
@@ -353,10 +357,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(len(grid.dimensions), 2)
 
     def test_expand(self):
-        # Test no mask allowed on vector coordinates.
-        with self.assertRaises(ValueError):
-            self.get_gridxy(with_value_mask=True)
-
         grid = self.get_gridxy()
         self.assertTrue(grid.is_vectorized)
         grid.expand()
