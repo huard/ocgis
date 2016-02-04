@@ -449,14 +449,13 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIsNone(grid._mask)
         grid.set_mask(new_mask)
         self.assertIsNone(grid._mask)
-        bounds_sequence = (101.5, 40.5, 102.5, 42.5)
         self.assertFalse(grid.has_bounds)
 
+        bounds_sequence = (101.5, 40.5, 103.5, 42.5)
         sub = grid.get_intersects(bounds_sequence, use_bounds=False)
         if MPI_RANK == 0:
-            self.assertTrue(np.all(sub.get_mask()))
             new_mask = sub.get_mask()
-            new_mask.fill(False)
+            new_mask.fill(True)
             sub.set_mask(new_mask)
             self.assertEqual(grid.get_mask().sum(), 4)
 
