@@ -406,7 +406,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertNumpyAll(sub.parent['rhs'].value, orig_rhs)
         self.assertTrue(np.may_share_memory(sub.parent['tas'].value, grid.parent['tas'].value))
 
-    def test_mask(self):
+    def test_get_mask(self):
         grid = self.get_gridxy()
         self.assertTrue(grid.is_vectorized)
         mask = grid.get_mask()

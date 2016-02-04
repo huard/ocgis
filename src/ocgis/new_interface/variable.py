@@ -951,6 +951,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def copy(self):
         ret = AbstractCollection.copy(self)
         for v in ret.values():
+            v = v.copy()
             v.parent = ret
         return ret
 
@@ -961,14 +962,14 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             # Assume a dictionary slice.
             ret = self.copy()
             names = set(item.keys())
-            for k, v in self.items():
+            for k, v in ret.items():
+                v = v.copy()
                 v.parent = None
                 if v.ndim > 0:
                     v_dimension_names = set([d.name for d in v.dimensions])
                     if len(v_dimension_names.intersection(names)) > 0:
                         v = v.__getitem__(item)
-                v.parent = ret
-                ret[k] = v
+                ret.add_variable(v, force=True)
         return ret
 
     @property

@@ -75,12 +75,11 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (2, 1))
         self.assertEqual(sub.value.shape, (2, 1))
 
-        # Test slicing with a backref.
+        # Test slicing with a parent.
         pa = self.get_geometryvariable_with_parent()
         desired_obj = pa.parent['tas']
         self.assertIsNotNone(pa.parent)
         desired = desired_obj[:, 1].value
-        self.assertNotEqual(id(pa.parent), id(desired_obj.parent))
         self.assertIsNotNone(pa.parent)
         desired_shapes = OrderedDict([('tas', (10, 3)), ('point', (3,))])
         self.assertEqual(pa.parent.shapes, desired_shapes)
@@ -138,13 +137,13 @@ class TestGeometryVariable(AbstractTestNewInterface):
         backref = VariableCollection(variables=snames)
         pts = [Point(1, 2), Point(3, 4), Point(4, 5)]
         subset = MultiPolygon([Point(1, 2).buffer(0.1), Point(4, 5).buffer(0.1)])
-        gvar = GeometryVariable(value=pts, backref=backref)
+        gvar = GeometryVariable(value=pts, parent=backref)
         gvar.create_dimensions('ngeom')
         sub, slc = gvar.get_intersects(subset, return_slice=True)
         self.assertFalse(sub.get_mask().any())
 
         desired = snames.value[slc]
-        actual = sub._backref[snames.name].value
+        actual = sub.parent[snames.name].value
         self.assertNumpyAll(actual, desired)
 
     def test_get_intersection(self):

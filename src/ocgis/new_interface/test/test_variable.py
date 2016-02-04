@@ -635,10 +635,9 @@ class TestVariable(AbstractTestNewInterface):
         parent = VariableCollection(variables=[var])
         var2 = Variable(name='b', value=[11,22,33], dimensions=['one'], parent=parent)
         self.assertIn('b', var2.parent)
-        print var2.parent.shapes
         sub = var2[1]
-        print sub.parent.shapes
-        print var2.parent.shapes
+        self.assertEqual(var2.parent.shapes, OrderedDict([('a', (3,)), ('b', (3,))]))
+        self.assertEqual(sub.parent.shapes, OrderedDict([('a', (1,)), ('b', (1,))]))
 
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
