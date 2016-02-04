@@ -74,17 +74,21 @@ class AbstractContainer(AbstractInterfaceObject):
 
         if self.parent is not None:
             names_container = [d.name for d in self.dimensions]
-            new_backref = VariableCollection(attrs=self.parent.attrs.copy())
+            new_backref = self.parent.copy()
             mask_container = mask
-            for k, v in self.parent.items():
-                names_variable = [d.name for d in v.dimensions]
-                mask_variable = v.get_mask()
-                for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
-                    if value_mask_container:
-                        mapped_slice = get_mapped_slice(slc, names_container, names_variable)
-                        mask_variable[mapped_slice] = True
-                v.set_mask(mask_variable)
-                new_backref.add_variable(v)
+            for k, v in new_backref.items():
+                v.parent = None
+                if v.ndim > 0:
+                    names_variable = [d.name for d in v.dimensions]
+                    if len(set(names_variable).intersection(names_container)) > 0:
+                        mask_variable = v.get_mask()
+                        for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
+                            if value_mask_container:
+                                mapped_slice = get_mapped_slice(slc, names_container, names_variable)
+                                mask_variable[mapped_slice] = True
+                        v.set_mask(mask_variable)
+                v.parent = new_backref
+                new_backref[k] = v
             self.parent = new_backref
 
         self._mask = mask

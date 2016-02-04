@@ -19,7 +19,7 @@ from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_ge
 from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, BoundedVariable
+from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
 from ocgis.test.base import attr
 from ocgis.util.helpers import make_poly, iter_array
 
@@ -532,7 +532,7 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_setitem(self):
         grid = self.get_gridxy()
-        self.assertNotIn('point', grid._variables)
+        self.assertNotIn('point', grid.parent)
         self.assertFalse(np.any(grid.get_mask()))
         grid2 = deepcopy(grid)
         grid2.set_mask(np.ones((4, 3), dtype=bool))
@@ -541,30 +541,41 @@ class TestGridXY(AbstractTestNewInterface):
         grid2.point
         grid[:, :] = grid2
         self.assertTrue(np.all(grid.get_mask()))
-        self.assertIn('point', grid._variables)
+        self.assertIn('ocgis_point', grid.parent)
         self.assertEqual(grid.x.value.mean(), 111)
         self.assertEqual(grid.y.value.mean(), 222)
 
     def test_set_mask(self):
         grid = self.get_gridxy()
+        grid.parent['coordinate_system'] = Variable(name='coordinate_system')
+        self.assertIsNotNone(grid.point)
         self.assertFalse(np.any(grid.get_mask()))
         mask = np.zeros(grid.shape, dtype=bool)
         mask[1, 1] = True
         grid.set_mask(mask)
         self.assertTrue(np.all(grid.y.get_mask()[1, 1]))
         self.assertTrue(np.all(grid.x.get_mask()[1, 1]))
+        self.assertTrue(np.all(grid.point.get_mask()[1, 1]))
+        self.assertIn('coordinate_system', grid.parent)
 
-    def test_tdk(self):
-        # Test with a backref.
-        grid = self.get_gridxy(with_backref=True, with_dimensions=True)
+        path = self.get_temporary_file_path('foo.nc')
+        grid.write_netcdf(path)
+        # self.ncdump(path)
+        nvc = VariableCollection.read_netcdf(path)
+        ngrid = GridXY(nvc['x'], nvc['y'], parent=nvc)
+        self.assertTrue(ngrid.get_mask()[1, 1])
+        self.assertNumpyAll(grid.masked_value_stacked.compressed(), ngrid.masked_value_stacked.compressed())
+
+        # Test with a parent.
+        grid = self.get_gridxy(with_parent=True, with_dimensions=True)
         for k in ['tas', 'rhs']:
-            self.assertFalse(grid._backref[k].get_mask().any())
+            self.assertFalse(grid.parent[k].get_mask().any())
         new_mask = grid.get_mask()
         self.assertFalse(new_mask.any())
         new_mask[1:3, 1] = True
         grid.set_mask(new_mask)
         for k in ['tas', 'rhs']:
-            backref_var = grid._backref[k]
+            backref_var = grid.parent[k]
             mask = backref_var.get_mask()
             self.assertTrue(mask.any())
             if k == 'tas':

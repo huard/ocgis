@@ -50,7 +50,7 @@ class GridXY(AbstractSpatialContainer):
             parent = VariableCollection(variables=new_variables)
         else:
             for var in new_variables:
-                parent.add_variable(var)
+                parent[var.name] = var
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
 
@@ -100,9 +100,9 @@ class GridXY(AbstractSpatialContainer):
             original_mask = self.get_mask().copy()
             self.x[slc] = grid.x
             self.y[slc] = grid.y
-            if self._point_name in grid._variables:
+            if self._point_name in grid.parent:
                 self.point[slc] = grid.point
-            if self._polygon_name in grid._variables:
+            if self._polygon_name in grid.parent:
                 self.polygon[slc] = grid.polygon
             original_mask[slc] = grid.get_mask()
             self.set_mask(original_mask)
@@ -257,6 +257,16 @@ class GridXY(AbstractSpatialContainer):
         return fill
 
     @property
+    @expand_needed
+    def masked_value_stacked(self):
+        y = self.y.masked_value
+        x = self.x.masked_value
+        fill = np.ma.zeros([2] + list(y.shape))
+        fill[0, :, :] = y
+        fill[1, :, :] = x
+        return fill
+
+    @property
     def _archetype(self):
         return self.y
 
@@ -283,8 +293,6 @@ class GridXY(AbstractSpatialContainer):
         super(GridXY, self).set_mask(value)
         # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
         self._mask = None
-        for target in self.parent.values():
-            target.set_mask(value)
 
     @expand_needed
     def iter(self, **kwargs):
@@ -427,6 +435,17 @@ class GridXY(AbstractSpatialContainer):
 
     def write_fiona(self, *args, **kwargs):
         return self.abstraction_geometry.write_fiona(*args, **kwargs)
+
+    def write_netcdf(self, dataset, **kwargs):
+        popped = []
+        for target in [self._point_name, self._polygon_name]:
+            popped.append(self.parent.pop(target, None))
+        try:
+            super(GridXY, self).write_netcdf(dataset, **kwargs)
+        finally:
+            for p in popped:
+                if p is not None:
+                    self.parent[p.name] = p
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
