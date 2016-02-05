@@ -17,26 +17,6 @@ from ocgis.util.helpers import get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_are_units_equal
 
 
-class TestBoundedVariable(AbstractTestNewInterface):
-
-    def test(self):
-        # Test property update cascade.
-        bv = self.get_boundedvariable()
-        self.assertIsNone(bv.units)
-        self.assertIsNone(bv.bounds.units)
-        bv.units = 'celsius'
-        self.assertIsNone(bv.conform_units_to)
-        self.assertEqual(bv.units, bv.bounds.units)
-
-    # def test_dimensions(self):
-    #     bv = self.get_boundedvariable()
-    #     self.assertIsNone(bv.dimensions)
-    #     self.assertIsNone(bv.bounds.dimensions)
-    #     bv.create_dimensions()
-    #     self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
-    #     self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
-
-
 class TestSourcedVariable(AbstractTestNewInterface):
     def get_sourcedvariable(self, **kwargs):
         if 'name' not in kwargs:
