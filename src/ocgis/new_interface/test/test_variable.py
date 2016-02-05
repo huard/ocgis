@@ -18,17 +18,6 @@ from ocgis.util.units import get_units_object, get_are_units_equal
 
 
 class TestBoundedVariable(AbstractTestNewInterface):
-    def get_boundedvariable(self, with_bounds=True, mask=None):
-        value = np.array([4, 5, 6], dtype=float)
-        if mask is not None:
-            value = np.ma.array(value, mask=mask)
-        if with_bounds:
-            value_bounds = get_bounds_from_1d(value)
-            bounds = Variable('x_bounds', value=value_bounds)
-        else:
-            bounds = None
-        var = BoundedVariable('x', value=value, bounds=bounds)
-        return var
 
     def test(self):
         # Test property update cascade.
@@ -88,13 +77,13 @@ class TestBoundedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write_netcdf(ds)
 
-    def test_dimensions(self):
-        bv = self.get_boundedvariable()
-        self.assertIsNone(bv.dimensions)
-        self.assertIsNone(bv.bounds.dimensions)
-        bv.create_dimensions()
-        self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
-        self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
+    # def test_dimensions(self):
+    #     bv = self.get_boundedvariable()
+    #     self.assertIsNone(bv.dimensions)
+    #     self.assertIsNone(bv.bounds.dimensions)
+    #     bv.create_dimensions()
+    #     self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
+    #     self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
 
     @attr('cfunits')
     def test_cfunits_conform(self):
@@ -109,12 +98,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
         bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
         bv.cfunits_conform('kelvin')
         self.assertNumpyAll(bv.masked_value, np.ma.array([278.15, 283.15, 288.15]))
-
-    def test_getitem(self):
-        bv = self.get_boundedvariable()
-        sub = bv[1]
-        self.assertEqual(sub.bounds.shape, (1, 2))
-        self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
 
     def test_get_between(self):
         bv = BoundedVariable('foo', value=[0])
@@ -189,49 +172,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
             self.assertEqual(len(element), 3)
         self.assertEqual(idx[0], 2)
 
-    def test_setitem(self):
-        bv = self.get_boundedvariable()
-        bv2 = BoundedVariable(value=[600], bounds=Variable(value=[[500, 700]]))
-        bv[1] = bv2
-        self.assertEqual(bv.bounds.value[1, :].tolist(), [500, 700])
-
-    def test_set_extrapolated_bounds(self):
-        bv = self.get_boundedvariable(with_bounds=False, mask=[False, True, False])
-        self.assertIsNone(bv.bounds)
-        self.assertFalse(bv._has_extrapolated_bounds)
-        bv.set_extrapolated_bounds()
-        self.assertTrue(bv._has_extrapolated_bounds)
-        self.assertEqual(bv.bounds.name, 'x_bounds')
-        self.assertEqual(bv.bounds.ndim, 2)
-        bounds_mask = bv.bounds.get_mask()
-        self.assertTrue(np.all(bounds_mask[1, :]))
-        self.assertEqual(bounds_mask.sum(), 2)
-
-        # Test extrapolating bounds on 2d variable.
-        bv = self.get_boundedvariable_2d()
-        self.assertIsNone(bv.bounds)
-        bv.set_extrapolated_bounds()
-        bounds_value = bv.bounds.masked_value
-        actual = [[[2.25, 2.75, 1.75, 1.25], [2.75, 3.25, 2.25, 1.75]],
-                  [[1.25, 1.75, 0.75, 0.25], [1.75, 2.25, 1.25, 0.75]],
-                  [[0.25, 0.75, -0.25, -0.75], [0.75, 1.25, 0.25, -0.25]]]
-        actual = np.ma.array(actual, mask=False)
-        self.assertNumpyAll(actual, bounds_value)
-        self.assertEqual(bounds_value.ndim, 3)
-        bounds_dimensions = bv.bounds.dimensions
-        self.assertEqual(bv.bounds.name, 'two_dee_bounds')
-        self.assertEqual(len(bounds_dimensions), 3)
-        self.assertEqual(bounds_dimensions[2].name, constants.DEFAULT_NAME_CORNERS_DIMENSION)
-
-    def get_boundedvariable_2d(self):
-        # tdk: order
-        value = np.array([[2, 2.5],
-                          [1, 1.5],
-                          [0, 0.5]], dtype=float)
-        dims = (Dimension('y', 3), Dimension('x', 2))
-        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
-        return bv
-
     def test_get_mask(self):
         bv = self.get_boundedvariable(with_bounds=True)
         bv.set_mask([False, True, False])
@@ -251,18 +191,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
         for slc in ((0, 1), (2, 0)):
             self.assertTrue(np.all(bounds_mask[slc]))
         self.assertEqual(bounds_mask.sum(), 8)
-
-    def test_write_netcdf(self):
-        bv = self.get_boundedvariable()
-        dim_x = Dimension('x', 3)
-        bv.dimensions = dim_x
-        bv.bounds.dimensions = [dim_x, Dimension('bounds', 2)]
-        path = self.get_temporary_file_path('out.nc')
-        with self.nc_scope(path, 'w') as ds:
-            bv.write_netcdf(ds)
-        with self.nc_scope(path, 'r') as ds:
-            var = ds.variables[bv.name]
-            self.assertEqual(var.bounds, bv.bounds.name)
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
@@ -396,6 +324,23 @@ class TestVariable(AbstractTestNewInterface):
         else:
             return var
 
+    def get_boundedvariable(self, mask=None):
+        value = np.array([4, 5, 6], dtype=float)
+        if mask is not None:
+            value = np.ma.array(value, mask=mask)
+        value_bounds = get_bounds_from_1d(value)
+        bounds = Variable('x_bounds', value=value_bounds, dimensions=['x', 'bounds'])
+        var = Variable('x', value=value, bounds=bounds, dimensions=['x'])
+        return var
+
+    def get_boundedvariable_2d(self):
+        value = np.array([[2, 2.5],
+                          [1, 1.5],
+                          [0, 0.5]], dtype=float)
+        dims = (Dimension('y', 3), Dimension('x', 2))
+        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
+        return bv
+
     def test_init(self):
         # Test an empty variable.
         var = Variable()
@@ -495,6 +440,14 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(var.get_mask(), value.mask)
         self.assertEqual(var.value.dtype, int)
 
+        # Test with bounds.
+        desired_bounds_value = [[0.5, 1.5], [1.5, 2.5]]
+        bounds = Variable(value=desired_bounds_value, name='n_bnds', dimensions=['ens_dims', 'bounds'])
+        var = Variable(value=[1, 2], bounds=bounds, name='n', dimensions='ens_dims')
+        self.assertNumpyAll(var.bounds.value, np.array(desired_bounds_value))
+        self.assertEqual(var.parent.keys(), ['n_bnds', 'n'])
+        self.assertEqual(var.attrs['bounds'], bounds.name)
+
     def test_init_object_array(self):
         value = [[1, 3, 5],
                  [7, 9],
@@ -530,6 +483,12 @@ class TestVariable(AbstractTestNewInterface):
             actual = v_actual[idx].value[0]
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
+
+    def test_getitem(self):
+        bv = self.get_boundedvariable()
+        sub = bv[1]
+        self.assertEqual(sub.bounds.shape, (1, 2))
+        self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
 
     @attr('cfunits')
     def test_cfunits(self):
@@ -655,6 +614,37 @@ class TestVariable(AbstractTestNewInterface):
                 self.assertIsInstance(record, OrderedDict)
             self.assertEqual(ctr, 5)
 
+    def test_set_extrapolated_bounds(self):
+        bv = self.get_boundedvariable(mask=[False, True, False])
+        self.assertIsNotNone(bv.bounds)
+        bv.bounds = None
+        bv.dimensions = None
+        self.assertIsNone(bv.bounds)
+        self.assertIsNone(bv.dimensions)
+        bv.create_dimensions('x')
+        bv.set_extrapolated_bounds('x_bounds', 'bounds')
+        self.assertEqual(bv.bounds.name, 'x_bounds')
+        self.assertEqual(bv.bounds.ndim, 2)
+        bounds_mask = bv.bounds.get_mask()
+        self.assertTrue(np.all(bounds_mask[1, :]))
+        self.assertEqual(bounds_mask.sum(), 2)
+
+        # Test extrapolating bounds on 2d variable.
+        bv = self.get_boundedvariable_2d()
+        self.assertIsNone(bv.bounds)
+        bv.set_extrapolated_bounds('two_dee_bounds', 'bounds_dimension')
+        bounds_value = bv.bounds.masked_value
+        actual = [[[2.25, 2.75, 1.75, 1.25], [2.75, 3.25, 2.25, 1.75]],
+                  [[1.25, 1.75, 0.75, 0.25], [1.75, 2.25, 1.25, 0.75]],
+                  [[0.25, 0.75, -0.25, -0.75], [0.75, 1.25, 0.25, -0.25]]]
+        actual = np.ma.array(actual, mask=False)
+        self.assertNumpyAll(actual, bounds_value)
+        self.assertEqual(bounds_value.ndim, 3)
+        bounds_dimensions = bv.bounds.dimensions
+        self.assertEqual(bv.bounds.name, 'two_dee_bounds')
+        self.assertEqual(len(bounds_dimensions), 3)
+        self.assertEqual(bounds_dimensions[2].name, 'bounds_dimension')
+
     def test_setitem(self):
         var = Variable(value=[10, 10, 10, 10, 10])
         var2 = Variable(value=[2, 3, 4], mask=[True, True, False])
@@ -670,6 +660,13 @@ class TestVariable(AbstractTestNewInterface):
         var[1, 1:3] = 6700
         self.assertTrue(np.all(var.value[1, 1:3] == 6700))
         self.assertAlmostEqual(var.value.mean(), 1116.66666666)
+
+        # Test with bounds.
+        bv = self.get_boundedvariable()
+        bounds = Variable(value=[[500, 700]], name='b', dimensions=['a', 'b'])
+        bv2 = Variable(value=[600], bounds=bounds, name='c', dimensions=['d'])
+        bv[1] = bv2
+        self.assertEqual(bv.bounds.value[1, :].tolist(), [500, 700])
 
     def test_get_mask(self):
         var = Variable(value=[1, 2, 3], mask=[False, True, False])
@@ -752,6 +749,18 @@ class TestVariable(AbstractTestNewInterface):
                     self.assertTrue(rdim.isunlimited())
                 # Fill value only present for masked data.
                 self.assertNotIn('_FillValue', rvar.__dict__)
+
+        # Test writing with bounds.
+        bv = self.get_boundedvariable()
+        dim_x = Dimension('x', 3)
+        bv.dimensions = dim_x
+        bv.bounds.dimensions = [dim_x, Dimension('bounds', 2)]
+        path = self.get_temporary_file_path('out.nc')
+        with self.nc_scope(path, 'w') as ds:
+            bv.write_netcdf(ds)
+        with self.nc_scope(path, 'r') as ds:
+            var = ds.variables[bv.name]
+            self.assertEqual(var.bounds, bv.bounds.name)
 
 
 class TestVariableCollection(AbstractTestNewInterface):

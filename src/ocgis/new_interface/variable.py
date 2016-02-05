@@ -133,7 +133,7 @@ class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units=None, parent=None):
+                 units=None, parent=None, bounds=None):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -143,6 +143,10 @@ class Variable(AbstractContainer, Attributes):
         self._mask = None
 
         self._fill_value = fill_value
+        if bounds is not None:
+            self._bounds_name = bounds.name
+        else:
+            self._bounds_name = None
 
         self.name = name
         self.units = units
@@ -162,6 +166,9 @@ class Variable(AbstractContainer, Attributes):
         if mask is None:
             mask = self._mask
         AbstractContainer.__init__(self, mask, parent=parent)
+
+        if bounds is not None:
+            self.bounds = bounds
 
         # Add to the parent.
         if self.parent is not None:
@@ -212,8 +219,39 @@ class Variable(AbstractContainer, Attributes):
             new_mask[slc] = variable_or_value.get_mask()
             self.set_mask(new_mask)
 
+        super(BoundedVariable, self).__setitem__(slc, variable_or_value)
+        try:
+            if variable_or_value.bounds is not None:
+                if self.bounds is None:
+                    self.set_extrapolated_bounds()
+                self.bounds.value[slc] = variable_or_value.bounds.value
+        except AttributeError:  # Assume array or other object.
+            pass
+
     def __len__(self):
         return self.shape[0]
+
+    @property
+    def bounds(self):
+        if self._bounds_name is None:
+            ret = None
+        else:
+            ret = self.parent[self._bounds_name]
+        return ret
+
+    @bounds.setter
+    def bounds(self, value):
+        if value is None:
+            if self._bounds_name is not None:
+                self.parent.pop(self._bounds_name)
+            self._bounds_name = None
+        else:
+            self._bounds_name = value.name
+            self.attrs['bounds'] = value.name
+            if self.parent is None:
+                self.parent = VariableCollection(variables=value)
+            else:
+                self.parent.add_variable(value, force=True)
 
     @property
     def cfunits(self):
@@ -439,6 +477,38 @@ class Variable(AbstractContainer, Attributes):
             for name, shp in izip(names, value.shape):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
+
+    def set_extrapolated_bounds(self, name_variable, name_dimension):
+        """Set the bounds variable using extrapolation."""
+
+        if self.bounds is not None:
+            raise BoundsAlreadyAvailableError
+        if self.dimensions is None:
+            raise DimensionsRequiredError('Dimensions are required on the bounded variable.')
+
+        if self.ndim == 1:
+            bounds_value = get_bounds_from_1d(self.value)
+        else:
+            # tdk: consider renaming this functions to get_bounds_from_2d
+            bounds_value = get_extrapolated_corners_esmf(self.value)
+            bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
+
+        dimensions = list(self.dimensions)
+        dimensions.append(Dimension(name=name_dimension, length=bounds_value.shape[-1]))
+
+        var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions)
+        self.bounds = var
+
+        # This will synchronize the bounds mask with the variable's mask.
+        self.set_mask(self.get_mask())
+
+    @property
+    def has_bounds(self):
+        if self.bounds is not None:
+            ret = True
+        else:
+            ret = False
+        return ret
 
     def get_scatter_slices(self, splits):
         slices = create_nd_slices(splits, self.shape)
@@ -839,36 +909,6 @@ class BoundedVariable(SourcedVariable):
 
         return ret
 
-    def set_extrapolated_bounds(self, name=None):
-        """Set the bounds variable using extrapolation."""
-
-        if self.bounds is not None:
-            raise BoundsAlreadyAvailableError
-        name = name or '{0}_{1}'.format(self.name, 'bounds')
-
-        if self.ndim == 1:
-            bounds_value = get_bounds_from_1d(self.value)
-        else:
-            # tdk: consider renaming this functions to get_bounds_from_2d
-            bounds_value = get_extrapolated_corners_esmf(self.value)
-            bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
-
-        dimensions = self.dimensions
-        if dimensions is None:
-            dims = None
-        else:
-            if self.ndim == 1:
-                dims = [dimensions[0], Dimension(constants.OCGIS_BOUNDS, length=2)]
-            else:
-                dims = list(dimensions) + [Dimension(constants.DEFAULT_NAME_CORNERS_DIMENSION, length=4)]
-
-        var = Variable(name, value=bounds_value, dimensions=dims)
-        self.bounds = var
-        self._has_extrapolated_bounds = True
-
-        # This will synchronize the bounds mask with the variable's mask.
-        set_bounds_mask_from_parent(self.get_mask(), self.bounds)
-
     def create_dimensions(self, names=None):
         super(BoundedVariable, self).create_dimensions(names)
         if self.bounds is not None:
@@ -993,6 +1033,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
+        if variable.name is None:
+            raise ValueError('A "name" is required to enter a collection.')
+        if variable.dimensions is None and variable.ndim > 0:
+            raise ValueError('"dimensions" are required to enter a collection.')
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable

@@ -6,9 +6,9 @@ from shapely.geometry import box
 
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.logging import log
 from ocgis.new_interface.mpi import MPI_RANK, MPI_SIZE, MPI_COMM, create_slices, create_nd_slices, hgather, \
     get_optimal_splits
+from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.util.helpers import get_local_to_global_slices
 
