@@ -9,7 +9,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_polygon_geometry_array
-from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase
 
 _VALUE_POINT_ARRAY = np.array([None, None])

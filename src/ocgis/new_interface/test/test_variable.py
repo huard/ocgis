@@ -11,7 +11,7 @@ from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError,
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, BoundedVariable, ObjectType
+from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_are_units_equal
@@ -83,8 +83,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertIsNone(sv.conform_units_to)
 
         # Try with a bounded variable.
-        bounds = SourcedVariable('lat_bnds', request_dataset=rd)
-        sv = BoundedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
+        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius', conform_units_to='K')
+        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
         self.assertIsNotNone(sv.bounds.conform_units_to)
         self.assertIsNone(sv._value)
         self.assertGreater(sv.value.mean(), 250)
