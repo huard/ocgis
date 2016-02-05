@@ -28,55 +28,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
         self.assertIsNone(bv.conform_units_to)
         self.assertEqual(bv.units, bv.bounds.units)
 
-    @attr('data')
-    def test_with_data(self):
-        # Test units are left on bounds if we are conforming.
-        rd = self.get_request_dataset()
-        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd)
-        bv = BoundedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
-        self.assertIsNone(bv._value)
-        self.assertIsNone(bv.bounds._value)
-        self.assertEqual(bv.bounds.units, 'K')
-        assert bv.value is not None
-        self.assertEqual(bv.units, 'celsius')
-        self.assertEqual(bv.bounds.units, 'K')
-
-    def test_init(self):
-        bv = self.get_boundedvariable()
-        bv.create_dimensions()
-        self.assertEqual(bv.shape, (3,))
-
-        # Test loading from source.
-        request_dataset = self.get_request_dataset()
-        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
-        bv = BoundedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
-        self.assertEqual(bv.ndim, 1)
-        self.assertEqual(bv.dtype, np.float64)
-        self.assertEqual(bv.bounds.dtype, np.float64)
-        self.assertEqual(bv.shape, (20,))
-        self.assertEqual(bv.bounds.shape, (20, 2))
-        self.assertEqual(len(bv.dimensions), 1)
-        self.assertEqual(len(bv.bounds.dimensions), 2)
-        self.assertIsNone(bv.bounds._value)
-        self.assertIsNone(bv._value)
-
-        # Test with two dimensions.
-        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
-        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
-                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
-                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
-                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
-        y_bounds = Variable(value=y_corners, name='y_corners')
-        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-        self.assertEqual(y_bounds.ndim, 3)
-        y = BoundedVariable(value=y_value, bounds=y_bounds, name='y')
-        y.create_dimensions(names=['y', 'x'])
-        suby = y[1:3, 1]
-        self.assertEqual(suby.bounds.shape, (2, 1, 4))
-        path = self.get_temporary_file_path('foo.nc')
-        with self.nc_scope(path, 'w') as ds:
-            suby.write_netcdf(ds)
-
     # def test_dimensions(self):
     #     bv = self.get_boundedvariable()
     #     self.assertIsNone(bv.dimensions)
@@ -84,113 +35,6 @@ class TestBoundedVariable(AbstractTestNewInterface):
     #     bv.create_dimensions()
     #     self.assertEqual(bv.dimensions[0], bv.bounds.dimensions[0])
     #     self.assertEqual(bv.bounds.dimensions[1], Dimension(constants.OCGIS_BOUNDS, 2))
-
-    @attr('cfunits')
-    def test_cfunits_conform(self):
-        bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
-        bv.set_extrapolated_bounds()
-        self.assertEqual(bv.bounds.units, 'celsius')
-        bv.cfunits_conform(get_units_object('kelvin'))
-        self.assertEqual(bv.bounds.units, 'kelvin')
-        self.assertNumpyAll(bv.bounds.masked_value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
-
-        # Test conforming without bounds.
-        bv = BoundedVariable(value=[5., 10., 15.], units='celsius', name='tas')
-        bv.cfunits_conform('kelvin')
-        self.assertNumpyAll(bv.masked_value, np.ma.array([278.15, 283.15, 288.15]))
-
-    def test_get_between(self):
-        bv = BoundedVariable('foo', value=[0])
-        with self.assertRaises(EmptySubsetError):
-            bv.get_between(100, 200)
-
-        bv = BoundedVariable('foo', value=[100, 200, 300, 400])
-        vdim_between = bv.get_between(100, 200)
-        self.assertEqual(vdim_between.shape[0], 2)
-
-    def test_get_between_bounds(self):
-        value = [0., 5., 10.]
-        bounds = [[-2.5, 2.5], [2.5, 7.5], [7.5, 12.5]]
-
-        # A reversed copy of these bounds are created here.
-        value_reverse = deepcopy(value)
-        value_reverse.reverse()
-        bounds_reverse = deepcopy(bounds)
-        bounds_reverse.reverse()
-        for ii in range(len(bounds)):
-            bounds_reverse[ii].reverse()
-
-        data = {'original': {'value': value, 'bounds': bounds},
-                'reversed': {'value': value_reverse, 'bounds': bounds_reverse}}
-        for key in ['original', 'reversed']:
-            bounds = Variable('hello_bounds', value=data[key]['bounds'])
-            vdim = BoundedVariable('hello', value=data[key]['value'], bounds=bounds)
-
-            vdim_between = vdim.get_between(1, 3)
-            self.assertEqual(len(vdim_between), 2)
-            if key == 'original':
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x04\xc0\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@')
-            else:
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04\xc0')
-            self.assertEqual(vdim.resolution, 5.0)
-
-            # Preference is given to the lower bound in the case of "ties" where the value could be assumed part of the
-            # lower or upper cell.
-            vdim_between = vdim.get_between(2.5, 2.5)
-            self.assertEqual(len(vdim_between), 1)
-            if key == 'original':
-                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[2.5, 7.5]]))
-            else:
-                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[7.5, 2.5]]))
-
-            # If the interval is closed and the subset range falls only on bounds value then the subset will be empty.
-            with self.assertRaises(EmptySubsetError):
-                vdim.get_between(2.5, 2.5, closed=True)
-
-            vdim_between = vdim.get_between(2.5, 7.5)
-            if key == 'original':
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00)@')
-            else:
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00)@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@')
-
-    def test_get_between_use_bounds(self):
-        value = [3., 5.]
-        bounds = [[2., 4.], [4., 6.]]
-        bounds = Variable('bounds', bounds)
-        vdim = BoundedVariable('foo', value=value, bounds=bounds)
-        ret = vdim.get_between(3, 4.5, use_bounds=False)
-        self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
-        self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
-
-    def test_iter(self):
-        bv = self.get_boundedvariable()
-        for idx, element in bv.iter():
-            self.assertEqual(len(element), 3)
-        self.assertEqual(idx[0], 2)
-
-    def test_get_mask(self):
-        bv = self.get_boundedvariable(with_bounds=True)
-        bv.set_mask([False, True, False])
-        bounds_mask = bv.bounds.get_mask()
-        self.assertTrue(np.all(bounds_mask[1, :]))
-        self.assertEqual(bounds_mask.sum(), 2)
-
-        # Test with two dimensions.
-        bv = self.get_boundedvariable_2d()
-        bv.set_extrapolated_bounds()
-        self.assertEqual(bv.bounds.ndim, 3)
-        mask = np.array([[False, True],
-                         [False, False],
-                         [True, False]], dtype=bool)
-        bv.set_mask(mask)
-        bounds_mask = bv.bounds.get_mask()
-        for slc in ((0, 1), (2, 0)):
-            self.assertTrue(np.all(bounds_mask[slc]))
-        self.assertEqual(bounds_mask.sum(), 8)
 
 
 class TestSourcedVariable(AbstractTestNewInterface):
@@ -338,7 +182,8 @@ class TestVariable(AbstractTestNewInterface):
                           [1, 1.5],
                           [0, 0.5]], dtype=float)
         dims = (Dimension('y', 3), Dimension('x', 2))
-        bv = BoundedVariable(value=value, name='two_dee', dimensions=dims)
+        bv = Variable(value=value, name='two_dee', dimensions=dims)
+        bv.set_extrapolated_bounds('two_dee_bounds', 'corners')
         return bv
 
     def test_init(self):
@@ -448,6 +293,41 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.parent.keys(), ['n_bnds', 'n'])
         self.assertEqual(var.attrs['bounds'], bounds.name)
 
+    def test_init_bounds(self):
+        bv = self.get_boundedvariable()
+        self.assertEqual(bv.shape, (3,))
+
+        # Test loading from source.
+        request_dataset = self.get_request_dataset()
+        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
+        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
+        self.assertEqual(bv.ndim, 1)
+        self.assertEqual(bv.dtype, np.float64)
+        self.assertEqual(bv.bounds.dtype, np.float64)
+        self.assertEqual(bv.shape, (20,))
+        self.assertEqual(bv.bounds.shape, (20, 2))
+        self.assertEqual(len(bv.dimensions), 1)
+        self.assertEqual(len(bv.bounds.dimensions), 2)
+        self.assertIsNone(bv.bounds._value)
+        self.assertIsNone(bv._value)
+
+        # Test with two dimensions.
+        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
+        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
+                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
+                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
+                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
+        y_bounds = Variable(value=y_corners, name='y_corners')
+        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+        self.assertEqual(y_bounds.ndim, 3)
+        y = Variable(value=y_value, bounds=y_bounds, name='y', dimensions=['y', 'x'])
+        y.create_dimensions(names=['y', 'x'])
+        suby = y[1:3, 1]
+        self.assertEqual(suby.bounds.shape, (2, 1, 4))
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            suby.write_netcdf(ds)
+
     def test_init_object_array(self):
         value = [[1, 3, 5],
                  [7, 9],
@@ -483,6 +363,87 @@ class TestVariable(AbstractTestNewInterface):
             actual = v_actual[idx].value[0]
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
+
+    @attr('data')
+    def test_combo_with_data(self):
+        # Test units are left on bounds if we are conforming.
+        rd = self.get_request_dataset()
+        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K', conform_units_to='celsius')
+        bv = SourcedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
+        self.assertIsNone(bv._value)
+        self.assertIsNone(bv.bounds._value)
+        self.assertEqual(bv.bounds.units, 'K')
+        assert bv.value is not None
+        assert bv.bounds.value is not None
+        self.assertEqual(bv.units, 'celsius')
+        self.assertEqual(bv.bounds.units, 'celsius')
+
+    def test_get_between(self):
+        bv = Variable('foo', value=[0])
+        with self.assertRaises(EmptySubsetError):
+            bv.get_between(100, 200)
+
+        bv = Variable('foo', value=[100, 200, 300, 400])
+        vdim_between = bv.get_between(100, 200)
+        self.assertEqual(vdim_between.shape[0], 2)
+
+    def test_get_between_bounds(self):
+        value = [0., 5., 10.]
+        bounds = [[-2.5, 2.5], [2.5, 7.5], [7.5, 12.5]]
+
+        # A reversed copy of these bounds are created here.
+        value_reverse = deepcopy(value)
+        value_reverse.reverse()
+        bounds_reverse = deepcopy(bounds)
+        bounds_reverse.reverse()
+        for ii in range(len(bounds)):
+            bounds_reverse[ii].reverse()
+
+        data = {'original': {'value': value, 'bounds': bounds},
+                'reversed': {'value': value_reverse, 'bounds': bounds_reverse}}
+        for key in ['original', 'reversed']:
+            bounds = Variable('hello_bounds', value=data[key]['bounds'], dimensions=['a', 'b'])
+            vdim = Variable('hello', value=data[key]['value'], bounds=bounds, dimensions=['a'])
+
+            vdim_between = vdim.get_between(1, 3)
+            self.assertEqual(len(vdim_between), 2)
+            if key == 'original':
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x04\xc0\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@')
+            else:
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04\xc0')
+            self.assertEqual(vdim.resolution, 5.0)
+
+            # Preference is given to the lower bound in the case of "ties" where the value could be assumed part of the
+            # lower or upper cell.
+            vdim_between = vdim.get_between(2.5, 2.5)
+            self.assertEqual(len(vdim_between), 1)
+            if key == 'original':
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[2.5, 7.5]]))
+            else:
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[7.5, 2.5]]))
+
+            # If the interval is closed and the subset range falls only on bounds value then the subset will be empty.
+            with self.assertRaises(EmptySubsetError):
+                vdim.get_between(2.5, 2.5, closed=True)
+
+            vdim_between = vdim.get_between(2.5, 7.5)
+            if key == 'original':
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00)@')
+            else:
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00)@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@')
+
+    def test_get_between_use_bounds(self):
+        value = [3., 5.]
+        bounds = [[2., 4.], [4., 6.]]
+        bounds = Variable('bounds', bounds, dimensions=['a', 'b'])
+        vdim = Variable('foo', value=value, bounds=bounds, dimensions=['a'])
+        ret = vdim.get_between(3, 4.5, use_bounds=False)
+        self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
+        self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
 
     def test_getitem(self):
         bv = self.get_boundedvariable()
@@ -530,6 +491,19 @@ class TestVariable(AbstractTestNewInterface):
         av.cfunits_conform('K')
         self.assertIsNone(av._dtype)
         self.assertEqual(av.dtype, av.value.dtype)
+
+        # Test with bounds.
+        bv = Variable(value=[5., 10., 15.], units='celsius', name='tas', dimensions=['ll'])
+        bv.set_extrapolated_bounds('the_bounds', 'bounds')
+        self.assertEqual(bv.bounds.units, 'celsius')
+        bv.cfunits_conform(get_units_object('kelvin'))
+        self.assertEqual(bv.bounds.units, 'kelvin')
+        self.assertNumpyAll(bv.bounds.masked_value, np.ma.array([[275.65, 280.65], [280.65, 285.65], [285.65, 290.65]]))
+
+        # Test conforming without bounds.
+        bv = Variable(value=[5., 10., 15.], units='celsius', name='tas')
+        bv.cfunits_conform('kelvin')
+        self.assertNumpyAll(bv.masked_value, np.ma.array([278.15, 283.15, 288.15]))
 
     @attr('cfunits')
     def test_cfunits_conform_masked_array(self):
@@ -588,7 +562,6 @@ class TestVariable(AbstractTestNewInterface):
         sub_value = value[2:5, np.array([False, True, False, True], dtype=bool), slice(None), slice(0, 1)]
         self.assertNumpyAll(sub.masked_value, sub_value)
 
-    def test_tdk(self):
         # Test with a parent.
         var = Variable(name='a', value=[1,2,3], dimensions=['one'])
         parent = VariableCollection(variables=[var])
@@ -614,6 +587,11 @@ class TestVariable(AbstractTestNewInterface):
                 self.assertIsInstance(record, OrderedDict)
             self.assertEqual(ctr, 5)
 
+        bv = self.get_boundedvariable()
+        for idx, element in bv.iter():
+            self.assertEqual(len(element), 3)
+        self.assertEqual(idx[0], 2)
+
     def test_set_extrapolated_bounds(self):
         bv = self.get_boundedvariable(mask=[False, True, False])
         self.assertIsNotNone(bv.bounds)
@@ -631,6 +609,7 @@ class TestVariable(AbstractTestNewInterface):
 
         # Test extrapolating bounds on 2d variable.
         bv = self.get_boundedvariable_2d()
+        bv.bounds = None
         self.assertIsNone(bv.bounds)
         bv.set_extrapolated_bounds('two_dee_bounds', 'bounds_dimension')
         bounds_value = bv.bounds.masked_value
@@ -656,8 +635,8 @@ class TestVariable(AbstractTestNewInterface):
         value = np.zeros((3, 4), dtype=int)
         var = Variable(value=value)
         with self.assertRaises(IndexError):
-            var[1] = 4500
-        var[1, 1:3] = 6700
+            var[1] = Variable(value=4500)
+        var[1, 1:3] = Variable(value=6700)
         self.assertTrue(np.all(var.value[1, 1:3] == 6700))
         self.assertAlmostEqual(var.value.mean(), 1116.66666666)
 
@@ -687,6 +666,25 @@ class TestVariable(AbstractTestNewInterface):
         var.value[1, 1] = 200
         self.assertTrue(np.all(var.get_mask()[1, 1]))
         self.assertEqual(var.get_mask().sum(), 4)
+
+        # Test with bounds.
+        bv = self.get_boundedvariable()
+        bv.set_mask([False, True, False])
+        bounds_mask = bv.bounds.get_mask()
+        self.assertTrue(np.all(bounds_mask[1, :]))
+        self.assertEqual(bounds_mask.sum(), 2)
+
+        # Test with two dimensions.
+        bv = self.get_boundedvariable_2d()
+        self.assertEqual(bv.bounds.ndim, 3)
+        mask = np.array([[False, True],
+                         [False, False],
+                         [True, False]], dtype=bool)
+        bv.set_mask(mask)
+        bounds_mask = bv.bounds.get_mask()
+        for slc in ((0, 1), (2, 0)):
+            self.assertTrue(np.all(bounds_mask[slc]))
+        self.assertEqual(bounds_mask.sum(), 8)
 
     def test_shape(self):
         # Test shape with unlimited dimension.

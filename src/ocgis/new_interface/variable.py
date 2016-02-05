@@ -206,27 +206,20 @@ class Variable(AbstractContainer, Attributes):
             if new_mask is not None:
                 ret.set_mask(new_mask)
 
-    def __setitem__(self, slc, variable_or_value):
+    def __setitem__(self, slc, variable):
         # tdk: order
         # tdk:
         slc = get_formatted_slice(slc, self.ndim)
-        try:
-            self.value[slc] = variable_or_value.value
-        except AttributeError:  # Assume this is an array or other object.
-            self.value[slc] = variable_or_value
-        else:
-            new_mask = self.get_mask()
-            new_mask[slc] = variable_or_value.get_mask()
-            self.set_mask(new_mask)
+        self.value[slc] = variable.value
+        new_mask = self.get_mask()
+        new_mask[slc] = variable.get_mask()
+        self.set_mask(new_mask)
 
-        super(BoundedVariable, self).__setitem__(slc, variable_or_value)
-        try:
-            if variable_or_value.bounds is not None:
-                if self.bounds is None:
-                    self.set_extrapolated_bounds()
-                self.bounds.value[slc] = variable_or_value.bounds.value
-        except AttributeError:  # Assume array or other object.
-            pass
+        if self.has_bounds:
+            names_src = [d.name for d in self.dimensions]
+            names_dst = [d.name for d in self.bounds.dimensions]
+            slc = get_mapped_slice(slc, names_src, names_dst)
+            self.bounds[slc] = variable.bounds
 
     def __len__(self):
         return self.shape[0]
@@ -459,6 +452,9 @@ class Variable(AbstractContainer, Attributes):
         for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
             self.attrs.pop(remove, None)
 
+        if self.has_bounds:
+            self.bounds.cfunits_conform(to_units)
+
     def create_dimensions(self, names=None):
         if names is None and self.name is None:
             msg = 'Variable "name" is required when no "names" provided to "create_dimensions".'
@@ -496,7 +492,7 @@ class Variable(AbstractContainer, Attributes):
         dimensions = list(self.dimensions)
         dimensions.append(Dimension(name=name_dimension, length=bounds_value.shape[-1]))
 
-        var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions)
+        var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
         self.bounds = var
 
         # This will synchronize the bounds mask with the variable's mask.
@@ -510,11 +506,78 @@ class Variable(AbstractContainer, Attributes):
             ret = False
         return ret
 
+    def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
+        # tdk: refactor to function
+        assert (lower <= upper)
+
+        # Determine if data bounds are contiguous (if bounds exists for the data). Bounds must also have more than one
+        # row.
+        is_contiguous = False
+        if self.bounds is not None:
+            bounds_value = self.bounds.value
+            try:
+                if len(set(bounds_value[0, :]).intersection(set(bounds_value[1, :]))) > 0:
+                    is_contiguous = True
+            except IndexError:
+                # There is likely not a second row.
+                if bounds_value.shape[0] == 1:
+                    pass
+                else:
+                    raise
+
+        # Subset operation when bounds are not present.
+        if self.bounds is None or use_bounds == False:
+            value = self.value
+            if closed:
+                select = np.logical_and(value > lower, value < upper)
+            else:
+                select = np.logical_and(value >= lower, value <= upper)
+        # Subset operation in the presence of bounds.
+        else:
+            # Determine which bound column contains the minimum.
+            if bounds_value[0, 0] <= bounds_value[0, 1]:
+                lower_index = 0
+                upper_index = 1
+            else:
+                lower_index = 1
+                upper_index = 0
+            # Reference the minimum and maximum bounds.
+            bounds_min = bounds_value[:, lower_index]
+            bounds_max = bounds_value[:, upper_index]
+
+            # If closed is True, then we are working on a closed interval and are not concerned if the values at the
+            # bounds are equivalent. It does not matter if the bounds are contiguous.
+            if closed:
+                select_lower = np.logical_or(bounds_min > lower, bounds_max > lower)
+                select_upper = np.logical_or(bounds_min < upper, bounds_max < upper)
+            else:
+                # If the bounds are contiguous, then preference is given to the lower bound to avoid duplicate
+                # containers (contiguous bounds share a coordinate).
+                if is_contiguous:
+                    select_lower = np.logical_or(bounds_min >= lower, bounds_max > lower)
+                    select_upper = np.logical_or(bounds_min <= upper, bounds_max < upper)
+                else:
+                    select_lower = np.logical_or(bounds_min >= lower, bounds_max >= lower)
+                    select_upper = np.logical_or(bounds_min <= upper, bounds_max <= upper)
+            select = np.logical_and(select_lower, select_upper)
+
+        if select.any() == False:
+            raise EmptySubsetError(origin=self.name)
+
+        ret = self[select]
+
+        if return_indices:
+            indices = np.arange(select.shape[0])
+            ret = (ret, indices[select])
+
+        return ret
+
     def get_scatter_slices(self, splits):
         slices = create_nd_slices(splits, self.shape)
         return slices
 
     def iter(self, use_mask=True):
+        has_bounds = self.has_bounds
         name = self.name
         for idx, value in iter_array(self.masked_value, use_mask=use_mask, return_value=True):
             yld = OrderedDict()
@@ -527,6 +590,13 @@ class Variable(AbstractContainer, Attributes):
             except TypeError:  # Assume None.
                 pass
             yld[name] = value
+
+            if has_bounds:
+                row = self.bounds.value[idx, :]
+                lb, ub = np.min(row), np.max(row)
+                yld['lb_{}'.format(self.name)] = lb
+                yld['ub_{}'.format(self.name)] = ub
+
             yield idx, yld
 
     def reshape(self, *args, **kwargs):
@@ -843,72 +913,6 @@ class BoundedVariable(SourcedVariable):
         if self.bounds is not None:
             self.bounds.cfunits_conform(to_units, from_units=units_original)
 
-    def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
-        # tdk: refactor to function
-        assert (lower <= upper)
-
-        # Determine if data bounds are contiguous (if bounds exists for the data). Bounds must also have more than one
-        # row.
-        is_contiguous = False
-        if self.bounds is not None:
-            bounds_value = self.bounds.value
-            try:
-                if len(set(bounds_value[0, :]).intersection(set(bounds_value[1, :]))) > 0:
-                    is_contiguous = True
-            except IndexError:
-                # There is likely not a second row.
-                if bounds_value.shape[0] == 1:
-                    pass
-                else:
-                    raise
-
-        # Subset operation when bounds are not present.
-        if self.bounds is None or use_bounds == False:
-            value = self.value
-            if closed:
-                select = np.logical_and(value > lower, value < upper)
-            else:
-                select = np.logical_and(value >= lower, value <= upper)
-        # Subset operation in the presence of bounds.
-        else:
-            # Determine which bound column contains the minimum.
-            if bounds_value[0, 0] <= bounds_value[0, 1]:
-                lower_index = 0
-                upper_index = 1
-            else:
-                lower_index = 1
-                upper_index = 0
-            # Reference the minimum and maximum bounds.
-            bounds_min = bounds_value[:, lower_index]
-            bounds_max = bounds_value[:, upper_index]
-
-            # If closed is True, then we are working on a closed interval and are not concerned if the values at the
-            # bounds are equivalent. It does not matter if the bounds are contiguous.
-            if closed:
-                select_lower = np.logical_or(bounds_min > lower, bounds_max > lower)
-                select_upper = np.logical_or(bounds_min < upper, bounds_max < upper)
-            else:
-                # If the bounds are contiguous, then preference is given to the lower bound to avoid duplicate
-                # containers (contiguous bounds share a coordinate).
-                if is_contiguous:
-                    select_lower = np.logical_or(bounds_min >= lower, bounds_max > lower)
-                    select_upper = np.logical_or(bounds_min <= upper, bounds_max < upper)
-                else:
-                    select_lower = np.logical_or(bounds_min >= lower, bounds_max >= lower)
-                    select_upper = np.logical_or(bounds_min <= upper, bounds_max <= upper)
-            select = np.logical_and(select_lower, select_upper)
-
-        if select.any() == False:
-            raise EmptySubsetError(origin=self.name)
-
-        ret = self[select]
-
-        if return_indices:
-            indices = np.arange(select.shape[0])
-            ret = (ret, indices[select])
-
-        return ret
-
     def create_dimensions(self, names=None):
         super(BoundedVariable, self).create_dimensions(names)
         if self.bounds is not None:
@@ -930,16 +934,6 @@ class BoundedVariable(SourcedVariable):
             synced_dimensions = list(self.bounds.dimensions)
             synced_dimensions[0] = self.dimensions[0]
             self.bounds.dimensions = synced_dimensions
-
-    def iter(self, **kwargs):
-        itr = super(BoundedVariable, self).iter(**kwargs)
-        for idx, element in itr:
-            if self.bounds is not None:
-                row = self.bounds.value[idx, :]
-                lb, ub = np.min(row), np.max(row)
-                element['lb_{}'.format(self.name)] = lb
-                element['ub_{}'.format(self.name)] = ub
-            yield idx, element
 
     def write_netcdf(self, *args, **kwargs):
         super(BoundedVariable, self).write_netcdf(*args, **kwargs)
@@ -1260,3 +1254,7 @@ def get_variable_value(variable, dimensions):
         slc = slice(None)
     ret = variable.__getitem__(slc)
     return ret
+
+
+def get_dslice(dimensions, slc):
+    return {d.name: s for d, s in zip(dimensions, slc)}
