@@ -66,7 +66,8 @@ class AbstractContainer(AbstractInterfaceObject):
                     is_equal = self.value == fill_value
                     ret[is_equal] = True
                 else:
-                    self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
+                    if self.dtype != object:
+                        self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
         return ret
 
     def set_mask(self, mask):
