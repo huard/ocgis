@@ -184,7 +184,7 @@ class Variable(AbstractContainer, Attributes):
             new_mask = None
 
             if dimensions is not None:
-                new_dimensions = [d[s] for d, s in izip(dimensions, get_iter(slc, dtype=(slice, ndarray)))]
+                new_dimensions = [d[s] for d, s in zip(dimensions, slc)]
             if ret._value is not None:
                 new_value = ret.value.__getitem__(slc)
             if ret._mask is not None:

@@ -1,5 +1,5 @@
 import itertools
-from copy import copy, deepcopy
+from copy import deepcopy
 
 import numpy as np
 from shapely.geometry import Polygon, Point
@@ -73,7 +73,7 @@ class GridXY(AbstractSpatialContainer):
         :returns: Sliced grid.
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
-        slc = {d[idx].name: slc[idx] for idx, d in enumerate(self.dimensions)}
+        slc = {d.name: slc[idx] for idx, d in enumerate(self.dimensions)}
         ret = self.copy()
         new_parent = ret.parent[slc]
         ret.parent = new_parent

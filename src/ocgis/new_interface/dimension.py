@@ -1,5 +1,3 @@
-from copy import copy
-
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
