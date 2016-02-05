@@ -804,6 +804,20 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = self.get_variablecollection()
         self.assertEqual(vc.attrs, {'foo': 'bar'})
 
+    @attr('data')
+    def test_combo_cf_netcdf(self):
+        rd = self.get_request_dataset()
+        vc = VariableCollection.read_netcdf(rd.uri)
+        for v in vc.values():
+            self.assertIsNone(v._value)
+        slc = {'lat': slice(10, 23), 'time': slice(0, 1), 'lon': slice(5, 10)}
+        sub = vc['tas'][slc].parent
+        self.assertNotEqual(vc.shapes, sub.shapes)
+        for v in vc.values():
+            self.assertIsNotNone(v.attrs)
+            self.assertIsNone(v._value)
+            self.assertIsNotNone(v.value)
+
     def test_combo_nested(self):
         # Test with nested collections.
         vc = self.get_variablecollection()
