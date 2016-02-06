@@ -63,11 +63,11 @@ class AbstractTestNewInterface(TestBase):
             np.random.seed(1)
             tas = np.random.rand(10, 3, 4)
             tas = Variable(name='tas', value=tas)
-            tas.create_dimensions(names=['time', 'x', 'y'])
+            tas.create_dimensions(names=['time', 'xdim', 'ydim'])
 
             rhs = np.random.rand(4, 3, 10) * 100
             rhs = Variable(name='rhs', value=rhs)
-            rhs.create_dimensions(names=['y', 'x', 'time'])
+            rhs.create_dimensions(names=['ydim', 'xdim', 'time'])
 
             kwds['parent'] = VariableCollection(variables=[tas, rhs])
 
@@ -88,20 +88,20 @@ class AbstractTestNewInterface(TestBase):
         value = [-100., -99., -98., -97.]
         if bounds:
             bounds = [[v - 0.5, v + 0.5] for v in value]
-            bounds = Variable(value=bounds, name='x_bounds')
+            bounds = Variable(value=bounds, name='x_bounds', dimensions=['x', 'bounds'])
         else:
             bounds = None
-        x = BoundedVariable(value=value, bounds=bounds, name='x')
+        x = Variable(value=value, bounds=bounds, name='x', dimensions='x')
         return x
 
     def get_variable_y(self, bounds=True):
         value = [40., 39., 38.]
         if bounds:
             bounds = [[v + 0.5, v - 0.5] for v in value]
-            bounds = Variable(value=bounds, name='y_bounds')
+            bounds = Variable(value=bounds, name='y_bounds', dimensions=['y', 'bounds'])
         else:
             bounds = None
-        y = BoundedVariable(value=value, bounds=bounds, name='y')
+        y = Variable(value=value, bounds=bounds, name='y', dimensions='y')
         return y
 
     @property
@@ -143,12 +143,13 @@ class AbstractTestNewInterface(TestBase):
 
     def get_polygon_array_grid(self, with_bounds=True):
         if with_bounds:
-            xb = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='xb')
-            yb = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='yb')
+            xb = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='xb',
+                          dimensions=['x', 'bounds'])
+            yb = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='yb', dimensions=['y', 'bounds'])
         else:
             xb, yb = [None, None]
-        x = Variable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
-        y = Variable(value=[40.0, 39.0, 38.0], name='y', bounds=yb)
+        x = Variable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x', dimensions='x')
+        y = Variable(value=[40.0, 39.0, 38.0], name='y', bounds=yb, dimensions='y')
         grid = GridXY(x=x, y=y)
         return grid
 

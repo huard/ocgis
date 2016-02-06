@@ -825,7 +825,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc.add_child(nvc)
         path = self.get_temporary_file_path('foo.nc')
         vc.write_netcdf(path)
-        self.ncdump(path)
+        # self.ncdump(path)
         rvc = VariableCollection.read_netcdf(path)
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)

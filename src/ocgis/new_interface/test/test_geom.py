@@ -27,9 +27,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
         tas = Variable(name='tas', value=value)
         tas.create_dimensions(['time', 'ngeom'])
         backref = VariableCollection(variables=[tas])
-        pa = GeometryVariable(value=vpa, parent=backref, name='point')
+        pa = GeometryVariable(value=vpa, parent=backref, name='point', dimensions='ngeom')
         backref[pa.name] = pa
-        pa.create_dimensions('ngeom')
         return pa
 
     def test_init(self):
@@ -103,8 +102,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(pa.geom_type, 'overload')
 
     def test_get_intersects(self):
-        x = Variable(value=[1, 2, 3, 4, 5], name='x')
-        y = Variable(value=[10, 20, 30, 40, 50], name='y')
+        x = Variable(value=[1, 2, 3, 4, 5], name='x', dimensions=['x'])
+        y = Variable(value=[10, 20, 30, 40, 50], name='y', dimensions=['y'])
         grid = GridXY(x=x, y=y)
         pa = get_geometry_variable(get_point_geometry_array, grid)
         polygon = box(2.5, 15, 4.5, 45)
@@ -131,12 +130,12 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         # Test no masked data is returned.
         snames = ['Hawaii', 'Utah', 'France']
-        snames = Variable(name='state_names', value=snames)
+        snames = Variable(name='state_names', value=snames, dimensions='ngeom')
         snames.create_dimensions('ngeom')
         backref = VariableCollection(variables=snames)
         pts = [Point(1, 2), Point(3, 4), Point(4, 5)]
         subset = MultiPolygon([Point(1, 2).buffer(0.1), Point(4, 5).buffer(0.1)])
-        gvar = GeometryVariable(value=pts, parent=backref)
+        gvar = GeometryVariable(value=pts, parent=backref, dimensions='ngeom', name='points')
         gvar.create_dimensions('ngeom')
         sub, slc = gvar.get_intersects(subset, return_slice=True)
         self.assertFalse(sub.get_mask().any())

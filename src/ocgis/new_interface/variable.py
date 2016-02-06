@@ -226,7 +226,7 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def bounds(self):
-        if self._bounds_name is None:
+        if self._bounds_name is None or self.parent is None:
             ret = None
         else:
             ret = self.parent[self._bounds_name]
@@ -239,6 +239,7 @@ class Variable(AbstractContainer, Attributes):
                 self.parent.pop(self._bounds_name)
             self._bounds_name = None
         else:
+            assert value.name != self.name
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
             if self.parent is None:
@@ -1023,9 +1024,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
-        variable.parent = self
         if variable.has_bounds:
             self.add_variable(variable.bounds, force=True)
+        variable.parent = self
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """

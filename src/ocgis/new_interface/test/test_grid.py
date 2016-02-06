@@ -43,7 +43,7 @@ class Test(AbstractTestNewInterface):
                                        [bounds_sequence, bounds_sequence_geometry]):
             is_vectorized, has_bounds, use_bounds, keep_touches, bounds_sequence = combo
 
-            grid = self.get_gridxy(with_dimensions=True)
+            grid = self.get_gridxy()
             if not is_vectorized:
                 grid.expand()
             if has_bounds:
@@ -281,8 +281,7 @@ class TestGridXY(AbstractTestNewInterface):
 
     def get_iter_gridxy(self, return_kwargs=False):
         poss = [True, False]
-        kwds = dict(with_2d_variables=poss,
-                    with_dimensions=poss)
+        kwds = dict(with_2d_variables=poss)
         for k in self.iter_product_keywords(kwds, as_namedtuple=False):
             ret = self.get_gridxy(**k)
             if return_kwargs:
@@ -449,7 +448,7 @@ class TestGridXY(AbstractTestNewInterface):
                           [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
         desired_manual = np.array(desired_manual)
 
-        grid = self.get_gridxy(with_dimensions=True)
+        grid = self.get_gridxy()
         sub, sub_slc = grid.get_intersects(subset, return_slice=True)
         self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
         self.assertNumpyAll(sub.value_stacked, desired_manual)
@@ -464,7 +463,7 @@ class TestGridXY(AbstractTestNewInterface):
                 actual = self.polygon_value
                 self.assertTrue(grid.is_vectorized)
             else:
-                grid.set_extrapolated_bounds()
+                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
                 grid.expand()
                 self.assertFalse(grid.is_vectorized)
                 actual = self.polygon_value_alternate_ordering
@@ -490,14 +489,16 @@ class TestGridXY(AbstractTestNewInterface):
               [-97.5, -96.5, -96.5, -97.5]]]]
 
         for should_extrapolate in [False, True]:
-            y = BoundedVariable(name='y', value=value_grid[0])
-            x = BoundedVariable(name='x', value=value_grid[1])
+            y = Variable(name='y', value=value_grid[0], dimensions=['ydim', 'xdim'])
+            x = Variable(name='x', value=value_grid[1], dimensions=['ydim', 'xdim'])
+            self.assertIsNone(y.parent)
+            self.assertIsNone(x.parent)
             if should_extrapolate:
-                y.set_extrapolated_bounds()
-                x.set_extrapolated_bounds()
+                y.set_extrapolated_bounds('ybounds', 'bounds')
+                x.set_extrapolated_bounds('xbounds', 'bounds')
             grid = GridXY(x, y)
             try:
-                grid.set_extrapolated_bounds()
+                grid.set_extrapolated_bounds('ybounds', 'xbounds', 'bounds')
             except BoundsAlreadyAvailableError:
                 self.assertTrue(should_extrapolate)
             else:
@@ -505,10 +506,10 @@ class TestGridXY(AbstractTestNewInterface):
                 np.testing.assert_equal(grid.x.bounds.value, actual_corners[1])
 
         # Test vectorized.
-        y = BoundedVariable(name='y', value=[1., 2., 3.])
-        x = BoundedVariable(name='x', value=[10., 20., 30.])
+        y = Variable(name='y', value=[1., 2., 3.], dimensions='yy')
+        x = Variable(name='x', value=[10., 20., 30.], dimensions='xx')
         grid = GridXY(x, y)
-        grid.set_extrapolated_bounds()
+        grid.set_extrapolated_bounds('ybounds', 'xbounds', 'bounds')
         self.assertTrue(grid.is_vectorized)
         grid.expand()
         self.assertEqual(grid.x.bounds.ndim, 3)
@@ -518,10 +519,10 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertNotIn('point', grid.parent)
         self.assertFalse(np.any(grid.get_mask()))
         grid2 = deepcopy(grid)
-        grid2.set_mask(np.ones((4, 3), dtype=bool))
-        grid2.x[:] = 111
-        grid2.y[:] = 222
+        grid2.x[:] = Variable(value=111, mask=True)
+        grid2.y[:] = Variable(value=222, mask=True)
         grid2.point
+        self.assertIn('ocgis_point', grid2.parent)
         grid[:, :] = grid2
         self.assertTrue(np.all(grid.get_mask()))
         self.assertIn('ocgis_point', grid.parent)
@@ -550,7 +551,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertNumpyAll(grid.masked_value_stacked.compressed(), ngrid.masked_value_stacked.compressed())
 
         # Test with a parent.
-        grid = self.get_gridxy(with_parent=True, with_dimensions=True)
+        grid = self.get_gridxy(with_parent=True)
         for k in ['tas', 'rhs']:
             self.assertFalse(grid.parent[k].get_mask().any())
         new_mask = grid.get_mask()
@@ -574,7 +575,7 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_update_crs(self):
         grid = self.get_gridxy(crs=WGS84())
-        grid.set_extrapolated_bounds()
+        grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
         self.assertIsNotNone(grid.y.bounds)
         self.assertIsNotNone(grid.x.bounds)
         to_crs = CoordinateReferenceSystem(epsg=3395)
@@ -587,7 +588,6 @@ class TestGridXY(AbstractTestNewInterface):
     def test_write_netcdf(self):
         grid = self.get_gridxy(crs=WGS84())
         path = self.get_temporary_file_path('out.nc')
-        grid.create_dimensions()
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
         with self.nc_scope(path) as ds:
@@ -597,22 +597,22 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertIn(grid.crs.name, ds.variables)
 
         # Test with 2-d x and y arrays.
-        grid = self.get_gridxy(with_2d_variables=True, with_dimensions=True)
+        grid = self.get_gridxy(with_2d_variables=True)
         path = self.get_temporary_file_path('out.nc')
-        grid.set_extrapolated_bounds()
+        grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
+        # self.ncdump(path)
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
             self.assertNumpyAll(var[:], grid.y.value)
 
-        grid = self.get_gridxy(with_dimensions=True)
+        grid = self.get_gridxy()
         self.assertIsNotNone(grid.dimensions)
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
         with self.nc_scope(path, 'r') as ds:
-            self.assertEqual(['y'], [d for d in ds.variables['y'].dimensions])
-            self.assertEqual(['x'], [d for d in ds.variables['x'].dimensions])
-
+            self.assertEqual(['ydim'], [d for d in ds.variables['y'].dimensions])
+            self.assertEqual(['xdim'], [d for d in ds.variables['x'].dimensions])

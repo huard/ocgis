@@ -9,7 +9,7 @@ from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedErr
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
-from ocgis.new_interface.variable import VariableCollection
+from ocgis.new_interface.variable import VariableCollection, get_dslice
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_formatted_slice
 
@@ -73,7 +73,7 @@ class GridXY(AbstractSpatialContainer):
         :returns: Sliced grid.
         :rtype: :class:`ocgis.new_interface.grid.GridXY`
         """
-        slc = {d.name: slc[idx] for idx, d in enumerate(self.dimensions)}
+        slc = get_dslice(self.dimensions, slc)
         ret = self.copy()
         new_parent = ret.parent[slc]
         ret.parent = new_parent
@@ -85,6 +85,11 @@ class GridXY(AbstractSpatialContainer):
         if not grid.is_vectorized and self.is_vectorized:
             self.expand()
 
+        if self._point_name in grid.parent:
+            self.point[slc] = grid.point
+        if self._polygon_name in grid.parent:
+            self.polygon[slc] = grid.polygon
+
         if self.is_vectorized:
             self.x[slc[1]] = grid.x
             self.y[slc[0]] = grid.y
@@ -92,10 +97,6 @@ class GridXY(AbstractSpatialContainer):
             original_mask = self.get_mask().copy()
             self.x[slc] = grid.x
             self.y[slc] = grid.y
-            if self._point_name in grid.parent:
-                self.point[slc] = grid.point
-            if self._polygon_name in grid.parent:
-                self.polygon[slc] = grid.polygon
             original_mask[slc] = grid.get_mask()
             self.set_mask(original_mask)
 
@@ -131,10 +132,13 @@ class GridXY(AbstractSpatialContainer):
             assert self.x.ndim == 2
 
             if self.y.bounds is not None:
+                name_y = self.y.bounds.name
+                name_x = self.x.bounds.name
+                name_dimension = self.y.bounds.dimensions[1].name
                 self.y.bounds = None
                 self.x.bounds = None
                 # tdk: this should leverage the bounds already in place on the vectors
-                self.set_extrapolated_bounds()
+                self.set_extrapolated_bounds(name_x, name_y, name_dimension)
 
     @property
     def dimensions(self):
@@ -272,6 +276,10 @@ class GridXY(AbstractSpatialContainer):
     def get_mask(self):
         if self.is_vectorized:
             ret = np.zeros(self.shape, dtype=bool)
+            y_mask = self.y.get_mask()
+            x_mask = self.x.get_mask()
+            for idx_y, idx_x in itertools.product(range(self.shape[0]), range(self.shape[1])):
+                ret[idx_y, idx_x] = np.logical_or(y_mask[idx_y], x_mask[idx_x])
         else:
             ret = self._archetype.get_mask()
         return ret
