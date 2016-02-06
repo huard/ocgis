@@ -15,8 +15,7 @@ from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import BoundedVariable, Variable, VariableCollection
-from ocgis.util.helpers import get_formatted_slice
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.util.spatial.index import SpatialIndex
 
 
@@ -104,8 +103,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(pa.geom_type, 'overload')
 
     def test_get_intersects(self):
-        x = BoundedVariable(value=[1, 2, 3, 4, 5], name='x')
-        y = BoundedVariable(value=[10, 20, 30, 40, 50], name='y')
+        x = Variable(value=[1, 2, 3, 4, 5], name='x')
+        y = Variable(value=[10, 20, 30, 40, 50], name='y')
         grid = GridXY(x=x, y=y)
         pa = get_geometry_variable(get_point_geometry_array, grid)
         polygon = box(2.5, 15, 4.5, 45)
@@ -253,15 +252,15 @@ class TestGeometryVariablePolygons(AbstractTestNewInterface):
     """Test a geometry variable using polygons."""
 
     def test_init(self):
-        row = BoundedVariable(value=[2, 3], name='row')
-        col = BoundedVariable(value=[4, 5], name='col')
+        row = Variable(value=[2, 3], name='row', dimensions='y')
+        col = Variable(value=[4, 5], name='col', dimensions='x')
         grid = GridXY(col, row)
         self.assertIsNone(grid._archetype.bounds)
 
-        row = BoundedVariable(value=[2, 3], name='row')
-        row.set_extrapolated_bounds()
-        col = BoundedVariable(value=[4, 5], name='col')
-        col.set_extrapolated_bounds()
+        row = Variable(value=[2, 3], name='row', dimensions='y')
+        row.set_extrapolated_bounds('row_bounds', 'y')
+        col = Variable(value=[4, 5], name='col', dimensions='x')
+        col.set_extrapolated_bounds('col_bounds', 'x')
         grid = GridXY(y=row, x=col)
         poly = get_geometry_variable(get_polygon_geometry_array, grid, name='geom')
         self.assertEqual(poly.name, 'geom')

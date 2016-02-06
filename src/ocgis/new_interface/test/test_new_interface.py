@@ -29,14 +29,14 @@ class AbstractTestNewInterface(TestBase):
         self.assertTrue(to_test.all())
         self.assertNumpyAll(a.get_mask(), b.get_mask())
 
-    def get_gridxy(self, with_2d_variables=False, with_dimensions=False, crs=None, with_xy_bounds=False,
-                   with_value_mask=False, with_parent=False):
+    def get_gridxy(self, with_2d_variables=False, crs=None, with_xy_bounds=False, with_value_mask=False,
+                   with_parent=False):
 
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
 
-        x_dim = Dimension('x', length=len(x))
-        y_dim = Dimension('y', length=len(y))
+        x_dim = Dimension('xdim', length=len(x))
+        y_dim = Dimension('ydim', length=len(y))
 
         kwds = {'crs': crs}
 
@@ -49,16 +49,12 @@ class AbstractTestNewInterface(TestBase):
             x_dims = (x_dim,)
             y_dims = (y_dim,)
 
-        if not with_dimensions:
-            x_dims = None
-            y_dims = None
-
         if with_value_mask:
             x_value = np.ma.array(x_value, mask=[False, True, False])
             y_value = np.ma.array(y_value, mask=[True, False, True, False])
 
-        vx = BoundedVariable('x', value=x_value, dtype=float, dimensions=x_dims)
-        vy = BoundedVariable('y', value=y_value, dtype=float, dimensions=y_dims)
+        vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
+        vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
         if with_xy_bounds:
             vx.set_extrapolated_bounds()
             vy.set_extrapolated_bounds()
@@ -151,8 +147,8 @@ class AbstractTestNewInterface(TestBase):
             yb = Variable(value=[[40.5, 39.5], [39.5, 38.5], [38.5, 37.5]], name='yb')
         else:
             xb, yb = [None, None]
-        x = BoundedVariable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
-        y = BoundedVariable(value=[40.0, 39.0, 38.0], name='y', bounds=yb)
+        x = Variable(value=[-100.0, -99.0, -98.0, -97.0], bounds=xb, name='x')
+        y = Variable(value=[40.0, 39.0, 38.0], name='y', bounds=yb)
         grid = GridXY(x=x, y=y)
         return grid
 

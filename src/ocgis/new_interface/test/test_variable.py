@@ -358,6 +358,17 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(bv.units, 'celsius')
         self.assertEqual(bv.bounds.units, 'celsius')
 
+    def test_combo_parents_on_bounds_variable(self):
+        extra = self.get_variable(return_original_data=False)
+        parent = VariableCollection(variables=extra)
+        bounds = Variable(value=[[1, 2], [3, 4]], name='the_bounds', parent=parent, dimensions=['a', 'b'])
+
+        extra2 = Variable(value=7.0, name='remember')
+        parent = VariableCollection(variables=extra2)
+        var = Variable(name='host', value=[1.5, 3.5], dimensions='a', bounds=bounds, parent=parent)
+        # Parents on bounds are not added.
+        self.assertEqual(var.parent.keys(), ['remember', 'the_bounds', 'host'])
+
     def test_get_between(self):
         bv = Variable('foo', value=[0])
         with self.assertRaises(EmptySubsetError):

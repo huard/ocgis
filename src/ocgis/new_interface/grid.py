@@ -150,11 +150,7 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def has_bounds(self):
-        if self._archetype.bounds is None:
-            ret = False
-        else:
-            ret = True
-        return ret
+        return self._archetype.has_bounds
 
     @property
     def is_vectorized(self):
@@ -319,13 +315,13 @@ class GridXY(AbstractSpatialContainer):
 
         return ret
 
-    def set_extrapolated_bounds(self):
+    def set_extrapolated_bounds(self, name_x_variable, name_y_variable, name_dimension):
         """
         Extrapolate corners from grid centroids.
         """
-
-        for target in [self.y, self.x]:
-            target.set_extrapolated_bounds()
+        self.x.set_extrapolated_bounds(name_x_variable, name_dimension)
+        self.y.set_extrapolated_bounds(name_y_variable, name_dimension)
+        self.parent = self.y.parent
 
     @expand_needed
     def update_crs(self, to_crs):

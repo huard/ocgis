@@ -19,7 +19,7 @@ from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_ge
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import attr
 from ocgis.util.helpers import make_poly, iter_array
 
@@ -296,18 +296,18 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('x', grid.parent)
         self.assertIn('y', grid.parent)
         self.assertEqual(grid.crs, crs)
-        self.assertEqual(grid.dimensions, (Dimension(name='ocgis_yc', length=4), Dimension(name='ocgis_xc', length=3)))
+        self.assertEqual(grid.dimensions, (Dimension(name='ydim', length=4), Dimension(name='xdim', length=3)))
 
         # Test with different variable names.
-        x = Variable(name='col', value=[1])
-        y = Variable(name='row', value=[2])
+        x = Variable(name='col', value=[1], dimensions='col')
+        y = Variable(name='row', value=[2], dimensions='row')
         grid = GridXY(x, y)
         assert_equal(grid.x.value, [1])
         assert_equal(grid.y.value, [2])
 
         # Test point and polygon representations.
         grid = self.get_gridxy(crs=WGS84())
-        grid.set_extrapolated_bounds()
+        grid.set_extrapolated_bounds('x_bounds', 'y_bounds', 'bounds')
         targets = ['point', 'polygon']
         targets = [getattr(grid, t) for t in targets]
         for t in targets:
@@ -336,25 +336,10 @@ class TestGridXY(AbstractTestNewInterface):
                           dtype=grid.value.dtype)
         self.assertNumpyAll(actual, grid.corners_esmf)
 
-    def test_dimensions(self):
+    def test_create_dimensions(self):
         grid = self.get_gridxy()
-        grid.create_dimensions()
-        self.assertEqual(grid.dimensions, (Dimension(name='y', length=4), Dimension(name='x', length=3)))
-
-        grid = self.get_gridxy(with_dimensions=True)
-        self.assertEqual(len(grid.dimensions), 2)
-        self.assertEqual(grid.dimensions[0], Dimension('y', 4))
-
-        grid = self.get_gridxy(with_dimensions=True, with_2d_variables=True)
-        self.assertEqual(len(grid.dimensions), 2)
-        self.assertEqual(grid.dimensions[0], Dimension('y', 4))
-
-        grid = self.get_gridxy(with_dimensions=True)
-        self.assertIsNotNone(grid.dimensions)
-
-        grid = self.get_gridxy()
-        grid.create_dimensions()
-        self.assertEqual(len(grid.dimensions), 2)
+        grid.create_dimensions(names=['yy', 'xx'])
+        self.assertEqual(grid.dimensions, (Dimension(name='yy', length=4), Dimension(name='xx', length=3)))
 
     def test_expand(self):
         grid = self.get_gridxy()
@@ -374,25 +359,24 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(ctr + 1, grid.shape[0] * grid.shape[1])
 
     def test_getitem(self):
-        for with_dimensions in [False, True]:
-            grid = self.get_gridxy(with_dimensions=with_dimensions)
-            self.assertEqual(grid.ndim, 2)
-            sub = grid[2, 1]
-            self.assertNotIn('point', sub.parent)
-            self.assertNotIn('polygon', sub.parent)
-            self.assertEqual(sub.x.value, 102.)
-            self.assertEqual(sub.y.value, 42.)
+        grid = self.get_gridxy()
+        self.assertEqual(grid.ndim, 2)
+        sub = grid[2, 1]
+        self.assertNotIn('point', sub.parent)
+        self.assertNotIn('polygon', sub.parent)
+        self.assertEqual(sub.x.value, 102.)
+        self.assertEqual(sub.y.value, 42.)
 
-            # Test with two-dimensional x and y values.
-            grid = self.get_gridxy(with_2d_variables=True, with_dimensions=with_dimensions)
-            sub = grid[1:3, 1:3]
-            actual_x = [[102.0, 103.0], [102.0, 103.0]]
-            self.assertEqual(sub.x.value.tolist(), actual_x)
-            actual_y = [[41.0, 41.0], [42.0, 42.0]]
-            self.assertEqual(sub.y.value.tolist(), actual_y)
+        # Test with two-dimensional x and y values.
+        grid = self.get_gridxy(with_2d_variables=True)
+        sub = grid[1:3, 1:3]
+        actual_x = [[102.0, 103.0], [102.0, 103.0]]
+        self.assertEqual(sub.x.value.tolist(), actual_x)
+        actual_y = [[41.0, 41.0], [42.0, 42.0]]
+        self.assertEqual(sub.y.value.tolist(), actual_y)
 
         # Test with parent.
-        grid = self.get_gridxy(with_parent=True, with_dimensions=True)
+        grid = self.get_gridxy(with_parent=True)
         self.assertEqual(id(grid.x.parent), id(grid.y.parent))
         orig_tas = grid.parent['tas'].value[slice(None), slice(1, 2), slice(2, 4)]
         orig_rhs = grid.parent['rhs'].value[slice(2, 4), slice(1, 2), slice(None)]

@@ -242,9 +242,8 @@ class Variable(AbstractContainer, Attributes):
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
             if self.parent is None:
-                self.parent = VariableCollection(variables=value)
-            else:
-                self.parent.add_variable(value, force=True)
+                self.parent = VariableCollection()
+            self.parent.add_variable(value, force=True)
 
     @property
     def cfunits(self):
@@ -1020,10 +1019,13 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             raise ValueError('A "name" is required to enter a collection.')
         if variable.dimensions is None and variable.ndim > 0:
             raise ValueError('"dimensions" are required to enter a collection.')
+
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
         variable.parent = self
+        if variable.has_bounds:
+            self.add_variable(variable.bounds, force=True)
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
