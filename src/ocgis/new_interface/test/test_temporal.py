@@ -170,6 +170,11 @@ class TestTemporalVariable(AbstractTestTemporal):
         td = TemporalVariable(value=[datetime.datetime(2000, 1, 1)], units="months since 1978-12")
         self.assertTrue(td._has_months_units)
 
+        # Test with bounds.
+        bounds = TemporalVariable(name='time_bounds', dimensions=['time', 'bounds'], value=[[1, 2], [2, 3]])
+        t = TemporalVariable(name='time', dimensions=['time'], value=[1.5, 2.5], bounds=bounds)
+        self.assertIsInstance(t.bounds.TemporalVariable)
+
     def test_360_day_calendar(self):
         months = range(1, 13)
         days = range(1, 31)
