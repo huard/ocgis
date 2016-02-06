@@ -19,7 +19,7 @@ from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_ge
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection, SourcedVariable
 from ocgis.test.base import attr
 from ocgis.util.helpers import make_poly, iter_array
 
@@ -47,7 +47,7 @@ class Test(AbstractTestNewInterface):
             if not is_vectorized:
                 grid.expand()
             if has_bounds:
-                grid.set_extrapolated_bounds()
+                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
 
             grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=keep_touches,
                                                 use_bounds=use_bounds)
@@ -90,9 +90,9 @@ class Test(AbstractTestNewInterface):
             rd = None
 
         rd = MPI_COMM.bcast(rd, root=0)
-        x = BoundedVariable(name='x', request_dataset=rd)
+        x = SourcedVariable(name='x', request_dataset=rd)
         self.assertIsNone(x._value)
-        y = BoundedVariable(name='y', request_dataset=rd)
+        y = SourcedVariable(name='y', request_dataset=rd)
         self.assertIsNone(x._value)
         self.assertIsNone(y._value)
         grid = GridXY(x, y)
@@ -203,13 +203,13 @@ class Test(AbstractTestNewInterface):
 
             # lat_bnds = SourcedVariable(name='lat_bnds', request_dataset=rd)
             # lon_bnds = SourcedVariable(name='lon_bnds', request_dataset=rd)
-            x = BoundedVariable(name='x', value=x)
-            y = BoundedVariable(name='y', value=y)
+            x = Variable(name='x', value=x, dimensions='x')
+            y = Variable(name='y', value=y, dimensions='y')
 
             grid = GridXY(x, y)
 
             if with_bounds:
-                grid.set_extrapolated_bounds()
+                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
 
             res = grid_get_intersects(grid, subset)
 
