@@ -4,10 +4,10 @@ import os
 from collections import deque
 from copy import deepcopy
 from datetime import datetime as dt
-from netCDF4 import date2num, num2date
 from unittest import SkipTest
 
 import numpy as np
+from netCDF4 import date2num, num2date
 from netcdftime import netcdftime
 
 from ocgis import constants
@@ -147,10 +147,10 @@ class TestTemporalVariable(AbstractTestTemporal):
             bounds = np.empty((lower.shape[0], 2), dtype=object)
             bounds[:, 0] = lower
             bounds[:, 1] = upper
-            bounds = Variable('time_bounds', value=bounds)
+            bounds = Variable('time_bounds', value=bounds, dimensions=['time_bounds', 'bounds'])
         else:
             bounds = None
-        td = TemporalVariable(value=dates, bounds=bounds, name=name, format_time=format_time)
+        td = TemporalVariable(value=dates, bounds=bounds, name=name, format_time=format_time, dimensions='time')
         return td
 
     def get_template_units(self):

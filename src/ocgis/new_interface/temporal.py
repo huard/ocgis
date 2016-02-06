@@ -1,20 +1,20 @@
 import datetime
 import itertools
-import netCDF4 as nc
 from collections import deque
 from copy import deepcopy
 from decimal import Decimal
 
+import netCDF4 as nc
 import netcdftime
 import numpy as np
 
 from ocgis import constants
 from ocgis.exc import EmptySubsetError, IncompleteSeasonError, CannotFormatTimeError, ResolutionError
-from ocgis.new_interface.variable import BoundedVariable, Variable
-from ocgis.util.helpers import get_is_date_between, iter_array, get_none_or_slice, get_formatted_slice
+from ocgis.new_interface.variable import Variable, SourcedVariable
+from ocgis.util.helpers import get_is_date_between, iter_array, get_none_or_slice
 
 
-class TemporalVariable(BoundedVariable):
+class TemporalVariable(SourcedVariable):
     """
     .. note:: Accepts all parameters to :class:`~ocgis.interface.base.dimension.base.VectorDimension`.
 
@@ -43,11 +43,10 @@ class TemporalVariable(BoundedVariable):
 
         super(TemporalVariable, self).__init__(**kwargs)
 
-    def __getitem__(self, slc):
-        ret = super(TemporalVariable, self).__getitem__(slc)
-        value_slc = get_formatted_slice(slc, 1)
-        ret._value_numtime = get_none_or_slice(ret._value_numtime, value_slc)
-        ret._value_datetime = get_none_or_slice(ret._value_datetime, value_slc)
+    def _getitem_main_(self, ret, slc):
+        super(TemporalVariable, self)._getitem_main_(ret, slc)
+        ret._value_numtime = get_none_or_slice(ret._value_numtime, slc)
+        ret._value_datetime = get_none_or_slice(ret._value_datetime, slc)
         bounds_slice = (slc, slice(None))
         ret._bounds_numtime = get_none_or_slice(ret._bounds_numtime, bounds_slice)
         ret._bounds_datetime = get_none_or_slice(ret._bounds_datetime, bounds_slice)
