@@ -173,7 +173,24 @@ class TestTemporalVariable(AbstractTestTemporal):
         # Test with bounds.
         bounds = TemporalVariable(name='time_bounds', dimensions=['time', 'bounds'], value=[[1, 2], [2, 3]])
         t = TemporalVariable(name='time', dimensions=['time'], value=[1.5, 2.5], bounds=bounds)
-        self.assertIsInstance(t.bounds.TemporalVariable)
+        self.assertIsInstance(t.bounds, TemporalVariable)
+
+    def test_getitem(self):
+        td = self.get_temporalvariable()
+        elements = [td.bounds_datetime, td.bounds_numtime]
+        for element in elements:
+            self.assertIsNotNone(element)
+        sub = td[2]
+        elements = [sub.bounds_datetime, sub.bounds_numtime]
+        for element in elements:
+            self.assertEqual(element.shape, (1, 2))
+
+        td = self.get_temporalvariable()
+        self.assertIsNotNone(td.value_datetime)
+        self.assertIsNotNone(td.value_numtime)
+        sub = td[3]
+        self.assertEqual(sub.value_datetime.shape, (1,))
+        self.assertEqual(sub.value_numtime.shape, (1,))
 
     def test_360_day_calendar(self):
         months = range(1, 13)
@@ -276,23 +293,6 @@ class TestTemporalVariable(AbstractTestTemporal):
                 except CannotFormatTimeError:
                     self.assertFalse(format_time)
                 self.assertEqual(td.extent_numtime, (6000., 6002.))
-
-    def test_getitem(self):
-        td = self.get_temporalvariable()
-        elements = [td.bounds_datetime, td.bounds_numtime]
-        for element in elements:
-            self.assertIsNotNone(element)
-        sub = td[2]
-        elements = [sub.bounds_datetime, sub.bounds_numtime]
-        for element in elements:
-            self.assertEqual(element.shape, (1, 2))
-
-        td = self.get_temporalvariable()
-        self.assertIsNotNone(td.value_datetime)
-        self.assertIsNotNone(td.value_numtime)
-        sub = td[3]
-        self.assertEqual(sub.value_datetime.shape, (1,))
-        self.assertEqual(sub.value_numtime.shape, (1,))
 
     def test_get_between(self):
         keywords = dict(as_datetime=[False, True])

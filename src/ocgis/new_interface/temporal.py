@@ -47,34 +47,7 @@ class TemporalVariable(SourcedVariable):
         super(TemporalVariable, self)._getitem_main_(ret, slc)
         ret._value_numtime = get_none_or_slice(ret._value_numtime, slc)
         ret._value_datetime = get_none_or_slice(ret._value_datetime, slc)
-        bounds_slice = (slc, slice(None))
-        ret._bounds_numtime = get_none_or_slice(ret._bounds_numtime, bounds_slice)
-        ret._bounds_datetime = get_none_or_slice(ret._bounds_datetime, bounds_slice)
         return ret
-
-    @property
-    def bounds_datetime(self):
-        if not self.format_time:
-            raise CannotFormatTimeError('bounds_datetime')
-        if self.bounds is not None:
-            if self._bounds_datetime is None:
-                if get_datetime_conversion_state(self.bounds.value[0, 0]):
-                    bd_value = np.atleast_2d(self.get_datetime(self.bounds.value))
-                else:
-                    bd_value = self.bounds.value
-                self._bounds_datetime = Variable(self.bounds.name, value=bd_value, dimensions=self.bounds.dimensions)
-        return self._bounds_datetime
-
-    @property
-    def bounds_numtime(self):
-        if self.bounds is not None:
-            if self._bounds_numtime is None:
-                if not get_datetime_conversion_state(self.bounds.value[0, 0]):
-                    bn_value = np.atleast_2d(self.get_numtime(self.bounds.value))
-                else:
-                    bn_value = self.bounds.value
-                self._bounds_numtime = Variable(self.bounds.name, value=bn_value, dimensions=self.bounds.dimensions)
-        return self._bounds_numtime
 
     @property
     def cfunits(self):
