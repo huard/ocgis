@@ -15,7 +15,7 @@ from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
     ResolutionError, NoUnitsError, DimensionsRequiredError, PayloadProtectedError
 from ocgis.interface.base.attributes import Attributes
-from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
 from ocgis.new_interface.mpi import create_nd_slices
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
@@ -638,6 +638,9 @@ class Variable(AbstractContainer, Attributes):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
+        if self.parent is not None:
+            return self.parent.write_netcdf(dataset, **kwargs)
+
         if self.name is None:
             msg = 'A variable "name" is required.'
             raise ValueError(msg)
@@ -1051,7 +1054,8 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         try:
             self.write_attributes_to_netcdf_object(dataset)
             for variable in self.values():
-                variable.write_netcdf(dataset, **kwargs)
+                with orphaned(self, variable):
+                    variable.write_netcdf(dataset, **kwargs)
             for child in self.children.values():
                 group = Group(dataset, child.name)
                 child.write_netcdf(group, **kwargs)

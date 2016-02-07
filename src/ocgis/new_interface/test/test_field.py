@@ -6,7 +6,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import FieldBundle2
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, BoundedVariable, VariableCollection
+from ocgis.new_interface.variable import Variable, VariableCollection
 
 
 class TestFieldBundle2(AbstractTestNewInterface):

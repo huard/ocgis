@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from contextlib import contextmanager
 from copy import copy
 
 
@@ -36,3 +37,12 @@ def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop
             # Pass on key errors to allow classes to overload default keyword argument values.
             pass
     return ret
+
+
+@contextmanager
+def orphaned(parent, target):
+    target.parent = None
+    try:
+        yield target
+    finally:
+        target.parent = parent

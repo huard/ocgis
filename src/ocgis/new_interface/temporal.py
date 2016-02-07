@@ -10,7 +10,7 @@ import numpy as np
 
 from ocgis import constants
 from ocgis.exc import EmptySubsetError, IncompleteSeasonError, CannotFormatTimeError, ResolutionError
-from ocgis.new_interface.variable import Variable, SourcedVariable
+from ocgis.new_interface.variable import SourcedVariable
 from ocgis.util.helpers import get_is_date_between, iter_array, get_none_or_slice
 
 
@@ -151,17 +151,26 @@ class TemporalVariable(SourcedVariable):
         else:
             new_bounds, date_parts, repr_dt, dgroups = self._get_grouping_other_(grouping)
 
-        new_bounds = Variable(value=new_bounds, name='{}_{}'.format(self.name, self._name_bounds_dimension))
+        new_name = 'climatology_bounds'
+        if self.has_bounds:
+            new_dimensions = [d.name for d in self.bounds.dimensions]
+        else:
+            new_dimensions = [self.name, 'bounds']
+
+        new_bounds = TemporalVariable(value=new_bounds, name=new_name, dimensions=new_dimensions)
+        new_attrs = deepcopy(self.attrs)
+        new_attrs['climatology'] = new_bounds.name
         tgv = TemporalGroupVariable(grouping=grouping, date_parts=date_parts, bounds=new_bounds, dgroups=dgroups,
                                     value=repr_dt, units=self.units, calendar=self.calendar, name=self.name,
-                                    attrs=self.attrs)
+                                    attrs=new_attrs, dimensions=new_dimensions[0])
+        tgv.attrs.pop('bounds', None)
 
         return tgv
 
     def get_iter(self, *args, **kwargs):
         r_name_value = self.name_value
         r_set_date_parts = self._set_date_parts_
-        for ii, yld in super(TemporalDimension, self).get_iter(*args, **kwargs):
+        for ii, yld in super(TemporalVariable, self).get_iter(*args, **kwargs):
             r_value = yld[r_name_value]
             r_set_date_parts(yld, r_value)
             yield (ii, yld)
@@ -240,7 +249,12 @@ class TemporalVariable(SourcedVariable):
         :rtype: :class:`ocgis.interface.base.dimension.temporal.TemporalDimension`
         """
 
-        indices = np.array(func(self.value_datetime, bounds=self.bounds_datetime))
+        if self.has_bounds:
+            bounds = self.bounds.value_datetime
+        else:
+            bounds = None
+
+        indices = np.array(func(self.value_datetime, bounds=bounds))
         ret = self[indices]
         if return_indices:
             ret = (ret, indices)
@@ -251,7 +265,10 @@ class TemporalVariable(SourcedVariable):
 
         # return the values to use for the temporal region subsetting.
         value = self.value_datetime
-        bounds = self.bounds_datetime
+        if self.has_bounds:
+            bounds = self.bounds.value_datetime
+        else:
+            bounds = None
 
         # switch to indicate if bounds or centroid datetimes are to be used.
         use_bounds = False if bounds is None else True
@@ -307,9 +324,9 @@ class TemporalVariable(SourcedVariable):
         """
 
         # Swap the value/bounds references from datetime to numtime for the duration for the write.
-        if not get_datetime_conversion_state(self.value[0]):
+        if not get_datetime_conversion_state(self.value.flatten()[0]):
             self.value = self.value_numtime
-            self.bounds.value = self.bounds_numtime.value
+            self.bounds.value = self.bounds.value_numtime
             swapped_value_bounds = True
         else:
             swapped_value_bounds = False
@@ -323,7 +340,7 @@ class TemporalVariable(SourcedVariable):
         # Return the value and bounds to their original state.
         if swapped_value_bounds:
             self.value = self.value_datetime
-            self.bounds._value = self.bounds_datetime.value
+            self.bounds._value = self.bounds.value_datetime
 
     def write_attributes_to_netcdf_object(self, target):
         super(TemporalVariable, self).write_attributes_to_netcdf_object(target)
@@ -365,10 +382,10 @@ class TemporalVariable(SourcedVariable):
 
         # reference the value and bounds datetime object arrays
         value_datetime = self.value_datetime
-        if self.bounds is None:
-            value_datetime_bounds = None
+        if self.has_bounds:
+            value_datetime_bounds = self.bounds.value_datetime
         else:
-            value_datetime_bounds = self.bounds_datetime.value
+            value_datetime_bounds = None
 
         # populate the value array depending on the presence of bounds
         if value_datetime_bounds is None:
@@ -635,23 +652,6 @@ class TemporalGroupVariable(TemporalVariable):
         self.date_parts = kwargs.pop('date_parts')
 
         super(TemporalGroupVariable, self).__init__(*args, **kwargs)
-
-    def write_netcdf(self, *args, **kwargs):
-        previous_name_bounds = self.bounds.name
-        self.bounds.name = 'climatology_bounds'
-        try:
-            super(TemporalGroupVariable, self).write_netcdf(*args, **kwargs)
-        finally:
-            self.bounds.name = previous_name_bounds
-
-    def write_attributes_to_netcdf_object(self, target):
-        """
-        For CF-compliance, ensures climatology bounds are correctly attributed.
-        """
-
-        super(TemporalGroupVariable, self).write_attributes_to_netcdf_object(target)
-        target.climatology = target.bounds
-        target.delncattr('bounds')
 
 
 def get_datetime_conversion_state(archetype):

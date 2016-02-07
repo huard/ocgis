@@ -747,9 +747,11 @@ class TestVariable(AbstractTestNewInterface):
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             bv.write_netcdf(ds)
+        # self.ncdump(path)
         with self.nc_scope(path, 'r') as ds:
             var = ds.variables[bv.name]
             self.assertEqual(var.bounds, bv.bounds.name)
+            self.assertNumpyAll(ds.variables[bv.bounds.name][:], bv.bounds.value)
 
 
 class TestVariableCollection(AbstractTestNewInterface):

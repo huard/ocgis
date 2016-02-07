@@ -19,7 +19,7 @@ from ocgis.new_interface.temporal import get_datetime_conversion_state, get_date
     get_origin_datetime_from_months_units, get_sorted_seasons, TemporalVariable, iter_boolean_groups_from_time_regions, \
     TemporalGroupVariable, get_time_regions
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable
+from ocgis.new_interface.variable import SourcedVariable
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_date_list
 from ocgis.util.units import get_units_object, get_are_units_equal, get_are_units_equivalent
@@ -199,7 +199,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         td = TemporalVariable(value=num, calendar='360_day', units='days since 1900-01-01')
         self.assertNumpyAll(np.ma.array(vec), td.value_datetime)
 
-    def test_bounds_datetime_and_bounds_numtime(self):
+    def test_combo_bounds_datetime_and_bounds_numtime(self):
         value_datetime = np.array([dt(2000, 1, 15), dt(2000, 2, 15)])
         bounds_datetime = np.array([[dt(2000, 1, 1), dt(2000, 2, 1)],
                                     [dt(2000, 2, 1), dt(2000, 3, 1)]])
@@ -211,19 +211,18 @@ class TestTemporalVariable(AbstractTestTemporal):
         for format_time in [True, False]:
             for value, bounds in zip(value_options, bounds_options):
                 if bounds is not None:
-                    bounds = Variable(name='time_bounds', value=bounds)
-                td = TemporalVariable(value=value, bounds=bounds, format_time=format_time)
+                    bounds = TemporalVariable(name='time_bounds', value=bounds, dimensions=['time', 'bounds'])
+                td = TemporalVariable(value=value, bounds=bounds, format_time=format_time, dimensions=['time'])
                 if bounds is not None:
                     try:
-                        self.assertNumpyAll(td.bounds_datetime.masked_value, np.ma.array(bounds_datetime))
+                        self.assertNumpyAll(td.bounds.value_datetime, np.ma.array(bounds_datetime))
                     except CannotFormatTimeError:
                         self.assertFalse(format_time)
-                    self.assertNumpyAll(td.bounds_numtime.masked_value, np.ma.array(bounds_num))
+                    self.assertNumpyAll(td.bounds.value_numtime, np.ma.array(bounds_num))
                 else:
                     self.assertIsNone(td.bounds)
-                    self.assertIsNone(td.bounds_numtime)
                     try:
-                        self.assertIsNone(td.bounds_datetime)
+                        self.assertIsNotNone(td.value_datetime)
                     except CannotFormatTimeError:
                         self.assertFalse(format_time)
 
@@ -297,10 +296,10 @@ class TestTemporalVariable(AbstractTestTemporal):
             td = self.get_temporalvariable()
             if not k.as_datetime:
                 td._value = td.value_numtime
-                td._bounds = td.bounds_numtime
+                td.bounds._value = td.bounds.value_numtime
                 td._value_datetime = None
                 td._bounds_datetime = None
-                self.assertTrue(get_datetime_conversion_state(td.value[0]))
+                self.assertTrue(get_datetime_conversion_state(td.value.flatten()[0]))
             res = td.get_between(dt(1899, 1, 4, 12, 0), dt(1899, 1, 10, 12, 0), return_indices=False)
             self.assertEqual(res.shape, (7,))
             self.assertIsNone(td._value_datetime)
@@ -821,8 +820,8 @@ class TestTemporalVariable(AbstractTestTemporal):
         bounds = np.empty((lower.shape[0], 2), dtype=object)
         bounds[:, 0] = lower
         bounds[:, 1] = upper
-        bounds = Variable(value=bounds, name='time_bounds')
-        td = TemporalVariable(value=dates, bounds=bounds)
+        bounds = TemporalVariable(value=bounds, name='time_bounds', dimensions=['time', 'bounds'])
+        td = TemporalVariable(value=dates, bounds=bounds, dimensions=['time'])
         ret = td.get_between(r1, r2)
         self.assertEqual(ret.value[-1], datetime.datetime(1950, 12, 31, 12, 0))
 
@@ -845,16 +844,17 @@ class TestTemporalVariable(AbstractTestTemporal):
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             tv.write_netcdf(ds)
+        # self.ncdump(path)
         with self.nc_scope(path) as ds:
             time = ds.variables['time']
             self.assertEqual(time.ncattrs(), ['bounds', 'calendar', 'units'])
             time_bounds = ds.variables['time_bounds']
             self.assertEqual(time_bounds.ncattrs(), ['calendar', 'units'])
         rd = RequestDataset(uri=path)
-        bounds = SourcedVariable(name='time_bounds', request_dataset=rd)
+        bounds = TemporalVariable(name='time_bounds', request_dataset=rd)
         tv2 = TemporalVariable(name='time', request_dataset=rd, bounds=bounds)
         self.assertNumpyAll(tv.value_datetime, tv2.value_datetime)
-        self.assertNumpyAll(tv.bounds_datetime.value, tv2.bounds_datetime.value)
+        self.assertNumpyAll(tv.bounds.value_datetime, tv2.bounds.value_datetime)
         path2 = self.get_temporary_file_path('foo2.nc')
         with self.nc_scope(path2, 'w') as ds:
             tv2.write_netcdf(ds)
@@ -905,7 +905,7 @@ class TestTemporalVariable(AbstractTestTemporal):
 class TestTemporalGroupVariable(AbstractTestNewInterface):
     def get_tgv(self):
         rd = self.get_request_dataset()
-        bounds = SourcedVariable(name='time_bnds', request_dataset=rd)
+        bounds = TemporalVariable(name='time_bnds', request_dataset=rd)
         tv = TemporalVariable(name='time', bounds=bounds, request_dataset=rd)
         return tv.get_grouping(['month'])
 
@@ -926,11 +926,3 @@ class TestTemporalGroupVariable(AbstractTestNewInterface):
             self.assertEqual(ncvar.climatology, 'climatology_bounds')
             with self.assertRaises(AttributeError):
                 ncvar.bounds
-
-        # Test failure and make sure original bounds name is preserved.
-        self.assertNotEqual(tgd.bounds.name, 'climatology_bounds')
-        with self.nc_scope(path, 'w') as ds:
-            try:
-                tgd.write_netcdf(ds, darkness='forever')
-            except TypeError:
-                self.assertNotEqual(tgd.bounds.name, 'climatology_bounds')
