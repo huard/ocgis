@@ -589,7 +589,7 @@ class Variable(AbstractContainer, Attributes):
     def iter(self, use_mask=True):
         has_bounds = self.has_bounds
         name = self.name
-        for idx, value in iter_array(self.masked_value, use_mask=use_mask, return_value=True):
+        for idx, value in iter_array(self._get_iter_value_(), use_mask=use_mask, return_value=True):
             yld = OrderedDict()
             try:
                 for idx_d, d in enumerate(self.dimensions):
@@ -608,6 +608,9 @@ class Variable(AbstractContainer, Attributes):
                 yld['ub_{}'.format(self.name)] = ub
 
             yield idx, yld
+
+    def _get_iter_value_(self):
+        return self.masked_value
 
     def reshape(self, *args, **kwargs):
         dimension_name = kwargs.pop('dimension_name', None)

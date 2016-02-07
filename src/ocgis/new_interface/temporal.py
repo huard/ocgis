@@ -167,10 +167,10 @@ class TemporalVariable(SourcedVariable):
 
         return tgv
 
-    def get_iter(self, *args, **kwargs):
-        r_name_value = self.name_value
+    def iter(self, *args, **kwargs):
+        r_name_value = self.name
         r_set_date_parts = self._set_date_parts_
-        for ii, yld in super(TemporalVariable, self).get_iter(*args, **kwargs):
+        for ii, yld in super(TemporalVariable, self).iter(*args, **kwargs):
             r_value = yld[r_name_value]
             r_set_date_parts(yld, r_value)
             yield (ii, yld)
@@ -593,11 +593,11 @@ class TemporalVariable(SourcedVariable):
 
         return new_bounds, date_parts, repr_dt, dgroups
 
-    def _get_iter_value_bounds_(self):
+    def _get_iter_value_(self):
         if self.format_time:
-            ret = self.value_datetime, self.bounds_datetime
+            ret = self.value_datetime
         else:
-            ret = self.value_numtime, self.bounds_numtime
+            ret = self.value_numtime
         return ret
 
     def _get_to_conform_value_(self):

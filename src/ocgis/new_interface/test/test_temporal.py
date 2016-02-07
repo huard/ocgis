@@ -370,11 +370,10 @@ class TestTemporalVariable(AbstractTestTemporal):
         td2 = TemporalVariable(value=td.value_numtime, units=td.units, calendar='proleptic_gregorian')
         self.assertNumpyAll(td.value_datetime, td2.value_datetime)
 
-    def test_getiter(self):
-        raise SkipTest
+    def test_iter(self):
         for format_time in [True, False]:
             td = self.get_temporalvariable(name='time', format_time=format_time)
-            for idx, values in td.get_iter():
+            for idx, values in td.iter():
                 to_test = (values['day'], values['month'], values['year'])
                 try:
                     self.assertTrue(all([element is not None for element in to_test]))
