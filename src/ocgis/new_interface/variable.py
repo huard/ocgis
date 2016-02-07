@@ -40,12 +40,12 @@ class AbstractContainer(AbstractInterfaceObject):
         ret, slc = self._getitem_initialize_(slc)
         if ret.parent is None:
             self._getitem_main_(ret, slc)
+            self._getitem_finalize_(ret, slc)
         else:
             if not isinstance(slc, dict):
                 slc = {self.dimensions[idx].name: slc[idx] for idx in range(self.ndim)}
             new_parent = ret.parent[slc]
             ret = new_parent[self.name]
-        self._getitem_finalize_(ret, slc)
         return ret
 
     @abstractproperty

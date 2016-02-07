@@ -43,11 +43,11 @@ class TemporalVariable(SourcedVariable):
 
         super(TemporalVariable, self).__init__(**kwargs)
 
-    def _getitem_main_(self, ret, slc):
-        super(TemporalVariable, self)._getitem_main_(ret, slc)
+    def _getitem_finalize_(self, ret, slc):
+        if isinstance(slc, dict):
+            slc = slc[self.dimensions[0].name]
         ret._value_numtime = get_none_or_slice(ret._value_numtime, slc)
         ret._value_datetime = get_none_or_slice(ret._value_datetime, slc)
-        return ret
 
     @property
     def cfunits(self):
@@ -76,7 +76,7 @@ class TemporalVariable(SourcedVariable):
         if not self.format_time:
             raise CannotFormatTimeError('value_datetime')
         if self._value_datetime is None:
-            if get_datetime_conversion_state(self.value[0]):
+            if get_datetime_conversion_state(self.value.flatten()[0]):
                 self._value_datetime = np.ma.array(self.get_datetime(self.value), mask=self.get_mask(), ndmin=1,
                                                    fill_value=None)
             else:
@@ -86,7 +86,7 @@ class TemporalVariable(SourcedVariable):
     @property
     def value_numtime(self):
         if self._value_numtime is None:
-            if not get_datetime_conversion_state(self.value[0]):
+            if not get_datetime_conversion_state(self.value.flatten()[0]):
                 self._value_numtime = np.ma.array(self.get_numtime(self.value), mask=self.get_mask(), ndmin=1)
             else:
                 self._value_numtime = self.masked_value

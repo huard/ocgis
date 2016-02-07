@@ -1,7 +1,7 @@
 import datetime
 import itertools
 import os
-from collections import deque
+from collections import deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime as dt
 from unittest import SkipTest
@@ -147,7 +147,7 @@ class TestTemporalVariable(AbstractTestTemporal):
             bounds = np.empty((lower.shape[0], 2), dtype=object)
             bounds[:, 0] = lower
             bounds[:, 1] = upper
-            bounds = Variable('time_bounds', value=bounds, dimensions=['time_bounds', 'bounds'])
+            bounds = TemporalVariable(name='time_bounds', value=bounds, dimensions=['time', 'bounds'])
         else:
             bounds = None
         td = TemporalVariable(value=dates, bounds=bounds, name=name, format_time=format_time, dimensions='time')
@@ -176,21 +176,17 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertIsInstance(t.bounds, TemporalVariable)
 
     def test_getitem(self):
-        td = self.get_temporalvariable()
-        elements = [td.bounds_datetime, td.bounds_numtime]
-        for element in elements:
-            self.assertIsNotNone(element)
-        sub = td[2]
-        elements = [sub.bounds_datetime, sub.bounds_numtime]
-        for element in elements:
-            self.assertEqual(element.shape, (1, 2))
-
-        td = self.get_temporalvariable()
+        td = self.get_temporalvariable(add_bounds=True)
         self.assertIsNotNone(td.value_datetime)
         self.assertIsNotNone(td.value_numtime)
-        sub = td[3]
-        self.assertEqual(sub.value_datetime.shape, (1,))
-        self.assertEqual(sub.value_numtime.shape, (1,))
+        self.assertIsNotNone(td.bounds.value_datetime)
+        self.assertIsNotNone(td.bounds.value_numtime)
+        sub = td[2]
+        self.assertEqual(sub.parent.shapes, OrderedDict([('time_bounds', (1, 2)), ('time', (1,))]))
+        for target, subtarget in itertools.product([sub, sub.bounds], ['value_datetime', 'value_numtime']):
+            real_target = getattr(target, subtarget)
+            self.assertEqual(real_target.shape[0], 1)
+            # tdk: RESUME: test is failing
 
     def test_360_day_calendar(self):
         months = range(1, 13)
