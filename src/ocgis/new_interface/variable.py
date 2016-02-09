@@ -3,10 +3,9 @@ from abc import ABCMeta, abstractproperty
 from collections import OrderedDict
 from copy import deepcopy
 from itertools import izip
+from netCDF4 import Dataset, VLType, Group
 
 import numpy as np
-from netCDF4 import Dataset, VLType
-from netCDF4._netCDF4 import Group
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
