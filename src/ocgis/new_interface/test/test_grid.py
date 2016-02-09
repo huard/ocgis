@@ -57,6 +57,7 @@ class Test(AbstractTestNewInterface):
             # self.write_fiona_htmp(grid, 'grid')
             # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
 
+            log.info('asserts')
             if MPI_RANK == 0:
                 self.assertIsInstance(grid_sub, GridXY)
                 if keep_touches:
@@ -79,6 +80,7 @@ class Test(AbstractTestNewInterface):
             else:
                 self.assertIsNone(grid_sub)
                 self.assertIsNone(slc)
+            log.info('asserts end')
 
     def test_tdk_file(self):
         # Test against a file. #########################################################################################
