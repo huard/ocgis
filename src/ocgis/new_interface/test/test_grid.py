@@ -35,14 +35,14 @@ class Test(AbstractTestNewInterface):
         with self.assertRaises(EmptySubsetError):
             grid_get_intersects(grid, bounds_sequence)
 
-    def test_tdk(self):
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
         bounds_sequence_geometry = box(*bounds_sequence)
 
         for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
                                        [bounds_sequence, bounds_sequence_geometry]):
-            log.debug(combo)
+            if MPI_RANK == 0:
+                log.debug(combo)
             is_vectorized, has_bounds, use_bounds, keep_touches, bounds_sequence = combo
 
             grid = self.get_gridxy()
@@ -54,11 +54,12 @@ class Test(AbstractTestNewInterface):
             grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=keep_touches,
                                                 use_bounds=use_bounds)
 
-            # self.write_fiona_htmp(grid, 'grid')
-            # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset')
+            self.write_fiona_htmp(grid, 'grid_{}'.format(MPI_RANK))
+            # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset_{}'.format(MPI_RANK))
 
             log.info('asserts')
             if MPI_RANK == 0:
+                self.write_fiona_htmp(grid_sub, 'grid_sub_combined')
                 self.assertIsInstance(grid_sub, GridXY)
                 if keep_touches:
                     if has_bounds and use_bounds:
@@ -82,7 +83,6 @@ class Test(AbstractTestNewInterface):
                 self.assertIsNone(slc)
             log.info('asserts end')
 
-    def test_tdk_file(self):
         # Test against a file. #########################################################################################
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
