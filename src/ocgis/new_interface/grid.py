@@ -6,6 +6,7 @@ from shapely.geometry import Polygon, Point
 
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
+from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.helpers import write_fiona_htmp
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
@@ -82,40 +83,30 @@ class GridXY(AbstractSpatialContainer):
 
     def __setitem__(self, slc, grid):
         slc = get_formatted_slice(slc, self.ndim)
-        log.debug('setitem')
-        log.debug(self.y.get_mask())
+
         if not grid.is_vectorized and self.is_vectorized:
             self.expand()
-        log.debug('after is_vectorized')
-        log.debug(self.y.get_mask())
 
-        # if self._point_name in grid.parent:
-        #     self.point[slc] = grid.point
-        # if self._polygon_name in grid.parent:
-        #     self.polygon[slc] = grid.polygon
-
-        log.debug('after point/polygon fill')
-        log.debug(self.y.get_mask())
+        if self._point_name in grid.parent:
+            with orphaned(self.parent, self.point):
+                self.point[slc] = grid.point
+        if self._polygon_name in grid.parent:
+            with orphaned(self.parent, self.polygon):
+                self.polygon[slc] = grid.polygon
 
         if self.is_vectorized:
-            log.debug('before x fill')
-            log.debug(self.y.get_mask())
-            self.x.parent = None
-            self.x[slc[1]] = grid.x
-            log.debug('after x fill')
-            log.debug(self.y.get_mask())
-            self.y.parent = None
-            self.y[slc[0]] = grid.y
-            log.debug('after y fill')
-            log.debug(self.y.get_mask())
+            with orphaned(self.parent, self.x):
+                self.x[slc[1]] = grid.x
+            with orphaned(self.parent, self.y):
+                self.y[slc[0]] = grid.y
         else:
             original_mask = self.get_mask().copy()
-            self.x[slc] = grid.x
-            self.y[slc] = grid.y
+            with orphaned(self.parent, self.x):
+                self.x[slc] = grid.x
+            with orphaned(self.parent, self.y):
+                self.y[slc] = grid.y
             original_mask[slc] = grid.get_mask()
             self.set_mask(original_mask)
-        log.debug('exiting')
-        log.debug(self.y.get_mask())
 
     @property
     def _protected_variables(self):
@@ -715,10 +706,8 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
         if gs is not None:
             write_fiona_htmp(gs, 'gs_idx_{}'.format(idx))
             fill_grid[as_local[idx]] = gs
-            log.debug('idx={}'.format(idx))
-            log.debug(as_local[idx])
 
-    write_fiona_htmp(fill_grid, 'fill_grid_after_gs')
+    # write_fiona_htmp(fill_grid, 'fill_grid_after_gs')
 
     if grid.is_vectorized:
         _, y_slice = get_trimmed_array_by_mask(fill_grid.y.get_mask(), return_adjustments=True)

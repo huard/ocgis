@@ -212,13 +212,15 @@ class Variable(AbstractContainer, Attributes):
         self.value[slc] = variable.value
         new_mask = self.get_mask()
         new_mask[slc] = variable.get_mask()
-        self.set_mask(new_mask)
 
         if self.has_bounds:
             names_src = [d.name for d in self.dimensions]
             names_dst = [d.name for d in self.bounds.dimensions]
             slc = get_mapped_slice(slc, names_src, names_dst)
-            self.bounds[slc] = variable.bounds
+            with orphaned(self.parent, self.bounds):
+                self.bounds[slc] = variable.bounds
+
+        self.set_mask(new_mask)
 
     def __len__(self):
         return self.shape[0]
