@@ -35,12 +35,14 @@ class Test(AbstractTestNewInterface):
         with self.assertRaises(EmptySubsetError):
             grid_get_intersects(grid, bounds_sequence)
 
+    def test_tdk(self):
         # Test combinations.
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
         bounds_sequence_geometry = box(*bounds_sequence)
 
         for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
                                        [bounds_sequence, bounds_sequence_geometry]):
+            log.debug(combo)
             is_vectorized, has_bounds, use_bounds, keep_touches, bounds_sequence = combo
 
             grid = self.get_gridxy()
@@ -78,6 +80,7 @@ class Test(AbstractTestNewInterface):
                 self.assertIsNone(grid_sub)
                 self.assertIsNone(slc)
 
+    def test_tdk_file(self):
         # Test against a file. #########################################################################################
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
