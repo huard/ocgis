@@ -1,4 +1,5 @@
 import itertools
+import os
 from collections import OrderedDict
 
 import fiona
@@ -16,6 +17,7 @@ from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.util.geom_cabinet import GeomCabinetIterator
 from ocgis.util.spatial.index import SpatialIndex
 
 
@@ -58,6 +60,15 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertEqual(gvar2.geom_type, lines.geom_type)
             self.assertTrue(gvar2.shape[0] > 0)
             self.assertFalse(gvar2.get_mask().any())
+
+    def test_read_gis(self):
+        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+        g = GeomCabinetIterator(path=path)
+        gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
+        self.assertEqual(gvar.uid.name, 'UGID')
+        self.assertEqual(len(gvar.parent), 6)
+        self.assertEqual(gvar.geom_type, 'MultiPolygon')
+        self.assertEqual(gvar.shape, (51,))
 
     def test_area(self):
         gvar = self.get_geometryvariable()

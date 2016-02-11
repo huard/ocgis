@@ -11,9 +11,11 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
+from ocgis import constants
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -249,6 +251,8 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
 class GeometryVariable(AbstractSpatialVariable):
 
     def __init__(self, **kwargs):
+        self._name_uid = None
+
         self._geom_type = kwargs.pop('geom_type', 'auto')
         super(GeometryVariable, self).__init__(**kwargs)
 
@@ -284,6 +288,43 @@ class GeometryVariable(AbstractSpatialVariable):
         area = self.area
         area.data[area.data == 0] = 1.0
         return area / area.max()
+
+    @property
+    def uid(self):
+        if self._name_uid is None:
+            return None
+        else:
+            return self.parent[self._name_uid]
+
+    @classmethod
+    def read_gis(cls, source, name, name_uid, name_dimension=None):
+        if name_dimension is None:
+            name_dimension = constants.NAME_GEOMETRY_DIMENSION
+
+        geom_key = constants.DEFAULT_GEOMETRY_KEY
+        len_source = len(source)
+        for ctr, record in enumerate(source):
+            if ctr == 0:
+                values = {k: [None] * len_source for k in record['properties'].keys()}
+                ret_value = [None] * len_source
+                crs = CoordinateReferenceSystem(value=record['meta']['crs'])
+            ret_value[ctr] = record[geom_key]
+            for k, v in record['properties'].iteritems():
+                values[k][ctr] = v
+        parent = VariableCollection()
+        dimension = Dimension(name_dimension, len_source)
+        for k, v in values.iteritems():
+            var = Variable(value=v, name=k, dimensions=dimension)
+            parent.add_variable(var)
+        ret = GeometryVariable(name=name, parent=parent, value=ret_value, crs=crs, dimensions=dimension)
+        ret.set_uid(ret.parent[name_uid])
+        return ret
+
+    def set_uid(self, variable):
+        if self.parent is None:
+            self.parent = VariableCollection(variables=[self])
+        self.parent.add_variable(variable, force=True)
+        self._name_uid = variable.name
 
     def get_intersects(self, *args, **kwargs):
         return_slice = kwargs.pop('return_slice', False)

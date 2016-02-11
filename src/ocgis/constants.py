@@ -152,3 +152,6 @@ NAME_UID_FIELD = 'fid'
 
 # Default unique identifier start value.
 DEFAULT_UID_START = 1
+
+# Default name for the geometry dimensions.
+NAME_GEOMETRY_DIMENSION = 'ngeom'
