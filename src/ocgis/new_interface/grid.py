@@ -8,7 +8,6 @@ from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.helpers import write_fiona_htmp
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.variable import VariableCollection, get_dslice
@@ -590,7 +589,7 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
     grid_sliced = None
     if slc_grid is not None:
         grid_sliced = grid[slc_grid]
-        write_fiona_htmp(grid_sliced, 'grid_sliced_{}'.format(MPI_RANK))
+        # write_fiona_htmp(grid_sliced, 'grid_sliced_{}'.format(MPI_RANK))
         try:
             grid_update_mask(grid_sliced, bounds_sequence, use_bounds=use_bounds,
                              keep_touches=keep_touches)
@@ -598,15 +597,14 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
             grid_sliced = None
         else:
             if with_geometry:
-                # tdk: add use_spatial_index
                 try:
                     grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches,
                                                                     use_spatial_index=use_spatial_index)
                 except EmptySubsetError:
                     grid_sliced = None
 
-    if grid_sliced is not None:
-        write_fiona_htmp(grid_sliced, 'grid_sliced_masked_{}'.format(MPI_RANK))
+    # if grid_sliced is not None:
+    #     write_fiona_htmp(grid_sliced, 'grid_sliced_masked_{}'.format(MPI_RANK))
 
     slices_global = mpi_comm.gather(slc_grid, root=0)
     grid_subs = mpi_comm.gather(grid_sliced, root=0)
@@ -678,7 +676,7 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     slc_remaining = (slice(start_row, stop_row), slice(start_col, stop_col))
     fill_grid = grid[slc_remaining]
 
-    write_fiona_htmp(fill_grid, 'fill_grid')
+    # write_fiona_htmp(fill_grid, 'fill_grid')
 
     as_local = []
     for target in slices_global:
@@ -704,7 +702,7 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
-            write_fiona_htmp(gs, 'gs_idx_{}'.format(idx))
+            # write_fiona_htmp(gs, 'gs_idx_{}'.format(idx))
             fill_grid[as_local[idx]] = gs
 
     # write_fiona_htmp(fill_grid, 'fill_grid_after_gs')
