@@ -9,6 +9,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_polygon_geometry_array
+from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase
 
@@ -18,6 +19,15 @@ _VALUE_POINT_ARRAY[:] = [Point(1, 2), Point(3, 4)]
 
 class AbstractTestNewInterface(TestBase):
     __metaclass__ = ABCMeta
+
+    @property
+    def path_state_boundaries(self):
+        path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+        return path_shp
+
+    @property
+    def log(self):
+        return log
 
     def assertGeometriesAlmostEquals(self, a, b):
 
@@ -72,6 +82,16 @@ class AbstractTestNewInterface(TestBase):
             kwds['parent'] = VariableCollection(variables=[tas, rhs])
 
         grid = GridXY(vx, vy, **kwds)
+        return grid
+
+    def get_gridxy_global(self, resolution=1.0, with_bounds=True):
+        y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
+        x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
+        x = Variable(name='x', value=x, dimensions='x')
+        y = Variable(name='y', value=y, dimensions='y')
+        grid = GridXY(x, y)
+        if with_bounds:
+            grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
         return grid
 
     def get_geometryvariable(self, **kwargs):

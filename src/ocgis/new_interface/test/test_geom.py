@@ -1,5 +1,4 @@
 import itertools
-import os
 from collections import OrderedDict
 
 import fiona
@@ -61,9 +60,28 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertTrue(gvar2.shape[0] > 0)
             self.assertFalse(gvar2.get_mask().any())
 
+    def test_combo_read_and_spatial_operations(self):
+        """Test various spatial operations with multiple geometries and a grid."""
+
+        g = GeomCabinetIterator(path=self.path_state_boundaries)
+        gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
+        grid = self.get_gridxy_global(resolution=3.0)
+        # self.write_fiona_htmp(grid, 'grid')
+        for ctr, subset in enumerate(gvar.value):
+            if ctr != 19:
+                continue
+            self.log.debug(ctr)
+            print subset.wkt
+            gg = GeometryVariable(value=subset)
+            self.write_fiona_htmp(gg, 'subset')
+
+            sub = grid.get_intersects(subset)
+        raise self.ToTest('finish test')
+        import ipdb;
+        ipdb.set_trace()
+
     def test_read_gis(self):
-        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
-        g = GeomCabinetIterator(path=path)
+        g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         self.assertEqual(gvar.uid.name, 'UGID')
         self.assertEqual(len(gvar.parent), 6)

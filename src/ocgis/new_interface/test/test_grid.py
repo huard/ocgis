@@ -1,5 +1,4 @@
 import itertools
-import os
 from copy import deepcopy
 from unittest import SkipTest
 
@@ -182,7 +181,7 @@ class Test(AbstractTestNewInterface):
     @attr('mpi', 'mpi-4')
     def test_grid_get_intersects3(self):
         if MPI_RANK == 0:
-            path_shp = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+            path_shp = self.path_state_boundaries
             geoms = []
             with fiona.open(path_shp) as source:
                 for record in source:
@@ -203,18 +202,7 @@ class Test(AbstractTestNewInterface):
         resolution = 1.0
 
         for with_bounds in [False, True]:
-            y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
-            x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
-
-            # lat_bnds = SourcedVariable(name='lat_bnds', request_dataset=rd)
-            # lon_bnds = SourcedVariable(name='lon_bnds', request_dataset=rd)
-            x = Variable(name='x', value=x, dimensions='x')
-            y = Variable(name='y', value=y, dimensions='y')
-
-            grid = GridXY(x, y)
-
-            if with_bounds:
-                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
+            grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
 
             res = grid_get_intersects(grid, subset)
 
@@ -236,6 +224,16 @@ class Test(AbstractTestNewInterface):
                 self.assertEqual(res, (None, None))
 
         log.info('success')
+
+    def test_get_grid_intersects_small(self):
+        """Test with a subset inside of one of the cells."""
+
+        subset = 'MULTIPOLYGON (((-71.79019426324761 41.60130736620898, -71.79260526324985 41.64175836624665, -71.7882492632458 41.72160336632101, -71.79783126325472 42.00427436658427, -71.49743026297496 42.00925336658891, -71.37864426286433 42.01371336659307, -71.38240526286783 41.97926336656098, -71.38395326286928 41.88843936647639, -71.33308626282189 41.89603136648346, -71.34249326283066 41.8757833664646, -71.33454226282325 41.85790336644796, -71.34548326283345 41.81316136640628, -71.33979826282815 41.78442536637952, -71.31932826280908 41.77219536636813, -71.26662826276001 41.74974336634722, -71.22897626272494 41.70769436630806, -71.28400126277619 41.67954936628185, -71.36738726285384 41.7413503663394, -71.39358026287823 41.76115536635785, -71.36901226285535 41.70329136630396, -71.41924726290215 41.65221236625639, -71.42731826290965 41.48668936610223, -71.48988826296792 41.39208536601413, -71.72226426318434 41.32726436595375, -71.86667826331885 41.32276936594957, -71.84777226330124 41.32534836595197, -71.83686926329108 41.34196136596745, -71.84599526329959 41.40385436602509, -71.8027432632593 41.41582936603623, -71.79019426324761 41.60130736620898)), ((-71.19880826269684 41.67850036628087, -71.14121226264319 41.65527336625924, -71.11713226262077 41.49306236610817, -71.19993726269789 41.46331836608047, -71.19880826269684 41.67850036628087)), ((-71.26916926276238 41.62126836622758, -71.21944726271606 41.63564236624096, -71.23867326273397 41.47484936609121, -71.28800726277991 41.48361936609938, -71.3495252628372 41.4458573660642, -71.26916926276238 41.62126836622758)))'
+        subset = wkt.loads(subset)
+        grid = self.get_gridxy_global(resolution=3.0)
+        sub = grid.get_intersects(subset)
+        import ipdb;
+        ipdb.set_trace()
 
 
 class TestGridXY(AbstractTestNewInterface):
