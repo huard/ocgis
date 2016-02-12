@@ -545,13 +545,17 @@ def get_geometry_variable(func, grid, **kwargs):
     return GeometryVariable(**kwargs)
 
 
-def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
+def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True, check_contains=False):
     assert lower <= upper
 
     if keep_touches:
-        ret = np.logical_and(arr >= lower, arr <= upper)
+        arr_lower = arr >= lower
+        arr_upper = arr <= upper
     else:
-        ret = np.logical_and(arr > lower, arr < upper)
+        arr_lower = arr > lower
+        arr_upper = arr < upper
+
+    ret = np.logical_and(arr_lower, arr_upper)
     return ret
 
 

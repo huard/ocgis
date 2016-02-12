@@ -238,7 +238,10 @@ class Test(AbstractTestNewInterface):
 
     def test_get_arr_intersects_bounds(self):
         arr = np.array([[-178.5, -175.5, -175.5, -178.5]])
-        res = get_arr_intersects_bounds(arr, -177.5, -177.0)
+        # res = get_arr_intersects_bounds(arr, -177.5, -177.0, check_contains=True)
+        # self.assertTrue(res.all())
+
+        res = get_arr_intersects_bounds(arr, -150.0, -149.0, check_contains=True)
         print res
         import ipdb;
         ipdb.set_trace()
