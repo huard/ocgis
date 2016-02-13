@@ -415,12 +415,9 @@ class TestGridXY(AbstractTestNewInterface):
 
         # Test mask is not shared with subsetted grid.
         grid = self.get_gridxy()
-        self.assertIsNone(grid._mask)
         new_mask = grid.get_mask()
         new_mask[:, 1] = True
-        self.assertIsNone(grid._mask)
         grid.set_mask(new_mask)
-        self.assertIsNone(grid._mask)
         self.assertFalse(grid.has_bounds)
 
         bounds_sequence = (101.5, 40.5, 103.5, 42.5)
@@ -548,7 +545,7 @@ class TestGridXY(AbstractTestNewInterface):
         new_mask = grid.get_mask()
         self.assertFalse(new_mask.any())
         new_mask[1:3, 1] = True
-        grid.set_mask(new_mask)
+        grid.set_mask(new_mask, cascade=True)
         for k in ['tas', 'rhs']:
             backref_var = grid.parent[k]
             mask = backref_var.get_mask()

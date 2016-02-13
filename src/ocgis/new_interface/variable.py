@@ -54,10 +54,11 @@ class AbstractContainer(AbstractInterfaceObject):
     @abstractmethod
     def get_mask(self):
         """:rtype: :class:`numpy.ndarray`"""
+        raise NotImplementedError
 
     @abstractmethod
     def set_mask(self, mask):
-        pass
+        raise NotImplementedError
 
     def _getitem_initialize_(self, slc):
         try:
@@ -1029,10 +1030,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def set_mask(self, variable):
         names_container = [d.name for d in variable.dimensions]
         for k, v in self.items():
-            if v.ndim > 0:
+            if variable.name != k and v.ndim > 0:
                 names_variable = [d.name for d in v.dimensions]
                 if len(set(names_variable).intersection(names_container)) > 0:
-                    self.set_mask_by_variable(variable, v)
+                    set_mask_by_variable(variable, v)
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """

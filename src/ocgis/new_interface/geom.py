@@ -104,8 +104,9 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
         parent = kwargs.pop('parent', None)
-        AbstractContainer.__init__(self, kwargs.pop('mask', None), parent=parent)
-        AbstractSpatialObject.__init__(self, crs=crs, parent=parent)
+        name = kwargs.pop('name', None)
+        AbstractContainer.__init__(self, name, parent=parent)
+        AbstractSpatialObject.__init__(self, crs=crs)
 
     def write_netcdf(self, dataset, **kwargs):
         self.parent.write_netcdf(dataset, **kwargs)
@@ -245,7 +246,7 @@ class AbstractSpatialVariable(Variable, AbstractSpatialObject):
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
         Variable.__init__(self, **kwargs)
-        AbstractSpatialObject.__init__(self, crs=crs, parent=kwargs.get('parent'))
+        AbstractSpatialObject.__init__(self, crs=crs)
 
 
 class GeometryVariable(AbstractSpatialVariable):
@@ -404,7 +405,7 @@ class GeometryVariable(AbstractSpatialVariable):
             raise EmptySubsetError(self.name)
 
         # Set the returned value to the fill array.
-        ret.set_mask(np.logical_or(fill, original_mask))
+        ret.set_mask(np.logical_or(fill, original_mask), cascade=True)
 
         return ret
 

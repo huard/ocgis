@@ -6,7 +6,6 @@ from shapely.geometry import Polygon, Point, box
 
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
-from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
@@ -78,25 +77,16 @@ class GridXY(AbstractSpatialContainer):
             self.expand()
 
         if self._point_name in grid.parent:
-            with orphaned(self.parent, self.point):
-                self.point[slc] = grid.point
+            self.point[slc] = grid.point
         if self._polygon_name in grid.parent:
-            with orphaned(self.parent, self.polygon):
-                self.polygon[slc] = grid.polygon
+            self.polygon[slc] = grid.polygon
 
         if self.is_vectorized:
-            with orphaned(self.parent, self.x):
-                self.x[slc[1]] = grid.x
-            with orphaned(self.parent, self.y):
-                self.y[slc[0]] = grid.y
+            self.x[slc[1]] = grid.x
+            self.y[slc[0]] = grid.y
         else:
-            original_mask = self.get_mask().copy()
-            with orphaned(self.parent, self.x):
-                self.x[slc] = grid.x
-            with orphaned(self.parent, self.y):
-                self.y[slc] = grid.y
-            original_mask[slc] = grid.get_mask()
-            self.set_mask(original_mask)
+            self.x[slc] = grid.x
+            self.y[slc] = grid.y
 
     @property
     def _protected_variables(self):
@@ -280,11 +270,14 @@ class GridXY(AbstractSpatialContainer):
             ret = self._archetype.get_mask()
         return ret
 
-    def set_mask(self, value):
+    def set_mask(self, value, cascade=False):
         self.expand()
-        super(GridXY, self).set_mask(value)
-        # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
-        self._mask = None
+        if cascade:
+            self._archetype.set_mask(value)
+            self.parent.set_mask(self._archetype)
+        else:
+            for v in self._protected_variables:
+                v.set_mask(value)
 
     def iter(self, **kwargs):
         self.expand()
@@ -409,7 +402,7 @@ class GridXY(AbstractSpatialContainer):
         ret = self.copy()
         new_mask = self.abstraction_geometry.get_intersects_masked(*args, **kwargs).get_mask()
         # tdk: this unecessarily sets the mask of the abstraction geometry twice.
-        ret.set_mask(new_mask)
+        ret.set_mask(new_mask, cascade=True)
         return ret
 
     def get_nearest(self, *args, **kwargs):
