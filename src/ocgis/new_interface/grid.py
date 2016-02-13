@@ -559,12 +559,12 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         with_geometry = True
     except AttributeError:  # Assume a bounds tuple.
         bounds_sequence = subset
+        subset = box(*bounds_sequence)
         with_geometry = False
 
     # If we are dealing with bounds, always trigger spatial operations.
     if use_bounds and grid.has_bounds:
         buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
-        # write_fiona_htmp(GeometryVariable(value=buffered), 'buffered')
         bounds_sequence = buffered.bounds
         with_geometry = True
 
@@ -591,7 +591,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         # write_fiona_htmp(grid_sliced, 'grid_sliced_{}'.format(MPI_RANK))
         try:
             grid_update_mask(grid_sliced, bounds_sequence, keep_touches=keep_touches)
-            # write_fiona_htmp(grid_sliced, 'grid_update_mask')
         except EmptySubsetError:
             grid_sliced = None
         else:
@@ -602,9 +601,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
                     # write_fiona_htmp(grid_sliced, 'grid_sliced')
                 except EmptySubsetError:
                     grid_sliced = None
-
-    # if grid_sliced is not None:
-    #     write_fiona_htmp(grid_sliced, 'grid_sliced_masked_{}'.format(MPI_RANK))
 
     slices_global = mpi_comm.gather(slc_grid, root=0)
     grid_subs = mpi_comm.gather(grid_sliced, root=0)
@@ -676,8 +672,6 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     slc_remaining = (slice(start_row, stop_row), slice(start_col, stop_col))
     fill_grid = grid[slc_remaining]
 
-    # write_fiona_htmp(fill_grid, 'fill_grid')
-
     as_local = []
     for target in slices_global:
         if target is None:
@@ -702,10 +696,7 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
 
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
-            # write_fiona_htmp(gs, 'gs_idx_{}'.format(idx))
             fill_grid[as_local[idx]] = gs
-
-    # write_fiona_htmp(fill_grid, 'fill_grid_after_gs')
 
     if grid.is_vectorized:
         _, y_slice = get_trimmed_array_by_mask(fill_grid.y.get_mask(), return_adjustments=True)

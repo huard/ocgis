@@ -7,14 +7,13 @@ import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
 from shapely.geometry import Point, box, MultiPolygon, shape
-from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects, get_arr_intersects_bounds
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -53,8 +52,6 @@ class Test(AbstractTestNewInterface):
             grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=keep_touches,
                                                 use_bounds=use_bounds)
 
-            self.write_fiona_htmp(grid, 'grid_{}'.format(MPI_RANK))
-            # self.write_fiona_htmp(GeometryVariable(value=box(*bounds_sequence)), 'subset_{}'.format(MPI_RANK))
 
             log.info('asserts')
             if MPI_RANK == 0:
@@ -71,11 +68,10 @@ class Test(AbstractTestNewInterface):
                     else:
                         desired = (slice(1, 2, None), slice(1, 2, None))
                 self.assertEqual(grid.has_bounds, has_bounds)
-                if isinstance(bounds_sequence, BaseGeometry):
-                    # Subsetting with a geometry requires expanding the grid to mask internal elements.
-                    self.assertFalse(grid.is_vectorized)
+                if (not has_bounds or not use_bounds) and isinstance(bounds_sequence, tuple) and is_vectorized:
+                    self.assertTrue(grid.is_vectorized)
                 else:
-                    self.assertEqual(grid.is_vectorized, is_vectorized)
+                    self.assertFalse(grid.is_vectorized)
                 self.assertEqual(slc, desired)
             else:
                 self.assertIsNone(grid_sub)
@@ -101,9 +97,6 @@ class Test(AbstractTestNewInterface):
         self.assertIsNone(y._value)
         grid = GridXY(x, y)
         self.assertIsNone(grid.x._value)
-
-        # self.write_fiona_htmp(grid, 'grid')
-        # self.write_fiona_htmp(GeometryVariable(value=box(minx, miny, maxx, maxy)), 'subset')
 
         self.assertTrue(grid.is_vectorized)
         self.assertIsNone(grid.x._value)
@@ -134,10 +127,6 @@ class Test(AbstractTestNewInterface):
 
         grid = self.get_gridxy()
 
-        # if MPI_RANK == 0:
-        #     self.write_fiona_htmp(grid, 'grid')
-        #     self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
-
         res = grid_get_intersects(grid, subset)
 
         if MPI_RANK == 0:
@@ -160,16 +149,10 @@ class Test(AbstractTestNewInterface):
         subset = MultiPolygon([subset1, subset2])
         grid = self.get_gridxy()
 
-        # if MPI_RANK == 0:
-        #     self.write_fiona_htmp(GeometryVariable(value=subset), 'multipolygon_subset')
-
         res = grid_get_intersects(grid, subset)
 
         if MPI_RANK == 0:
             grid_sub, slc = res
-
-            # self.write_fiona_htmp(grid_sub, 'multipolygon_grid_sub')
-
             mask_grid_sub = grid_sub.get_mask()
             desired_mask = np.array([[False, False, True], [True, False, True], [True, True, False]])
             self.assertNumpyAll(mask_grid_sub, desired_mask)
@@ -189,9 +172,7 @@ class Test(AbstractTestNewInterface):
                     geoms.append(geom)
 
             gvar = GeometryVariable(value=geoms)
-            # self.write_fiona_htmp(gvar, 'gvar')
             gvar_sub = gvar.get_unioned()
-            # self.write_fiona_htmp(gvar_sub, 'subset_unioned')
 
             subset = gvar_sub.value.flatten()[0]
         else:
@@ -209,9 +190,6 @@ class Test(AbstractTestNewInterface):
             if MPI_RANK == 0:
                 grid_sub, slc = res
 
-                # self.write_fiona_htmp(grid, 'grid')
-                # self.write_fiona_htmp(grid_sub, 'grid_sub')
-
                 if with_bounds:
                     self.assertEqual(grid_sub.get_mask().sum(), 4595)
                     self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
@@ -228,25 +206,20 @@ class Test(AbstractTestNewInterface):
     def test_get_grid_intersects_small(self):
         """Test with a subset inside of one of the cells."""
 
+        as_bounds_tuple = [False, True]
+
         subset = 'MULTIPOLYGON (((-71.79019426324761 41.60130736620898, -71.79260526324985 41.64175836624665, -71.7882492632458 41.72160336632101, -71.79783126325472 42.00427436658427, -71.49743026297496 42.00925336658891, -71.37864426286433 42.01371336659307, -71.38240526286783 41.97926336656098, -71.38395326286928 41.88843936647639, -71.33308626282189 41.89603136648346, -71.34249326283066 41.8757833664646, -71.33454226282325 41.85790336644796, -71.34548326283345 41.81316136640628, -71.33979826282815 41.78442536637952, -71.31932826280908 41.77219536636813, -71.26662826276001 41.74974336634722, -71.22897626272494 41.70769436630806, -71.28400126277619 41.67954936628185, -71.36738726285384 41.7413503663394, -71.39358026287823 41.76115536635785, -71.36901226285535 41.70329136630396, -71.41924726290215 41.65221236625639, -71.42731826290965 41.48668936610223, -71.48988826296792 41.39208536601413, -71.72226426318434 41.32726436595375, -71.86667826331885 41.32276936594957, -71.84777226330124 41.32534836595197, -71.83686926329108 41.34196136596745, -71.84599526329959 41.40385436602509, -71.8027432632593 41.41582936603623, -71.79019426324761 41.60130736620898)), ((-71.19880826269684 41.67850036628087, -71.14121226264319 41.65527336625924, -71.11713226262077 41.49306236610817, -71.19993726269789 41.46331836608047, -71.19880826269684 41.67850036628087)), ((-71.26916926276238 41.62126836622758, -71.21944726271606 41.63564236624096, -71.23867326273397 41.47484936609121, -71.28800726277991 41.48361936609938, -71.3495252628372 41.4458573660642, -71.26916926276238 41.62126836622758)))'
         subset = wkt.loads(subset)
-        grid = self.get_gridxy_global(resolution=3.0)
-        self.write_fiona_htmp(grid, 'grid')
-        self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
-        sub, slc = grid_get_intersects(grid, subset)
-        self.assertEqual(sub.shape, (1, 1))
-        self.write_fiona_htmp(sub, 'sub')
-        self.assertEqual(sub.get_mask().sum(), 0)
+        for a in as_bounds_tuple:
+            grid = self.get_gridxy_global(resolution=3.0)
+            if a:
+                the_subset = subset.bounds
+            else:
+                the_subset = subset
+            sub, slc = grid_get_intersects(grid, the_subset)
+            self.assertEqual(sub.shape, (1, 1))
+            self.assertEqual(sub.get_mask().sum(), 0)
 
-    def test_get_arr_intersects_bounds(self):
-        arr = np.array([[-178.5, -175.5, -175.5, -178.5]])
-        # res = get_arr_intersects_bounds(arr, -177.5, -177.0, check_contains=True)
-        # self.assertTrue(res.all())
-
-        res = get_arr_intersects_bounds(arr, -150.0, -149.0, check_contains=True)
-        print res
-        import ipdb;
-        ipdb.set_trace()
 
 class TestGridXY(AbstractTestNewInterface):
     def assertGridCorners(self, grid):
