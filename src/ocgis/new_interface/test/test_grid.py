@@ -397,7 +397,10 @@ class TestGridXY(AbstractTestNewInterface):
             bg = grid.get_intersects(bounds_sequence)
             if MPI_RANK == 0:
                 self.assertNotEqual(grid.shape, bg.shape)
-                self.assertTrue(bg.is_vectorized)
+                if k.bounds:
+                    self.assertFalse(bg.is_vectorized)
+                else:
+                    self.assertTrue(bg.is_vectorized)
 
             with self.assertRaises(EmptySubsetError):
                 bounds_sequence = (1000, 1000, 1001, 10001)
