@@ -233,6 +233,7 @@ class Test(AbstractTestNewInterface):
         grid = self.get_gridxy_global(resolution=3.0)
         sub = grid_get_intersects(grid, subset)
         # raise self.ToTest('finish')
+        self.assertTrue(sub.is_vectorized)
         import ipdb;
         ipdb.set_trace()
 

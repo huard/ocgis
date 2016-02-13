@@ -2,7 +2,7 @@ import itertools
 from copy import deepcopy
 
 import numpy as np
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, box
 
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
@@ -572,6 +572,12 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
     except AttributeError:  # Assume a bounds tuple.
         bounds_sequence = subset
         with_geometry = False
+
+    # If we are dealing with bounds, always trigger spatial operations.
+    if use_bounds and grid.has_bounds:
+        buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
+        bounds_sequence = buffered.bounds
+        with_geometry = True
 
     if with_geometry and grid.is_vectorized:
         grid.expand()
