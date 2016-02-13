@@ -20,15 +20,6 @@ CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeo
 _NAMES_2D = ['ocgis_yc', 'ocgis_xc']
 
 
-def expand_needed(func):
-    def func_wrapper(*args, **kwargs):
-        obj = args[0]
-        obj.expand()
-        return func(*args, **kwargs)
-
-    return func_wrapper
-
-
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
@@ -125,12 +116,10 @@ class GridXY(AbstractSpatialContainer):
             new_x_value, new_y_value = np.meshgrid(self.x.value, self.y.value)
             new_dimensions = self.dimensions
 
-            self.x = self.x.copy()
             self.x.value = None
             self.x.dimensions = new_dimensions
             self.x.value = new_x_value
 
-            self.y = self.y.copy()
             self.y.value = None
             self.y.dimensions = new_dimensions
             self.y.value = new_y_value
@@ -246,8 +235,8 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
-    @expand_needed
     def value_stacked(self):
+        self.expand()
         y = self.y.value
         x = self.x.value
         fill = np.zeros([2] + list(y.shape))
@@ -256,8 +245,8 @@ class GridXY(AbstractSpatialContainer):
         return fill
 
     @property
-    @expand_needed
     def masked_value_stacked(self):
+        self.expand()
         y = self.y.masked_value
         x = self.x.masked_value
         fill = np.ma.zeros([2] + list(y.shape))
@@ -291,14 +280,14 @@ class GridXY(AbstractSpatialContainer):
             ret = self._archetype.get_mask()
         return ret
 
-    @expand_needed
     def set_mask(self, value):
+        self.expand()
         super(GridXY, self).set_mask(value)
         # The grid uses its variables for mask management. Remove the mask reference so get_mask returns from variables.
         self._mask = None
 
-    @expand_needed
     def iter(self, **kwargs):
+        self.expand()
         name_x = self.x.name
         value_x = self.x.value
         for idx, record in self.y.iter(**kwargs):
@@ -338,7 +327,6 @@ class GridXY(AbstractSpatialContainer):
         self.y.set_extrapolated_bounds(name_y_variable, name_dimension)
         self.parent = self.y.parent
 
-    @expand_needed
     def update_crs(self, to_crs):
         """
         Update the coordinate system in place.
@@ -346,7 +334,7 @@ class GridXY(AbstractSpatialContainer):
         :param to_crs: The destination coordinate system.
         :type to_crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
         """
-
+        self.expand()
         assert self.crs is not None
         src_sr = self.crs.sr
         to_sr = to_crs.sr
@@ -576,6 +564,7 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
     # If we are dealing with bounds, always trigger spatial operations.
     if use_bounds and grid.has_bounds:
         buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
+        # write_fiona_htmp(GeometryVariable(value=buffered), 'buffered')
         bounds_sequence = buffered.bounds
         with_geometry = True
 
@@ -601,8 +590,8 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         grid_sliced = grid[slc_grid]
         # write_fiona_htmp(grid_sliced, 'grid_sliced_{}'.format(MPI_RANK))
         try:
-            grid_update_mask(grid_sliced, bounds_sequence, use_bounds=use_bounds,
-                             keep_touches=keep_touches)
+            grid_update_mask(grid_sliced, bounds_sequence, keep_touches=keep_touches)
+            # write_fiona_htmp(grid_sliced, 'grid_update_mask')
         except EmptySubsetError:
             grid_sliced = None
         else:
@@ -610,6 +599,7 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
                 try:
                     grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches,
                                                                     use_spatial_index=use_spatial_index)
+                    # write_fiona_htmp(grid_sliced, 'grid_sliced')
                 except EmptySubsetError:
                     grid_sliced = None
 
@@ -639,13 +629,13 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         return ret
 
 
-def grid_update_mask(grid, bounds_sequence, use_bounds=True, keep_touches=True):
+def grid_update_mask(grid, bounds_sequence, keep_touches=True):
     minx, miny, maxx, maxy = bounds_sequence
 
     has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
 
-    res_x = get_coordinate_boolean_array(grid.x, has_bounds, is_vectorized, keep_touches, maxx, minx, use_bounds)
-    res_y = get_coordinate_boolean_array(grid.y, has_bounds, is_vectorized, keep_touches, maxy, miny, use_bounds)
+    res_x = get_coordinate_boolean_array(grid.x, is_vectorized, keep_touches, maxx, minx)
+    res_y = get_coordinate_boolean_array(grid.y, is_vectorized, keep_touches, maxy, miny)
 
     try:
         if is_vectorized:
@@ -736,34 +726,12 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     return fill_grid, slc_ret
 
 
-def get_coordinate_boolean_array(grid_target, has_bounds, is_vectorized, keep_touches, max_target, min_target,
-                                 use_bounds):
+def get_coordinate_boolean_array(grid_target, is_vectorized, keep_touches, max_target, min_target):
     target_centers = grid_target.value
 
-    if has_bounds and use_bounds:
-        if is_vectorized:
-            n_bounds = 2
-        else:
-            n_bounds = 4
-        target_bounds = grid_target.bounds.value.reshape(-1, n_bounds)
-
-    res_target_centers = np.array(
-        get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
-
-    if has_bounds and use_bounds:
-        res_target_bounds = np.array(
-            get_arr_intersects_bounds(target_bounds, min_target, max_target, keep_touches=keep_touches))
-        res_target_bounds = np.any(res_target_bounds, axis=1)
-        res_target_bounds = res_target_bounds.reshape(-1)
-
-    res_target_centers = res_target_centers.reshape(-1)
-
-    if has_bounds and use_bounds:
-        res_target = np.logical_or(res_target_centers, res_target_bounds)
-    else:
-        res_target = res_target_centers
+    res_target = np.array(get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
+    res_target = res_target.reshape(-1)
 
     if is_vectorized:
         res_target = np.invert(res_target)
     return res_target
-
