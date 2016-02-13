@@ -132,8 +132,6 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             grid_sub, slc = res
 
-            # self.write_fiona_htmp(grid_sub, 'grid_sub')
-
             mask_grid_sub = grid_sub.get_mask()
             self.assertEqual(grid_sub.shape, (2, 2))
             self.assertTrue(np.any(mask_grid_sub))

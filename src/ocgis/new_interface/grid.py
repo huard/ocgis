@@ -588,7 +588,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
     grid_sliced = None
     if slc_grid is not None:
         grid_sliced = grid[slc_grid]
-        # write_fiona_htmp(grid_sliced, 'grid_sliced_{}'.format(MPI_RANK))
         try:
             grid_update_mask(grid_sliced, bounds_sequence, keep_touches=keep_touches)
         except EmptySubsetError:
@@ -598,7 +597,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
                 try:
                     grid_sliced = grid_sliced.get_intersects_masked(subset, keep_touches=keep_touches,
                                                                     use_spatial_index=use_spatial_index)
-                    # write_fiona_htmp(grid_sliced, 'grid_sliced')
                 except EmptySubsetError:
                     grid_sliced = None
 

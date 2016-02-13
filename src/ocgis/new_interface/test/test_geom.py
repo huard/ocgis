@@ -67,16 +67,10 @@ class TestGeometryVariable(AbstractTestNewInterface):
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         grid = self.get_gridxy_global(resolution=3.0)
         for ctr, subset in enumerate(gvar.value):
-            if ctr != 19:
-                continue
             self.log.debug(ctr)
-            print subset.wkt
             gg = GeometryVariable(value=subset)
 
             sub = grid.get_intersects(subset)
-        raise self.ToTest('finish test')
-        import ipdb;
-        ipdb.set_trace()
 
     def test_read_gis(self):
         g = GeomCabinetIterator(path=self.path_state_boundaries)
