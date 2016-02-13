@@ -6,9 +6,6 @@ from copy import copy
 class AbstractInterfaceObject(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, parent=None):
-        self.parent = parent
-
     def copy(self):
         """Return a shallow copy of self."""
         return copy(self)

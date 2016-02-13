@@ -7,11 +7,11 @@ from ocgis.util.helpers import get_formatted_slice
 class Dimension(AbstractInterfaceObject):
     def __init__(self, name, length=None, length_current=None, parent=None):
         self._variable = None
-        self.name = name
+        self._name = name
         self.length = length
         self.length_current = length_current
 
-        super(Dimension, self).__init__(parent=parent)
+        super(Dimension, self).__init__()
 
     def __eq__(self, other):
         if other.__dict__ == self.__dict__:
@@ -86,6 +86,10 @@ class Dimension(AbstractInterfaceObject):
     def __repr__(self):
         msg = "{0}(name='{1}', length={2})".format(self.__class__.__name__, self.name, self.length)
         return msg
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def is_unlimited(self):

@@ -17,127 +17,6 @@ from ocgis.util.helpers import get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_are_units_equal
 
 
-class TestSourcedVariable(AbstractTestNewInterface):
-    def get_sourcedvariable(self, **kwargs):
-        if 'name' not in kwargs:
-            kwargs['name'] = 'tas'
-        if 'request_dataset' not in kwargs:
-            kwargs['request_dataset'] = self.get_request_dataset()
-        sv = SourcedVariable(**kwargs)
-        self.assertIsNone(sv._value)
-        self.assertIsNone(sv._dimensions)
-        self.assertIsNone(sv._dtype)
-        self.assertIsNone(sv._fill_value)
-        return sv
-
-    def test_init(self):
-        sv = self.get_sourcedvariable()
-        self.assertIsInstance(sv._request_dataset, RequestDataset)
-        self.assertEqual(sv.units, 'K')
-
-        sv = self.get_sourcedvariable(name='time_bnds')
-        self.assertIsNone(sv._value)
-        self.assertEqual(sv.ndim, 2)
-        sub = sv[5:10, :]
-        self.assertIsNone(sub._value)
-
-        # Test initializing with a value.
-        sv = SourcedVariable(value=[1, 2, 3], name='foo')
-        sv.create_dimensions()
-        self.assertEqual(sv.dtype, np.int)
-        self.assertEqual(sv.masked_value.fill_value, 999999)
-        self.assertEqual(sv.shape, (3,))
-        self.assertEqual(len(sv.dimensions), 1)
-        sv.create_dimensions(names=['time'])
-        self.assertIsNotNone(sv.dimensions)
-
-        # Test protecting data.
-        sv = self.get_sourcedvariable(protected=True)
-        with self.assertRaises(PayloadProtectedError):
-            sv.value
-        self.assertIsNone(sv._value)
-
-    def test_get_scatter_slices(self):
-        sv = self.get_sourcedvariable(protected=True)
-        actual = sv.get_scatter_slices((1, 2, 2))
-        desired = ((slice(0, 3650, None), slice(0, 32, None), slice(0, 64, None)),
-                   (slice(0, 3650, None), slice(0, 32, None), slice(64, 128, None)),
-                   (slice(0, 3650, None), slice(32, 64, None), slice(0, 64, None)),
-                   (slice(0, 3650, None), slice(32, 64, None), slice(64, 128, None)))
-        self.assertEqual(actual, desired)
-
-    def test_conform_units_to(self):
-        with self.assertRaises(ValueError):
-            SourcedVariable(value=[2, 3, 4], conform_units_to='celsius', name='tas')
-        sv = SourcedVariable(conform_units_to='celsius', name='tas', request_dataset='foo')
-        self.assertTrue(get_are_units_equal((sv.conform_units_to, get_units_object('celsius'))))
-
-    @attr('data')
-    def test_conform_units_to_data(self):
-        rd = self.get_request_dataset()
-        sv = SourcedVariable('tas', request_dataset=rd, conform_units_to='celsius')[5:9, 5, 9]
-        self.assertIsNone(sv._value)
-        self.assertEqual(sv.units, 'K')
-        self.assertLess(sv.value.mean(), 200)
-        self.assertEqual(sv.units, 'celsius')
-        self.assertIsNone(sv.conform_units_to)
-
-        # Try with a bounded variable.
-        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius', conform_units_to='K')
-        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
-        self.assertIsNotNone(sv.bounds.conform_units_to)
-        self.assertIsNone(sv._value)
-        self.assertGreater(sv.value.mean(), 250)
-        self.assertEqual(sv.units, 'K')
-        self.assertEqual(sv.bounds.units, 'celsius')
-        self.assertIsNone(sv.bounds._value)
-        self.assertGreater(sv.bounds.value.mean(), 250)
-        self.assertIsNone(sv.bounds.conform_units_to)
-
-    def test_getitem(self):
-        sv = self.get_sourcedvariable()
-        sub = sv[10:20, 5, 6]
-        self.assertEqual(sub.shape, (10, 1, 1))
-        self.assertIsNone(sub._value)
-        self.assertIsNone(sub.dimensions[0].length)
-        self.assertEqual(sub.dimensions[0].length_current, 10)
-
-    def test_get_dimensions(self):
-        sv = self.get_sourcedvariable()
-        self.assertTrue(len(sv.dimensions), 3)
-
-    def test_set_metadata_from_source_(self):
-        sv = self.get_sourcedvariable()
-        sv._set_metadata_from_source_()
-        self.assertEqual(sv.dtype, np.float32)
-        self.assertEqual(sv.fill_value, np.float32(1e20))
-        dims = sv.dimensions
-        self.assertIsNone(dims[0].length)
-        self.assertEqual(dims[0].length_current, 3650)
-        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
-        for d in dims:
-            self.assertIsNone(d.__src_idx__)
-        self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
-
-    def test_get_value_from_source_(self):
-        sv = self.get_sourcedvariable()
-        sub = sv[5:11, 3:6, 5:8]
-        res = sub._get_value_from_source_()
-        self.assertEqual(res.shape, (6, 3, 3))
-
-        with self.nc_scope(self.get_request_dataset().uri, 'r') as ds:
-            var = ds.variables[sv.name]
-            actual = var[5:11, 3:6, 5:8]
-
-        self.assertNumpyAll(res, actual)
-
-    def test_value(self):
-        sv = self.get_sourcedvariable()
-        sub = sv[5:11, 3:6, 5:8]
-        self.assertTrue(sv.value.mean() > 0)
-        self.assertEqual(sub.value.shape, (6, 3, 3))
-
-
 class TestVariable(AbstractTestNewInterface):
     def get_variable(self, return_original_data=True):
         value = [2, 3, 4, 5, 6, 7]
@@ -508,8 +387,8 @@ class TestVariable(AbstractTestNewInterface):
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()
-        var2.name = 'foobar'
-        var2.dimensions[0].name = 'new_time'
+        var2._name = 'foobar'
+        var2.dimensions[0]._name = 'new_time'
         self.assertEqual(var.name, 'time_value')
         self.assertNumpyMayShareMemory(var.value, var2.value)
         var2.value[:] = 100
@@ -754,6 +633,127 @@ class TestVariable(AbstractTestNewInterface):
             self.assertNumpyAll(ds.variables[bv.bounds.name][:], bv.bounds.value)
 
 
+class TestSourcedVariable(AbstractTestNewInterface):
+    def get_sourcedvariable(self, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'tas'
+        if 'request_dataset' not in kwargs:
+            kwargs['request_dataset'] = self.get_request_dataset()
+        sv = SourcedVariable(**kwargs)
+        self.assertIsNone(sv._value)
+        self.assertIsNone(sv._dimensions)
+        self.assertIsNone(sv._dtype)
+        self.assertIsNone(sv._fill_value)
+        return sv
+
+    def test_init(self):
+        sv = self.get_sourcedvariable()
+        self.assertIsInstance(sv._request_dataset, RequestDataset)
+        self.assertEqual(sv.units, 'K')
+
+        sv = self.get_sourcedvariable(name='time_bnds')
+        self.assertIsNone(sv._value)
+        self.assertEqual(sv.ndim, 2)
+        sub = sv[5:10, :]
+        self.assertIsNone(sub._value)
+
+        # Test initializing with a value.
+        sv = SourcedVariable(value=[1, 2, 3], name='foo')
+        sv.create_dimensions()
+        self.assertEqual(sv.dtype, np.int)
+        self.assertEqual(sv.masked_value.fill_value, 999999)
+        self.assertEqual(sv.shape, (3,))
+        self.assertEqual(len(sv.dimensions), 1)
+        sv.create_dimensions(names=['time'])
+        self.assertIsNotNone(sv.dimensions)
+
+        # Test protecting data.
+        sv = self.get_sourcedvariable(protected=True)
+        with self.assertRaises(PayloadProtectedError):
+            sv.value
+        self.assertIsNone(sv._value)
+
+    def test_get_scatter_slices(self):
+        sv = self.get_sourcedvariable(protected=True)
+        actual = sv.get_scatter_slices((1, 2, 2))
+        desired = ((slice(0, 3650, None), slice(0, 32, None), slice(0, 64, None)),
+                   (slice(0, 3650, None), slice(0, 32, None), slice(64, 128, None)),
+                   (slice(0, 3650, None), slice(32, 64, None), slice(0, 64, None)),
+                   (slice(0, 3650, None), slice(32, 64, None), slice(64, 128, None)))
+        self.assertEqual(actual, desired)
+
+    def test_conform_units_to(self):
+        with self.assertRaises(ValueError):
+            SourcedVariable(value=[2, 3, 4], conform_units_to='celsius', name='tas')
+        sv = SourcedVariable(conform_units_to='celsius', name='tas', request_dataset='foo')
+        self.assertTrue(get_are_units_equal((sv.conform_units_to, get_units_object('celsius'))))
+
+    @attr('data')
+    def test_conform_units_to_data(self):
+        rd = self.get_request_dataset()
+        sv = SourcedVariable('tas', request_dataset=rd, conform_units_to='celsius')[5:9, 5, 9]
+        self.assertIsNone(sv._value)
+        self.assertEqual(sv.units, 'K')
+        self.assertLess(sv.value.mean(), 200)
+        self.assertEqual(sv.units, 'celsius')
+        self.assertIsNone(sv.conform_units_to)
+
+        # Try with a bounded variable.
+        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius', conform_units_to='K')
+        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
+        self.assertIsNotNone(sv.bounds.conform_units_to)
+        self.assertIsNone(sv._value)
+        self.assertGreater(sv.value.mean(), 250)
+        self.assertEqual(sv.units, 'K')
+        self.assertEqual(sv.bounds.units, 'celsius')
+        self.assertIsNone(sv.bounds._value)
+        self.assertGreater(sv.bounds.value.mean(), 250)
+        self.assertIsNone(sv.bounds.conform_units_to)
+
+    def test_getitem(self):
+        sv = self.get_sourcedvariable()
+        sub = sv[10:20, 5, 6]
+        self.assertEqual(sub.shape, (10, 1, 1))
+        self.assertIsNone(sub._value)
+        self.assertIsNone(sub.dimensions[0].length)
+        self.assertEqual(sub.dimensions[0].length_current, 10)
+
+    def test_get_dimensions(self):
+        sv = self.get_sourcedvariable()
+        self.assertTrue(len(sv.dimensions), 3)
+
+    def test_set_metadata_from_source_(self):
+        sv = self.get_sourcedvariable()
+        sv._set_metadata_from_source_()
+        self.assertEqual(sv.dtype, np.float32)
+        self.assertEqual(sv.fill_value, np.float32(1e20))
+        dims = sv.dimensions
+        self.assertIsNone(dims[0].length)
+        self.assertEqual(dims[0].length_current, 3650)
+        self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
+        for d in dims:
+            self.assertIsNone(d.__src_idx__)
+        self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
+
+    def test_get_value_from_source_(self):
+        sv = self.get_sourcedvariable()
+        sub = sv[5:11, 3:6, 5:8]
+        res = sub._get_value_from_source_()
+        self.assertEqual(res.shape, (6, 3, 3))
+
+        with self.nc_scope(self.get_request_dataset().uri, 'r') as ds:
+            var = ds.variables[sv.name]
+            actual = var[5:11, 3:6, 5:8]
+
+        self.assertNumpyAll(res, actual)
+
+    def test_value(self):
+        sv = self.get_sourcedvariable()
+        sub = sv[5:11, 3:6, 5:8]
+        self.assertTrue(sv.value.mean() > 0)
+        self.assertEqual(sub.value.shape, (6, 3, 3))
+
+
 class TestVariableCollection(AbstractTestNewInterface):
     def get_variablecollection(self, **kwargs):
         var1 = self.get_variable()
@@ -795,7 +795,7 @@ class TestVariableCollection(AbstractTestNewInterface):
             VariableCollection(variables=[var1, var2])
 
         var2 = self.get_variable()
-        var2.name = 'wunderbar'
+        var2._name = 'wunderbar'
         vc = VariableCollection(variables=[var1, var2])
         self.assertEqual(vc.keys(), ['foo', 'wunderbar'])
 

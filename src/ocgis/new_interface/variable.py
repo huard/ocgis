@@ -1,5 +1,5 @@
 import itertools
-from abc import ABCMeta, abstractproperty
+from abc import ABCMeta, abstractproperty, abstractmethod
 from collections import OrderedDict
 from copy import deepcopy
 from itertools import izip
@@ -25,15 +25,11 @@ from ocgis.util.units import get_units_object, get_conformed_units
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, mask, parent=None):
-        self._mask = None
-
+    def __init__(self, name, parent=None):
+        self._name = name
         if parent is not None:
             assert isinstance(parent, VariableCollection)
-
         self.parent = parent
-        if mask is not None:
-            self.set_mask(mask)
 
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
@@ -42,57 +38,26 @@ class AbstractContainer(AbstractInterfaceObject):
             self._getitem_finalize_(ret, slc)
         else:
             if not isinstance(slc, dict):
-                slc = {self.dimensions[idx].name: slc[idx] for idx in range(self.ndim)}
+                slc = get_dslice(self.dimensions, slc)
             new_parent = ret.parent[slc]
             ret = new_parent[self.name]
         return ret
 
-    @abstractproperty
-    def ndim(self):
-        pass
+    @property
+    def name(self):
+        return self._name
 
     @abstractproperty
     def dimensions(self):
         pass
 
+    @abstractmethod
     def get_mask(self):
-        ret = self._mask
-        if ret is None:
-            if self.value is not None:
-                ret = np.zeros(self.shape, dtype=bool)
-                fill_value = self.fill_value
-                if fill_value is not None:
-                    is_equal = self.value == fill_value
-                    ret[is_equal] = True
-                else:
-                    if self.dtype != object:
-                        self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
-        return ret
+        """:rtype: :class:`numpy.ndarray`"""
 
+    @abstractmethod
     def set_mask(self, mask):
-        mask = np.array(mask, dtype=bool)
-        assert mask.shape == self.shape
-
-        if self.parent is not None:
-            names_container = [d.name for d in self.dimensions]
-            new_backref = self.parent.copy()
-            mask_container = mask
-            for k, v in new_backref.items():
-                v.parent = None
-                if v.ndim > 0:
-                    names_variable = [d.name for d in v.dimensions]
-                    if len(set(names_variable).intersection(names_container)) > 0:
-                        mask_variable = v.get_mask()
-                        for slc, value_mask_container in iter_array(mask_container, return_value=True, use_mask=False):
-                            if value_mask_container:
-                                mapped_slice = get_mapped_slice(slc, names_container, names_variable)
-                                mask_variable[mapped_slice] = True
-                        v.set_mask(mask_variable)
-                v.parent = new_backref
-                new_backref[k] = v
-            self.parent = new_backref
-
-        self._mask = mask
+        pass
 
     def _getitem_initialize_(self, slc):
         try:
@@ -147,7 +112,6 @@ class Variable(AbstractContainer, Attributes):
         else:
             self._bounds_name = None
 
-        self.name = name
         self.units = units
         self.dtype = dtype
 
@@ -161,10 +125,7 @@ class Variable(AbstractContainer, Attributes):
         if create_dimensions:
             self.create_dimensions(names=dimensions)
 
-        # The mask is updated in _set_value_. Use the internal reference to ensure it is not overwritten.
-        if mask is None:
-            mask = self._mask
-        AbstractContainer.__init__(self, mask, parent=parent)
+        AbstractContainer.__init__(self, name, parent=parent)
 
         if bounds is not None:
             self.bounds = bounds
@@ -172,6 +133,9 @@ class Variable(AbstractContainer, Attributes):
         # Add to the parent.
         if self.parent is not None:
             self.parent.add_variable(self, force=True)
+
+        if mask is not None:
+            self.set_mask(mask)
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -516,6 +480,32 @@ class Variable(AbstractContainer, Attributes):
         else:
             ret = False
         return ret
+
+    def get_mask(self):
+        ret = self._mask
+        if ret is None:
+            if self.value is not None:
+                ret = np.zeros(self.shape, dtype=bool)
+                fill_value = self.fill_value
+                if fill_value is not None:
+                    is_equal = self.value == fill_value
+                    ret[is_equal] = True
+                else:
+                    if self.dtype != object:
+                        self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
+        return ret
+
+    def set_mask(self, mask, cascade=False):
+        mask = np.array(mask, dtype=bool)
+        assert mask.shape == self.shape
+        self._mask = mask
+
+        if cascade and self.parent is not None:
+            self.parent.set_mask(self)
+        else:
+            # Bounds will be updated if there is a parent. Otherwise, update the bounds directly.
+            if self.has_bounds:
+                set_mask_by_variable(self, self.bounds)
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function
@@ -966,10 +956,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def __init__(self, name=None, variables=None, attrs=None, parent=None):
         self.name = name
         self.children = OrderedDict()
+        self.parent = parent
 
         AbstractCollection.__init__(self)
         Attributes.__init__(self, attrs)
-        AbstractInterfaceObject.__init__(self, parent=parent)
+        AbstractInterfaceObject.__init__(self)
 
         if variables is not None:
             for variable in get_iter(variables, dtype=Variable):
@@ -1034,6 +1025,14 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if variable.has_bounds:
             self.add_variable(variable.bounds, force=True)
         variable.parent = self
+
+    def set_mask(self, variable):
+        names_container = [d.name for d in variable.dimensions]
+        for k, v in self.items():
+            if v.ndim > 0:
+                names_variable = [d.name for d in v.dimensions]
+                if len(set(names_variable).intersection(names_container)) > 0:
+                    self.set_mask_by_variable(variable, v)
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
@@ -1258,3 +1257,15 @@ def get_variable_value(variable, dimensions):
 
 def get_dslice(dimensions, slc):
     return {d.name: s for d, s in zip(dimensions, slc)}
+
+
+def set_mask_by_variable(source_variable, target_variable):
+    mask_source = source_variable.get_mask()
+    mask_target = target_variable.get_mask()
+    names_source = [d.name for d in source_variable.dimensions]
+    names_target = [d.name for d in target_variable.dimensions]
+    for slc, value_mask_container in iter_array(mask_source, return_value=True, use_mask=False):
+        if value_mask_container:
+            mapped_slice = get_mapped_slice(slc, names_source, names_target)
+            mask_target[mapped_slice] = True
+    target_variable.set_mask(mask_target)
