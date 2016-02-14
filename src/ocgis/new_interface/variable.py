@@ -1032,8 +1032,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         for k, v in self.items():
             if variable.name != k and v.ndim > 0:
                 names_variable = [d.name for d in v.dimensions]
-                if len(set(names_variable).intersection(names_container)) > 0:
-                    set_mask_by_variable(variable, v)
+                slice_map = get_mapping_for_slice(names_container, names_variable)
+                if len(slice_map) > 0:
+                    set_mask_by_variable(variable, v, slice_map)
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
@@ -1204,23 +1205,6 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
     return ret
 
 
-# def set_sliced_backref_variables(ret, slc):
-#     if not isinstance(slc, dict):
-#         if ret.dimensions is None:
-#             raise DimensionsRequiredError('Dimensions required when slicing parent variables.')
-#         else:
-#             slc = {ret.dimensions[idx].name: slc[idx] for idx in range(ret.ndim)}
-#     backref = ret.parent
-#     for key, variable in backref.items():
-#         if ret.name != variable.name:
-#             variable.parent = None
-#             try:
-#                 backref[key] = variable.__getitem__(slc)
-#             except DimensionsRequiredError:
-#                 pass
-#             variable.parent = backref
-
-
 def get_mapped_slice(slc_src, names_src, names_dst):
     ret = [slice(None)] * len(names_dst)
     for idx, name in enumerate(names_dst):
@@ -1260,13 +1244,26 @@ def get_dslice(dimensions, slc):
     return {d.name: s for d, s in zip(dimensions, slc)}
 
 
-def set_mask_by_variable(source_variable, target_variable):
+def set_mask_by_variable(source_variable, target_variable, slice_map=None):
+    if slice_map is None:
+        names_source = [d.name for d in source_variable.dimensions]
+        names_destination = [d.name for d in target_variable.dimensions]
+        slice_map = get_mapping_for_slice(names_source, names_destination)
     mask_source = source_variable.get_mask()
     mask_target = target_variable.get_mask()
-    names_source = [d.name for d in source_variable.dimensions]
-    names_target = [d.name for d in target_variable.dimensions]
-    for slc, value_mask_container in iter_array(mask_source, return_value=True, use_mask=False):
-        if value_mask_container:
-            mapped_slice = get_mapped_slice(slc, names_source, names_target)
-            mask_target[mapped_slice] = True
+    template = [slice(None)] * target_variable.ndim
+    for slc in itertools.product(*[range(ii) for ii in source_variable.shape]):
+        slc = [slice(s, s + 1) for s in slc]
+        if mask_source[slc]:
+            for m in slice_map:
+                template[m[1]] = slc[m[0]]
+            mask_target[slc] = True
     target_variable.set_mask(mask_target)
+
+
+def get_mapping_for_slice(names_source, names_destination):
+    to_map = set(names_source).intersection(names_destination)
+    ret = []
+    for name in to_map:
+        ret.append([names_source.index(name), names_destination.index(name)])
+    return ret
