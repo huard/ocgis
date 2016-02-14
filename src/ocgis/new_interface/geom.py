@@ -382,23 +382,27 @@ class GeometryVariable(AbstractSpatialVariable):
         fill.fill(True)
         ref_fill_mask = fill.reshape(-1)
 
+        # Track global indices because spatial operations only occur on non-masked values.
+        global_index = np.arange(reduce(lambda x, y: x * y, original_mask.shape))
+        global_index = np.ma.array(global_index, mask=original_mask).compressed()
+
         if use_spatial_index:
             si = self.get_spatial_index()
             # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
-            for idx in si.iter_intersects(geometry, self.value.reshape(-1), keep_touches=keep_touches):
-                ref_fill_mask[idx] = False
+            for idx in si.iter_intersects(geometry, self.masked_value.compressed(), keep_touches=keep_touches):
+                ref_fill_mask[global_index[idx]] = False
         else:
             # Prepare the polygon for faster spatial operations.
             prepared = prep(geometry)
             # We are not keeping touches at this point. Remember the mask is an inverse.
-            for idx, geom in iter_array(self.value.reshape(-1), return_value=True):
+            for idx, geom in iter_array(self.masked_value.compressed(), return_value=True):
                 bool_value = False
                 if prepared.intersects(geom):
                     if not keep_touches and geometry.touches(geom):
                         bool_value = True
                 else:
                     bool_value = True
-                ref_fill_mask[idx] = bool_value
+                ref_fill_mask[global_index[idx]] = bool_value
 
         # If everything is masked, this is an empty subset.
         if ref_fill_mask.all():
@@ -438,7 +442,7 @@ class GeometryVariable(AbstractSpatialVariable):
         si = SpatialIndex()
         r_add = si.add
         # Add the geometries to the index.
-        for idx, geom in iter_array(self.value.reshape(-1), return_value=True, use_mask=True):
+        for idx, geom in iter_array(self.masked_value.compressed(), return_value=True):
             r_add(idx[0], geom)
 
         return si

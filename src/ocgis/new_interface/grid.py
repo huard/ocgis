@@ -8,7 +8,7 @@ from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
-from ocgis.new_interface.ocgis_logging import log
+from ocgis.new_interface.ocgis_logging import log, log_entry_exit
 from ocgis.new_interface.variable import VariableCollection, get_dslice
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_formatted_slice
@@ -519,6 +519,7 @@ def get_point_geometry_array(grid):
     return fill
 
 
+@log_entry_exit
 def get_geometry_variable(func, grid, **kwargs):
     kwargs = kwargs.copy()
     value = func(grid)
@@ -540,6 +541,7 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True, check_contai
     return ret
 
 
+@log_entry_exit
 def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None,
                         use_spatial_index=True):
     if mpi_comm is None:
@@ -560,6 +562,8 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
         bounds_sequence = buffered.bounds
         with_geometry = True
+        # Cache the abstraction geometry. This avoids regenerating the geometries during the fill/setitem operations.
+        assert grid.abstraction_geometry is not None
 
     if with_geometry and grid.is_vectorized:
         grid.expand()
@@ -645,6 +649,7 @@ def remove_nones(target):
     return ret
 
 
+@log_entry_exit
 def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     slice_map_template = {'starts': [], 'stops': []}
     slice_map = {}

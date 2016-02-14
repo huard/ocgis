@@ -71,7 +71,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
             sub = grid.get_intersects(subset)
 
-            if ctr > 9:
+            if ctr >= 9:
                 break
 
         raise self.ToTest('finish')
