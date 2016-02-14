@@ -580,3 +580,4 @@ def get_spatial_operation(sc, name, args, kwargs):
         ret = ret
 
     return ret
+
