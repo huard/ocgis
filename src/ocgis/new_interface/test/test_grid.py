@@ -538,6 +538,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(ngrid.get_mask()[1, 1])
         self.assertNumpyAll(grid.masked_value_stacked.compressed(), ngrid.masked_value_stacked.compressed())
 
+    def test_tdk(self):
         # Test with a parent.
         grid = self.get_gridxy(with_parent=True)
         for k in ['tas', 'rhs']:
