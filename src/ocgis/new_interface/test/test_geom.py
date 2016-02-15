@@ -75,10 +75,10 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
             # print sub.shape
 
-            if ctr >= 9:
-                break
+            # if ctr >= 9:
+            #     break
 
-        raise self.ToTest('finish')
+            raise self.ToTest('finish')
 
     def test_read_gis(self):
         g = GeomCabinetIterator(path=self.path_state_boundaries)

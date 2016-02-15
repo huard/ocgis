@@ -155,9 +155,7 @@ class GridXY(AbstractSpatialContainer):
         try:
             ret = self.parent[self._point_name]
         except KeyError:
-            ret = get_geometry_variable(get_point_geometry_array, self, name=self._point_name, attrs={'axis': 'geom'})
-            ret.create_dimensions(names=[d.name for d in self.dimensions])
-            self.parent.add_variable(ret)
+            ret = grid_set_geometry_variable_on_parent(get_point_geometry_array, self, self._point_name)
         return ret
 
     @point.setter
@@ -174,10 +172,7 @@ class GridXY(AbstractSpatialContainer):
             if not self.has_bounds:
                 ret = None
             else:
-                ret = get_geometry_variable(get_polygon_geometry_array, self, name=self._polygon_name,
-                                            attrs={'axis': 'geom'})
-                ret.create_dimensions(names=[d.name for d in self.dimensions])
-                self.parent.add_variable(ret)
+                ret = grid_set_geometry_variable_on_parent(get_polygon_geometry_array, self, self._polygon_name)
         return ret
 
     @polygon.setter
@@ -247,6 +242,11 @@ class GridXY(AbstractSpatialContainer):
     @property
     def _archetype(self):
         return self.y
+
+    def allocate_geometry_variable(self, target):
+        targets = {'point': {'name': self._point_name, 'func': get_point_geometry_array},
+                   'polygon': {'name': self._polygon_name, 'func': get_polygon_geometry_array}}
+        grid_set_geometry_variable_on_parent(targets[target]['func'], self, targets[target]['name'], alloc_only=True)
 
     def create_dimensions(self, names=None):
         if names is None:
@@ -462,8 +462,7 @@ def get_geometry_fill(shape, mask):
     return np.ma.array(np.zeros(shape), mask=mask, dtype=object)
 
 
-def get_polygon_geometry_array(grid):
-    fill = get_geometry_fill(grid.shape, grid.get_mask())
+def get_polygon_geometry_array(grid, fill):
     r_data = fill.data
 
     if grid.is_vectorized and grid.has_bounds:
@@ -497,9 +496,7 @@ def get_polygon_geometry_array(grid):
     return fill
 
 
-def get_point_geometry_array(grid):
-    fill = get_geometry_fill(grid.shape, grid.get_mask())
-
+def get_point_geometry_array(grid, fill):
     # Create geometries for all the underlying coordinates regardless if the data is masked.
     x_data = grid.x.value
     y_data = grid.y.value
@@ -522,7 +519,10 @@ def get_point_geometry_array(grid):
 @log_entry_exit
 def get_geometry_variable(func, grid, **kwargs):
     kwargs = kwargs.copy()
-    value = func(grid)
+    alloc_only = kwargs.pop('alloc_only', False)
+    value = get_geometry_fill(grid.shape, grid.get_mask())
+    if not alloc_only:
+        value = func(grid, value)
     kwargs['value'] = value
     return GeometryVariable(**kwargs)
 
@@ -693,10 +693,8 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
         new_mask.fill(True)
         fill_grid.set_mask(new_mask)
 
-    # Fill the parent grid with its subsets.
-    import ipdb;
-    ipdb.set_trace()
-    fill_grid.abstraction_geometry.allocate_value()
+    # Fill the parent grid with its subsets. Allocate the abstraction geometry to avoid loading all the polygons.
+    fill_grid.allocate_geometry_variable(fill_grid.abstraction)
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
             fill_grid[as_local[idx]] = gs
@@ -729,3 +727,10 @@ def get_coordinate_boolean_array(grid_target, is_vectorized, keep_touches, max_t
     if is_vectorized:
         res_target = np.invert(res_target)
     return res_target
+
+
+def grid_set_geometry_variable_on_parent(func, grid, name, alloc_only=False):
+    ret = get_geometry_variable(func, grid, name=name, attrs={'axis': 'geom'}, alloc_only=alloc_only)
+    ret.create_dimensions(names=[d.name for d in grid.dimensions])
+    grid.parent.add_variable(ret)
+    return ret
