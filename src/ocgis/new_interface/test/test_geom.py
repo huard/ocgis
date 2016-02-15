@@ -16,6 +16,7 @@ from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.test.base import attr
 from ocgis.util.geom_cabinet import GeomCabinetIterator
 from ocgis.util.spatial.index import SpatialIndex
 
@@ -60,17 +61,29 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertTrue(gvar2.shape[0] > 0)
             self.assertFalse(gvar2.get_mask().any())
 
+    @attr('slow')
     def test_combo_read_and_spatial_operations(self):
         """Test various spatial operations with multiple geometries and a grid."""
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         grid = self.get_gridxy_global(resolution=3.0)
+        path_shp = self.get_temporary_file_path('out')
+        path_nc = self.get_temporary_file_path('out.nc')
+        value_shape = [3] + list(grid.shape)
+        some_data = Variable(name='some_data', value=np.random.rand(*value_shape), dimensions=['time', 'y', 'x'])
+        grid.parent.add_variable(some_data)
+
         for ctr, subset in enumerate(gvar.value):
             self.log.debug(ctr)
             # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset_{}'.format(ctr))
             gg = GeometryVariable(value=subset)
 
             sub = grid.get_intersects(subset)
+            sub.write_fiona(path_shp)
+            sub.write_netcdf(path_nc)
+            self.ncdump(path_nc)
+            import ipdb;
+            ipdb.set_trace()
             # self.write_fiona_htmp(sub, 'grid_sub_{}'.format(ctr))
 
             # print sub.shape

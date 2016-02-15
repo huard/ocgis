@@ -362,7 +362,7 @@ class GeometryVariable(AbstractSpatialVariable):
             obj.value[idx] = geom.intersection(args[0])
         return ret
 
-    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
+    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False, cascade=False):
         """
         :param geometry: The Shapely geometry to use for subsetting.
         :type geometry: :class:`shapely.geometry.BaseGeometry'
@@ -409,7 +409,7 @@ class GeometryVariable(AbstractSpatialVariable):
             raise EmptySubsetError(self.name)
 
         # Set the returned value to the fill array.
-        ret.set_mask(np.logical_or(fill, original_mask), cascade=True)
+        ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
         return ret
 
     def get_intersection_masked(self, *args, **kwargs):

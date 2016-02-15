@@ -41,7 +41,7 @@ class GridXY(AbstractSpatialContainer):
             parent = VariableCollection(variables=new_variables)
         else:
             for var in new_variables:
-                parent[var.name] = var
+                parent.add_variable(var, force=True)
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
 

@@ -66,8 +66,8 @@ class AbstractTestNewInterface(TestBase):
         vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
         vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
         if with_xy_bounds:
-            vx.set_extrapolated_bounds()
-            vy.set_extrapolated_bounds()
+            vx.set_extrapolated_bounds('xbounds', 'bounds')
+            vy.set_extrapolated_bounds('ybounds', 'bounds')
 
         if with_parent:
             np.random.seed(1)
