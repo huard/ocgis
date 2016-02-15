@@ -567,8 +567,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
         bounds_sequence = buffered.bounds
         with_geometry = True
-        # Cache the abstraction geometry. This avoids regenerating the geometries during the fill/setitem operations.
-        assert grid.abstraction_geometry is not None
 
     if with_geometry and grid.is_vectorized:
         grid.expand()
@@ -695,6 +693,10 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
         new_mask.fill(True)
         fill_grid.set_mask(new_mask)
 
+    # Fill the parent grid with its subsets.
+    import ipdb;
+    ipdb.set_trace()
+    fill_grid.abstraction_geometry.allocate_value()
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
             fill_grid[as_local[idx]] = gs

@@ -354,8 +354,7 @@ class Variable(AbstractContainer, Attributes):
                 msg = 'Value shapes for variables with unlimited dimensions are undetermined.'
                 raise ValueError(msg)
             elif len(dimensions) > 0:
-                new_shape = get_dimension_lengths(dimensions)
-                ret = np.zeros(new_shape, dtype=self.dtype)
+                ret = variable_get_zeros(dimensions, self.dtype)
         return ret
 
     def _set_value_(self, value):
@@ -507,6 +506,9 @@ class Variable(AbstractContainer, Attributes):
             # Bounds will be updated if there is a parent. Otherwise, update the bounds directly.
             if self.has_bounds:
                 set_mask_by_variable(self, self.bounds)
+
+    def allocate_value(self):
+        self.value = variable_get_zeros(self.dimensions, self.dtype)
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function
@@ -1268,4 +1270,10 @@ def get_mapping_for_slice(names_source, names_destination):
     ret = []
     for name in to_map:
         ret.append([names_source.index(name), names_destination.index(name)])
+    return ret
+
+
+def variable_get_zeros(dimensions, dtype):
+    new_shape = get_dimension_lengths(dimensions)
+    ret = np.zeros(new_shape, dtype=dtype)
     return ret
