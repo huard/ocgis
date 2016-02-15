@@ -7,13 +7,14 @@ import numpy as np
 from numpy.testing.utils import assert_equal
 from shapely import wkt
 from shapely.geometry import Point, box, MultiPolygon, shape
+from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects, get_geometry_fill
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
@@ -37,38 +38,40 @@ class Test(AbstractTestNewInterface):
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
         bounds_sequence_geometry = box(*bounds_sequence)
 
-        for combo in itertools.product([True, False], [False, True], [False, True], [True, False],
-                                       [bounds_sequence, bounds_sequence_geometry]):
+        keywords = dict(is_vectorized=[True, False], has_bounds=[False, True], use_bounds=[False, True],
+                        keep_touches=[True, False], bounds_sequence=[bounds_sequence, bounds_sequence_geometry])
+
+        for k in self.iter_product_keywords(keywords):
             if MPI_RANK == 0:
-                log.debug(combo)
-            is_vectorized, has_bounds, use_bounds, keep_touches, bounds_sequence = combo
+                log.debug(k)
 
             grid = self.get_gridxy()
-            if not is_vectorized:
+            if not k.is_vectorized:
                 grid.expand()
-            if has_bounds:
+            if k.has_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
 
-            grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=keep_touches,
-                                                use_bounds=use_bounds)
-
+            grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=k.keep_touches,
+                                                use_bounds=k.use_bounds)
 
             log.info('asserts')
             if MPI_RANK == 0:
-                self.write_fiona_htmp(grid_sub, 'grid_sub_combined')
+                # Test geometries are filled appropriately after allocation.
+                for t in grid_sub.abstraction_geometry.value.flat:
+                    self.assertIsInstance(t, BaseGeometry)
                 self.assertIsInstance(grid_sub, GridXY)
-                if keep_touches:
-                    if has_bounds and use_bounds:
+                if k.keep_touches:
+                    if k.has_bounds and k.use_bounds:
                         desired = (slice(0, 3, None), slice(0, 3, None))
                     else:
                         desired = (slice(1, 3, None), slice(1, 2, None))
                 else:
-                    if has_bounds and use_bounds:
+                    if k.has_bounds and k.use_bounds:
                         desired = (slice(1, 3, None), slice(1, 2, None))
                     else:
                         desired = (slice(1, 2, None), slice(1, 2, None))
-                self.assertEqual(grid.has_bounds, has_bounds)
-                if (not has_bounds or not use_bounds) and isinstance(bounds_sequence, tuple) and is_vectorized:
+                self.assertEqual(grid.has_bounds, k.has_bounds)
+                if (not k.has_bounds or not k.use_bounds) and isinstance(bounds_sequence, tuple) and k.is_vectorized:
                     self.assertTrue(grid.is_vectorized)
                 else:
                     self.assertFalse(grid.is_vectorized)
@@ -453,7 +456,8 @@ class TestGridXY(AbstractTestNewInterface):
                 grid.expand()
                 self.assertFalse(grid.is_vectorized)
                 actual = self.polygon_value_alternate_ordering
-            poly = GeometryVariable(value=get_polygon_geometry_array(grid))
+            fill = get_geometry_fill(grid.shape, grid.get_mask())
+            poly = GeometryVariable(value=get_polygon_geometry_array(grid, fill))
             self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
 
     def test_resolution(self):

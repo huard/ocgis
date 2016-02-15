@@ -1255,7 +1255,9 @@ def set_mask_by_variable(source_variable, target_variable, slice_map=None):
     mask_source = source_variable.get_mask()
     mask_target = target_variable.get_mask()
     # If dimensions are equivalent, do not execute the loop.
-    if not all([ii[0] == ii[1] for ii in slice_map]) or source_variable.ndim != target_variable.ndim:
+    if all([ii[0] == ii[1] for ii in slice_map]) and source_variable.ndim == target_variable.ndim:
+        mask_target = mask_source
+    else:
         template = [slice(None)] * target_variable.ndim
         for slc in itertools.product(*[range(ii) for ii in source_variable.shape]):
             slc = [slice(s, s + 1) for s in slc]

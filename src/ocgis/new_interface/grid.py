@@ -99,6 +99,29 @@ class GridXY(AbstractSpatialContainer):
                 pass
         return ret
 
+    @property
+    def has_allocated_point(self):
+        if self._point_name in self.parent:
+            return True
+        else:
+            return False
+
+    @property
+    def has_allocated_polygon(self):
+        if self._polygon_name in self.parent:
+            return True
+        else:
+            return False
+
+    @property
+    def has_allocated_abstraction_geometry(self):
+        if self.abstraction == 'point':
+            return self.has_allocated_point
+        elif self.abstraction == 'polygon':
+            return self.has_allocated_polygon
+        else:
+            raise NotImplementedError(self.abstraction)
+
     def expand(self):
         # tdk: doc
 
@@ -298,10 +321,6 @@ class GridXY(AbstractSpatialContainer):
                                        use_spatial_index=use_spatial_index)
 
         if MPI_RANK == 0:
-            # Set the mask to update variables only for non-vectorized grids.
-            if not self.is_vectorized:
-                ret.set_mask(self.get_mask()[slc])
-
             if return_slice:
                 ret = (ret, slc)
         else:
@@ -402,9 +421,7 @@ class GridXY(AbstractSpatialContainer):
     def get_intersects_masked(self, *args, **kwargs):
         self.log.debug('on grid')
         ret = self.copy()
-        new_mask = self.abstraction_geometry.get_intersects_masked(*args, **kwargs).get_mask()
-        # tdk: this unecessarily sets the mask of the abstraction geometry twice.
-        ret.set_mask(new_mask, cascade=True)
+        ret.parent = ret.abstraction_geometry.get_intersects_masked(*args, **kwargs).parent
         self.log.debug('on grid')
         return ret
 
@@ -697,9 +714,13 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
         fill_grid.set_mask(new_mask)
 
     # Fill the parent grid with its subsets. Allocate the abstraction geometry to avoid loading all the polygons.
-    fill_grid.allocate_geometry_variable(fill_grid.abstraction)
+    build = True
     for idx, gs in enumerate(grid_subs):
         if gs is not None:
+            if build and gs.has_allocated_abstraction_geometry:
+                if not fill_grid.has_allocated_abstraction_geometry:
+                    fill_grid.allocate_geometry_variable(fill_grid.abstraction)
+                build = False
             fill_grid[as_local[idx]] = gs
 
     if grid.is_vectorized:
