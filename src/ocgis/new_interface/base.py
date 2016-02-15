@@ -2,9 +2,15 @@ from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from copy import copy
 
+from ocgis.new_interface.ocgis_logging import log
+
 
 class AbstractInterfaceObject(object):
     __metaclass__ = ABCMeta
+
+    @property
+    def log(self):
+        return log
 
     def copy(self):
         """Return a shallow copy of self."""
@@ -13,11 +19,6 @@ class AbstractInterfaceObject(object):
     @abstractmethod
     def write_netcdf(self, *args, **kwargs):
         """Write to an open NetCDF dataset object."""
-
-    #tdk: remove this is to prevent any access to the mask attribute
-    @property
-    def mask(self):
-        raise NotImplementedError
 
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):

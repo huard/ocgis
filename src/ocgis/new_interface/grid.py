@@ -398,11 +398,14 @@ class GridXY(AbstractSpatialContainer):
     def abstraction_geometry(self):
         return getattr(self, self.abstraction)
 
+    @log_entry_exit
     def get_intersects_masked(self, *args, **kwargs):
+        self.log.debug('on grid')
         ret = self.copy()
         new_mask = self.abstraction_geometry.get_intersects_masked(*args, **kwargs).get_mask()
         # tdk: this unecessarily sets the mask of the abstraction geometry twice.
         ret.set_mask(new_mask, cascade=True)
+        self.log.debug('on grid')
         return ret
 
     def get_nearest(self, *args, **kwargs):

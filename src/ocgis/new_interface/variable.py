@@ -1030,6 +1030,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         variable.parent = self
 
     def set_mask(self, variable):
+        self.log.debug('set_mask on VariableCollection {}'.format(variable.name))
         names_container = [d.name for d in variable.dimensions]
         for k, v in self.items():
             if variable.name != k and v.ndim > 0:

@@ -16,6 +16,7 @@ from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError, GridDeficientError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.ocgis_logging import log_entry_exit
 from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -362,6 +363,7 @@ class GeometryVariable(AbstractSpatialVariable):
             obj.value[idx] = geom.intersection(args[0])
         return ret
 
+    @log_entry_exit
     def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
         """
         :param geometry: The Shapely geometry to use for subsetting.
