@@ -64,12 +64,16 @@ class TestGeometryVariable(AbstractTestNewInterface):
         """Test various spatial operations with multiple geometries and a grid."""
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
-        grid = self.get_gridxy_global(resolution=3.0)
+        grid = self.get_gridxy_global(resolution=1.0)
         for ctr, subset in enumerate(gvar.value):
             self.log.debug(ctr)
+            # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset_{}'.format(ctr))
             gg = GeometryVariable(value=subset)
 
             sub = grid.get_intersects(subset)
+            # self.write_fiona_htmp(sub, 'grid_sub_{}'.format(ctr))
+
+            # print sub.shape
 
             if ctr >= 9:
                 break

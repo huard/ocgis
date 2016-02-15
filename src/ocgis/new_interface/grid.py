@@ -544,11 +544,14 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True, check_contai
 @log_entry_exit
 def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None,
                         use_spatial_index=True):
+    # Get local communicator attributes.
     if mpi_comm is None:
         mpi_comm = MPI_COMM
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
 
+    # The first subset uses bounds sequence. Extract the sequence from the subset geometry if required. Set a flag to
+    # indicate if we are using a geometry for the subset.
     try:
         bounds_sequence = subset.bounds
         with_geometry = True
@@ -559,6 +562,8 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
 
     # If we are dealing with bounds, always trigger spatial operations.
     if use_bounds and grid.has_bounds:
+        # Buffer the sequence to ensure centroids for cells with bounds are captured. Bounds always require spatial
+        # operations.
         buffered = box(*bounds_sequence).buffer(1.5 * grid.resolution)
         bounds_sequence = buffered.bounds
         with_geometry = True
