@@ -50,9 +50,13 @@ class Test(AbstractTestNewInterface):
                 grid.expand()
             if k.has_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
+                self.assertTrue(grid.has_bounds)
 
             grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=k.keep_touches,
                                                 use_bounds=k.use_bounds)
+
+            if k.has_bounds:
+                self.assertTrue(grid.has_bounds)
 
             log.info('asserts')
             if MPI_RANK == 0:
