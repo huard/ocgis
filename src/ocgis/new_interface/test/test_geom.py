@@ -64,6 +64,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
     @attr('slow')
     def test_combo_read_and_spatial_operations(self):
         """Test various spatial operations with multiple geometries and a grid."""
+        raise self.ToTest('finish')
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         grid = self.get_gridxy_global(resolution=3.0)
@@ -75,16 +76,12 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         for ctr, subset in enumerate(gvar.value):
             self.log.debug(ctr)
-            # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset_{}'.format(ctr))
             gg = GeometryVariable(value=subset)
 
             sub = grid.get_intersects(subset)
             sub.write_fiona(path_shp)
             sub.write_netcdf(path_nc)
             self.ncdump(path_nc)
-            import ipdb;
-            ipdb.set_trace()
-            # self.write_fiona_htmp(sub, 'grid_sub_{}'.format(ctr))
 
             # print sub.shape
 

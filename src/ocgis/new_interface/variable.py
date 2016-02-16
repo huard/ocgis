@@ -1029,10 +1029,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             self.add_variable(variable.bounds, force=True)
         variable.parent = self
 
-    def set_mask(self, variable):
+    def set_mask(self, variable, exclude=None):
         self.log.debug('set_mask on VariableCollection {}'.format(variable.name))
         names_container = [d.name for d in variable.dimensions]
         for k, v in self.items():
+            if exclude is not None and k in exclude:
+                continue
             if variable.name != k and v.ndim > 0:
                 names_variable = [d.name for d in v.dimensions]
                 slice_map = get_mapping_for_slice(names_container, names_variable)

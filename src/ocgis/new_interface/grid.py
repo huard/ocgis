@@ -301,9 +301,7 @@ class GridXY(AbstractSpatialContainer):
         for v in self.get_member_variables():
             v.set_mask(value)
         if cascade:
-            members = self.get_member_variables(include_bounds=True)
-            members = [m.name for m in members]
-            thh
+            grid_set_mask_cascade(self)
 
     def iter(self, **kwargs):
         self.expand()
@@ -323,6 +321,9 @@ class GridXY(AbstractSpatialContainer):
 
         ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds,
                                        use_spatial_index=use_spatial_index)
+
+        if cascade:
+            grid_set_mask_cascade(ret)
 
         if MPI_RANK == 0:
             if return_slice:
@@ -761,3 +762,9 @@ def grid_set_geometry_variable_on_parent(func, grid, name, alloc_only=False):
     ret.create_dimensions(names=[d.name for d in grid.dimensions])
     grid.parent.add_variable(ret)
     return ret
+
+
+def grid_set_mask_cascade(grid):
+    members = grid.get_member_variables(include_bounds=True)
+    members = [m.name for m in members]
+    grid.parent.set_mask(grid._archetype, exclude=members)

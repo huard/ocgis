@@ -447,18 +447,17 @@ class TestGridXY(AbstractTestNewInterface):
         grid = self.get_gridxy(with_xy_bounds=True, with_parent=True)
         for t in ['xbounds', 'ybounds']:
             self.assertIn(t, grid.parent)
-        self.write_fiona_htmp(grid, 'grid')
         subset = 'Polygon ((100.81193771626298883 42.17577854671281301, 101.13166089965399408 42.21211072664360842, 101.34965397923876651 41.18754325259516236, 103.68944636678200766 41.34013840830451159, 103.63858131487890546 41.22387543252595776, 100.77560553633219342 41.08581314878893664, 100.81193771626298883 42.17577854671281301))'
         subset = wkt.loads(subset)
         sub = grid.get_intersects(subset, cascade=True)
-        self.write_fiona_htmp(sub, 'sub')
         self.assertTrue(sub.get_mask().any())
         self.assertTrue(sub.abstraction_geometry.get_mask().any())
+        mask_slice = {'ydim': slice(1, 2), 'xdim': slice(1, 3)}
         for v in sub.parent.values():
-            log.debug(v.name)
             self.assertTrue(v.get_mask().any())
-        import ipdb;
-        ipdb.set_trace()
+            self.assertFalse(v.get_mask().all())
+            actual = v[mask_slice].get_mask()
+            self.assertTrue(np.all(actual))
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
