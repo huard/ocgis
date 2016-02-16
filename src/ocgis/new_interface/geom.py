@@ -377,40 +377,17 @@ class GeometryVariable(AbstractSpatialVariable):
 
         ret = self.copy()
         original_mask = ret.get_mask().copy()
-        # Create the fill array and reference the mask. This is the output geometry value array.
-        fill = original_mask.copy()
-        fill.fill(True)
-        ref_fill_mask = fill.reshape(-1)
-
-        # Track global indices because spatial operations only occur on non-masked values.
-        global_index = np.arange(reduce(lambda x, y: x * y, original_mask.shape))
-        global_index = np.ma.array(global_index, mask=original_mask).compressed()
-
-        if use_spatial_index:
-            si = self.get_spatial_index()
-            # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
-            for idx in si.iter_intersects(geometry, self.masked_value.compressed(), keep_touches=keep_touches):
-                ref_fill_mask[global_index[idx]] = False
-        else:
-            # Prepare the polygon for faster spatial operations.
-            prepared = prep(geometry)
-            # We are not keeping touches at this point. Remember the mask is an inverse.
-            for idx, geom in iter_array(self.masked_value.compressed(), return_value=True):
-                bool_value = False
-                if prepared.intersects(geom):
-                    if not keep_touches and geometry.touches(geom):
-                        bool_value = True
-                else:
-                    bool_value = True
-                ref_fill_mask[global_index[idx]] = bool_value
-
-        # If everything is masked, this is an empty subset.
-        if ref_fill_mask.all():
-            raise EmptySubsetError(self.name)
-
-        # Set the returned value to the fill array.
+        fill = geometryvariable_get_mask_from_intersects(self, geometry, use_spatial_index=use_spatial_index,
+                                                         keep_touches=keep_touches,
+                                                         original_mask=original_mask)
         ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
         return ret
+
+    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None):
+        return geometryvariable_get_mask_from_intersects(self, geometry,
+                                                         use_spatial_index=use_spatial_index,
+                                                         keep_touches=keep_touches,
+                                                         original_mask=original_mask)
 
     def get_intersection_masked(self, *args, **kwargs):
         ret = self.get_intersects_masked(*args, **kwargs)
@@ -584,3 +561,38 @@ def get_spatial_operation(sc, name, args, kwargs):
 
     return ret
 
+
+def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=True,
+                                              keep_touches=False, original_mask=None):
+    # Create the fill array and reference the mask. This is the output geometry value array.
+    if original_mask is None:
+        original_mask = gvar.get_mask()
+    fill = original_mask.copy()
+    fill.fill(True)
+    ref_fill_mask = fill.reshape(-1)
+    # Track global indices because spatial operations only occur on non-masked values.
+    global_index = np.arange(reduce(lambda x, y: x * y, original_mask.shape))
+    global_index = np.ma.array(global_index, mask=original_mask).compressed()
+    if use_spatial_index:
+        si = gvar.get_spatial_index()
+        # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
+        for idx in si.iter_intersects(geometry, gvar.masked_value.compressed(), keep_touches=keep_touches):
+            ref_fill_mask[global_index[idx]] = False
+    else:
+        # Prepare the polygon for faster spatial operations.
+        prepared = prep(geometry)
+        # We are not keeping touches at this point. Remember the mask is an inverse.
+        for idx, geom in iter_array(gvar.masked_value.compressed(), return_value=True):
+            bool_value = False
+            if prepared.intersects(geom):
+                if not keep_touches and geometry.touches(geom):
+                    bool_value = True
+            else:
+                bool_value = True
+            ref_fill_mask[global_index[idx]] = bool_value
+
+    # If everything is masked, this is an empty subset.
+    if ref_fill_mask.all():
+        raise EmptySubsetError(gvar.name)
+
+    return fill

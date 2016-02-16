@@ -450,7 +450,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.write_fiona_htmp(grid, 'grid')
         subset = 'Polygon ((100.81193771626298883 42.17577854671281301, 101.13166089965399408 42.21211072664360842, 101.34965397923876651 41.18754325259516236, 103.68944636678200766 41.34013840830451159, 103.63858131487890546 41.22387543252595776, 100.77560553633219342 41.08581314878893664, 100.81193771626298883 42.17577854671281301))'
         subset = wkt.loads(subset)
-        sub = grid.get_intersects(subset)
+        sub = grid.get_intersects(subset, cascade=True)
         self.write_fiona_htmp(sub, 'sub')
         self.assertTrue(sub.get_mask().any())
         self.assertTrue(sub.abstraction_geometry.get_mask().any())

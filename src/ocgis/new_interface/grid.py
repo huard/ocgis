@@ -88,15 +88,18 @@ class GridXY(AbstractSpatialContainer):
             self.x[slc] = grid.x
             self.y[slc] = grid.y
 
-    @property
-    def _protected_variables(self):
+    def get_member_variables(self, include_bounds=False):
         targets = [self._x_name, self._y_name, self._point_name, self._polygon_name]
         ret = []
         for target in targets:
             try:
-                ret.append(self.parent[target])
+                var = self.parent[target]
             except KeyError:
                 pass
+            else:
+                ret.append(var)
+                if include_bounds and var.has_bounds:
+                    ret.append(var.bounds)
         return ret
 
     @property
@@ -295,12 +298,12 @@ class GridXY(AbstractSpatialContainer):
 
     def set_mask(self, value, cascade=False):
         self.expand()
+        for v in self.get_member_variables():
+            v.set_mask(value)
         if cascade:
-            self._archetype.set_mask(value)
-            self.parent.set_mask(self._archetype)
-        else:
-            for v in self._protected_variables:
-                v.set_mask(value)
+            members = self.get_member_variables(include_bounds=True)
+            members = [m.name for m in members]
+            thh
 
     def iter(self, **kwargs):
         self.expand()
@@ -310,7 +313,8 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto', use_spatial_index=True):
+    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto', use_spatial_index=True,
+                       cascade=False):
         if use_bounds == 'auto':
             if self.abstraction == 'polygon':
                 use_bounds = True
@@ -417,12 +421,11 @@ class GridXY(AbstractSpatialContainer):
     def abstraction_geometry(self):
         return getattr(self, self.abstraction)
 
-    @log_entry_exit
     def get_intersects_masked(self, *args, **kwargs):
-        self.log.debug('on grid')
         ret = self.copy()
-        ret.parent = ret.abstraction_geometry.get_intersects_masked(*args, **kwargs).parent
-        self.log.debug('on grid')
+        cascade = kwargs.pop('cascade', False)
+        fill = self.abstraction_geometry.get_mask_from_intersects(*args, **kwargs)
+        self.set_mask(fill, cascade=cascade)
         return ret
 
     def get_nearest(self, *args, **kwargs):
