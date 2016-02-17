@@ -701,6 +701,7 @@ class Variable(AbstractContainer, Attributes):
 
 
 class SourcedVariable(Variable):
+    # tdk: handle add_offset and scale_factor
     def __init__(self, *args, **kwargs):
         self._conform_units_to = None
 
