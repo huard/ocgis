@@ -75,11 +75,10 @@ class TestOcgField(AbstractTestNewInterface):
         desired = OrderedDict(
             [('time', (3,)), ('time_bounds', (3, 2)), ('other', (3,)), ('xc', (1,)), ('yc', (2,)), ('data', (1, 2))])
         self.assertEqual(spatial_sub.shapes, desired)
-        print spatial_sub.shapes
 
-        path = self.get_temporary_file_path('foo.nc')
-        spatial_sub.write_netcdf(path)
-        self.ncdump(path)
+        # path = self.get_temporary_file_path('foo.nc')
+        # spatial_sub.write_netcdf(path)
+        # self.ncdump(path)
 
 # class TestFieldBundle2(AbstractTestNewInterface):
 #
