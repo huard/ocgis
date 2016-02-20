@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from copy import copy, deepcopy
+from copy import deepcopy
 
 from ocgis.new_interface.geom import SpatialContainer, AbstractSpatialObject
 from ocgis.new_interface.grid import GridXY
@@ -7,15 +7,42 @@ from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.helpers import get_formatted_slice
 
 _DIMENSION_MAP = OrderedDict()
-_DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': 'realization'}
-_DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': 'time'}
-_DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': 'level'}
-_DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': 'y'}
-_DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': 'x'}
-_DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ngeom'}, 'variable': 'geom'}
+_DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': None}
+_DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': None, 'bounds': None}
+_DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': None, 'bounds': None}
+_DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': None, 'bounds': None}
+_DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': None, 'bounds': None}
+_DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None}
 
-# schema = {'T': 'time', 'Y': 'lat', 'X': 'lon'}
-# _FIELDBUNDLE_DIMENSION_NAMES = {k: [k] for k in _FIELDBUNDLE_DIMENSIONS}
+
+class OcgField(VariableCollection):
+    # tdk: test with different dimension names
+
+    def __init__(self, *args, **kwargs):
+        self.dimension_map = kwargs.pop('dimension_map', _DIMENSION_MAP)
+
+        super(OcgField, self).__init__(*args, **kwargs)
+
+    @property
+    def realization(self):
+        variable = self.dimension_map['realization']['variable']
+        if variable is None:
+            ret = None
+        else:
+            ret = self[variable]
+        return ret
+
+    @property
+    def time(self):
+        variable = self.dimension_map['time']['variable']
+        bounds = self.dimension_map['time']['bounds']
+        if variable is None:
+            ret = None
+        else:
+            ret = self[variable]
+            if bounds is not None:
+                ret.bounds = bounds
+        return ret
 
 
 class FieldBundle2(AbstractSpatialObject):

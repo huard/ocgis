@@ -1,145 +1,161 @@
-import numpy as np
-from shapely.geometry import Point
-
-from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
-from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.field import FieldBundle2
+from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, VariableCollection
 
 
-class TestFieldBundle2(AbstractTestNewInterface):
-
-    def get_fieldbundle(self, **kwargs):
-        variables = []
-        if 'fields' not in kwargs:
-            dims = [Dimension('time'), Dimension('level', length=4)]
-            value = np.arange(0, 3 * 4).reshape(3, 4)
-            variable = BoundedVariable(value=value, name='bvar', dimensions=dims, units='kelvin')
-
-            value2 = np.swapaxes(value * 2, 0, 1)
-            dims.reverse()
-            variable2 = BoundedVariable(value=value2, name='cvar', dimensions=dims)
-
-            kwargs['fields'] = [variable, variable2]
-        if 'level' not in kwargs:
-            level = self.get_levelvariable()
-            variables.append(level)
-        if 'time' not in kwargs:
-            time = self.get_temporalvariable()
-            variables.append(time)
-        kwargs['variables'] = variables
-        return FieldBundle2(**kwargs)
-
-    def get_levelvariable(self):
-        level = BoundedVariable(value=[0, 25, 50, 75], name='level')
-        level.create_dimensions('level')
-        return level
-
-    def get_temporalvariable(self):
-        dim = Dimension('time')
-        time = TemporalVariable(value=[1, 2, 3], name='time', dimensions=dim)
-        return time
+class TestOcgField(AbstractTestNewInterface):
+    def get_ocgfield(self, *args, **kwargs):
+        return OcgField(*args, **kwargs)
 
     def test_init(self):
-        fb = self.get_fieldbundle()
-        self.assertEqual(fb.fields.keys(), ['bvar', 'cvar'])
-        self.assertAsSetEqual(fb.variables.keys(), ['bvar', 'cvar', 'time', 'level'])
-        self.assertIsInstance(fb.fields['bvar'], Variable)
-        self.assertIn('time', fb.variables)
-        self.assertIsNotNone(fb.time)
+        f = self.get_ocgfield()
+        self.assertIsInstance(f, OcgField)
 
-    def test_getitem(self):
-        fb = self.get_fieldbundle()
+    def test_time(self):
+        time = TemporalVariable(value=[20, 30, 40], dimensions=['the_time'], dtype=float, name='time')
+        time_bounds = TemporalVariable(value=[[15, 25], [25, 35], [35, 45]], dimensions=['the_time_bounds', 'bounds'],
+                                       dtype=float, name='time_bounds')
+        f = self.get_ocgfield(variables=[time, time_bounds])
+        self.assertIsNone(f.realization)
+        self.assertIsNone(f.time)
+        f.dimension_map['time']['variable'] = time.name
+        self.assertNumpyAll(f.time.value, time.value)
+        self.assertIsNone(f.time.bounds)
+        f.dimension_map['time']['bounds'] = time_bounds.name
+        self.assertNumpyAll(f.time.bounds.value, time_bounds.value)
+        print f.time.bounds.dimensions
 
-        sub = fb[1, 3]
-        self.assertEqual(sub.fields.keys(), ['bvar', 'cvar'])
-        vars_fb = fb.variables
-        vars_sub = sub.variables
-        for v in vars_sub.values():
-            self.assertTrue(all([ii == 1 for ii in v.shape]))
-        for v in vars_fb.values():
-            self.assertTrue(all([ii != 1 for ii in v.shape]))
-        for f, s in zip(vars_fb.values(), vars_sub.values()):
-            self.assertTrue(np.may_share_memory(f.value, s.value))
-        self.assertNumpyAll(vars_sub['time'].value, vars_fb['time'][1].value)
-        self.assertAsSetEqual(vars_sub.keys(), ['bvar', 'cvar', 'level', 'time'])
-        self.assertEqual(vars_fb.keys(), vars_sub.keys())
-
-        sub2 = fb[:, 3]
-        for field in sub2.fields.values():
-            if field.name == 'bvar':
-                self.assertEqual(field.shape, (3, 1))
-            elif field.name == 'cvar':
-                self.assertEqual(field.shape, (1, 3))
-            self.assertIsNone(field._backref)
-        self.assertEqual(sub2.variables['level'].shape, (1,))
-        self.assertEqual(sub2.variables['time'].shape, (3,))
-
-    def test_set_dimension_variable(self):
-        fb = self.get_fieldbundle()
-        fb.crs = WGS84()
-        fb.variables.pop('time')
-        self.assertIsNone(fb.time)
-        time = Variable(value=[4, 5, 6], name='time')
-        time.create_dimensions('time')
-        fb.variables.add_variable(time)
-        fb.set_dimension_variable('time', 'time')
-        self.assertNumpyAll(fb.time.value, time.value)
-        sub = fb[1, :]
-        for field in sub.fields.values():
-            for _, record in field.iter():
-                self.assertIn(time.name, record)
-        bvar, cvar = sub.fields.values()
-        self.assertEqual(np.mean(cvar.value / 2), np.mean(bvar.value))
-        self.assertEqual(set((cvar.value / 2).flatten().tolist()),
-                         set(bvar.value.flatten().tolist()))
-        self.assertNumpyAll(sub.variables['time'].value, time[1].value)
-        self.assertNumpyAll(sub.time.value, time[1].value)
-        self.assertEqual(time.shape, (3,))
-        self.assertNumpyMayShareMemory(time.value, fb.time.value)
-        path = self.get_temporary_file_path('foo.nc')
-        sub.write_netcdf(path)
-        vc = VariableCollection.read_netcdf(path)
-        self.assertEqual(vc['time'].attrs['axis'], 'T')
-        self.assertEqual(vc['level'].attrs['axis'], 'L')
-        path2 = self.get_temporary_file_path('foo1.nc')
-        vc.write_netcdf(path2)
-        self.assertNcEqual(path, path2)
-
-    def test_spatial(self):
-        x = BoundedVariable(value=[1, 2, 3], dtype=float, name='x')
-        x.create_dimensions('x')
-        y = BoundedVariable(value=[10, 20, 30, 40], dtype=float, name='y')
-        y.create_dimensions('y')
-
-        fb = FieldBundle2(variables=[x, y])
-        fb.spatial.grid.x.value[:] = 50
-        self.assertTrue(np.all(fb.variables['x'].value == 50))
-        spatial = fb.spatial
-        desired_crs = CoordinateReferenceSystem(epsg=2136)
-        spatial.grid.crs = desired_crs
-        fb2 = FieldBundle2(spatial=spatial)
-        self.assertEqual(desired_crs, fb2.crs)
-        self.assertTrue(np.all(fb2.x.value == 50))
-        path = self.get_temporary_file_path('foo.nc')
-        fb2.write_netcdf(path)
-        # self.ncdump(path)
-
-        value = np.array([Point(1, 2), Point(3, 4), Point(5, 6)], dtype=object)
-        point = PointArray(value=value, name='geom', crs=WGS84())
-        point.create_dimensions('ngeom')
-        fb3 = FieldBundle2(variables=[point])
-        self.assertIsInstance(fb3.spatial.point, PointArray)
-        self.assertIsNone(fb3.spatial.grid)
-        sheep = Variable(name='sheep', value=[1, 2, 3])
-        sheep.create_dimensions('ngeom')
-        fb3.variables.add_variable(sheep)
-        sub = fb3[1]
-        self.assertEqual(sub.spatial.shape, (1,))
-        self.assertTrue(sub.spatial.point.value[0].almost_equals(value[1]))
-        self.assertEqual(sub.crs, WGS84())
+# class TestFieldBundle2(AbstractTestNewInterface):
+#
+#     def get_fieldbundle(self, **kwargs):
+#         variables = []
+#         if 'fields' not in kwargs:
+#             dims = [Dimension('time'), Dimension('level', length=4)]
+#             value = np.arange(0, 3 * 4).reshape(3, 4)
+#             variable = BoundedVariable(value=value, name='bvar', dimensions=dims, units='kelvin')
+#
+#             value2 = np.swapaxes(value * 2, 0, 1)
+#             dims.reverse()
+#             variable2 = BoundedVariable(value=value2, name='cvar', dimensions=dims)
+#
+#             kwargs['fields'] = [variable, variable2]
+#         if 'level' not in kwargs:
+#             level = self.get_levelvariable()
+#             variables.append(level)
+#         if 'time' not in kwargs:
+#             time = self.get_temporalvariable()
+#             variables.append(time)
+#         kwargs['variables'] = variables
+#         return FieldBundle2(**kwargs)
+#
+#     def get_levelvariable(self):
+#         level = BoundedVariable(value=[0, 25, 50, 75], name='level')
+#         level.create_dimensions('level')
+#         return level
+#
+#     def get_temporalvariable(self):
+#         dim = Dimension('time')
+#         time = TemporalVariable(value=[1, 2, 3], name='time', dimensions=dim)
+#         return time
+#
+#     def test_init(self):
+#         fb = self.get_fieldbundle()
+#         self.assertEqual(fb.fields.keys(), ['bvar', 'cvar'])
+#         self.assertAsSetEqual(fb.variables.keys(), ['bvar', 'cvar', 'time', 'level'])
+#         self.assertIsInstance(fb.fields['bvar'], Variable)
+#         self.assertIn('time', fb.variables)
+#         self.assertIsNotNone(fb.time)
+#
+#     def test_getitem(self):
+#         fb = self.get_fieldbundle()
+#
+#         sub = fb[1, 3]
+#         self.assertEqual(sub.fields.keys(), ['bvar', 'cvar'])
+#         vars_fb = fb.variables
+#         vars_sub = sub.variables
+#         for v in vars_sub.values():
+#             self.assertTrue(all([ii == 1 for ii in v.shape]))
+#         for v in vars_fb.values():
+#             self.assertTrue(all([ii != 1 for ii in v.shape]))
+#         for f, s in zip(vars_fb.values(), vars_sub.values()):
+#             self.assertTrue(np.may_share_memory(f.value, s.value))
+#         self.assertNumpyAll(vars_sub['time'].value, vars_fb['time'][1].value)
+#         self.assertAsSetEqual(vars_sub.keys(), ['bvar', 'cvar', 'level', 'time'])
+#         self.assertEqual(vars_fb.keys(), vars_sub.keys())
+#
+#         sub2 = fb[:, 3]
+#         for field in sub2.fields.values():
+#             if field.name == 'bvar':
+#                 self.assertEqual(field.shape, (3, 1))
+#             elif field.name == 'cvar':
+#                 self.assertEqual(field.shape, (1, 3))
+#             self.assertIsNone(field._backref)
+#         self.assertEqual(sub2.variables['level'].shape, (1,))
+#         self.assertEqual(sub2.variables['time'].shape, (3,))
+#
+#     def test_set_dimension_variable(self):
+#         fb = self.get_fieldbundle()
+#         fb.crs = WGS84()
+#         fb.variables.pop('time')
+#         self.assertIsNone(fb.time)
+#         time = Variable(value=[4, 5, 6], name='time')
+#         time.create_dimensions('time')
+#         fb.variables.add_variable(time)
+#         fb.set_dimension_variable('time', 'time')
+#         self.assertNumpyAll(fb.time.value, time.value)
+#         sub = fb[1, :]
+#         for field in sub.fields.values():
+#             for _, record in field.iter():
+#                 self.assertIn(time.name, record)
+#         bvar, cvar = sub.fields.values()
+#         self.assertEqual(np.mean(cvar.value / 2), np.mean(bvar.value))
+#         self.assertEqual(set((cvar.value / 2).flatten().tolist()),
+#                          set(bvar.value.flatten().tolist()))
+#         self.assertNumpyAll(sub.variables['time'].value, time[1].value)
+#         self.assertNumpyAll(sub.time.value, time[1].value)
+#         self.assertEqual(time.shape, (3,))
+#         self.assertNumpyMayShareMemory(time.value, fb.time.value)
+#         path = self.get_temporary_file_path('foo.nc')
+#         sub.write_netcdf(path)
+#         vc = VariableCollection.read_netcdf(path)
+#         self.assertEqual(vc['time'].attrs['axis'], 'T')
+#         self.assertEqual(vc['level'].attrs['axis'], 'L')
+#         path2 = self.get_temporary_file_path('foo1.nc')
+#         vc.write_netcdf(path2)
+#         self.assertNcEqual(path, path2)
+#
+#     def test_spatial(self):
+#         x = BoundedVariable(value=[1, 2, 3], dtype=float, name='x')
+#         x.create_dimensions('x')
+#         y = BoundedVariable(value=[10, 20, 30, 40], dtype=float, name='y')
+#         y.create_dimensions('y')
+#
+#         fb = FieldBundle2(variables=[x, y])
+#         fb.spatial.grid.x.value[:] = 50
+#         self.assertTrue(np.all(fb.variables['x'].value == 50))
+#         spatial = fb.spatial
+#         desired_crs = CoordinateReferenceSystem(epsg=2136)
+#         spatial.grid.crs = desired_crs
+#         fb2 = FieldBundle2(spatial=spatial)
+#         self.assertEqual(desired_crs, fb2.crs)
+#         self.assertTrue(np.all(fb2.x.value == 50))
+#         path = self.get_temporary_file_path('foo.nc')
+#         fb2.write_netcdf(path)
+#         # self.ncdump(path)
+#
+#         value = np.array([Point(1, 2), Point(3, 4), Point(5, 6)], dtype=object)
+#         point = PointArray(value=value, name='geom', crs=WGS84())
+#         point.create_dimensions('ngeom')
+#         fb3 = FieldBundle2(variables=[point])
+#         self.assertIsInstance(fb3.spatial.point, PointArray)
+#         self.assertIsNone(fb3.spatial.grid)
+#         sheep = Variable(name='sheep', value=[1, 2, 3])
+#         sheep.create_dimensions('ngeom')
+#         fb3.variables.add_variable(sheep)
+#         sub = fb3[1]
+#         self.assertEqual(sub.spatial.shape, (1,))
+#         self.assertTrue(sub.spatial.point.value[0].almost_equals(value[1]))
+#         self.assertEqual(sub.crs, WGS84())
 
 # class TestFieldBundle(AbstractTestNewInterface):
 #     def setUp(self):

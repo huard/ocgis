@@ -39,7 +39,6 @@ class TemporalVariable(SourcedVariable):
         self.format_time = kwargs.pop('format_time', True)
 
         kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
-        kwargs['name'] = kwargs.get('name') or constants.DEFAULT_TEMPORAL_NAME
 
         super(TemporalVariable, self).__init__(**kwargs)
 

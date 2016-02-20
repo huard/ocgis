@@ -85,7 +85,7 @@ class VariableInCollectionError(OcgException):
         self.variable = variable
 
     def __str__(self):
-        msg = 'Variable alias already in collection: {0}'.format(self.variable.name)
+        msg = 'Variable name already in collection: {0}'.format(self.variable.name)
         return msg
 
 
