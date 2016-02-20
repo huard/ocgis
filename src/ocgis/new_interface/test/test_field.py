@@ -1,6 +1,13 @@
+from collections import OrderedDict
+from copy import deepcopy
+
+import numpy as np
+
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.variable import Variable
 
 
 class TestOcgField(AbstractTestNewInterface):
@@ -11,19 +18,68 @@ class TestOcgField(AbstractTestNewInterface):
         f = self.get_ocgfield()
         self.assertIsInstance(f, OcgField)
 
-    def test_time(self):
+    def test_combo_properties(self):
+        """Test field properties."""
+
         time = TemporalVariable(value=[20, 30, 40], dimensions=['the_time'], dtype=float, name='time')
-        time_bounds = TemporalVariable(value=[[15, 25], [25, 35], [35, 45]], dimensions=['the_time_bounds', 'bounds'],
+        time_bounds = TemporalVariable(value=[[15, 25], [25, 35], [35, 45]], dimensions=['the_time', 'bounds'],
                                        dtype=float, name='time_bounds')
-        f = self.get_ocgfield(variables=[time, time_bounds])
+        other = Variable(value=[44, 55, 66], name='other', dimensions=['the_time'])
+        x = Variable(value=[1, 2, 3], name='xc', dimensions=['x'])
+        y = Variable(value=[10, 20, 30, 40], name='yc', dimensions=['y'])
+
+        f = self.get_ocgfield(variables=[time, time_bounds, other, x, y])
+        f2 = deepcopy(f)
+
         self.assertIsNone(f.realization)
         self.assertIsNone(f.time)
         f.dimension_map['time']['variable'] = time.name
         self.assertNumpyAll(f.time.value, time.value)
+        self.assertEqual(f.time.attrs['axis'], 'T')
         self.assertIsNone(f.time.bounds)
         f.dimension_map['time']['bounds'] = time_bounds.name
         self.assertNumpyAll(f.time.bounds.value, time_bounds.value)
-        print f.time.bounds.dimensions
+        self.assertIn('other', f.time.parent)
+
+        sub = f[{'the_time': slice(1, 2)}]
+        self.assertIsNone(sub.grid)
+        sub.dimension_map['x']['variable'] = 'xc'
+        sub.dimension_map['y']['variable'] = 'yc'
+
+        # Test writing to netCDF will load attributes.
+        path = self.get_temporary_file_path('foo.nc')
+        sub.write_netcdf(path)
+        with self.nc_scope(path) as ds:
+            self.assertEqual(ds.variables[x.name].axis, 'X')
+            self.assertEqual(ds.variables[y.name].axis, 'Y')
+
+        self.assertEqual(sub.x.attrs['axis'], 'X')
+        self.assertEqual(sub.y.attrs['axis'], 'Y')
+        self.assertIsInstance(sub.grid, GridXY)
+        desired = OrderedDict([('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (3,)), ('yc', (4,))])
+        self.assertEqual(sub.shapes, desired)
+        sub.grid.expand()
+        desired = OrderedDict(
+            [('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (4, 3)), ('yc', (4, 3))])
+        self.assertEqual(sub.shapes, desired)
+        self.assertIsNotNone(sub.grid.point)
+        self.assertEqual(sub.shapes[sub.grid.point.name], (4, 3))
+
+        # Test a subset.
+        bbox = [1.5, 15, 2.5, 35]
+        data = Variable(name='data', value=np.random.rand(3, 4), dimensions=['x', 'y'])
+        f2.add_variable(data)
+        f2.dimension_map['x']['variable'] = 'xc'
+        f2.dimension_map['y']['variable'] = 'yc'
+        spatial_sub = f2.grid.get_intersects(bbox).parent
+        desired = OrderedDict(
+            [('time', (3,)), ('time_bounds', (3, 2)), ('other', (3,)), ('xc', (1,)), ('yc', (2,)), ('data', (1, 2))])
+        self.assertEqual(spatial_sub.shapes, desired)
+        print spatial_sub.shapes
+
+        path = self.get_temporary_file_path('foo.nc')
+        spatial_sub.write_netcdf(path)
+        self.ncdump(path)
 
 # class TestFieldBundle2(AbstractTestNewInterface):
 #

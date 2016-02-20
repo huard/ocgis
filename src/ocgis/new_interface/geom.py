@@ -488,7 +488,8 @@ class GeometryVariable(AbstractSpatialVariable):
         return path
 
     def write_netcdf(self, *args, **kwargs):
-        raise NotImplementedError
+        # tdk: test with a joint netcdf-shapefile output
+        pass
 
     def _get_extent_(self):
         raise NotImplementedError

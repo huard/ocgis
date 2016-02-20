@@ -25,24 +25,60 @@ class OcgField(VariableCollection):
 
     @property
     def realization(self):
-        variable = self.dimension_map['realization']['variable']
-        if variable is None:
-            ret = None
-        else:
-            ret = self[variable]
-        return ret
+        return get_field_property(self, 'realization')
 
     @property
     def time(self):
-        variable = self.dimension_map['time']['variable']
-        bounds = self.dimension_map['time']['bounds']
-        if variable is None:
+        return get_field_property(self, 'time')
+
+    @property
+    def level(self):
+        return get_field_property(self, 'level')
+
+    @property
+    def y(self):
+        return get_field_property(self, 'y')
+
+    @property
+    def x(self):
+        return get_field_property(self, 'x')
+
+    @property
+    def grid(self):
+        # tdk: test crs
+        # tdk: test abstraction
+        x = self.x
+        y = self.y
+        if x is None or y is None:
             ret = None
         else:
-            ret = self[variable]
-            if bounds is not None:
-                ret.bounds = bounds
+            ret = GridXY(self.x, self.y, parent=self)
         return ret
+
+    @property
+    def geom(self):
+        return get_field_property(self, 'geom')
+
+    def write_netcdf(self, dataset_or_path, **kwargs):
+        # Attempt to load all instrumented dimensions once.
+        for k in self.dimension_map.keys():
+            getattr(self, k)
+        return super(OcgField, self).write_netcdf(dataset_or_path, **kwargs)
+
+
+def get_field_property(field, name):
+    variable = field.dimension_map[name]['variable']
+    bounds = field.dimension_map[name].get('bounds')
+    if variable is None:
+        ret = None
+    else:
+        ret = field[variable]
+        for k, v in field.dimension_map[name]['attrs'].items():
+            if k not in ret.attrs:
+                ret.attrs[k] = v
+        if bounds is not None:
+            ret.bounds = field[bounds]
+    return ret
 
 
 class FieldBundle2(AbstractSpatialObject):
