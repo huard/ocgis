@@ -17,7 +17,7 @@ DEFAULT_TEMPORAL_UNITS = 'days since 0001-01-01 00:00:00'
 DEFAULT_TEMPORAL_NAME = 'time'
 
 #: Default name for coordinate systems in netCDF file if none is provided.
-DEFAULT_COORDINATE_SYSTEM_NAME = 'coordinate_system'
+DEFAULT_COORDINATE_SYSTEM_NAME = 'ocgis_coordinate_system'
 
 #: Default sample size variable standard name.
 DEFAULT_SAMPLE_SIZE_STANDARD_NAME = 'sample_size'
