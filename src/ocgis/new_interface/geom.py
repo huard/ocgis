@@ -29,12 +29,12 @@ GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoin
 class AbstractSpatialObject(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         self._crs = None
 
         self.crs = kwargs.pop('crs', None)
 
-        super(AbstractSpatialObject, self).__init__(**kwargs)
+        super(AbstractSpatialObject, self).__init__(*args, **kwargs)
 
     @property
     def crs(self):
