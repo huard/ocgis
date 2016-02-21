@@ -64,7 +64,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
     @attr('slow')
     def test_combo_read_and_spatial_operations(self):
         """Test various spatial operations with multiple geometries and a grid."""
-        raise self.ToTest('finish')
+        raise SkipTest('turn this into an mpi test')
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         grid = self.get_gridxy_global(resolution=3.0)
@@ -81,14 +81,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
             sub = grid.get_intersects(subset)
             sub.write_fiona(path_shp)
             sub.write_netcdf(path_nc)
-            self.ncdump(path_nc)
-
-            # print sub.shape
-
-            # if ctr >= 9:
-            #     break
-
-        raise self.ToTest('finish')
 
     def test_read_gis(self):
         g = GeomCabinetIterator(path=self.path_state_boundaries)
