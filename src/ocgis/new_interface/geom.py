@@ -13,7 +13,7 @@ from shapely.prepared import prep
 
 from ocgis import constants
 from ocgis import env, CoordinateReferenceSystem
-from ocgis.exc import EmptySubsetError, GridDeficientError
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
@@ -31,10 +31,16 @@ class AbstractSpatialObject(AbstractInterfaceObject):
 
     def __init__(self, *args, **kwargs):
         self._crs = None
-
         self.crs = kwargs.pop('crs', None)
-
         super(AbstractSpatialObject, self).__init__(*args, **kwargs)
+
+    @property
+    def envelope(self):
+        return box(*self.extent)
+
+    @property
+    def extent(self):
+        return self._get_extent_()
 
     @property
     def crs(self):
@@ -46,21 +52,14 @@ class AbstractSpatialObject(AbstractInterfaceObject):
             assert isinstance(value, CoordinateReferenceSystem)
         self._crs = value
 
-    @property
-    def envelope(self):
-        return box(*self.extent)
-
-    @property
-    def extent(self):
-        return self._get_extent_()
+    def write_netcdf(self, dataset, **kwargs):
+        if self.crs is not None:
+            self.crs.write_to_rootgrp(dataset)
+        super(AbstractSpatialObject, self).write_netcdf(dataset, **kwargs)
 
     @abstractmethod
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
-
-    def write_netcdf(self, dataset):
-        if self.crs is not None:
-            self.crs.write_to_rootgrp(dataset)
 
     @abstractmethod
     def _get_extent_(self):
@@ -86,10 +85,6 @@ class AbstractSpatialObject(AbstractInterfaceObject):
         """Get the spatial index."""
 
     @abstractmethod
-    def update_crs(self, to_crs):
-        """Update coordinate system."""
-
-    @abstractmethod
     def iter_records(self, use_mask=True):
         """Generate fiona-compatible records."""
 
@@ -113,131 +108,131 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
         AbstractSpatialObject.write_netcdf(self, dataset)
 
 
-class SpatialContainer(AbstractInterfaceObject):
-    def __init__(self, point=None, polygon=None, grid=None, abstraction=None):
-        self._point = None
-        self._polygon = None
-        self._grid = None
-
-        self.abstraction = abstraction
-        self.point = point
-        self.polygon = polygon
-        self.grid = grid
-
-    def __getitem__(self, slc):
-        ret = copy(self)
-        ret._grid = get_none_or_slice(ret._grid, slc)
-        ret._point = get_none_or_slice(ret._point, slc)
-        ret._polygon = get_none_or_slice(ret._polygon, slc)
-        return ret
-
-    @property
-    def crs(self):
-        return get_grid_or_geom_attr(self, 'crs')
-
-    @property
-    def envelope(self):
-        return get_grid_or_geom_attr(self, 'envelope')
-
-    @property
-    def extent(self):
-        return get_grid_or_geom_attr(self, 'extent')
-
-    @property
-    def geom(self):
-        if self.abstraction is None:
-            ret = self.get_optimal_geometry()
-        else:
-            ret = getattr(self, self.abstraction)
-        assert ret is not None
-        return ret
-
-    @property
-    def grid(self):
-        return self._grid
-
-    @grid.setter
-    def grid(self, value):
-        if value is not None:
-            assert isinstance(value, GridXY)
-        self._grid = value
-
-    @property
-    def ndim(self):
-        return get_grid_or_geom_attr(self, 'ndim')
-
-    @property
-    def point(self):
-        if self._point is None:
-            if self._grid is not None:
-                self._point = PointArray(grid=self._grid, crs=self._grid.crs)
-        return self._point
-
-    @point.setter
-    def point(self, value):
-        if value is not None:
-            assert isinstance(value, PointArray)
-        self._point = value
-
-    @property
-    def polygon(self):
-        if self._polygon is None:
-            if self._grid is not None:
-                try:
-                    self._polygon = PolygonArray(grid=self._grid, crs=self._grid.crs)
-                except GridDeficientError:
-                    pass
-        return self._polygon
-
-    @polygon.setter
-    def polygon(self, value):
-        if value is not None:
-            assert isinstance(value, PolygonArray)
-        self._polygon = value
-
-    @property
-    def shape(self):
-        return get_grid_or_geom_attr(self, 'shape')
-
-    def as_variable_collection(self):
-        ret = VariableCollection()
-        if self._grid is not None:
-            ret.add_variable(self._grid.x)
-            ret.add_variable(self._grid.y)
-        for geom in filter(lambda x: x is not None, [self._point, self._polygon]):
-            ret.add_variable(geom)
-        return ret
-
-    def copy(self):
-        return copy(self)
-
-    def get_intersects(self, *args, **kwargs):
-        return get_spatial_operation(self, 'get_intersects', args, kwargs)
-
-    def get_intersection(self, *args, **kwargs):
-        return get_spatial_operation(self, 'get_intersection', args, kwargs)
-
-    def get_nearest(self, *args, **kwargs):
-        return get_spatial_operation(self, 'get_nearest', args, kwargs)
-
-    def get_optimal_geometry(self):
-        return self.polygon or self.point
-
-    def update_crs(self, *args, **kwargs):
-        self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs=kwargs, inplace=True)
-
-    def write_netcdf(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def _apply_(self, targets, func, args, kwargs=None, inplace=False):
-        kwargs = kwargs or {}
-        for target_name in targets:
-            target = self.__dict__[target_name]
-            if target is not None and hasattr(target, func):
-                ref = getattr(target, func)
-                new_value = ref(*args, **kwargs)
-                if not inplace:
-                    setattr(self, target_name[1:], new_value)
+# class SpatialContainer(AbstractInterfaceObject):
+#     def __init__(self, point=None, polygon=None, grid=None, abstraction=None):
+#         self._point = None
+#         self._polygon = None
+#         self._grid = None
+#
+#         self.abstraction = abstraction
+#         self.point = point
+#         self.polygon = polygon
+#         self.grid = grid
+#
+#     def __getitem__(self, slc):
+#         ret = copy(self)
+#         ret._grid = get_none_or_slice(ret._grid, slc)
+#         ret._point = get_none_or_slice(ret._point, slc)
+#         ret._polygon = get_none_or_slice(ret._polygon, slc)
+#         return ret
+#
+#     @property
+#     def crs(self):
+#         return get_grid_or_geom_attr(self, 'crs')
+#
+#     @property
+#     def envelope(self):
+#         return get_grid_or_geom_attr(self, 'envelope')
+#
+#     @property
+#     def extent(self):
+#         return get_grid_or_geom_attr(self, 'extent')
+#
+#     @property
+#     def geom(self):
+#         if self.abstraction is None:
+#             ret = self.get_optimal_geometry()
+#         else:
+#             ret = getattr(self, self.abstraction)
+#         assert ret is not None
+#         return ret
+#
+#     @property
+#     def grid(self):
+#         return self._grid
+#
+#     @grid.setter
+#     def grid(self, value):
+#         if value is not None:
+#             assert isinstance(value, GridXY)
+#         self._grid = value
+#
+#     @property
+#     def ndim(self):
+#         return get_grid_or_geom_attr(self, 'ndim')
+#
+#     @property
+#     def point(self):
+#         if self._point is None:
+#             if self._grid is not None:
+#                 self._point = PointArray(grid=self._grid, crs=self._grid.crs)
+#         return self._point
+#
+#     @point.setter
+#     def point(self, value):
+#         if value is not None:
+#             assert isinstance(value, PointArray)
+#         self._point = value
+#
+#     @property
+#     def polygon(self):
+#         if self._polygon is None:
+#             if self._grid is not None:
+#                 try:
+#                     self._polygon = PolygonArray(grid=self._grid, crs=self._grid.crs)
+#                 except GridDeficientError:
+#                     pass
+#         return self._polygon
+#
+#     @polygon.setter
+#     def polygon(self, value):
+#         if value is not None:
+#             assert isinstance(value, PolygonArray)
+#         self._polygon = value
+#
+#     @property
+#     def shape(self):
+#         return get_grid_or_geom_attr(self, 'shape')
+#
+#     def as_variable_collection(self):
+#         ret = VariableCollection()
+#         if self._grid is not None:
+#             ret.add_variable(self._grid.x)
+#             ret.add_variable(self._grid.y)
+#         for geom in filter(lambda x: x is not None, [self._point, self._polygon]):
+#             ret.add_variable(geom)
+#         return ret
+#
+#     def copy(self):
+#         return copy(self)
+#
+#     def get_intersects(self, *args, **kwargs):
+#         return get_spatial_operation(self, 'get_intersects', args, kwargs)
+#
+#     def get_intersection(self, *args, **kwargs):
+#         return get_spatial_operation(self, 'get_intersection', args, kwargs)
+#
+#     def get_nearest(self, *args, **kwargs):
+#         return get_spatial_operation(self, 'get_nearest', args, kwargs)
+#
+#     def get_optimal_geometry(self):
+#         return self.polygon or self.point
+#
+#     def update_crs(self, *args, **kwargs):
+#         self._apply_(['_grid', '_point', '_polygon'], 'update_crs', args, kwargs=kwargs, inplace=True)
+#
+#     def write_netcdf(self, *args, **kwargs):
+#         raise NotImplementedError
+#
+#     def _apply_(self, targets, func, args, kwargs=None, inplace=False):
+#         kwargs = kwargs or {}
+#         for target_name in targets:
+#             target = self.__dict__[target_name]
+#             if target is not None and hasattr(target, func):
+#                 ref = getattr(target, func)
+#                 new_value = ref(*args, **kwargs)
+#                 if not inplace:
+#                     setattr(self, target_name[1:], new_value)
 
 
 class AbstractSpatialVariable(Variable, AbstractSpatialObject):

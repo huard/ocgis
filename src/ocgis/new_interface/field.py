@@ -1,12 +1,10 @@
 from collections import OrderedDict
-from copy import deepcopy
 
 from ocgis.new_interface.base import renamed_dimensions_on_variables
-from ocgis.new_interface.geom import SpatialContainer, AbstractSpatialObject
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.variable import VariableCollection
-from ocgis.util.helpers import get_formatted_slice
 
+# tdk: move this to ocgis.constants
 _DIMENSION_MAP = OrderedDict()
 _DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': None, 'names': []}
 _DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': None, 'bounds': None, 'names': []}
@@ -17,12 +15,11 @@ _DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None, 'na
 
 
 class OcgField(VariableCollection):
-    # tdk: test with different dimension names
 
     def __init__(self, *args, **kwargs):
         self.dimension_map = kwargs.pop('dimension_map', _DIMENSION_MAP)
 
-        super(OcgField, self).__init__(*args, **kwargs)
+        VariableCollection.__init__(self, *args, **kwargs)
 
     def __getitem__(self, item):
         if not isinstance(item, basestring):
@@ -75,7 +72,8 @@ class OcgField(VariableCollection):
 
     @property
     def geom(self):
-        return get_field_property(self, 'geom')
+        ret = get_field_property(self, 'geom')
+        return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         # Attempt to load all instrumented dimensions once.
@@ -98,170 +96,168 @@ def get_field_property(field, name):
             ret.bounds = field[bounds]
     return ret
 
-
-class FieldBundle2(AbstractSpatialObject):
-    """
-    :type fields: sequence of variable aliases
-
-    >>> fields = ['tas', 'pr']
-    """
-
-    def __init__(self, **kwargs):
-        self._variables = None
-        self._fields = None
-        self._spatial = None
-        self._abstraction = None
-
-        self.dimension_map = deepcopy(_DIMENSION_MAP)
-
-        self.fields = kwargs.pop('fields', None)
-        self.variables = kwargs.pop('variables', None)
-        spatial = kwargs.pop('spatial', None)
-
-        super(FieldBundle2, self).__init__(**kwargs)
-
-        # Allow spatial container to override "crs".
-        self.spatial = spatial
-
-    def __getitem__(self, slc):
-        if isinstance(slc, basestring):
-            ret = super(FieldBundle2, self).__getitem__(slc)
-        else:
-            target = self.variables.first()
-            slc = get_formatted_slice(slc, target.ndim)
-            backref = self.variables.copy()
-            backref.pop(target.name)
-            target._backref = backref
-            sub = target.__getitem__(slc)
-            ret = self.copy()
-            new_variables = sub._backref
-            sub._backref = None
-            new_variables.add_variable(sub)
-            ret.variables.update(new_variables)
-            for field in ret.fields.values():
-                ret.fields[field.name] = new_variables[field.name]
-        return ret
-
-    def __getattribute__(self, name_or_slice):
-        _getattr = object.__getattribute__
-        try:
-            ret = _getattr(self, name_or_slice)
-        except AttributeError as e:
-            try:
-                desired_dimension = _getattr(self, 'dimension_map')[name_or_slice]
-            except (KeyError, AttributeError):
-                raise e
-            else:
-                desired_dimension_variable = desired_dimension['variable']
-                ret = _getattr(self, 'variables').get(desired_dimension_variable, None)
-        return ret
-
-    @property
-    def dimensions(self):
-        return self.fields.first().dimensions
-
-    @property
-    def dimensions_dict(self):
-        return self.fields.first().dimensions_dict
-
-    @property
-    def fields(self):
-        return self._fields
-
-    @fields.setter
-    def fields(self, fields):
-        self._fields = VariableCollection(variables=fields)
-
-    @property
-    def variables(self):
-        ret = self._variables
-        ret.update(self.fields)
-        self.update_mapped_dimensions()
-        return ret
-
-    @variables.setter
-    def variables(self, variables):
-        self._variables = VariableCollection(variables=variables)
-
-    @property
-    def spatial(self):
-        kwds = {}
-        kwds['abstraction'] = self._abstraction
-
-        try:
-            grid = GridXY(self.x, self.y, crs=self.crs)
-        except AttributeError:  # Assume x or y is None.
-            pass
-        else:
-            kwds['grid'] = grid
-
-        try:
-            geom = self.geom
-            archetype = geom.value.flatten()[0]
-        except AttributeError:  # Assume no geometry.
-            pass
-        else:
-            if archetype.geom_type in ['Point', 'MultiPoint']:
-                kwds['point'] = geom
-            elif archetype.geom_type in ['Polygon', 'MultiPolygon']:
-                kwds['polygon'] = geom
-        return SpatialContainer(**kwds)
-
-    @spatial.setter
-    def spatial(self, value):
-        if value is not None:
-            self.variables.update(value.as_variable_collection())
-            self.crs = value.crs
-            self._abstraction = value.abstraction
-
-    def get_intersects(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def get_subset_bbox(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def update_crs(self, to_crs):
-        raise NotImplementedError
-
-    def update_mapped_dimensions(self):
-        for name, v in self.dimension_map.items():
-            name_variable = v['variable']
-            try:
-                self.set_dimension_variable(name, name_variable)
-            except KeyError:  # Assume not in variables.
-                pass
-
-    def set_dimension_variable(self, name, name_variable):
-        self.dimension_map[name]['variable'] = name_variable
-        desired_variable = self._variables[name_variable]
-        desired_dimension = desired_variable.dimensions[0]
-        for var in self._variables.values():
-            if var.dimensions is not None:
-                new_dimensions = list(var.dimensions)
-                try:
-                    idx = [d.name for d in var.dimensions].index(desired_dimension.name)
-                except ValueError:  # Assume dimension not in list.
-                    continue
-                new_dimensions[idx] = desired_dimension
-                var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
-
-    def write_netcdf(self, *args, **kwargs):
-        if self.crs is not None:
-            var_crs = self.crs.as_variable()
-            self.variables.add_variable(var_crs)
-
-        for name in self.dimension_map.keys():
-            mapped_dimension = getattr(self, name)
-            if mapped_dimension is not None:
-                mapped_dimension.attrs.update(deepcopy(self.dimension_map[name]['attrs']))
-
-        VariableCollection.write_netcdf(self.variables, *args, **kwargs)
-
-    def _get_extent_(self):
-        raise NotImplementedError
+# class FieldBundle2(AbstractSpatialObject):
+#     """
+#     :type fields: sequence of variable aliases
+#
+#     >>> fields = ['tas', 'pr']
+#     """
+#
+#     def __init__(self, **kwargs):
+#         self._variables = None
+#         self._fields = None
+#         self._spatial = None
+#         self._abstraction = None
+#
+#         self.dimension_map = deepcopy(_DIMENSION_MAP)
+#
+#         self.fields = kwargs.pop('fields', None)
+#         self.variables = kwargs.pop('variables', None)
+#         spatial = kwargs.pop('spatial', None)
+#
+#         super(FieldBundle2, self).__init__(**kwargs)
+#
+#         # Allow spatial container to override "crs".
+#         self.spatial = spatial
+#
+#     def __getitem__(self, slc):
+#         if isinstance(slc, basestring):
+#             ret = super(FieldBundle2, self).__getitem__(slc)
+#         else:
+#             target = self.variables.first()
+#             slc = get_formatted_slice(slc, target.ndim)
+#             backref = self.variables.copy()
+#             backref.pop(target.name)
+#             target._backref = backref
+#             sub = target.__getitem__(slc)
+#             ret = self.copy()
+#             new_variables = sub._backref
+#             sub._backref = None
+#             new_variables.add_variable(sub)
+#             ret.variables.update(new_variables)
+#             for field in ret.fields.values():
+#                 ret.fields[field.name] = new_variables[field.name]
+#         return ret
+#
+#     def __getattribute__(self, name_or_slice):
+#         _getattr = object.__getattribute__
+#         try:
+#             ret = _getattr(self, name_or_slice)
+#         except AttributeError as e:
+#             try:
+#                 desired_dimension = _getattr(self, 'dimension_map')[name_or_slice]
+#             except (KeyError, AttributeError):
+#                 raise e
+#             else:
+#                 desired_dimension_variable = desired_dimension['variable']
+#                 ret = _getattr(self, 'variables').get(desired_dimension_variable, None)
+#         return ret
+#
+#     @property
+#     def dimensions(self):
+#         return self.fields.first().dimensions
+#
+#     @property
+#     def dimensions_dict(self):
+#         return self.fields.first().dimensions_dict
+#
+#     @property
+#     def fields(self):
+#         return self._fields
+#
+#     @fields.setter
+#     def fields(self, fields):
+#         self._fields = VariableCollection(variables=fields)
+#
+#     @property
+#     def variables(self):
+#         ret = self._variables
+#         ret.update(self.fields)
+#         self.update_mapped_dimensions()
+#         return ret
+#
+#     @variables.setter
+#     def variables(self, variables):
+#         self._variables = VariableCollection(variables=variables)
+#
+#     @property
+#     def spatial(self):
+#         kwds = {}
+#         kwds['abstraction'] = self._abstraction
+#
+#         try:
+#             grid = GridXY(self.x, self.y, crs=self.crs)
+#         except AttributeError:  # Assume x or y is None.
+#             pass
+#         else:
+#             kwds['grid'] = grid
+#
+#         try:
+#             geom = self.geom
+#             archetype = geom.value.flatten()[0]
+#         except AttributeError:  # Assume no geometry.
+#             pass
+#         else:
+#             if archetype.geom_type in ['Point', 'MultiPoint']:
+#                 kwds['point'] = geom
+#             elif archetype.geom_type in ['Polygon', 'MultiPolygon']:
+#                 kwds['polygon'] = geom
+#         return SpatialContainer(**kwds)
+#
+#     @spatial.setter
+#     def spatial(self, value):
+#         if value is not None:
+#             self.variables.update(value.as_variable_collection())
+#             self.crs = value.crs
+#             self._abstraction = value.abstraction
+#
+#     def get_intersects(self, *args, **kwargs):
+#         raise NotImplementedError
+#
+#     def get_subset_bbox(self, *args, **kwargs):
+#         raise NotImplementedError
+#
+#     def update_crs(self, to_crs):
+#         raise NotImplementedError
+#
+#     def update_mapped_dimensions(self):
+#         for name, v in self.dimension_map.items():
+#             name_variable = v['variable']
+#             try:
+#                 self.set_dimension_variable(name, name_variable)
+#             except KeyError:  # Assume not in variables.
+#                 pass
+#
+#     def set_dimension_variable(self, name, name_variable):
+#         self.dimension_map[name]['variable'] = name_variable
+#         desired_variable = self._variables[name_variable]
+#         desired_dimension = desired_variable.dimensions[0]
+#         for var in self._variables.values():
+#             if var.dimensions is not None:
+#                 new_dimensions = list(var.dimensions)
+#                 try:
+#                     idx = [d.name for d in var.dimensions].index(desired_dimension.name)
+#                 except ValueError:  # Assume dimension not in list.
+#                     continue
+#                 new_dimensions[idx] = desired_dimension
+#                 var.dimensions_dict[desired_dimension.name].attach_variable(desired_variable)
+#
+#     def write_netcdf(self, *args, **kwargs):
+#         if self.crs is not None:
+#             var_crs = self.crs.as_variable()
+#             self.variables.add_variable(var_crs)
+#
+#         for name in self.dimension_map.keys():
+#             mapped_dimension = getattr(self, name)
+#             if mapped_dimension is not None:
+#                 mapped_dimension.attrs.update(deepcopy(self.dimension_map[name]['attrs']))
+#
+#         VariableCollection.write_netcdf(self.variables, *args, **kwargs)
+#
+#     def _get_extent_(self):
+#         raise NotImplementedError
 
 # class FieldBundle(AbstractInterfaceObject, Attributes):
-#     # tdk: retain variables for backwards compatibility
 #     def __init__(self, **kwargs):
 #         self._should_sync = False
 #         self._realization = None

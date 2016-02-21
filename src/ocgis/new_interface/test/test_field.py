@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
+from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.temporal import TemporalVariable
@@ -28,6 +29,7 @@ class TestOcgField(AbstractTestNewInterface):
         x = Variable(value=[1, 2, 3], name='xc', dimensions=['x'])
         y = Variable(value=[10, 20, 30, 40], name='yc', dimensions=['y'])
 
+        crs = CoordinateReferenceSystem(epsg=2136)
         f = self.get_ocgfield(variables=[time, time_bounds, other, x, y])
         f2 = deepcopy(f)
 
