@@ -1,32 +1,18 @@
-from ocgis.api.parms.definition import *
-from ocgis.api.interpreter import OcgInterpreter
 from ocgis import env
+from ocgis.api.interpreter import OcgInterpreter
 from ocgis.api.parms.base import AbstractParameter
+from ocgis.api.parms.definition import *
+from ocgis.api.subset import SubsetOperation
 from ocgis.conv.base import get_converter
 from ocgis.conv.meta import MetaOCGISConverter
 from ocgis.interface.base.crs import CFRotatedPole, WGS84
-from ocgis.api.subset import SubsetOperation
 
 
 class OcgOperations(object):
     """
     Entry point for all OCGIS operations.
-    
-    .. warning:: The object SHOULD NOT be reused following an execution as the software may add/modify attribute
-     contents. Instantiate a new object following an execution.
-    
-    .. note:: The only required argument is `dataset`.
-    
-    All keyword arguments are exposed as public attributes which may be  arbitrarily set using standard syntax:
 
-    >>> ops = OcgOperations(RequestDataset('/path/to/some/dataset','foo'))
-    >>> ops.aggregate = True
-        
-    The builtins :func:`__getattribute__` and :func:`__setattr__` are overloaded to perform 
-    validation and input formatting.
-
-    :param dataset: The target dataset(s) for the request. This is the only required parameter. All elements of
-     ``dataset`` will be processed.
+    :param dataset: A ``dataset`` is the target file(s) or object(s) containing data to process.
     :type dataset: :class:`~ocgis.RequestDatasetCollection`, :class:`~ocgis.RequestDataset`/:class:`~ocgis.Field`, or
      sequence of :class:`~ocgis.RequestDataset`/:class:`~ocgis.Field` objects
     :param spatial_operation: The geometric operation to be performed.
@@ -36,9 +22,6 @@ class OcgOperations(object):
     :type geom: list of dict, list of float, str
     :param str geom_select_sql_where: A string suitable for insertion into a SQL WHERE statement. See http://www.gdal.org/ogr_sql.html
      for documentation (section titled "WHERE").
-
-    >>> select_sql_where = 'STATE_NAME = "Wisconsin"'
-
     :param geom_select_uid: The unique identifiers of specific geometries contained in the geometry datasets. Geometries
      having these unique identifiers will be used for subsetting.
     :type geom_select_uid: sequence of integers
@@ -103,10 +86,6 @@ class OcgOperations(object):
      month and/or year values. Empty region selection for a key may be set to `None`. Using this argument will overload
      all :class:`~ocgis.RequestDataset` ``time_region`` values.
     :type time_region: dict
-        
-    >>> time_region = {'month':[6,7],'year':[2010,2011]}
-    >>> time_region = {'year':[2010]}
-
     :param time_subset_func: See :meth:`ocgis.interface.base.dimension.temporal.TemporalDimension.get_subset_by_function`
      for usage instructions.
     :type time_subset_func: :class:`FunctionType`
@@ -129,7 +108,7 @@ class OcgOperations(object):
     :param bool melted: If ``None``, default to :attr:`ocgis.env.MELTED`. If ``False`` (the default), variable names are
      individual columns in tabular output formats (i.e. ``'csv'``). If ``True``, all variable values will be collected
      under a single value column.
-    :param dict output_format_options: A dictionary of output-specific options. See expanded description for details.
+    :param dict output_format_options: A dictionary of output-specific format options.
     """
 
     def __init__(self, dataset=None, spatial_operation='intersects', geom=None, geom_select_sql_where=None,
@@ -361,14 +340,13 @@ class OcgOperations(object):
         converter_klass = get_converter(self.output_format)
         converter_klass.validate_ops(self)
 
-        # no regridding with a spatial operation of clip
+        # No clipping with regridding.
         if self.regrid_destination is not None:
             if self.spatial_operation == 'clip':
                 msg = 'Regridding not allowed with spatial "clip" operation.'
                 raise DefinitionValidationError(SpatialOperation, msg)
 
-        # collect projections for the dataset sets. None is returned if one is not parsable. the WGS84 default is
-        # actually done in the RequestDataset object.
+        # Collect unique coordinate systems. None is returned if one is not parsable.
         projections = []
         for rd in self.dataset.itervalues():
             if not any([_ == rd.crs for _ in projections]):
@@ -395,13 +373,15 @@ class OcgOperations(object):
                 ocgis_lh(level=logging.WARN, msg=msg, logger='operations')
                 self._get_object_('output_crs')._value = CFWGS84()
 
-        # only WGS84 may be written to to GeoJSON
-        if self.output_format == 'geojson':
-            if any([element != WGS84() for element in projections if element is not None]):
-                _raise_('Only data with a WGS84 projection may be written to GeoJSON.')
+        # Only WGS84 coordinate system may be written to GeoJSON.
+        if self.output_format == constants.OUTPUT_FORMAT_GEOJSON:
+            msg = 'Only data with a WGS84 projection may be written to GeoJSON.'
             if self.output_crs is not None:
-                if self.output_crs != WGS84():
-                    _raise_('Only data with a WGS84 projection may be written to GeoJSON.')
+                if not isinstance(self.output_crs, WGS84):
+                    _raise_(msg)
+            else:
+                if any([not isinstance(element, WGS84) for element in projections if element is not None]):
+                    _raise_(msg)
 
         # snippet only relevant for subsetting not operations with a calculation or time region
         if self.snippet:

@@ -18,5 +18,6 @@ from ocgis.interface.base.variable import Variable
 from ocgis.api.request.base import RequestDataset, RequestDatasetCollection
 from ocgis.api.operations import OcgOperations
 
-__version__ = '1.2.0'
-__release__ = '1.2.0.dev1'
+
+__version__ = '1.3.0.dev1'
+__release__ = '1.3.0.dev1'

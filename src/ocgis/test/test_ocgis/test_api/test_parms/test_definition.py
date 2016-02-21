@@ -384,6 +384,7 @@ class TestHeaders(TestBase):
 class TestMelted(TestBase):
     create_dir = False
 
+    @attr('data')
     def test_init(self):
         rd = self.test_data.get_rd('cancm4_tas')
         dataset = Dataset(rd)
@@ -404,7 +405,7 @@ class TestMelted(TestBase):
 
 
 class TestDataset(TestBase):
-
+    @attr('data')
     def test_init(self):
         rd = self.test_data.get_rd('cancm4_tas')
         dd = Dataset(rd)
@@ -485,18 +486,18 @@ class TestDataset(TestBase):
         dsb = [dsa, {'uri': reference_rd2.uri, 'variable': reference_rd2.variable, 'alias': 'knight'}]
         Dataset(dsb)
 
-    @attr('esmpy7')
+    @attr('esmf')
     def test_init_esmf(self):
-        # todo: what to do about time values, units, etc.
         efield = self.get_esmf_field()
         dd = Dataset(efield)
         self.assertIsInstance(dd.value, RequestDatasetCollection)
         ofield = dd.value.first()
         self.assertIsInstance(ofield, Field)
         ofield_value = ofield.variables.first().value
-        self.assertTrue(np.may_share_memory(ofield_value, efield))
-        self.assertNumpyAll(ofield_value, efield)
+        self.assertTrue(np.may_share_memory(ofield_value, efield.data))
+        self.assertNumpyAll(ofield_value.data, efield.data)
 
+    @attr('data')
     def test(self):
         env.DIR_DATA = ocgis.env.DIR_TEST_DATA
         reference_rd = self.test_data.get_rd('cancm4_tas')
@@ -511,6 +512,7 @@ class TestDataset(TestBase):
         dsb = [dsa, {'uri': reference_rd2.uri, 'variable': reference_rd2.variable, 'alias': 'knight'}]
         Dataset(dsb)
 
+    @attr('data')
     def test_from_query(self):
         rd = self.test_data.get_rd('cancm4_tas')
         qs = 'uri={0}'.format(rd.uri)
@@ -530,6 +532,7 @@ class TestDataset(TestBase):
         d = Dataset.from_query(qi)
         self.assertEqual(d.value.keys(), ['tas', 'rhsmax'])
 
+    @attr('data')
     def test_get_meta(self):
         # test with standard request dataset collection
         rd = self.test_data.get_rd('cancm4_tas')
@@ -541,6 +544,7 @@ class TestDataset(TestBase):
         ret = dd.get_meta()
         self.assertEqual(ret, ['* dataset=', 'NcField(name=tas, ...)', ''])
 
+    @attr('data')
     def test_validate(self):
         rd = self.test_data.get_rd('cancm4_tas')
         for iv in [rd, rd.get()]:
@@ -573,6 +577,7 @@ class TestGeom(TestBase):
                          'properties': {uid: ugid, 'COUNTRY': coordinate[0]}})
         return geom
 
+    @attr('data')
     def test_init(self):
         geom = make_poly((37.762, 38.222), (-102.281, -101.754))
 
@@ -673,6 +678,7 @@ class TestGeom(TestBase):
                 for element in ret:
                     self.assertEqual(element.name_uid, actual)
 
+    @attr('data')
     def test_parse_string(self):
         keywords = dict(geom_uid=[None, 'ID'])
         for k in self.iter_product_keywords(keywords):
@@ -695,6 +701,7 @@ class TestGeom(TestBase):
 
         ################################################################################################################
 
+    @attr('data')
     def test_spatial_dimension(self):
         """Test using a SpatialDimension as input value."""
 
@@ -706,6 +713,7 @@ class TestGeom(TestBase):
             self.assertIsInstance(sdim, SpatialDimension)
             self.assertEqual(sdim.shape, (1, 1))
 
+    @attr('data')
     def test_using_shp_path(self):
         # pass a path to a shapefile as opposed to a key
         path = GeomCabinet().get_shp_path('state_boundaries')
@@ -717,6 +725,7 @@ class TestGeom(TestBase):
         self.assertEqual(g._shp_key, path)
         self.assertEqual(len(list(g.value)), 51)
 
+    @attr('data')
     def test_with_changing_select_uid(self):
         select_ugid = [16, 17]
         g = Geom('state_boundaries', select_ugid=select_ugid)
@@ -807,7 +816,7 @@ class TestOutputFormat(TestBase):
         of2 = OutputFormat(of)
         self.assertEqual(of.value, of2.value)
 
-    @attr('esmpy7')
+    @attr('esmf')
     def test_init_esmpy(self):
         oo = OutputFormat(constants.OUTPUT_FORMAT_ESMPY_GRID)
         self.assertEqual(oo.value, constants.OUTPUT_FORMAT_ESMPY_GRID)
@@ -818,7 +827,8 @@ class TestOutputFormat(TestBase):
 
     def test_valid(self):
         self.assertAsSetEqual(OutputFormat.valid, ['csv', 'csv-shp', 'geojson', 'meta-ocgis', 'nc', 'numpy', 'shp',
-                                                   constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH, 'meta-json'])
+                                                   constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH, 'meta-json',
+                                                   constants.OUTPUT_FORMAT_ESMPY_GRID])
 
 
 class TestOutputFormatOptions(TestBase):
@@ -868,6 +878,7 @@ class TestRegridDestination(TestBase):
         rd = self.test_data.get_rd('cancm4_tas', kwds=kwargs)
         return rd
 
+    @attr('data')
     def test_init(self):
         """Also tests get_meta."""
 
@@ -923,7 +934,7 @@ class TestRegridOptions(TestBase):
         self.assertDictEqual(ro.value, {'with_corners': True, 'value_mask': None})
 
         ro = RegridOptions({'value_mask': np.array([True, False])})
-        self.assertEqual(ro.value['with_corners'], 'choose')
+        self.assertEqual(ro.value['with_corners'], 'auto')
         self.assertNumpyAll(ro.value['value_mask'], np.array([True, False]))
 
         with self.assertRaises(DefinitionValidationError):

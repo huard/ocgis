@@ -13,7 +13,7 @@ from shapely.geometry import shape, Point
 from shapely.ops import cascaded_union
 
 from ocgis import RequestDataset
-from ocgis import constants, SpatialCollection, GeomCabinet
+from ocgis import constants, SpatialCollection
 from ocgis.constants import NAME_UID_FIELD, NAME_UID_DIMENSION_LEVEL
 from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.attributes import Attributes
@@ -24,6 +24,7 @@ from ocgis.interface.base.dimension.temporal import TemporalDimension
 from ocgis.interface.base.field import Field, DerivedField
 from ocgis.interface.base.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase, nc_scope
+from ocgis.test.base import attr
 from ocgis.util.helpers import get_date_list, make_poly
 from ocgis.util.itester import itr_products_keywords
 
@@ -382,7 +383,7 @@ class TestField(AbstractTestField):
 
     def test_get_intersects(self):
         # test with vector geometries
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
         rd = RequestDataset(path)
         field = rd.get()
         polygon = wkb.loads(
@@ -654,7 +655,7 @@ class TestField(AbstractTestField):
             field.write_fiona(path, fobject=Nothing())
 
         # Test all geometries are accounted for as well as properties.
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
         rd = RequestDataset(path)
         field = rd.get()
         out = self.get_temporary_file_path('foo.shp')
@@ -823,6 +824,7 @@ class TestField(AbstractTestField):
             d = ds.dimensions['time']
             self.assertFalse(d.isunlimited())
 
+    @attr('data')
     def test_write_netcdf_with_metadata(self):
         """Test writing to netCDF with a source metadata dictionary attached and data loaded from file."""
 

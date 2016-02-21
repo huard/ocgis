@@ -1,9 +1,10 @@
-from ocgis import constants
 from ocgis import RequestDataset, GeomCabinet, GeomCabinetIterator
+from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.interface.base.crs import WGS84
 from ocgis.test.base import TestBase
+from ocgis.test.base import attr
 
 
 class TestDriverVector(TestBase):
@@ -17,6 +18,7 @@ class TestDriverVector(TestBase):
         rd = RequestDataset(uri=uri, driver='vector', variable=variable)
         return rd
 
+    @attr('data')
     def test_init(self):
         self.assertIsInstances(self.get_driver(), (DriverVector, AbstractDriver))
 
@@ -24,25 +26,30 @@ class TestDriverVector(TestBase):
                   constants.OUTPUT_FORMAT_SHAPEFILE]
         self.assertAsSetEqual(actual, DriverVector.output_formats)
 
+    @attr('data')
     def test_close(self):
         driver = self.get_driver()
         sci = driver.open()
         driver.close(sci)
 
+    @attr('data')
     def test_get_crs(self):
         driver = self.get_driver()
         self.assertEqual(WGS84(), driver.get_crs())
 
+    @attr('data')
     def test_get_dimensioned_variables(self):
         driver = self.get_driver()
         target = driver.get_dimensioned_variables()
         self.assertEqual(target, [u'UGID', u'STATE_FIPS', u'ID', u'STATE_NAME', u'STATE_ABBR'])
 
+    @attr('data')
     def test_get_dump_report(self):
         driver = self.get_driver()
         lines = driver.get_dump_report()
         self.assertTrue(len(lines) > 5)
 
+    @attr('data')
     def test_get_field(self):
         driver = self.get_driver()
         field = driver.get_field()
@@ -66,18 +73,21 @@ class TestDriverVector(TestBase):
         self.assertEqual(field.name, rd.name)
         self.assertIn('another', field.variables)
 
+    @attr('data')
     def test_get_source_metadata(self):
         driver = self.get_driver()
         meta = driver.get_source_metadata()
         self.assertIsInstance(meta, dict)
         self.assertTrue(len(meta) > 2)
 
+    @attr('data')
     def test_inspect(self):
         driver = self.get_driver()
         with self.print_scope() as ps:
             driver.inspect()
         self.assertTrue(len(ps.storage) >= 1)
 
+    @attr('data')
     def test_open(self):
         driver = self.get_driver()
         sci = driver.open()

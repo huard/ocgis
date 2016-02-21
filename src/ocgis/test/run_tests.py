@@ -1,6 +1,6 @@
 import os
-import sys
 import re
+import sys
 
 import nose
 
@@ -10,7 +10,7 @@ import ocgis
 class RunOcgis(nose.plugins.Plugin):
     name = 'ocgis'
     target = 'ocgis'
-    _attrs_standard = '!esmpy7,!slow,!remote'
+    _attrs_standard = '!esmpy7,!slow,!remote,!data'
 
     def __init__(self, *args, **kwargs):
         self.attrs = kwargs.pop('attrs', self._attrs_standard)
@@ -18,13 +18,21 @@ class RunOcgis(nose.plugins.Plugin):
 
         dir_shpcabinet = kwargs.pop('dir_shpcabinet', '~/data/ocgis_test_data/shp')
         dir_test_data = kwargs.pop('dir_test_data', '~/data/ocgis_test_data')
-        os.environ['OCGIS_DIR_SHPCABINET'] = os.path.expanduser(dir_shpcabinet)
+        os.environ['OCGIS_DIR_GEOMCABINET'] = os.path.expanduser(dir_shpcabinet)
         os.environ['OCGIS_DIR_TEST_DATA'] = os.path.expanduser(dir_test_data)
 
         super(RunOcgis, self).__init__(*args, **kwargs)
 
     def get_argv(self):
-        argv = [sys.argv[0], '--with-{0}'.format(self.name), '-s', '-a', self.attrs]
+        argv = [sys.argv[0], '--with-{0}'.format(self.name), '-s']
+
+        if isinstance(self.attrs, basestring):
+            attrs = [self.attrs]
+        else:
+            attrs = self.attrs
+        for a in attrs:
+            argv.extend(['-a', a])
+
         if self.verbose:
             argv.append('-v')
         argv += self._get_argv_adds_()
@@ -38,7 +46,7 @@ class RunOcgis(nose.plugins.Plugin):
 class RunNoESMF(RunOcgis):
     name = 'no-esmf'
     _exclude = 'test_regrid.test_base|test_conv.test_esmpy'
-    _attrs_standard = '!esmf,!esmpy7,!remote,!slow'
+    _attrs_standard = '!esmf,!esmpy7,!remote,!slow,!data'
 
     def wantFile(self, file):
         match = re.search(self._exclude, file)

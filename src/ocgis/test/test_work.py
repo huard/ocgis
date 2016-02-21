@@ -1,13 +1,13 @@
-from csv import DictReader
 import os
+from csv import DictReader
 
 import fiona
 from shapely.geometry import Point
 from shapely.geometry.multipoint import MultiPoint
 
+from ocgis import RequestDataset, OcgOperations, env
 from ocgis import constants
-from ocgis import GeomCabinet, RequestDataset, OcgOperations, env
-from ocgis.test.base import TestBase
+from ocgis.test.base import TestBase, attr
 
 """
 These tests written to guide bug fixing or issue development. Theses tests are typically high-level and block-specific
@@ -18,11 +18,11 @@ package hierarchy. Hence, these tests in theory may be removed...
 
 class Test20150119(TestBase):
     def test_shapefile_through_operations_subset(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
         rd = RequestDataset(path)
         field = rd.get()
         self.assertIsNone(field.spatial.properties)
-        ops = OcgOperations(dataset=rd, output_format='shp', geom='state_boundaries', select_ugid=[15])
+        ops = OcgOperations(dataset=rd, output_format='shp', geom=path, select_ugid=[15])
         ret = ops.execute()
         rd2 = RequestDataset(ret)
         field2 = rd2.get()
@@ -30,7 +30,7 @@ class Test20150119(TestBase):
         self.assertEqual(tuple([1] * 5), field2.shape)
 
     def test_shapefile_through_operations(self):
-        path = GeomCabinet().get_shp_path('state_boundaries')
+        path = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
         rd = RequestDataset(path)
         field = rd.get()
         self.assertIsNone(field.spatial.properties)
@@ -43,6 +43,7 @@ class Test20150119(TestBase):
 
 
 class Test20150224(TestBase):
+    @attr('data')
     def test_subset_with_shapefile_no_ugid(self):
         """Test a subset operation using a shapefile without a UGID attribute."""
 
@@ -78,6 +79,7 @@ class Test20150224(TestBase):
 
 
 class Test20150327(TestBase):
+    @attr('data')
     def test_sql_where_through_operations(self):
         """Test using a SQL where statement to select some geometries."""
 
@@ -111,6 +113,7 @@ class Test20150327(TestBase):
 
 
 class Test20150608(TestBase):
+    @attr('data')
     def test_multipoint_buffering_and_union(self):
         """Test subset behavior using MultiPoint geometries."""
 
