@@ -9,6 +9,7 @@ from ocgis import RequestDataset
 from ocgis import constants
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
+from ocgis.new_interface.base import renamed_dimensions
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType
@@ -516,6 +517,15 @@ class TestVariable(AbstractTestNewInterface):
         bv2 = Variable(value=[600], bounds=bounds, name='c', dimensions=['d'])
         bv[1] = bv2
         self.assertEqual(bv.bounds.value[1, :].tolist(), [500, 700])
+
+    def test_renamed_dimensions(self):
+        d = [Dimension('a', 5), Dimension('b', 6)]
+        desired_after = deepcopy(d)
+        name_mapping = {'time': ['b']}
+        desired = [Dimension('a', 5), Dimension('time', 6)]
+        with renamed_dimensions(d, name_mapping):
+            self.assertEqual(d, desired)
+        self.assertEqual(desired_after, d)
 
     def test_get_mask(self):
         var = Variable(value=[1, 2, 3], mask=[False, True, False])

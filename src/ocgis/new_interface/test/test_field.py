@@ -22,9 +22,9 @@ class TestOcgField(AbstractTestNewInterface):
         """Test field properties."""
 
         time = TemporalVariable(value=[20, 30, 40], dimensions=['the_time'], dtype=float, name='time')
-        time_bounds = TemporalVariable(value=[[15, 25], [25, 35], [35, 45]], dimensions=['the_time', 'bounds'],
+        time_bounds = TemporalVariable(value=[[15, 25], [25, 35], [35, 45]], dimensions=['times', 'bounds'],
                                        dtype=float, name='time_bounds')
-        other = Variable(value=[44, 55, 66], name='other', dimensions=['the_time'])
+        other = Variable(value=[44, 55, 66], name='other', dimensions=['times_again'])
         x = Variable(value=[1, 2, 3], name='xc', dimensions=['x'])
         y = Variable(value=[10, 20, 30, 40], name='yc', dimensions=['y'])
 
@@ -41,7 +41,10 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertNumpyAll(f.time.bounds.value, time_bounds.value)
         self.assertIn('other', f.time.parent)
 
-        sub = f[{'the_time': slice(1, 2)}]
+        f.dimension_map['time']['names'] += ['times', 'times_again']
+        sub = f[{'time': slice(1, 2)}]
+        desired = OrderedDict([('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (3,)), ('yc', (4,))])
+        self.assertEqual(sub.shapes, desired)
         self.assertIsNone(sub.grid)
         sub.dimension_map['x']['variable'] = 'xc'
         sub.dimension_map['y']['variable'] = 'yc'

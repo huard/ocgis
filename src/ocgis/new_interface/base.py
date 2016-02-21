@@ -44,3 +44,38 @@ def orphaned(parent, target):
         yield target
     finally:
         target.parent = parent
+
+
+@contextmanager
+def renamed_dimensions(dimensions, name_mapping):
+    original_names = [d.name for d in dimensions]
+    try:
+        items = name_mapping.items()
+        for d in dimensions:
+            for k, v in items:
+                if d.name in v:
+                    d._name = k
+                    break
+        yield dimensions
+    finally:
+        for d, o in zip(dimensions, original_names):
+            d._name = o
+
+
+@contextmanager
+def renamed_dimensions_on_variables(vc, name_mapping):
+    variables = vc.values()
+    original_names = {v.name: [d.name for d in v.dimensions] for v in variables}
+    try:
+        items = name_mapping.items()
+        for v in variables:
+            for d in v.dimensions:
+                for desired_name, possible_names in items:
+                    if d.name in possible_names:
+                        d._name = desired_name
+                        break
+        yield vc
+    finally:
+        for v in variables:
+            for d, o in zip(v.dimensions, original_names[v.name]):
+                d._name = o

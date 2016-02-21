@@ -1,18 +1,19 @@
 from collections import OrderedDict
 from copy import deepcopy
 
+from ocgis.new_interface.base import renamed_dimensions_on_variables
 from ocgis.new_interface.geom import SpatialContainer, AbstractSpatialObject
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.variable import VariableCollection
 from ocgis.util.helpers import get_formatted_slice
 
 _DIMENSION_MAP = OrderedDict()
-_DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': None, 'names': None}
-_DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': None, 'bounds': None, 'names': None}
-_DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': None, 'bounds': None, 'names': None}
-_DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': None, 'bounds': None, 'names': None}
-_DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': None, 'bounds': None, 'names': None}
-_DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None, 'names': None}
+_DIMENSION_MAP['realization'] = {'attrs': {'axis': 'R'}, 'variable': None, 'names': []}
+_DIMENSION_MAP['time'] = {'attrs': {'axis': 'T'}, 'variable': None, 'bounds': None, 'names': []}
+_DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': None, 'bounds': None, 'names': []}
+_DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': None, 'bounds': None, 'names': []}
+_DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': None, 'bounds': None, 'names': []}
+_DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None, 'names': []}
 
 
 class OcgField(VariableCollection):
@@ -22,6 +23,23 @@ class OcgField(VariableCollection):
         self.dimension_map = kwargs.pop('dimension_map', _DIMENSION_MAP)
 
         super(OcgField, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, item):
+        if not isinstance(item, basestring):
+            name_mapping = {}
+            for k, v in self.dimension_map.items():
+                variable_name = v['variable']
+                if variable_name is not None:
+                    dimension_name = self[variable_name].dimensions[0].name
+                    variable_names = v['names']
+                    if dimension_name not in variable_names:
+                        variable_names.append(dimension_name)
+                    name_mapping[k] = variable_names
+            with renamed_dimensions_on_variables(self, name_mapping):
+                ret = super(OcgField, self).__getitem__(item)
+        else:
+            ret = super(OcgField, self).__getitem__(item)
+        return ret
 
     @property
     def realization(self):

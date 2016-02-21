@@ -3,9 +3,9 @@ from abc import ABCMeta, abstractproperty, abstractmethod
 from collections import OrderedDict
 from copy import deepcopy
 from itertools import izip
-from netCDF4 import Dataset, VLType, Group
 
 import numpy as np
+from netCDF4 import Dataset, VLType, Group
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
@@ -982,9 +982,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return ret
 
     def __getitem__(self, item):
-        try:
+        if isinstance(item, basestring):
             ret = AbstractCollection.__getitem__(self, item)
-        except TypeError:
+        else:
             # Assume a dictionary slice.
             ret = self.copy()
             names = set(item.keys())
