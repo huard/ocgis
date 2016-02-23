@@ -85,6 +85,28 @@ class TestOcgField(AbstractTestNewInterface):
         # spatial_sub.write_netcdf(path)
         # self.ncdump(path)
 
+    def test_crs(self):
+        f = OcgField()
+        grid = self.get_gridxy(with_xy_bounds=True)
+        f.add_variable(grid.x)
+        f.add_variable(grid.y)
+
+        crs = CoordinateReferenceSystem(epsg=2136, name='location')
+        f.add_variable(crs)
+        self.assertIsNone(f.crs)
+        f.dimension_map['crs']['variable'] = crs.name
+        f.dimension_map['x']['variable'] = grid.x.name
+        f.dimension_map['y']['variable'] = grid.y.name
+        self.assertEqual(f.grid.crs, crs)
+        self.assertEqual(f.grid.point.crs, crs)
+        self.assertEqual(f.grid.polygon.crs, crs)
+        self.assertEqual(len(f), 7)
+
+        path = self.get_temporary_file_path('foo.nc')
+        f.write_netcdf(path)
+        self.ncdump(path)
+
+
 # class TestFieldBundle2(AbstractTestNewInterface):
 #
 #     def get_fieldbundle(self, **kwargs):

@@ -10,6 +10,7 @@ from shapely.geometry.base import BaseMultipartGeometry
 
 from ocgis import constants
 from ocgis.exc import SpatialWrappingError, ProjectionCoordinateNotFound, ProjectionDoesNotMatch
+from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import osr
 from ocgis.util.helpers import iter_array
 from ocgis.util.spatial.wrap import Wrapper
@@ -17,7 +18,7 @@ from ocgis.util.spatial.wrap import Wrapper
 SpatialReference = osr.SpatialReference
 
 
-class CoordinateReferenceSystem(object):
+class CoordinateReferenceSystem(AbstractInterfaceObject):
     """
     Defines a coordinate system objects. One of ``value``, ``proj4``, or ``epsg`` is required.
 
@@ -123,6 +124,9 @@ class CoordinateReferenceSystem(object):
         if with_proj4:
             variable.proj4 = self.proj4
         return variable
+
+    def write_netcdf(self, *args, **kwargs):
+        return self.write_to_rootgrp(*args, **kwargs)
 
 
 class WrappableCoordinateReferenceSystem(object):

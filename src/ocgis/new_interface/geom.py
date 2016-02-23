@@ -27,12 +27,34 @@ GEOM_TYPE_MAPPING = {'Polygon': Polygon, 'Point': Point, 'MultiPoint': MultiPoin
 
 
 class AbstractSpatialObject(AbstractInterfaceObject):
-    __metaclass__ = ABCMeta
-
     def __init__(self, *args, **kwargs):
-        self._crs = None
+        self._crs_name = None
         self.crs = kwargs.pop('crs', None)
-        super(AbstractSpatialObject, self).__init__(*args, **kwargs)
+        super(AbstractInterfaceObject, self).__init__(*args, **kwargs)
+
+    @property
+    def crs(self):
+        if self.parent is not None and self._crs_name is not None:
+            ret = self.parent.get(self._crs_name)
+        else:
+            ret = None
+        return ret
+
+    @crs.setter
+    def crs(self, value):
+        if value is None:
+            if self.crs is not None:
+                self.parent.pop(self._crs_name)
+                self._crs_name = None
+        else:
+            if self.parent is None:
+                self.allocate_parent()
+            self.parent.add_variable(value, force=True)
+            self._crs_name = value.name
+
+
+class AbstractOperationsSpatialObject(AbstractSpatialObject):
+    __metaclass__ = ABCMeta
 
     @property
     def envelope(self):
@@ -41,21 +63,6 @@ class AbstractSpatialObject(AbstractInterfaceObject):
     @property
     def extent(self):
         return self._get_extent_()
-
-    @property
-    def crs(self):
-        return self._crs
-
-    @crs.setter
-    def crs(self, value):
-        if value is not None:
-            assert isinstance(value, CoordinateReferenceSystem)
-        self._crs = value
-
-    def write_netcdf(self, dataset, **kwargs):
-        if self.crs is not None:
-            self.crs.write_to_rootgrp(dataset)
-        super(AbstractSpatialObject, self).write_netcdf(dataset, **kwargs)
 
     @abstractmethod
     def update_crs(self, to_crs):
@@ -93,7 +100,7 @@ class AbstractSpatialObject(AbstractInterfaceObject):
         """Write to fiona-compatible drivers."""
 
 
-class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
+class AbstractSpatialContainer(AbstractContainer, AbstractOperationsSpatialObject):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
@@ -101,11 +108,11 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
         parent = kwargs.pop('parent', None)
         name = kwargs.pop('name', None)
         AbstractContainer.__init__(self, name, parent=parent)
-        AbstractSpatialObject.__init__(self, crs=crs)
+        AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
     def write_netcdf(self, dataset, **kwargs):
         self.parent.write_netcdf(dataset, **kwargs)
-        AbstractSpatialObject.write_netcdf(self, dataset)
+        AbstractOperationsSpatialObject.write_netcdf(self, dataset)
 
 
 # class SpatialContainer(AbstractInterfaceObject):
@@ -235,13 +242,13 @@ class AbstractSpatialContainer(AbstractContainer, AbstractSpatialObject):
 #                     setattr(self, target_name[1:], new_value)
 
 
-class AbstractSpatialVariable(Variable, AbstractSpatialObject):
+class AbstractSpatialVariable(Variable, AbstractOperationsSpatialObject):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
         Variable.__init__(self, **kwargs)
-        AbstractSpatialObject.__init__(self, crs=crs)
+        AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
 
 class GeometryVariable(AbstractSpatialVariable):

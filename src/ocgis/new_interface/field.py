@@ -1,5 +1,7 @@
 from collections import OrderedDict
+from copy import deepcopy
 
+from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import renamed_dimensions_on_variables
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.variable import VariableCollection
@@ -12,12 +14,13 @@ _DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': None, 'bounds': N
 _DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': None, 'bounds': None, 'names': []}
 _DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': None, 'bounds': None, 'names': []}
 _DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None, 'names': []}
+_DIMENSION_MAP['crs'] = {'attrs': None, 'variable': None, 'names': []}
 
 
 class OcgField(VariableCollection):
 
     def __init__(self, *args, **kwargs):
-        self.dimension_map = kwargs.pop('dimension_map', _DIMENSION_MAP)
+        self.dimension_map = kwargs.pop('dimension_map', deepcopy(_DIMENSION_MAP))
 
         VariableCollection.__init__(self, *args, **kwargs)
 
@@ -37,6 +40,10 @@ class OcgField(VariableCollection):
         else:
             ret = super(OcgField, self).__getitem__(item)
         return ret
+
+    @property
+    def crs(self):
+        return get_field_property(self, 'crs')
 
     @property
     def realization(self):
@@ -60,19 +67,20 @@ class OcgField(VariableCollection):
 
     @property
     def grid(self):
-        # tdk: test crs
         # tdk: test abstraction
         x = self.x
         y = self.y
         if x is None or y is None:
             ret = None
         else:
-            ret = GridXY(self.x, self.y, parent=self)
+            ret = GridXY(self.x, self.y, parent=self, crs=self.crs)
         return ret
 
     @property
     def geom(self):
         ret = get_field_property(self, 'geom')
+        if ret is not None and self.crs is not None:
+            ret.crs = self.crs
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
@@ -89,14 +97,15 @@ def get_field_property(field, name):
         ret = None
     else:
         ret = field[variable]
-        for k, v in field.dimension_map[name]['attrs'].items():
-            if k not in ret.attrs:
-                ret.attrs[k] = v
-        if bounds is not None:
-            ret.bounds = field[bounds]
+        if not isinstance(ret, CoordinateReferenceSystem):
+            for k, v in field.dimension_map[name]['attrs'].items():
+                if k not in ret.attrs:
+                    ret.attrs[k] = v
+            if bounds is not None:
+                ret.bounds = field[bounds]
     return ret
 
-# class FieldBundle2(AbstractSpatialObject):
+# class FieldBundle2(AbstractOperationsSpatialObject):
 #     """
 #     :type fields: sequence of variable aliases
 #

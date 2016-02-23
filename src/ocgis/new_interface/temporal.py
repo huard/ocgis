@@ -38,6 +38,9 @@ class TemporalVariable(SourcedVariable):
         self.calendar = kwargs.pop('calendar', None) or constants.DEFAULT_TEMPORAL_CALENDAR
         self.format_time = kwargs.pop('format_time', True)
 
+        if kwargs.get('name') is None:
+            kwargs['name'] = constants.DEFAULT_TEMPORAL_NAME
+
         kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
 
         super(TemporalVariable, self).__init__(**kwargs)

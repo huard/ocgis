@@ -14,6 +14,7 @@ from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
     ResolutionError, NoUnitsError, DimensionsRequiredError, PayloadProtectedError
 from ocgis.interface.base.attributes import Attributes
+from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
 from ocgis.new_interface.mpi import create_nd_slices
@@ -27,8 +28,6 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def __init__(self, name, parent=None):
         self._name = name
-        if parent is not None:
-            assert isinstance(parent, VariableCollection)
         self.parent = parent
 
     def __getitem__(self, slc):
@@ -51,6 +50,9 @@ class AbstractContainer(AbstractInterfaceObject):
     def dimensions(self):
         pass
 
+    def allocate_parent(self):
+        self.parent = VariableCollection()
+
     @abstractmethod
     def get_mask(self):
         """:rtype: :class:`numpy.ndarray`"""
@@ -63,12 +65,12 @@ class AbstractContainer(AbstractInterfaceObject):
     def _getitem_initialize_(self, slc):
         try:
             slc = get_formatted_slice(slc, self.ndim)
-        except (NotImplementedError, IndexError) as e:
+        except (NotImplementedError, IndexError):
             # Assume it is a dictionary slice.
             try:
                 slc = {k: get_formatted_slice(v, 1)[0] for k, v in slc.items()}
             except:
-                raise e
+                raise
 
         ret = self.copy()
         return ret, slc
@@ -991,7 +993,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for k, v in ret.items():
                 v = v.copy()
                 v.parent = None
-                if v.ndim > 0:
+                if not isinstance(v, CoordinateReferenceSystem) and v.ndim > 0:
                     v_dimension_names = set([d.name for d in v.dimensions])
                     if len(v_dimension_names.intersection(names)) > 0:
                         v = v.__getitem__(item)
@@ -1020,14 +1022,22 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
         if variable.name is None:
             raise ValueError('A "name" is required to enter a collection.')
-        if variable.dimensions is None and variable.ndim > 0:
-            raise ValueError('"dimensions" are required to enter a collection.')
+        try:
+            if variable.dimensions is None and variable.ndim > 0:
+                raise ValueError('"dimensions" are required to enter a collection.')
+        except AttributeError:
+            if not isinstance(variable, CoordinateReferenceSystem):
+                raise
 
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
-        if variable.has_bounds:
-            self.add_variable(variable.bounds, force=True)
+        try:
+            if variable.has_bounds:
+                self.add_variable(variable.bounds, force=True)
+        except AttributeError:
+            if not isinstance(variable, CoordinateReferenceSystem):
+                raise
         variable.parent = self
 
     def set_mask(self, variable, exclude=None):

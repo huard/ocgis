@@ -548,10 +548,11 @@ def get_geometry_variable(func, grid, **kwargs):
     if not alloc_only:
         value = func(grid, value)
     kwargs['value'] = value
+    kwargs['crs'] = grid.crs
     return GeometryVariable(**kwargs)
 
 
-def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True, check_contains=False):
+def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     assert lower <= upper
 
     if keep_touches:

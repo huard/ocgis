@@ -12,7 +12,7 @@ from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
-from ocgis.new_interface.geom import SpatialContainer, GeometryVariable
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
@@ -86,13 +86,21 @@ class TestGeometryVariable(AbstractTestNewInterface):
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
         self.assertEqual(gvar.uid.name, 'UGID')
-        self.assertEqual(len(gvar.parent), 6)
+        self.assertEqual(len(gvar.parent), 7)
         self.assertEqual(gvar.geom_type, 'MultiPolygon')
         self.assertEqual(gvar.shape, (51,))
 
     def test_area(self):
         gvar = self.get_geometryvariable()
         self.assertTrue(np.all(gvar.area == 0))
+
+    def test_crs(self):
+        crs = WGS84()
+        gvar = GeometryVariable(crs=crs)
+        self.assertEqual(gvar.crs, crs)
+        gvar.crs = None
+        self.assertIsNone(gvar.crs)
+        self.assertEqual(len(gvar.parent), 0)
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
