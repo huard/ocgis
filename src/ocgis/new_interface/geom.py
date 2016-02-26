@@ -328,6 +328,8 @@ class GeometryVariable(AbstractSpatialVariable):
             self.parent = VariableCollection(variables=[self])
         self.parent.add_variable(variable, force=True)
         self._name_uid = variable.name
+        # tdk: this should be a constant
+        variable.attrs['ocgis'] = 'ocgis_geom_uid'
 
     def get_intersects(self, *args, **kwargs):
         return_slice = kwargs.pop('return_slice', False)

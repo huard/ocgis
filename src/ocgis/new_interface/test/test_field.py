@@ -85,6 +85,9 @@ class TestOcgField(AbstractTestNewInterface):
         # spatial_sub.write_netcdf(path)
         # self.ncdump(path)
 
+    def test_combo_grid_mapping(self):
+        raise self.ToTest('test grid_mapping_name applied to dimensioned variables')
+
     def test_crs(self):
         f = OcgField()
         grid = self.get_gridxy(with_xy_bounds=True)
@@ -102,9 +105,9 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertEqual(f.grid.polygon.crs, crs)
         self.assertEqual(len(f), 7)
 
-        path = self.get_temporary_file_path('foo.nc')
-        f.write_netcdf(path)
-        self.ncdump(path)
+        # path = self.get_temporary_file_path('foo.nc')
+        # f.write_netcdf(path)
+        # self.ncdump(path)
 
 
 # class TestFieldBundle2(AbstractTestNewInterface):

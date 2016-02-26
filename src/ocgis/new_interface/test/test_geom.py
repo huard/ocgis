@@ -10,6 +10,7 @@ from shapely import wkt
 from shapely.geometry import Point, box, MultiPoint, LineString, MultiPolygon
 from shapely.geometry.multilinestring import MultiLineString
 
+import ocgis
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
@@ -61,12 +62,19 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertTrue(gvar2.shape[0] > 0)
             self.assertFalse(gvar2.get_mask().any())
 
-    @attr('slow')
+    @attr('slow', 'mpi-4')
     def test_combo_read_and_spatial_operations(self):
         """Test various spatial operations with multiple geometries and a grid."""
-        raise SkipTest('turn this into an mpi test')
+        # tdk: support writing string variables to netCDf
+        # tdk: determine how to link unique geometry identifiers to group names
+        # tdk: add cf convention to output netcdf datasets
+        # tdk: add option to load a slice from a GIS file
+        # tdk: modify driver structure
+        # raise SkipTest('turn this into an mpi test')
         g = GeomCabinetIterator(path=self.path_state_boundaries)
-        gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
+        gvar = GeometryVariable.read_gis(g, 'states', 'UGID')[0:3]
+        gvar.parent = VariableCollection(variables=[gvar.parent['UGID'], gvar])
+        print gvar.parent
         grid = self.get_gridxy_global(resolution=3.0)
         path_shp = self.get_temporary_file_path('out')
         path_nc = self.get_temporary_file_path('out.nc')
@@ -74,13 +82,30 @@ class TestGeometryVariable(AbstractTestNewInterface):
         some_data = Variable(name='some_data', value=np.random.rand(*value_shape), dimensions=['time', 'y', 'x'])
         grid.parent.add_variable(some_data)
 
-        for ctr, subset in enumerate(gvar.value):
-            self.log.debug(ctr)
-            gg = GeometryVariable(value=subset)
+        for idx in range(gvar.shape[0]):
+            self.log.debug(idx)
+            gvar_sub = gvar[idx]
+            sub = grid.get_intersects(gvar_sub.value[0])
+            sub.parent.name = str(gvar_sub.uid.value[0])
+            sub.parent.attrs['convention'] = 'CF-1.6'
+            gvar.parent.add_child(sub.parent)
 
-            sub = grid.get_intersects(subset)
-            sub.write_fiona(path_shp)
-            sub.write_netcdf(path_nc)
+        gvar.parent.attrs['convention'] = 'ocgis-{}'.format(ocgis.__version__)
+        gvar.parent.write_netcdf(path_nc)
+        self.ncdump(path_nc)
+        import ipdb;
+        ipdb.set_trace()
+
+        # sub.write_fiona(path_shp)
+        # sub.write_netcdf(path_nc)
+
+
+        # g = GeomCabinetIterator(path=self.path_state_boundaries)
+        # gvar = GeometryVariable.read_gis(g, 'states', 'UGID')
+        # splits = get_optimal_splits(4, gvar.shape)
+        # slices = gvar.get_scatter_slices(splits)
+        # for slice in slices:
+        #     print gvar[slice].parent['STATE_ABBR'].value
 
     def test_read_gis(self):
         g = GeomCabinetIterator(path=self.path_state_boundaries)
