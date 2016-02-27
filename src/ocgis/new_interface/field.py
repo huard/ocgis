@@ -21,6 +21,7 @@ class OcgField(VariableCollection):
 
     def __init__(self, *args, **kwargs):
         self.dimension_map = kwargs.pop('dimension_map', deepcopy(_DIMENSION_MAP))
+        self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
 
         VariableCollection.__init__(self, *args, **kwargs)
 
@@ -73,14 +74,19 @@ class OcgField(VariableCollection):
         if x is None or y is None:
             ret = None
         else:
-            ret = GridXY(self.x, self.y, parent=self, crs=self.crs)
+            ret = GridXY(self.x, self.y, parent=self, crs=self.crs, abstraction=self.grid_abstraction)
         return ret
 
     @property
     def geom(self):
         ret = get_field_property(self, 'geom')
-        if ret is not None and self.crs is not None:
-            ret.crs = self.crs
+        if ret is not None:
+            if self.crs is not None:
+                ret.crs = self.crs
+        else:
+            # Attempt to pull the geometry from the grid.
+            if self.grid is not None:
+                ret = self.grid.abstraction_geometry
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):

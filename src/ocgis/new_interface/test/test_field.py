@@ -88,8 +88,8 @@ class TestOcgField(AbstractTestNewInterface):
     def test_combo_grid_mapping(self):
         raise self.ToTest('test grid_mapping_name applied to dimensioned variables')
 
-    def test_crs(self):
-        f = OcgField()
+    def test_combo_crs_and_grid_abstraction(self):
+        f = OcgField(grid_abstraction='point')
         grid = self.get_gridxy(with_xy_bounds=True)
         f.add_variable(grid.x)
         f.add_variable(grid.y)
@@ -103,6 +103,9 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertEqual(f.grid.crs, crs)
         self.assertEqual(f.grid.point.crs, crs)
         self.assertEqual(f.grid.polygon.crs, crs)
+        self.assertEqual(f.grid.abstraction, 'point')
+        self.assertEqual(f.grid.abstraction_geometry.geom_type, 'Point')
+        self.assertEqual(f.geom.geom_type, 'Point')
         self.assertEqual(len(f), 7)
 
         # path = self.get_temporary_file_path('foo.nc')
