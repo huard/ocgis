@@ -22,6 +22,7 @@ class OcgField(VariableCollection):
     def __init__(self, *args, **kwargs):
         self.dimension_map = kwargs.pop('dimension_map', deepcopy(_DIMENSION_MAP))
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
+        self.format_tine = kwargs.pop('format_time', True)
 
         VariableCollection.__init__(self, *args, **kwargs)
 
@@ -81,12 +82,16 @@ class OcgField(VariableCollection):
     def geom(self):
         ret = get_field_property(self, 'geom')
         if ret is not None:
-            if self.crs is not None:
-                ret.crs = self.crs
+            crs = self.crs
+            # Overload the geometry coordinate system if set on the field. Otherwise, this will (obviously) use the
+            # coordinate system on the geometry variable.
+            if crs is not None:
+                ret.crs = crs
         else:
             # Attempt to pull the geometry from the grid.
-            if self.grid is not None:
-                ret = self.grid.abstraction_geometry
+            grid = self.grid
+            if grid is not None:
+                ret = grid.abstraction_geometry
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
@@ -104,9 +109,7 @@ def get_field_property(field, name):
     else:
         ret = field[variable]
         if not isinstance(ret, CoordinateReferenceSystem):
-            for k, v in field.dimension_map[name]['attrs'].items():
-                if k not in ret.attrs:
-                    ret.attrs[k] = v
+            ret.attrs.update(field.dimension_map[name]['attrs'])
             if bounds is not None:
                 ret.bounds = field[bounds]
     return ret

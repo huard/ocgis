@@ -108,6 +108,18 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertEqual(f.geom.geom_type, 'Point')
         self.assertEqual(len(f), 7)
 
+    def test_time(self):
+        units = [None, 'days since 2012-1-1']
+        calendar = [None, '365_day']
+        value = [10, 20]
+        bounds = [[5, 15], [15, 25]]
+        variable_type = [Variable, TemporalVariable]
+
+        keywords = dict(units=units, calendar=calendar, variable_type=variable_type)
+
+        for k in self.iter_product_keywords(keywords):
+            var = k.variable_type(value=value, units=k.units, calendar=k.calendar)
+
         # path = self.get_temporary_file_path('foo.nc')
         # f.write_netcdf(path)
         # self.ncdump(path)

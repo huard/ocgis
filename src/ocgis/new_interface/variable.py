@@ -690,6 +690,7 @@ class Variable(AbstractContainer, Attributes):
 
         self.write_attributes_to_netcdf_object(var)
 
+        # tdk: units are updated here for writing to netCDF
         if self.units is not None:
             var.units = self.units
 
