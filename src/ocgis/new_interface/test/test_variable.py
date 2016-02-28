@@ -336,12 +336,12 @@ class TestVariable(AbstractTestNewInterface):
         # Conversion of celsius units to kelvin.
         attrs = {k: 1 for k in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE}
         var = Variable(name='tas', units='celsius', value=original_value, attrs=attrs)
-        self.assertEqual(len(var.attrs), 2)
+        self.assertEqual(len(var.attrs), 3)
         var.cfunits_conform(units_kelvin)
         self.assertNumpyAll(var.masked_value, np.ma.array([278.15] * 3, fill_value=var.fill_value))
         self.assertEqual(var.cfunits, units_kelvin)
         self.assertEqual(var.units, 'kelvin')
-        self.assertEqual(len(var.attrs), 0)
+        self.assertEqual(len(var.attrs), 1)
 
         # If there are no units associated with a variable, conforming the units should fail.
         var = Variable(name='tas', units=None, value=original_value)
@@ -385,6 +385,21 @@ class TestVariable(AbstractTestNewInterface):
         desired = np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False], fill_value=var.fill_value)
         self.assertNumpyAll(var.masked_value, desired)
 
+    def test_units(self):
+        var = Variable()
+        self.assertIsNone(var.units)
+        var.units = 'large'
+        self.assertEqual(var.attrs['units'], 'large')
+        self.assertEqual(var.units, 'large')
+        var.units = 'small'
+        self.assertEqual(var.attrs['units'], 'small')
+        self.assertEqual(var.units, 'small')
+        var.units = None
+        self.assertEqual(var.units, None)
+
+        var = Variable(units='haze')
+        self.assertEqual(var.units, 'haze')
+
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()
@@ -402,8 +417,8 @@ class TestVariable(AbstractTestNewInterface):
         self.assertAlmostEqual(var.value.mean(), 133.33333333)
         self.assertFalse(var.get_mask().any())
         var2.attrs['way'] = 'out'
-        self.assertEqual(len(var.attrs), 0)
-        self.assertEqual(len(var3.attrs), 0)
+        self.assertEqual(len(var.attrs), 1)
+        self.assertEqual(len(var3.attrs), 1)
 
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
@@ -579,6 +594,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(sub.shape, (1,))
 
     def test_reshape(self):
+        # tdk: remove reshape
         value = np.arange(0, 12).reshape(4, 3)
         mask = np.zeros(value.shape, dtype=bool)
         mask[1, 1] = True

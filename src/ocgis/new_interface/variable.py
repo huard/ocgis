@@ -174,7 +174,6 @@ class Variable(AbstractContainer, Attributes):
 
     def __setitem__(self, slc, variable):
         # tdk: order
-        # tdk:
         slc = get_formatted_slice(slc, self.ndim)
         self.value[slc] = variable.value
         new_mask = self.get_mask()
@@ -312,21 +311,19 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def units(self):
-        if self._units is None:
-            self._units = self._get_units_()
-        return self._units
+        return self._get_units_()
 
     @units.setter
     def units(self, value):
         self._set_units_(value)
 
     def _get_units_(self):
-        return None
+        return get_attribute_property(self, 'units')
 
     def _set_units_(self, value):
         if value is not None:
             value = str(value)
-        self._units = value
+        set_attribute_property(self, 'units', value)
 
     @property
     def value(self):
@@ -393,6 +390,11 @@ class Variable(AbstractContainer, Attributes):
         update_unlimited_dimension_length(value, self._dimensions)
 
         self._value = value
+
+    def copy(self):
+        ret = AbstractContainer.copy(self)
+        ret.attrs = ret.attrs.copy()
+        return ret
 
     def cfunits_conform(self, to_units, from_units=None):
         """
@@ -1294,3 +1296,11 @@ def variable_get_zeros(dimensions, dtype):
     new_shape = get_dimension_lengths(dimensions)
     ret = np.zeros(new_shape, dtype=dtype)
     return ret
+
+
+def get_attribute_property(variable, name):
+    return variable.attrs.get(name)
+
+
+def set_attribute_property(variable, name, value):
+    variable.attrs[name] = value

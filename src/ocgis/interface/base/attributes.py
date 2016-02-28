@@ -30,9 +30,11 @@ class Attributes(object):
         """
 
         for k, v in self.attrs.iteritems():
-            if k.startswith('_'):
+            if k.startswith('_') or v is None:
+                # Do not write private/protected attributes used by netCDF or None values.
                 continue
             if k == 'axis' and isinstance(v, basestring):
+                # HACK: Axis writing was causing a strange netCDF failure.
                 target.axis = str(v)
             else:
                 target.setncattr(k, v)

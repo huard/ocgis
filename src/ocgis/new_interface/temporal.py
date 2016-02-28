@@ -10,7 +10,7 @@ import numpy as np
 
 from ocgis import constants
 from ocgis.exc import EmptySubsetError, IncompleteSeasonError, CannotFormatTimeError, ResolutionError
-from ocgis.new_interface.variable import SourcedVariable
+from ocgis.new_interface.variable import SourcedVariable, get_attribute_property, set_attribute_property
 from ocgis.util.helpers import get_is_date_between, iter_array, get_none_or_slice
 
 
@@ -35,21 +35,30 @@ class TemporalVariable(SourcedVariable):
         self._value_numtime = None
         self._bounds_numtime = None
 
-        self.calendar = kwargs.pop('calendar', None) or constants.DEFAULT_TEMPORAL_CALENDAR
         self.format_time = kwargs.pop('format_time', True)
 
+        calendar = kwargs.pop('calendar', None) or constants.DEFAULT_TEMPORAL_CALENDAR
         if kwargs.get('name') is None:
             kwargs['name'] = constants.DEFAULT_TEMPORAL_NAME
-
         kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
 
         super(TemporalVariable, self).__init__(**kwargs)
+
+        self.calendar = calendar
 
     def _getitem_finalize_(self, ret, slc):
         if isinstance(slc, dict):
             slc = slc[self.dimensions[0].name]
         ret._value_numtime = get_none_or_slice(ret._value_numtime, slc)
         ret._value_datetime = get_none_or_slice(ret._value_datetime, slc)
+
+    @property
+    def calendar(self):
+        return get_attribute_property(self, 'calendar')
+
+    @calendar.setter
+    def calendar(self, value):
+        set_attribute_property(self, 'calendar', value)
 
     @property
     def cfunits(self):
