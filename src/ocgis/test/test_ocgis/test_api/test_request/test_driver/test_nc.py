@@ -1,12 +1,13 @@
 import datetime
-import netCDF4 as nc
 import os
+import pickle
 import shutil
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime as dt
 
 import fiona
+import netCDF4 as nc
 import numpy as np
 from shapely.geometry.geo import shape
 
@@ -27,6 +28,25 @@ from ocgis.util.units import get_units_object
 
 
 class TestDriverNetcdf(TestBase):
+    def get_drivernetcdf(self):
+        path = self.get_temporary_file_path('drivernetcdf.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.convention = 'CF-1.6'
+            ds.createDimension('time')
+            ds.createDimension('x', 5)
+            vx = ds.createVariable('x', np.float32, dimensions=['time', 'x'])
+            vx[:] = np.random.rand(3, 5) * 100
+            group1 = ds.createGroup('group1')
+            group1.contact = 'email'
+            group1.createDimension('y', 4)
+            vy = group1.createVariable('y', np.int16, dimensions=['y'])
+            vy.scale_factor = 5.0
+            vy.add_offset = 100.0
+            vy[:] = np.ma.array([1, 2, 3, 4], mask=[False, True, False, False])
+        rd = RequestDataset(uri=path)
+        d = DriverNetcdf(rd)
+        return d
+
     def get_2d_state_boundaries(self):
         geoms = []
         build = True
@@ -58,6 +78,60 @@ class TestDriverNetcdf(TestBase):
         sdim = SpatialDimension(geom=geom, properties=attrs, crs=WGS84())
         return sdim
 
+    def test_init(self):
+        d = self.get_drivernetcdf()
+        self.assertIsInstance(d, DriverNetcdf)
+
+    def test_metadata(self):
+        d = self.get_drivernetcdf()
+        desired = OrderedDict([('groups', OrderedDict([(u'group1', OrderedDict(
+            [('global_attributes', OrderedDict([(u'contact', u'email')])), ('file_format', 'NETCDF4'), ('variables',
+                                                                                                        OrderedDict([(
+                                                                                                                     u'y',
+                                                                                                                     {
+                                                                                                                         'dimensions': (
+                                                                                                                         u'y',),
+                                                                                                                         'dtype': np.dtype(
+                                                                                                                             'int16'),
+                                                                                                                         'fill_value': 999999,
+                                                                                                                         'fill_value_packed': 1e+20,
+                                                                                                                         'dtype_packed': np.dtype(
+                                                                                                                             'float64'),
+                                                                                                                         'attributes': OrderedDict(
+                                                                                                                             [
+                                                                                                                                 (
+                                                                                                                                 u'scale_factor',
+                                                                                                                                 5.0),
+                                                                                                                                 (
+                                                                                                                                 u'add_offset',
+                                                                                                                                 100.0)]),
+                                                                                                                         'name': u'y'})])),
+             ('dimensions', OrderedDict([(u'y', {'isunlimited': False, 'len': 4})]))]))])),
+                               ('global_attributes', OrderedDict([(u'convention', u'CF-1.6')])),
+                               ('file_format', 'NETCDF4'), ('variables', OrderedDict([(u'x',
+                                                                                       {'dimensions': (u'time', u'x'),
+                                                                                        'dtype': np.dtype('float32'),
+                                                                                        'fill_value': 1e+20,
+                                                                                        'fill_value_packed': None,
+                                                                                        'dtype_packed': None,
+                                                                                        'attributes': OrderedDict(),
+                                                                                        'name': u'x'})])), (
+                               'dimensions', OrderedDict([(u'time', {'isunlimited': True, 'len': 3}),
+                                                          (u'x', {'isunlimited': False, 'len': 5})]))])
+        self.assertEqual(d.metadata, desired)
+        pickled = pickle.dumps(d.metadata)
+        unpickled = pickle.loads(pickled)
+        self.assertEqual(unpickled, desired)
+
+    def test_get_dump_report(self):
+        d = self.get_drivernetcdf()
+        # self.ncdump(d.rd.uri)
+        r = d.get_dump_report()
+        # print 'BREAK ---------------------------------/n/n/n'
+        # for line in r:
+        #     print line
+        self.assertGreaterEqual(len(r), 24)
+
     @attr('data')
     def test_get_dimensioned_variables_one_variable_in_target_dataset(self):
         uri = self.test_data.get_uri('cancm4_tas')
@@ -81,11 +155,11 @@ class TestDriverNetcdf(TestBase):
         self.assertEqual(rd.variable, ('tas', 'tasmax'))
         self.assertEqual(rd.variable, rd.alias)
 
-    @attr('data')
-    def test_get_dump_report(self):
-        rd = self.test_data.get_rd('cancm4_tas')
-        driver = DriverNetcdf(rd)
-        self.assertTrue(len(driver.get_dump_report()) > 15)
+    # @attr('data')
+    # def test_get_dump_report(self):
+    #     rd = self.test_data.get_rd('cancm4_tas')
+    #     driver = DriverNetcdf(rd)
+    #     self.assertTrue(len(driver.get_dump_report()) > 15)
 
     @attr('data')
     def test_get_field(self):
@@ -574,25 +648,25 @@ class TestDriverNetcdf(TestBase):
         res = driver._get_vector_dimension_(k, v, source_metadata)
         self.assertEqual(res['name'], 'yc')
 
-    @attr('data')
-    def test_inspect(self):
-        rd = self.test_data.get_rd('cancm4_tas')
-        driver = DriverNetcdf(rd)
-        with self.print_scope() as ps:
-            driver.inspect()
-        self.assertTrue(len(ps.storage) >= 1)
-
-        # test with a request dataset having no dimensioned variables
-        path = self.get_temporary_file_path('bad.nc')
-        with self.nc_scope(path, 'w') as ds:
-            ds.createDimension('foo')
-            var = ds.createVariable('foovar', int, dimensions=('foo',))
-            var.a_name = 'a name'
-        rd = RequestDataset(uri=path)
-        driver = DriverNetcdf(rd)
-        with self.print_scope() as ps:
-            driver.inspect()
-        self.assertTrue(len(ps.storage) >= 1)
+    # @attr('data')
+    # def test_inspect(self):
+    #     rd = self.test_data.get_rd('cancm4_tas')
+    #     driver = DriverNetcdf(rd)
+    #     with self.print_scope() as ps:
+    #         driver.inspect()
+    #     self.assertTrue(len(ps.storage) >= 1)
+    #
+    #     # test with a request dataset having no dimensioned variables
+    #     path = self.get_temporary_file_path('bad.nc')
+    #     with self.nc_scope(path, 'w') as ds:
+    #         ds.createDimension('foo')
+    #         var = ds.createVariable('foovar', int, dimensions=('foo',))
+    #         var.a_name = 'a name'
+    #     rd = RequestDataset(uri=path)
+    #     driver = DriverNetcdf(rd)
+    #     with self.print_scope() as ps:
+    #         driver.inspect()
+    #     self.assertTrue(len(ps.storage) >= 1)
 
     @attr('data')
     def test_open(self):

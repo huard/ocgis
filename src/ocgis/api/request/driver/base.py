@@ -1,4 +1,6 @@
 import abc
+import json
+from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
 
@@ -13,12 +15,19 @@ class AbstractDriver(object):
 
     def __init__(self, rd):
         self.rd = rd
+        self._metadata = None
 
     def __eq__(self, other):
         return self.key == other.key
 
     def __str__(self):
         return '"{0}"'.format(self.key)
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = self.get_metadata()
+        return self._metadata
 
     @abc.abstractproperty
     def extensions(self):
@@ -64,6 +73,28 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
+    def allocate_variable_without_value(self, variable):
+        raise NotImplementedError
+
+    def get_source_metadata_as_json(self):
+        # tdk: test
+
+        def _jsonformat_(d):
+            for k, v in d.iteritems():
+                if isinstance(v, dict):
+                    _jsonformat_(v)
+                else:
+                    try:
+                        v = v.tolist()
+                    except AttributeError:
+                        # NumPy arrays need to be converted to lists.
+                        pass
+                d[k] = v
+
+        meta = deepcopy(self.metadata)
+        _jsonformat_(meta)
+        return json.dumps(meta)
+
     def get_field(self, **kwargs):
         field = self._get_field_(**kwargs)
         # If this is a source grid for regridding, ensure the flag is updated.
@@ -75,16 +106,9 @@ class AbstractDriver(object):
         return field
 
     @abc.abstractmethod
-    def get_source_metadata(self):
+    def get_metadata(self):
         """
         :rtype: dict
-        """
-
-    @abc.abstractmethod
-    def get_source_metadata_as_json(self):
-        """
-        :returns: A JSON representation of the source metadata as returned from :function:`json.dumps`.
-        :rtype: str
         """
 
     def inspect(self):

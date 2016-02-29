@@ -1,37 +1,13 @@
-from abc import ABCMeta, abstractmethod
-from collections import OrderedDict
 from warnings import warn
 
-import numpy as np
 
+# tdk: remove this module, etc.
 
-class AbstractMetadata(OrderedDict):
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def get_lines(self):
-        pass
-
-    @abstractmethod
-    def _parse_(self):
-        pass
-
-
-class NcMetadata(AbstractMetadata):
+class NcMetadata(object):
     """
     :param rootgrp: An open NetCDF4 dataset object.
     :type rootgrp: :class:`netCDF4.Dataset`
     """
-
-    def __init__(self, rootgrp=None):
-        super(NcMetadata, self).__init__()
-
-        if rootgrp is not None:
-            try:
-                self._parse_(rootgrp)
-            # likely raised by an initialization following a deepcopy
-            except AttributeError:
-                super(NcMetadata, self).__init__(rootgrp)
 
     def get_lines(self):
         lines = ['dimensions:']
@@ -70,54 +46,3 @@ class NcMetadata(AbstractMetadata):
 
         return lines
 
-    def _parse_(self, rootgrp):
-        # get global metadata
-        dataset = OrderedDict()
-        for attr in rootgrp.ncattrs():
-            dataset.update({attr: getattr(rootgrp, attr)})
-        self.update({'dataset': dataset})
-
-        # get file format
-        self.update({'file_format': rootgrp.file_format})
-
-        # get variables
-        variables = OrderedDict()
-        for key, value in rootgrp.variables.iteritems():
-            subvar = OrderedDict()
-            for attr in value.ncattrs():
-                if attr.startswith('_'):
-                    continue
-                subvar.update({attr: getattr(value, attr)})
-
-            # Remove scale factors and offsets from the metadata.
-            if 'scale_factor' in subvar:
-                dtype_packed = value[0].dtype
-                fill_value_packed = np.ma.array([], dtype=dtype_packed).fill_value
-            else:
-                dtype_packed = None
-                fill_value_packed = None
-
-            # make two attempts at missing value attributes otherwise assume the default from a numpy masked array
-            try:
-                fill_value = value.fill_value
-            except AttributeError:
-                try:
-                    fill_value = value.missing_value
-                except AttributeError:
-                    fill_value = np.ma.array([], dtype=value.dtype).fill_value
-
-            variables.update({key: {'dimensions': value.dimensions,
-                                    'attrs': subvar,
-                                    'dtype': str(value.dtype),
-                                    'name': value._name,
-                                    'fill_value': fill_value,
-                                    'dtype_packed': dtype_packed,
-                                    'fill_value_packed': fill_value_packed}})
-        self.update({'variables': variables})
-
-        # get dimensions
-        dimensions = OrderedDict()
-        for key, value in rootgrp.dimensions.iteritems():
-            subdim = {key: {'len': len(value), 'isunlimited': value.isunlimited()}}
-            dimensions.update(subdim)
-        self.update({'dimensions': dimensions})

@@ -1,21 +1,23 @@
-import json
 import logging
+from collections import OrderedDict
 from copy import deepcopy
 from warnings import warn
 
 import netCDF4 as nc
 import numpy as np
+from netCDF4._netCDF4 import VLType
 
 from ocgis import messages, TemporalDimension
 from ocgis.api.request.driver.base import AbstractDriver
-from ocgis.exc import ProjectionDoesNotMatch, VariableNotFoundError, DimensionNotFound, NoDimensionedVariablesFound
+from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.variable import VariableCollection, Variable
-from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.dimension import NcVectorDimension
 from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
+from ocgis.new_interface.dimension import SourcedDimension
+from ocgis.new_interface.variable import SourcedVariable, ObjectType
 from ocgis.util.helpers import itersubclasses, get_iter, get_tuple
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -36,17 +38,15 @@ class DriverNetcdf(AbstractDriver):
         AbstractDriver.__init__(self, *args, **kwargs)
         self._raw_metadata = None
 
-    @property
-    def raw_metadata(self):
-        if self._raw_metadata is None:
-            ds = self.open()
-            try:
-                self._raw_metadata = NcMetadata(ds)
-            finally:
-                self.close(ds)
-        return self._raw_metadata
+    def get_metadata(self):
+        ds = self.open()
+        try:
+            ret = parse_metadata(ds)
+        finally:
+            self.close(ds)
+        return ret
 
-    def open(self):
+    def open(self, group_indexing=None):
         try:
             ret = nc.Dataset(self.rd.uri, 'r')
         except (TypeError, RuntimeError):
@@ -69,6 +69,10 @@ class DriverNetcdf(AbstractDriver):
                 # if all variables were found, raise the other error
                 raise e
 
+        if group_indexing is not None:
+            for group_name in get_iter(group_indexing):
+                ret = ret.groups[group_name]
+
         return ret
 
     def close(self, obj):
@@ -85,6 +89,8 @@ class DriverNetcdf(AbstractDriver):
         return crs
 
     def get_dimensioned_variables(self):
+        # tdk: implement
+        # tdk: test
         metadata = self.raw_metadata
         variables = metadata['variables'].keys()
         ret = []
@@ -112,133 +118,126 @@ class DriverNetcdf(AbstractDriver):
         return ret
 
     def get_dump_report(self):
-        return self.raw_metadata.get_lines()
+        lines = get_dump_report_for_group(self.metadata)
+        lines.insert(0, 'netcdf {')
+        for group_name, group_metadata in self.metadata['groups'].items():
+            lines.append('')
+            lines.append('group: ' + group_name + ' {')
+            lines += get_dump_report_for_group(group_metadata, global_attributes_name=group_name, indent=2)
+            lines.append('  }')
+        lines.append('}')
+        return lines
 
-    def get_source_metadata(self):
-        metadata = self.raw_metadata
-        try:
-            variables = get_tuple(self.rd.variable)
-        except NoDimensionedVariablesFound:
-            variables = None
+    def allocate_variable_without_value(self, variable):
+        allocate_variable_using_metadata(variable, self.metadata)
 
-        try:
-            var = metadata['variables'][variables[0]]
-        except KeyError:
-            raise VariableNotFoundError(self.rd.uri, variables[0])
-        except TypeError:
-            # if there are no dimensioned variables available, the dimension map should not be set
-            if variables is not None:
-                raise
-        else:
-            if self.rd.dimension_map is None:
-                metadata['dim_map'] = get_dimension_map(var['name'], metadata)
-            else:
-                for k, v in self.rd.dimension_map.iteritems():
-                    if not isinstance(v, dict):
-                        try:
-                            variable_name = metadata['variables'][v]['name']
-                        except KeyError:
-                            variable_name = None
-                        self.rd.dimension_map[k] = {'variable': variable_name,
-                                                    'dimension': v,
-                                                    'pos': var['dimensions'].index(v)}
-                    metadata['dim_map'] = self.rd.dimension_map
+        # def get_source_metadata(self):
+        #     metadata = self.raw_metadata
+        #     try:
+        #         variables = get_tuple(self.rd.variable)
+        #     except NoDimensionedVariablesFound:
+        #         variables = None
+        #
+        #     try:
+        #         var = metadata['variables'][variables[0]]
+        #     except KeyError:
+        #         raise VariableNotFoundError(self.rd.uri, variables[0])
+        #     except TypeError:
+        #         # if there are no dimensioned variables available, the dimension map should not be set
+        #         if variables is not None:
+        #             raise
+        #     else:
+        #         if self.rd.dimension_map is None:
+        #             metadata['dim_map'] = get_dimension_map(var['name'], metadata)
+        #         else:
+        #             for k, v in self.rd.dimension_map.iteritems():
+        #                 if not isinstance(v, dict):
+        #                     try:
+        #                         variable_name = metadata['variables'][v]['name']
+        #                     except KeyError:
+        #                         variable_name = None
+        #                     self.rd.dimension_map[k] = {'variable': variable_name,
+        #                                                 'dimension': v,
+        #                                                 'pos': var['dimensions'].index(v)}
+        #                 metadata['dim_map'] = self.rd.dimension_map
+        #
+        #     return metadata
 
-        return metadata
+        # def _get_vector_dimension_(self, k, v, source_metadata):
+        #     """
+        #     :param str k: The string name/key of the dimension to load.
+        #     :param dict v: A series of keyword parameters to pass to the dimension class.
+        #     :param dict source_metadata: The request dataset's metadata as returned from
+        #      :attr:`ocgis.api.request.base.RequestDataset.source_metadata`.
+        #     :returns: A vector dimension object linked to the source data. If the variable is not one-dimension return the
+        #      ``source_metadata`` reference to the variable.
+        #     :rtype: :class:`ocgis.interface.base.dimension.base.VectorDimension`
+        #     """
+        #
+        #     # This is the string axis definition for the dimension.
+        #     axis_value = v['axis']
+        #     # Get the axis dictionary from the dimension map.
+        #     ref_axis = source_metadata['dim_map'].get(axis_value)
+        #     # If there is no axis, fill with none. This happens when a dataset does not have a vertical level or projection
+        #     # axis for example.
+        #     if ref_axis is None:
+        #         fill = None
+        #     else:
+        #         ref_variable = source_metadata['variables'].get(ref_axis['variable'])
+        #
+        #         # For data with a projection/realization axis there may be no associated variable.
+        #         try:
+        #             ref_variable['axis'] = ref_axis
+        #         except TypeError:
+        #             if axis_value == 'R' and ref_variable is None:
+        #                 ref_variable = {'axis': ref_axis, 'name': ref_axis['dimension'], 'attrs': {}}
+        #
+        #         # Realization axes may not have an associated variable.
+        #         if k != 'realization'and len(ref_variable['dimensions']) > 1:
+        #             return ref_variable
+        #
+        #         # Extract the data length to use when creating the source index arrays.
+        #         length = source_metadata['dimensions'][ref_axis['dimension']]['len']
+        #         src_idx = np.arange(0, length, dtype=np.int32)
+        #
+        #         # Get the target data type for the dimension.
+        #         try:
+        #             dtype = np.dtype(ref_variable['dtype'])
+        #         # The realization dimension may not be a associated with a variable.
+        #         except KeyError:
+        #             if k == 'realization' and ref_variable['axis']['variable'] is None:
+        #                 dtype = None
+        #             else:
+        #                 raise
+        #
+        #         # Get the dimension's name.
+        #         name = ref_variable['axis']['dimension']
+        #         # Get if the dimension is unlimited.
+        #         unlimited = source_metadata['dimensions'][name]['isunlimited']
+        #
+        #         # Assemble keyword arguments for the dimension.
+        #         kwds = dict(name_uid=v['name_uid'], src_idx=src_idx, request_dataset=self.rd, meta=ref_variable,
+        #                     axis=axis_value, name_value=ref_variable.get('name'), dtype=dtype,
+        #                     attrs=ref_variable['attrs'].copy(), name=name, name_bounds=ref_variable['axis'].get('bounds'),
+        #                     unlimited=unlimited)
+        #
+        #         # There may be additional parameters for each dimension.
+        #         if v['adds'] is not None:
+        #             try:
+        #                 kwds.update(v['adds'](ref_variable['attrs']))
+        #             except TypeError:
+        #                 # Adds may not be a callable object. Assume they are a dictionary.
+        #                 kwds.update(v['adds'])
+        #
+        #         # Check for the name of the bounds dimension in the source metadata. Loop through the dimension map,
+        #         # look for a bounds variable, and choose the bounds dimension if possible
+        #         name_bounds_dimension = self._get_name_bounds_dimension_(source_metadata)
+        #         kwds['name_bounds_dimension'] = name_bounds_dimension
+        #
+        #         # Initialize the dimension object.
+        #         fill = v['cls'](**kwds)
 
-    def get_source_metadata_as_json(self):
-
-        def _jsonformat_(d):
-            for k, v in d.iteritems():
-                if isinstance(v, dict):
-                    _jsonformat_(v)
-                else:
-                    try:
-                        v = v.tolist()
-                    except AttributeError:
-                        # NumPy arrays need to be converted to lists.
-                        pass
-                d[k] = v
-
-        meta = deepcopy(self.get_source_metadata())
-        _jsonformat_(meta)
-        return json.dumps(meta)
-
-    def _get_vector_dimension_(self, k, v, source_metadata):
-        """
-        :param str k: The string name/key of the dimension to load.
-        :param dict v: A series of keyword parameters to pass to the dimension class.
-        :param dict source_metadata: The request dataset's metadata as returned from
-         :attr:`ocgis.api.request.base.RequestDataset.source_metadata`.
-        :returns: A vector dimension object linked to the source data. If the variable is not one-dimension return the
-         ``source_metadata`` reference to the variable.
-        :rtype: :class:`ocgis.interface.base.dimension.base.VectorDimension`
-        """
-
-        # This is the string axis definition for the dimension.
-        axis_value = v['axis']
-        # Get the axis dictionary from the dimension map.
-        ref_axis = source_metadata['dim_map'].get(axis_value)
-        # If there is no axis, fill with none. This happens when a dataset does not have a vertical level or projection
-        # axis for example.
-        if ref_axis is None:
-            fill = None
-        else:
-            ref_variable = source_metadata['variables'].get(ref_axis['variable'])
-
-            # For data with a projection/realization axis there may be no associated variable.
-            try:
-                ref_variable['axis'] = ref_axis
-            except TypeError:
-                if axis_value == 'R' and ref_variable is None:
-                    ref_variable = {'axis': ref_axis, 'name': ref_axis['dimension'], 'attrs': {}}
-
-            # Realization axes may not have an associated variable.
-            if k != 'realization'and len(ref_variable['dimensions']) > 1:
-                return ref_variable
-
-            # Extract the data length to use when creating the source index arrays.
-            length = source_metadata['dimensions'][ref_axis['dimension']]['len']
-            src_idx = np.arange(0, length, dtype=np.int32)
-
-            # Get the target data type for the dimension.
-            try:
-                dtype = np.dtype(ref_variable['dtype'])
-            # The realization dimension may not be a associated with a variable.
-            except KeyError:
-                if k == 'realization' and ref_variable['axis']['variable'] is None:
-                    dtype = None
-                else:
-                    raise
-
-            # Get the dimension's name.
-            name = ref_variable['axis']['dimension']
-            # Get if the dimension is unlimited.
-            unlimited = source_metadata['dimensions'][name]['isunlimited']
-
-            # Assemble keyword arguments for the dimension.
-            kwds = dict(name_uid=v['name_uid'], src_idx=src_idx, request_dataset=self.rd, meta=ref_variable,
-                        axis=axis_value, name_value=ref_variable.get('name'), dtype=dtype,
-                        attrs=ref_variable['attrs'].copy(), name=name, name_bounds=ref_variable['axis'].get('bounds'),
-                        unlimited=unlimited)
-
-            # There may be additional parameters for each dimension.
-            if v['adds'] is not None:
-                try:
-                    kwds.update(v['adds'](ref_variable['attrs']))
-                except TypeError:
-                    # Adds may not be a callable object. Assume they are a dictionary.
-                    kwds.update(v['adds'])
-
-            # Check for the name of the bounds dimension in the source metadata. Loop through the dimension map,
-            # look for a bounds variable, and choose the bounds dimension if possible
-            name_bounds_dimension = self._get_name_bounds_dimension_(source_metadata)
-            kwds['name_bounds_dimension'] = name_bounds_dimension
-
-            # Initialize the dimension object.
-            fill = v['cls'](**kwds)
-
-        return fill
+        # return fill
 
     def _get_field_(self, format_time=True):
         """
@@ -466,3 +465,163 @@ def guess_by_location(dims, target):
         # subsetting
         raise DimensionNotFound(target)
     return axis_map[dims.index(target)]
+
+
+def parse_metadata(rootgrp):
+    fill = OrderedDict()
+    fill['groups'] = OrderedDict()
+    update_group_metadata(rootgrp, fill)
+    for group in rootgrp.groups.values():
+        fill['groups'][group.name] = OrderedDict()
+        fill_group = fill['groups'][group.name]
+        update_group_metadata(group, fill_group)
+    return fill
+
+
+def update_group_metadata(rootgrp, fill):
+    fill.update({'global_attributes': deepcopy(rootgrp.__dict__)})
+
+    # get file format
+    fill.update({'file_format': rootgrp.file_format})
+
+    # get variables
+    variables = OrderedDict()
+    for key, value in rootgrp.variables.iteritems():
+        subvar = OrderedDict()
+        for attr in value.ncattrs():
+            subvar.update({attr: getattr(value, attr)})
+
+        # Remove scale factors and offsets from the metadata.
+        if 'scale_factor' in subvar:
+            dtype_packed = value[0].dtype
+            fill_value_packed = np.ma.array([], dtype=dtype_packed).fill_value
+        else:
+            dtype_packed = None
+            fill_value_packed = None
+
+        # make two attempts at missing value attributes otherwise assume the default from a numpy masked array
+        try:
+            fill_value = value.fill_value
+        except AttributeError:
+            try:
+                fill_value = value.missing_value
+            except AttributeError:
+                fill_value = np.ma.array([], dtype=value.dtype).fill_value
+
+        variables.update({key: {'dimensions': value.dimensions,
+                                'attributes': subvar,
+                                'dtype': value.dtype,
+                                'name': value._name,
+                                'fill_value': fill_value,
+                                'dtype_packed': dtype_packed,
+                                'fill_value_packed': fill_value_packed}})
+    fill.update({'variables': variables})
+
+    # get dimensions
+    dimensions = OrderedDict()
+    for key, value in rootgrp.dimensions.iteritems():
+        subdim = {key: {'len': len(value), 'isunlimited': value.isunlimited()}}
+        dimensions.update(subdim)
+    fill.update({'dimensions': dimensions})
+
+
+def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
+    lines = ['dimensions:']
+    template = '    {0} = {1} ;{2}'
+    for key, value in group['dimensions'].iteritems():
+        if value['isunlimited']:
+            one = 'ISUNLIMITED'
+            two = ' // {0} currently'.format(value['len'])
+        else:
+            one = value['len']
+            two = ''
+        lines.append(template.format(key, one, two))
+
+    lines.append('')
+    lines.append('variables:')
+    var_template = '    {0} {1}({2}) ;'
+    attr_template = '      {0}:{1} = {2} ;'
+    for key, value in group['variables'].iteritems():
+        dims = [str(d) for d in value['dimensions']]
+        dims = ', '.join(dims)
+        lines.append(var_template.format(value['dtype'], key, dims))
+        for key2, value2 in value['attributes'].iteritems():
+            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
+
+    lines.append('')
+    lines.append('// {} attributes:'.format(global_attributes_name))
+    template = '    :{0} = {1} ;'
+    for key, value in group['global_attributes'].iteritems():
+        try:
+            lines.append(template.format(key, format_attribute_for_dump_report(value)))
+        except UnicodeEncodeError:
+            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
+            # template formatting will break.
+            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
+            warn(msg)
+
+    if indent > 0:
+        indent_string = ''
+        for _ in range(indent):
+            indent_string += ' '
+        for idx, current in enumerate(lines):
+            if len(current) > 0:
+                lines[idx] = indent_string + current
+
+    return lines
+
+
+def format_attribute_for_dump_report(attr_value):
+    if isinstance(attr_value, basestring):
+        ret = '"{}"'.format(attr_value)
+    else:
+        ret = attr_value
+    return ret
+
+
+def allocate_variable_using_metadata(variable, metadata):
+    # tdk: remove comments
+    # dataset = variable._request_dataset.driver.open()
+    source = metadata
+    if variable.parent is not None:
+        if variable.parent.parent is not None:
+            source = metadata['groups'][variable.parent.name]
+
+    desired_name = variable.name or variable._request_dataset.variable
+
+    var = source['variables'][desired_name]
+
+    if variable._dimensions is None:
+        desired_dimensions = var['dimensions']
+        new_dimensions = get_dimensions_from_netcdf(source, desired_dimensions)
+        super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+
+    if variable._dtype is None:
+        var_dtype = var['dtype']
+        desired_dtype = deepcopy(var_dtype)
+        if isinstance(var_dtype, VLType):
+            desired_dtype = ObjectType(var_dtype)
+        variable.dtype = desired_dtype
+
+    if variable._fill_value is None:
+        variable._fill_value = deepcopy(var['attributes'].get('_FillValue'))
+
+    variable._attrs.update(deepcopy(var['attributes']))
+
+    variable._allocated = True
+
+
+def get_dimensions_from_netcdf(dataset, desired_dimensions):
+    new_dimensions = []
+    for dim_name in desired_dimensions:
+        dim = dataset['dimensions'][dim_name]
+        dim_length = dim['len']
+        if dim['isunlimited']:
+            length = None
+            length_current = dim_length
+        else:
+            length = dim_length
+            length_current = None
+        new_dim = SourcedDimension(dim_name, length=length, length_current=length_current)
+        new_dimensions.append(new_dim)
+    return new_dimensions

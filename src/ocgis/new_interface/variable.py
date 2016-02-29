@@ -5,7 +5,7 @@ from copy import deepcopy
 from itertools import izip
 
 import numpy as np
-from netCDF4 import Dataset, VLType, Group
+from netCDF4 import Dataset, Group
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
@@ -16,11 +16,22 @@ from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, Em
 from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
-from ocgis.new_interface.dimension import Dimension, SourcedDimension, create_dimension_or_pass
+from ocgis.new_interface.dimension import Dimension, create_dimension_or_pass
 from ocgis.new_interface.mpi import create_nd_slices
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
+
+
+def allocate_from_source(func):
+    def inner(*args, **kwargs):
+        variable = args[0]
+        request_dataset = variable._request_dataset
+        if variable._allocated is False and request_dataset is not None:
+            request_dataset.driver.allocate_variable_without_value(variable)
+        return func(*args, **kwargs)
+
+    return inner
 
 
 class AbstractContainer(AbstractInterfaceObject):
@@ -115,7 +126,6 @@ class Variable(AbstractContainer, Attributes):
         else:
             self._bounds_name = None
 
-        self.units = units
         self.dtype = dtype
 
         create_dimensions = False
@@ -129,6 +139,10 @@ class Variable(AbstractContainer, Attributes):
             self.create_dimensions(names=dimensions)
 
         AbstractContainer.__init__(self, name, parent=parent)
+
+        # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
+        # units here.
+        self.units = units
 
         if bounds is not None:
             self.bounds = bounds
@@ -220,15 +234,19 @@ class Variable(AbstractContainer, Attributes):
     @property
     def dtype(self):
         if self._dtype is None:
-            try:
-                ret = self._value.dtype
-                if ret == object:
-                    ret = ObjectType(object)
-            except AttributeError:
-                # Assume None.
-                ret = None
+            ret = self._get_dtype_()
         else:
             ret = self._dtype
+        return ret
+
+    def _get_dtype_(self):
+        try:
+            ret = self._value.dtype
+            if ret == object:
+                ret = ObjectType(object)
+        except AttributeError:
+            # Assume None.
+            ret = None
         return ret
 
     @dtype.setter
@@ -279,6 +297,9 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def fill_value(self):
+        return self._get_fill_value_()
+
+    def _get_fill_value_(self):
         return self._fill_value
 
     @property
@@ -718,6 +739,7 @@ class SourcedVariable(Variable):
         self.conform_units_to = kwargs.pop('conform_units_to', None)
         self._request_dataset = kwargs.pop('request_dataset', None)
 
+        kwargs['attrs'] = kwargs.get('attrs') or OrderedDict()
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
         if self._value is None and self._request_dataset is None:
@@ -727,10 +749,8 @@ class SourcedVariable(Variable):
             msg = '"conform_units_to" only applicable when loading from source.'
             raise ValueError(msg)
 
+    @allocate_from_source
     def _get_shape_(self):
-        # tdk: order
-        if self._request_dataset is not None and not self._allocated:
-            self._set_metadata_from_source_()
         return super(SourcedVariable, self)._get_shape_()
 
     @property
@@ -743,50 +763,25 @@ class SourcedVariable(Variable):
             value = get_units_object(value)
         self._conform_units_to = value
 
-    @property
-    def dtype(self):
-        if self._dtype is None and not self._allocated:
-            if self._value is None:
-                self._set_metadata_from_source_()
-            else:
-                return self._value.dtype
-        return self._dtype
+    @allocate_from_source
+    def _get_dtype_(self):
+        return super(SourcedVariable, self)._get_dtype_()
 
-    @dtype.setter
-    def dtype(self, value):
-        self._dtype = value
+    @allocate_from_source
+    def _get_fill_value_(self):
+        return super(SourcedVariable, self)._get_fill_value_()
 
-    @property
-    def fill_value(self):
-        if self._fill_value is None and not self._allocated and self._request_dataset is not None:
-            self._set_metadata_from_source_()
-        return self._fill_value
-
+    @allocate_from_source
     def _get_dimensions_(self):
-        if self._request_dataset is None:
-            ret = super(SourcedVariable, self)._get_dimensions_()
-        else:
-            self._set_metadata_from_source_()
-            ret = self._dimensions
-        return ret
+        return super(SourcedVariable, self)._get_dimensions_()
 
-    def _set_metadata_from_source_(self):
-        if not self._allocated:
-            set_variable_metadata_from_source(self)
-
-    def _set_metadata_from_source_finalize_(self, *args, **kwargs):
-        pass
-
+    @allocate_from_source
     def _get_attrs_(self):
-        self._attrs = Attributes._get_attrs_(self)
-        if not self._allocated and self._request_dataset is not None:
-            self._set_metadata_from_source_()
-        return self._attrs
+        return super(SourcedVariable, self)._get_attrs_()
 
+    @allocate_from_source
     def _get_units_(self):
-        if not self._allocated and self._units is None and self._request_dataset is not None:
-            self._set_metadata_from_source_()
-        return self._units
+        return super(SourcedVariable, self)._get_units_()
 
     def _get_value_(self):
         if self._value is None:
@@ -1104,7 +1099,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
         for name, ncvar in target.variables.iteritems():
             ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
-        for name, ncgroup in target.groups.iteritems():
+        for name, ncgroup in target.groups.items():
             child = VariableCollection._read_from_collection_(ncgroup, request_dataset, parent=ret, name=name)
             ret.add_child(child)
         return ret
@@ -1133,58 +1128,6 @@ def has_unlimited_dimension(dimensions):
         if d.length is None:
             ret = True
     return ret
-
-
-def set_variable_metadata_from_source(variable):
-    dataset = variable._request_dataset.driver.open()
-    source = dataset
-    if variable.parent is not None:
-        if variable.parent.parent is not None:
-            source = dataset.groups[variable.parent.name]
-
-    desired_name = variable.name or variable._request_dataset.variable
-    try:
-        var = source.variables[desired_name]
-
-        if variable._dimensions is None:
-            desired_dimensions = var.dimensions
-            new_dimensions = get_dimensions_from_netcdf(source, desired_dimensions)
-            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
-
-        if variable._dtype is None:
-            desired_dtype = deepcopy(var.dtype)
-            if isinstance(var.datatype, VLType):
-                desired_dtype = ObjectType(var.dtype)
-            variable.dtype = desired_dtype
-
-        if variable._fill_value is None:
-            variable._fill_value = deepcopy(var.__dict__.get('_FillValue'))
-
-        if variable._units is None:
-            variable.units = deepcopy(var.__dict__.get('units'))
-
-        variable.attrs.update(deepcopy(var.__dict__))
-
-        variable._set_metadata_from_source_finalize_(var)
-    finally:
-        dataset.close()
-    variable._allocated = True
-
-
-def get_dimensions_from_netcdf(dataset, desired_dimensions):
-    new_dimensions = []
-    for dim_name in desired_dimensions:
-        dim = dataset.dimensions[dim_name]
-        dim_length = len(dim)
-        if dim.isunlimited():
-            length = None
-            length_current = dim_length
-        else:
-            length = dim_length
-            length_current = None
-        new_dim = SourcedDimension(dim.name, length=length, length_current=length_current)
-        new_dimensions.append(new_dim)
-    return new_dimensions
 
 
 def update_unlimited_dimension_length(variable_value, dimensions):

@@ -9,6 +9,7 @@ class Attributes(object):
     """
 
     def __init__(self, attrs=None):
+        self._attrs = None
         self.attrs = attrs
 
     @property
