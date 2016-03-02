@@ -153,41 +153,6 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.parent.keys(), ['n_bnds', 'n'])
         self.assertEqual(var.attrs['bounds'], bounds.name)
 
-    def test_init_bounds(self):
-        bv = self.get_boundedvariable()
-        self.assertEqual(bv.shape, (3,))
-
-        # Test loading from source.
-        request_dataset = self.get_request_dataset()
-        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
-        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
-        self.assertEqual(bv.ndim, 1)
-        self.assertEqual(bv.dtype, np.float64)
-        self.assertEqual(bv.bounds.dtype, np.float64)
-        self.assertEqual(bv.shape, (20,))
-        self.assertEqual(bv.bounds.shape, (20, 2))
-        self.assertEqual(len(bv.dimensions), 1)
-        self.assertEqual(len(bv.bounds.dimensions), 2)
-        self.assertIsNone(bv.bounds._value)
-        self.assertIsNone(bv._value)
-
-        # Test with two dimensions.
-        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
-        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
-                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
-                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
-                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
-        y_bounds = Variable(value=y_corners, name='y_corners')
-        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
-        self.assertEqual(y_bounds.ndim, 3)
-        y = Variable(value=y_value, bounds=y_bounds, name='y', dimensions=['y', 'x'])
-        y.create_dimensions(names=['y', 'x'])
-        suby = y[1:3, 1]
-        self.assertEqual(suby.bounds.shape, (2, 1, 4))
-        path = self.get_temporary_file_path('foo.nc')
-        with self.nc_scope(path, 'w') as ds:
-            suby.write_netcdf(ds)
-
     def test_init_object_array(self):
         value = [[1, 3, 5],
                  [7, 9],
@@ -223,20 +188,6 @@ class TestVariable(AbstractTestNewInterface):
             actual = v_actual[idx].value[0]
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
-
-    @attr('data')
-    def test_combo_with_data(self):
-        # Test units are left on bounds if we are conforming.
-        rd = self.get_request_dataset()
-        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K', conform_units_to='celsius')
-        bv = SourcedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
-        self.assertIsNone(bv._value)
-        self.assertIsNone(bv.bounds._value)
-        self.assertEqual(bv.bounds.units, 'K')
-        assert bv.value is not None
-        assert bv.bounds.value is not None
-        self.assertEqual(bv.units, 'celsius')
-        self.assertEqual(bv.bounds.units, 'celsius')
 
     def test_combo_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)
@@ -593,19 +544,6 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(sub.dimensions[0]), 1)
         self.assertEqual(sub.shape, (1,))
 
-    def test_reshape(self):
-        # tdk: remove reshape
-        value = np.arange(0, 12).reshape(4, 3)
-        mask = np.zeros(value.shape, dtype=bool)
-        mask[1, 1] = True
-        var = Variable(value=value, mask=mask, dimensions=['four', 'three'], name='malleable')
-        self.assertEqual(var.get_mask().sum(), 1)
-        rs = var.reshape(-1, dimension_name='four_three')
-        self.assertNumpyAll(rs.value, value.reshape(-1))
-        self.assertNumpyAll(rs.get_mask(), mask.reshape(-1))
-        self.assertEqual(rs.dimensions[0], Dimension('four_three', 12))
-        rs2 = rs.reshape(4, 3, dimension_name=['four', 'three'])
-
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)
         self.assertIsNone(var.fill_value)
@@ -698,6 +636,55 @@ class TestSourcedVariable(AbstractTestNewInterface):
         with self.assertRaises(PayloadProtectedError):
             sv.value
         self.assertIsNone(sv._value)
+
+    def test_init_bounds(self):
+        bv = self.get_boundedvariable()
+        self.assertEqual(bv.shape, (3,))
+
+        # Test loading from source.
+        request_dataset = self.get_request_dataset()
+        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
+        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
+        self.assertEqual(bv.ndim, 1)
+        self.assertEqual(bv.dtype, np.float64)
+        self.assertEqual(bv.bounds.dtype, np.float64)
+        self.assertEqual(bv.shape, (20,))
+        self.assertEqual(bv.bounds.shape, (20, 2))
+        self.assertEqual(len(bv.dimensions), 1)
+        self.assertEqual(len(bv.bounds.dimensions), 2)
+        self.assertIsNone(bv.bounds._value)
+        self.assertIsNone(bv._value)
+
+        # Test with two dimensions.
+        y_value = [[40.0, 40.0, 40.0], [41.0, 41.0, 41.0], [42.0, 42.0, 42.0], [43.0, 43.0, 43.0]]
+        y_corners = [[[39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5], [39.5, 39.5, 40.5, 40.5]],
+                     [[40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5], [40.5, 40.5, 41.5, 41.5]],
+                     [[41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5], [41.5, 41.5, 42.5, 42.5]],
+                     [[42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5], [42.5, 42.5, 43.5, 43.5]]]
+        y_bounds = Variable(value=y_corners, name='y_corners')
+        y_bounds.create_dimensions(names=['y', 'x', 'cbnds'])
+        self.assertEqual(y_bounds.ndim, 3)
+        y = Variable(value=y_value, bounds=y_bounds, name='y', dimensions=['y', 'x'])
+        y.create_dimensions(names=['y', 'x'])
+        suby = y[1:3, 1]
+        self.assertEqual(suby.bounds.shape, (2, 1, 4))
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            suby.write_netcdf(ds)
+
+    @attr('data')
+    def test_combo_with_data(self):
+        # Test units are left on bounds if we are conforming.
+        rd = self.get_request_dataset()
+        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K', conform_units_to='celsius')
+        bv = SourcedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
+        self.assertIsNone(bv._value)
+        self.assertIsNone(bv.bounds._value)
+        self.assertEqual(bv.bounds.units, 'K')
+        assert bv.value is not None
+        assert bv.bounds.value is not None
+        self.assertEqual(bv.units, 'celsius')
+        self.assertEqual(bv.bounds.units, 'celsius')
 
     def test_get_scatter_slices(self):
         sv = self.get_sourcedvariable(protected=True)

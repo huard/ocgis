@@ -631,22 +631,6 @@ class Variable(AbstractContainer, Attributes):
     def _get_iter_value_(self):
         return self.masked_value
 
-    def reshape(self, *args, **kwargs):
-        dimension_name = kwargs.pop('dimension_name', None)
-        if self.parent is not None:
-            # tdk: needs implementation
-            raise NotImplementedError('backref cannot be reshaped')
-        # tdk: test with source index
-        # tdk: test with unlimited dimensions
-        ret = self.copy()
-        ret.dimensions = None
-        mask = ret._mask
-        ret.value = ret.value.reshape(*args)
-        ret.create_dimensions(names=dimension_name)
-        if mask is not None:
-            ret.set_mask(mask.reshape(*args))
-        return ret
-
     def write_netcdf(self, dataset, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
