@@ -23,18 +23,6 @@ from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
-def allocate_from_source(func):
-    def inner(*args, **kwargs):
-        variable = args[0]
-        request_dataset = variable._request_dataset
-        if variable._allocated is False and request_dataset is not None:
-            request_dataset.driver.allocate_variable_without_value(variable)
-        print variable._dimensions
-        return func(*args, **kwargs)
-
-    return inner
-
-
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
@@ -276,7 +264,7 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     def _get_dimensions_(self):
-        return None
+        return self._dimensions
 
     def _set_dimensions_(self, dimensions):
         if dimensions is not None:
@@ -734,8 +722,8 @@ class SourcedVariable(Variable):
             msg = '"conform_units_to" only applicable when loading from source.'
             raise ValueError(msg)
 
-    @allocate_from_source
     def _get_shape_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_shape_()
 
     @property
@@ -748,24 +736,24 @@ class SourcedVariable(Variable):
             value = get_units_object(value)
         self._conform_units_to = value
 
-    @allocate_from_source
     def _get_dtype_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_dtype_()
 
-    @allocate_from_source
     def _get_fill_value_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_fill_value_()
 
-    @allocate_from_source
     def _get_dimensions_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_dimensions_()
 
-    @allocate_from_source
     def _get_attrs_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_attrs_()
 
-    @allocate_from_source
     def _get_units_(self):
+        allocate_from_source(self)
         return super(SourcedVariable, self)._get_units_()
 
     def _get_value_(self):
@@ -1232,3 +1220,9 @@ def get_attribute_property(variable, name):
 
 def set_attribute_property(variable, name, value):
     variable.attrs[name] = value
+
+
+def allocate_from_source(variable):
+    request_dataset = variable._request_dataset
+    if not variable._allocated and request_dataset is not None:
+        request_dataset.driver.allocate_variable_without_value(variable)

@@ -12,7 +12,7 @@ from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError,
 from ocgis.new_interface.base import renamed_dimensions
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType
+from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
 from ocgis.test.base import attr
 from ocgis.util.units import get_units_object, get_are_units_equal
 
@@ -730,9 +730,9 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get_sourcedvariable()
         self.assertTrue(len(sv.dimensions), 3)
 
-    def test_set_metadata_from_source_(self):
+    def test_allocate_from_source_(self):
         sv = self.get_sourcedvariable()
-        sv._set_metadata_from_source_()
+        allocate_from_source(sv)
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
         dims = sv.dimensions
