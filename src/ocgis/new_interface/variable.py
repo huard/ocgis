@@ -29,6 +29,7 @@ def allocate_from_source(func):
         request_dataset = variable._request_dataset
         if variable._allocated is False and request_dataset is not None:
             request_dataset.driver.allocate_variable_without_value(variable)
+        print variable._dimensions
         return func(*args, **kwargs)
 
     return inner
@@ -76,12 +77,12 @@ class AbstractContainer(AbstractInterfaceObject):
     def _getitem_initialize_(self, slc):
         try:
             slc = get_formatted_slice(slc, self.ndim)
-        except (NotImplementedError, IndexError):
+        except (NotImplementedError, IndexError) as e:
             # Assume it is a dictionary slice.
             try:
                 slc = {k: get_formatted_slice(v, 1)[0] for k, v in slc.items()}
             except:
-                raise
+                raise e
 
         ret = self.copy()
         return ret, slc

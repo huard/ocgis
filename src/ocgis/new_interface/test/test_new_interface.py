@@ -12,6 +12,7 @@ from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_polygon_
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase
+from ocgis.util.helpers import get_bounds_from_1d
 
 _VALUE_POINT_ARRAY = np.array([None, None])
 _VALUE_POINT_ARRAY[:] = [Point(1, 2), Point(3, 4)]
@@ -38,6 +39,15 @@ class AbstractTestNewInterface(TestBase):
         to_test = vfunc(a.value, b.value)
         self.assertTrue(to_test.all())
         self.assertNumpyAll(a.get_mask(), b.get_mask())
+
+    def get_boundedvariable(self, mask=None):
+        value = np.array([4, 5, 6], dtype=float)
+        if mask is not None:
+            value = np.ma.array(value, mask=mask)
+        value_bounds = get_bounds_from_1d(value)
+        bounds = Variable('x_bounds', value=value_bounds, dimensions=['x', 'bounds'])
+        var = Variable('x', value=value, bounds=bounds, dimensions=['x'])
+        return var
 
     def get_gridxy(self, with_2d_variables=False, crs=None, with_xy_bounds=False, with_value_mask=False,
                    with_parent=False):

@@ -14,7 +14,6 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType
 from ocgis.test.base import attr
-from ocgis.util.helpers import get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_are_units_equal
 
 
@@ -27,15 +26,6 @@ class TestVariable(AbstractTestNewInterface):
             return time, value, var
         else:
             return var
-
-    def get_boundedvariable(self, mask=None):
-        value = np.array([4, 5, 6], dtype=float)
-        if mask is not None:
-            value = np.ma.array(value, mask=mask)
-        value_bounds = get_bounds_from_1d(value)
-        bounds = Variable('x_bounds', value=value_bounds, dimensions=['x', 'bounds'])
-        var = Variable('x', value=value, bounds=bounds, dimensions=['x'])
-        return var
 
     def get_boundedvariable_2d(self):
         value = np.array([[2, 2.5],
@@ -644,7 +634,12 @@ class TestSourcedVariable(AbstractTestNewInterface):
         # Test loading from source.
         request_dataset = self.get_request_dataset()
         bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
-        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)[30:50]
+        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)
+        self.assertEqual(len(bv.dimensions), 1)
+        self.assertEqual(len(bv.bounds.dimensions), 2)
+        self.assertEqual(bv.bounds.ndim, 2)
+        self.assertEqual(bv.ndim, 1)
+        bv = bv[30:50]
         self.assertEqual(bv.ndim, 1)
         self.assertEqual(bv.dtype, np.float64)
         self.assertEqual(bv.bounds.dtype, np.float64)
