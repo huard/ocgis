@@ -175,6 +175,11 @@ class TestTemporalVariable(AbstractTestTemporal):
         t = TemporalVariable(name='time', dimensions=['time'], value=[1.5, 2.5], bounds=bounds)
         self.assertIsInstance(t.bounds, TemporalVariable)
 
+    @attr('data')
+    def test_init_data(self):
+        rd = self.get_request_dataset()
+        tv = TemporalVariable(name='time', request_dataset=rd)
+
     def test_getitem(self):
         td = self.get_temporalvariable(add_bounds=True)
         self.assertIsNotNone(td.value_datetime)

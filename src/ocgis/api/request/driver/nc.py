@@ -606,7 +606,10 @@ def allocate_variable_using_metadata(variable, metadata):
     if variable._fill_value is None:
         variable._fill_value = deepcopy(var['attributes'].get('_FillValue'))
 
-    variable._attrs.update(deepcopy(var['attributes']))
+    variable_attrs = variable._attrs
+    for k, v in var['attributes'].items():
+        if k not in variable_attrs:
+            variable_attrs[k] = deepcopy(v)
 
     variable._allocated = True
 

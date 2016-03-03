@@ -106,7 +106,6 @@ class Variable(AbstractContainer, Attributes):
         self._dimensions = None
         self._value = None
         self._dtype = None
-        self._units = None
         self._mask = None
 
         self._fill_value = fill_value

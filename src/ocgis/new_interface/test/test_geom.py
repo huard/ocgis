@@ -70,7 +70,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         # tdk: add cf convention to output netcdf datasets
         # tdk: add option to load a slice from a GIS file
         # tdk: modify driver structure
-        # raise SkipTest('turn this into an mpi test')
+        raise SkipTest('turn this into an mpi test')
         g = GeomCabinetIterator(path=self.path_state_boundaries)
         gvar = GeometryVariable.read_gis(g, 'states', 'UGID')[0:3]
         gvar.parent = VariableCollection(variables=[gvar.parent['UGID'], gvar])
@@ -93,8 +93,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
         gvar.parent.attrs['convention'] = 'ocgis-{}'.format(ocgis.__version__)
         gvar.parent.write_netcdf(path_nc)
         self.ncdump(path_nc)
-        import ipdb;
-        ipdb.set_trace()
 
         # sub.write_fiona(path_shp)
         # sub.write_netcdf(path_nc)

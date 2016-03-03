@@ -329,6 +329,7 @@ class TestVariable(AbstractTestNewInterface):
     def test_units(self):
         var = Variable()
         self.assertIsNone(var.units)
+        self.assertNotIn('units', var.attrs)
         var.units = 'large'
         self.assertEqual(var.attrs['units'], 'large')
         self.assertEqual(var.units, 'large')
