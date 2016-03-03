@@ -897,3 +897,4 @@ class TestVariableCollection(AbstractTestNewInterface):
         path5 = self.get_temporary_file_path('foo5.nc')
         with self.nc_scope(path5, 'w') as ds:
             vc.write_netcdf(ds)
+
