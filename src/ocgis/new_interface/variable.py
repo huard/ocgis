@@ -100,7 +100,7 @@ class Variable(AbstractContainer, Attributes):
     # tdk:doc
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units=None, parent=None, bounds=None):
+                 units='auto', parent=None, bounds=None):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -116,6 +116,13 @@ class Variable(AbstractContainer, Attributes):
 
         self.dtype = dtype
 
+        AbstractContainer.__init__(self, name, parent=parent)
+
+        # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
+        # units here.
+        if str(units) != 'auto':
+            self.units = units
+
         create_dimensions = False
         if dimensions is not None:
             if isinstance(list(get_iter(dimensions, dtype=(basestring, Dimension)))[0], basestring):
@@ -125,12 +132,6 @@ class Variable(AbstractContainer, Attributes):
         self.value = value
         if create_dimensions:
             self.create_dimensions(names=dimensions)
-
-        AbstractContainer.__init__(self, name, parent=parent)
-
-        # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
-        # units here.
-        self.units = units
 
         if bounds is not None:
             self.bounds = bounds
@@ -434,8 +435,9 @@ class Variable(AbstractContainer, Attributes):
         new_value = get_conformed_units(to_conform_value, from_units, to_units)
         self._set_to_conform_value_(new_value)
 
-        # Let the data type load from the value array.
+        # Let the data type and fill value load from the value array.
         self._dtype = None
+        self._fill_value = None
         # Remove any compression attributes if present.
         for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
             self.attrs.pop(remove, None)

@@ -342,6 +342,10 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable(units='haze')
         self.assertEqual(var.units, 'haze')
 
+        var = Variable()
+        var.units = None
+        self.assertEqual(var.attrs['units'], None)
+
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()

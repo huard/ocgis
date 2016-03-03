@@ -40,11 +40,12 @@ class TemporalVariable(SourcedVariable):
         calendar = kwargs.pop('calendar', None) or constants.DEFAULT_TEMPORAL_CALENDAR
         if kwargs.get('name') is None:
             kwargs['name'] = constants.DEFAULT_TEMPORAL_NAME
-        kwargs['units'] = kwargs.get('units') or constants.DEFAULT_TEMPORAL_UNITS
 
         super(TemporalVariable, self).__init__(**kwargs)
 
         self.calendar = calendar
+        if self.units is None:
+            self.units = constants.DEFAULT_TEMPORAL_UNITS
 
     def _getitem_finalize_(self, ret, slc):
         if isinstance(slc, dict):

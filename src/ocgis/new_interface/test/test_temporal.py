@@ -19,7 +19,6 @@ from ocgis.new_interface.temporal import get_datetime_conversion_state, get_date
     get_origin_datetime_from_months_units, get_sorted_seasons, TemporalVariable, iter_boolean_groups_from_time_regions, \
     TemporalGroupVariable, get_time_regions
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import SourcedVariable
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_date_list
 from ocgis.util.units import get_units_object, get_are_units_equal, get_are_units_equivalent
@@ -268,7 +267,7 @@ class TestTemporalVariable(AbstractTestTemporal):
 
         def _get_temporal_variable_(conform_units_to=None):
             rd = self.get_request_dataset()
-            bounds = SourcedVariable(name='time_bnds', request_dataset=rd)
+            bounds = TemporalVariable(name='time_bnds', request_dataset=rd)
             tv = TemporalVariable(name='time', request_dataset=rd, bounds=bounds, conform_units_to=conform_units_to)
             return tv
 
@@ -484,9 +483,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertEqual(tg.value[0], dt(2012, 12, 16))
 
         # grab real data
-        rd = self.test_data.get_rd('cancm4_tas')
-        field = rd.get()
-        td = TemporalVariable(value=field.temporal.value_datetime)
+        td = TemporalVariable(request_dataset=self.get_request_dataset())
         tg = td.get_grouping([[3, 4, 5]])
         self.assertEqual(tg.value[0], dt(2005, 4, 16))
 
@@ -505,9 +502,9 @@ class TestTemporalVariable(AbstractTestTemporal):
         """Test with real data and full seasons."""
 
         calc_grouping = [[12, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]]
-        rd = self.test_data.get_rd('cancm4_tas')
-        field = rd.get()
-        tgd = field.temporal.get_grouping(calc_grouping)
+        tv_bounds = TemporalVariable(name='time_bnds', request_dataset=self.get_request_dataset())
+        tv = TemporalVariable(request_dataset=self.get_request_dataset(), bounds=tv_bounds)
+        tgd = tv.get_grouping(calc_grouping)
         self.assertEqual(tgd.shape, (4,))
         self.assertEqual([xx[1] for xx in calc_grouping], [xx.month for xx in tgd.value.flat])
         self.assertEqual(set([xx.day for xx in tgd.value.flat]), {constants.CALC_MONTH_CENTROID})
