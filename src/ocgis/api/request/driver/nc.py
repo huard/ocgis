@@ -9,7 +9,7 @@ from netCDF4._netCDF4 import VLType
 
 from ocgis import messages, TemporalDimension
 from ocgis.api.request.driver.base import AbstractDriver
-from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound
+from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.variable import VariableCollection, Variable
@@ -18,8 +18,9 @@ from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType
-from ocgis.util.helpers import itersubclasses, get_iter, get_tuple
+from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatted_slice
 from ocgis.util.logging_ocgis import ocgis_lh
+from ocgis.util.units import get_conformed_units
 
 
 class NcTemporalDimension(TemporalDimension, NcVectorDimension):
@@ -130,6 +131,10 @@ class DriverNetcdf(AbstractDriver):
 
     def allocate_variable_without_value(self, variable):
         allocate_variable_using_metadata(variable, self.metadata)
+
+    def get_variable_value(self, variable):
+        ret = get_value_from_request_dataset(variable)
+        return ret
 
         # def get_source_metadata(self):
         #     metadata = self.raw_metadata
@@ -628,3 +633,35 @@ def get_dimensions_from_netcdf(dataset, desired_dimensions):
         new_dim = SourcedDimension(dim_name, length=length, length_current=length_current)
         new_dimensions.append(new_dim)
     return new_dimensions
+
+
+def get_value_from_request_dataset(variable):
+    if variable.protected:
+        raise PayloadProtectedError
+    ds = variable._request_dataset.driver.open()
+    source = ds
+    if variable.parent is not None:
+        if variable.parent.parent is not None:
+            source = ds.groups[variable.parent.name]
+    desired_name = variable.name or variable._request_dataset.variable
+    try:
+        ncvar = source.variables[desired_name]
+        ret = get_variable_value(ncvar, variable.dimensions)
+
+        # Conform the units if requested.
+        if variable.conform_units_to is not None:
+            ret = get_conformed_units(ret, variable.cfunits, variable.conform_units_to)
+            variable.units = variable.conform_units_to
+            variable.conform_units_to = None
+        return ret
+    finally:
+        ds.close()
+
+
+def get_variable_value(variable, dimensions):
+    if dimensions is not None and len(dimensions) > 0:
+        slc = get_formatted_slice([d._src_idx for d in dimensions], len(dimensions))
+    else:
+        slc = slice(None)
+    ret = variable.__getitem__(slc)
+    return ret

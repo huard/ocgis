@@ -12,7 +12,7 @@ from numpy.ma import MaskedArray
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
-    ResolutionError, NoUnitsError, DimensionsRequiredError, PayloadProtectedError
+    ResolutionError, NoUnitsError, DimensionsRequiredError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
@@ -767,167 +767,7 @@ class SourcedVariable(Variable):
         return ret
 
     def _get_value_from_source_(self):
-        if self.protected:
-            raise PayloadProtectedError
-
-        ds = self._request_dataset.driver.open()
-        source = ds
-        if self.parent is not None:
-            if self.parent.parent is not None:
-                source = ds.groups[self.parent.name]
-
-        desired_name = self.name or self._request_dataset.variable
-        try:
-            variable = source.variables[desired_name]
-            ret = get_variable_value(variable, self.dimensions)
-
-            # Conform the units if requested.
-            if self.conform_units_to is not None:
-                ret = get_conformed_units(ret, self.cfunits, self.conform_units_to)
-                self.units = self.conform_units_to
-                self.conform_units_to = None
-            return ret
-        finally:
-            ds.close()
-
-
-# class BoundedVariable(SourcedVariable):
-#     def __init__(self, *args, **kwargs):
-#         self._bounds = None
-#
-#         bounds = kwargs.pop('bounds', None)
-#         self._has_extrapolated_bounds = False
-#         self._name_bounds_dimension = kwargs.pop('name_bounds_dimension', constants.OCGIS_BOUNDS)
-#
-#         super(BoundedVariable, self).__init__(*args, **kwargs)
-#
-#         # Setting bounds requires checking the units of the value variable.
-#         self.bounds = bounds
-#
-#         try:
-#             assert self.ndim <= 2
-#         except DimensionsRequiredError:
-#             assert self._value.ndim <= 2
-#
-#     def __setitem__(self, slc, variable_or_value):
-#         super(BoundedVariable, self).__setitem__(slc, variable_or_value)
-#         try:
-#             if variable_or_value.bounds is not None:
-#                 if self.bounds is None:
-#                     self.set_extrapolated_bounds()
-#                 self.bounds.value[slc] = variable_or_value.bounds.value
-#         except AttributeError:  # Assume array or other object.
-#             pass
-#
-#     def _getitem_main_(self, ret, slc):
-#         # tdk: order
-#         bounds = ret.bounds
-#         ret.bounds = None
-#         try:
-#             super(BoundedVariable, self)._getitem_main_(ret, slc)
-#             if bounds is not None:
-#                 if isinstance(slc, dict):
-#                     bounds = bounds[slc]
-#                 elif bounds.ndim == 2:
-#                     bounds = bounds[slc, :]
-#                 else:
-#                     bounds = bounds[slc[0], slc[1], :]
-#         finally:
-#             ret.bounds = bounds
-#
-#
-#     @property
-#     def bounds(self):
-#         return self._bounds
-#
-#     @bounds.setter
-#     def bounds(self, value):
-#         if value is not None:
-#             try:
-#                 assert value.ndim <= 3
-#             except DimensionsRequiredError as e:
-#                 if value._value is None:
-#                     msg = "Dimensions are required on the 'bounds' variable when its 'value' is None: {}".format(e.message)
-#                     raise DimensionsRequiredError(msg)
-#                 else:
-#                     assert value._value.ndim <= 3
-#
-#             # Update source dimensions for vector variables.
-#             try:
-#                 ndim = self.ndim
-#             except DimensionsRequiredError:
-#                 ndim = self._value.ndim
-#             if ndim == 1:
-#                 if value._dimensions is not None:
-#                     bounds_dimension = copy(value.dimensions[1])
-#                     bounds_dimension.name = self._name_bounds_dimension
-#                     value.dimensions = [self.dimensions[0], bounds_dimension]
-#
-#             # Set units and calendar for bounds variables.
-#             if value.units is None:
-#                 value.units = self.units
-#             if hasattr(self, 'calendar'):
-#                 value.calendar = self.calendar
-#             try:
-#                 if value.conform_units_to is None:
-#                     value.conform_units_to = self.conform_units_to
-#             except AttributeError:
-#                 # Account for non-sourced variables.
-#                 if not isinstance(value, Variable):
-#                     raise
-#         self._bounds = value
-#
-#     def cfunits_conform(self, to_units, from_units=None):
-#         # The units will cascade when updated on the host variable.
-#         units_original = self.units
-#         super(BoundedVariable, self).cfunits_conform(to_units, from_units=None)
-#         if self.bounds is not None:
-#             self.bounds.cfunits_conform(to_units, from_units=units_original)
-#
-#     def create_dimensions(self, names=None):
-#         super(BoundedVariable, self).create_dimensions(names)
-#         if self.bounds is not None:
-#             if self.ndim == 1:
-#                 if self.bounds._dimensions is not None:
-#                     name_bounds = self.bounds.dimensions[1].name
-#                 else:
-#                     name_bounds = constants.OCGIS_BOUNDS
-#                 names = [self.dimensions[0].name, name_bounds]
-#             else:
-#                 names = [d.name for d in self.dimensions]
-#                 if self.bounds.dimensions is not None:
-#                     name_corners = self.bounds.dimensions[2].name
-#                 else:
-#                     name_corners = constants.DEFAULT_NAME_CORNERS_DIMENSION
-#                 names.append(name_corners)
-#             self.bounds.create_dimensions(names=names)
-#
-#             synced_dimensions = list(self.bounds.dimensions)
-#             synced_dimensions[0] = self.dimensions[0]
-#             self.bounds.dimensions = synced_dimensions
-#
-#     def write_netcdf(self, *args, **kwargs):
-#         super(BoundedVariable, self).write_netcdf(*args, **kwargs)
-#         if self.bounds is not None:
-#             self.bounds.write_netcdf(*args, **kwargs)
-#
-#     def write_attributes_to_netcdf_object(self, target):
-#         super(BoundedVariable, self).write_attributes_to_netcdf_object(target)
-#         if self.bounds is not None:
-#             target.bounds = self.bounds.name
-#
-#     def _set_units_(self, value):
-#         super(BoundedVariable, self)._set_units_(value)
-#         # Only update the units if they are not being conformed.
-#         if self.bounds is not None:
-#             cut = getattr(self.bounds, '_conform_units_to', None)
-#             if cut is None:
-#                 self.bounds.units = value
-#
-#     def set_mask(self, mask):
-#         super(BoundedVariable, self).set_mask(mask)
-#         if self.bounds is not None:
-#             set_bounds_mask_from_parent(self.get_mask(), self.bounds)
+        return self._request_dataset.driver.get_variable_value(self)
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
@@ -1165,15 +1005,6 @@ def set_bounds_mask_from_parent(mask, bounds):
     else:
         raise NotImplementedError(mask.ndim)
     bounds.set_mask(mask_bounds)
-
-
-def get_variable_value(variable, dimensions):
-    if dimensions is not None and len(dimensions) > 0:
-        slc = get_formatted_slice([d._src_idx for d in dimensions], len(dimensions))
-    else:
-        slc = slice(None)
-    ret = variable.__getitem__(slc)
-    return ret
 
 
 def get_dslice(dimensions, slc):

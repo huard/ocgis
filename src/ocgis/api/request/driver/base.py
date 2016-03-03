@@ -76,6 +76,9 @@ class AbstractDriver(object):
     def allocate_variable_without_value(self, variable):
         raise NotImplementedError
 
+    def get_variable_value(self, variable):
+        raise NotImplementedError
+
     def get_source_metadata_as_json(self):
         # tdk: test
 
