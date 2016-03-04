@@ -703,13 +703,8 @@ class Variable(AbstractContainer, Attributes):
 class SourcedVariable(Variable):
     # tdk: handle add_offset and scale_factor
     def __init__(self, *args, **kwargs):
-        # Flag to indicate if metadata already from source.
-        self._allocated = False
-
         self.protected = kwargs.pop('protected', False)
-
         self._request_dataset = kwargs.pop('request_dataset', None)
-
         kwargs['attrs'] = kwargs.get('attrs') or OrderedDict()
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
@@ -717,41 +712,16 @@ class SourcedVariable(Variable):
             msg = 'A "value" or "request_dataset" is required.'
             raise ValueError(msg)
 
-    def _get_shape_(self):
         allocate_from_source(self)
-        return super(SourcedVariable, self)._get_shape_()
-
-    def _get_dtype_(self):
-        allocate_from_source(self)
-        return super(SourcedVariable, self)._get_dtype_()
-
-    def _get_fill_value_(self):
-        allocate_from_source(self)
-        return super(SourcedVariable, self)._get_fill_value_()
-
-    def _get_dimensions_(self):
-        allocate_from_source(self)
-        return super(SourcedVariable, self)._get_dimensions_()
-
-    def _get_attrs_(self):
-        allocate_from_source(self)
-        return super(SourcedVariable, self)._get_attrs_()
-
-    def _get_units_(self):
-        allocate_from_source(self)
-        return super(SourcedVariable, self)._get_units_()
 
     def _get_value_(self):
         if self._value is None:
-            value = self._get_value_from_source_()
+            value = self._request_dataset.driver.get_variable_value(self)
             super(SourcedVariable, self)._set_value_(value)
             ret = self._value
         else:
             ret = super(SourcedVariable, self)._get_value_()
         return ret
-
-    def _get_value_from_source_(self):
-        return self._request_dataset.driver.get_variable_value(self)
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
@@ -1040,5 +1010,5 @@ def set_attribute_property(variable, name, value):
 
 def allocate_from_source(variable):
     request_dataset = variable._request_dataset
-    if not variable._allocated and request_dataset is not None:
+    if request_dataset is not None:
         request_dataset.driver.allocate_variable_without_value(variable)

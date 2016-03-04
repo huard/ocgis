@@ -651,7 +651,6 @@ def get_value_from_request_dataset(variable):
 
         # Conform the units if requested.
         if variable._request_dataset.conform_units_to is not None:
-            print variable._request_dataset.conform_units_to
             destination_units = variable._request_dataset.conform_units_to[variable.name]['units']
             ret = get_conformed_units(ret, variable.cfunits, destination_units)
             variable.units = destination_units

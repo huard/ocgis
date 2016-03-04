@@ -600,9 +600,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
             kwargs['request_dataset'] = self.get_request_dataset()
         sv = SourcedVariable(**kwargs)
         self.assertIsNone(sv._value)
-        self.assertIsNone(sv._dimensions)
-        self.assertIsNone(sv._dtype)
-        self.assertIsNone(sv._fill_value)
         return sv
 
     def test_init(self):
@@ -744,14 +741,13 @@ class TestSourcedVariable(AbstractTestNewInterface):
     def test_get_value_from_source_(self):
         sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]
-        res = sub._get_value_from_source_()
-        self.assertEqual(res.shape, (6, 3, 3))
+        self.assertEqual(sub.shape, (6, 3, 3))
 
         with self.nc_scope(self.get_request_dataset().uri, 'r') as ds:
             var = ds.variables[sv.name]
             actual = var[5:11, 3:6, 5:8]
 
-        self.assertNumpyAll(res, actual)
+        self.assertNumpyAll(sub.value, actual)
 
     def test_value(self):
         sv = self.get_sourcedvariable()
