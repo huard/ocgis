@@ -178,6 +178,13 @@ class TestTemporalVariable(AbstractTestTemporal):
     def test_init_data(self):
         rd = self.get_request_dataset()
         tv = TemporalVariable(name='time', request_dataset=rd)
+        # self.ncdump(rd.uri)
+        self.assertEqual(tv.calendar, '365_day')
+        self.assertEqual(tv.units, 'days since 1850-1-1')
+
+        tv = TemporalVariable(name='time', request_dataset=rd, calendar='standard', units='days since 1990-1-1')
+        self.assertEqual(tv.calendar, 'standard')
+        self.assertEqual(tv.units, 'days since 1990-1-1')
 
     def test_getitem(self):
         td = self.get_temporalvariable(add_bounds=True)
@@ -190,7 +197,6 @@ class TestTemporalVariable(AbstractTestTemporal):
         for target, subtarget in itertools.product([sub, sub.bounds], ['value_datetime', 'value_numtime']):
             real_target = getattr(target, subtarget)
             self.assertEqual(real_target.shape[0], 1)
-            # tdk: RESUME: test is failing
 
     def test_360_day_calendar(self):
         months = range(1, 13)
@@ -252,9 +258,6 @@ class TestTemporalVariable(AbstractTestTemporal):
         td.cfunits_conform(d)
         self.assertTrue(get_are_units_equal((td.cfunits, d)))
 
-        td = TemporalVariable(value=[4, 5, 6])
-        self.assertIsNone(td.conform_units_to)
-
         # Test with template units.
         units = get_units_object('days since 1960-1-1', calendar='proleptic_gregorian')
         td = self.get_template_units()
@@ -266,13 +269,13 @@ class TestTemporalVariable(AbstractTestTemporal):
     def test_cfunits_conform_data(self):
 
         def _get_temporal_variable_(conform_units_to=None):
-            rd = self.get_request_dataset()
+            rd = self.get_request_dataset(conform_units_to=conform_units_to)
             bounds = TemporalVariable(name='time_bnds', request_dataset=rd)
-            tv = TemporalVariable(name='time', request_dataset=rd, bounds=bounds, conform_units_to=conform_units_to)
+            tv = TemporalVariable(name='time', request_dataset=rd, bounds=bounds)
             return tv
 
         target = get_units_object('days since 1949-1-1', calendar='365_day')
-        temporal = _get_temporal_variable_(conform_units_to=target)
+        temporal = _get_temporal_variable_(conform_units_to={'time': target})
         temporal_orig = _get_temporal_variable_()
         self.assertTrue(get_are_units_equivalent((target, temporal.cfunits, temporal_orig.cfunits)))
         self.assertEqual(temporal.calendar, '365_day')
