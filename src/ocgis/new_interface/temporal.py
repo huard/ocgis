@@ -641,6 +641,10 @@ class TemporalVariable(SourcedVariable):
             fill = [None] * 3
         yld['year'], yld['month'], yld['day'] = fill
 
+    def _set_bounds_(self, value):
+        super(TemporalVariable, self)._set_bounds_(value)
+        value.calendar = self.calendar
+
     def _set_units_(self, value):
         try:
             self.calendar = value.calendar

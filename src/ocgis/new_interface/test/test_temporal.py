@@ -513,7 +513,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertEqual([xx[1] for xx in calc_grouping], [xx.month for xx in tgd.value.flat])
         self.assertEqual(set([xx.day for xx in tgd.value.flat]), {constants.CALC_MONTH_CENTROID})
         self.assertEqual([2006, 2005, 2005, 2005], [xx.year for xx in tgd.value.flat])
-        self.assertNumpyAll(tgd.bounds_numtime,
+        self.assertNumpyAll(tgd.bounds.value_numtime.data,
                             np.array([[55115.0, 58765.0], [55174.0, 58551.0], [55266.0, 58643.0], [55358.0, 58734.0]]))
 
     def test_get_grouping_seasonal_unique_flag(self):

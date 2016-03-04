@@ -204,6 +204,9 @@ class Variable(AbstractContainer, Attributes):
 
     @bounds.setter
     def bounds(self, value):
+        self._set_bounds_(value)
+
+    def _set_bounds_(self, value):
         if value is None:
             if self._bounds_name is not None:
                 self.parent.pop(self._bounds_name)
