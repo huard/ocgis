@@ -140,7 +140,7 @@ class TestVariable(AbstractTestNewInterface):
         bounds = Variable(value=desired_bounds_value, name='n_bnds', dimensions=['ens_dims', 'bounds'])
         var = Variable(value=[1, 2], bounds=bounds, name='n', dimensions='ens_dims')
         self.assertNumpyAll(var.bounds.value, np.array(desired_bounds_value))
-        self.assertEqual(var.parent.keys(), ['n_bnds', 'n'])
+        self.assertEqual(var.parent.keys(), ['n', 'n_bnds'])
         self.assertEqual(var.attrs['bounds'], bounds.name)
 
     def test_init_object_array(self):
@@ -346,6 +346,13 @@ class TestVariable(AbstractTestNewInterface):
         var = Variable()
         var.units = None
         self.assertEqual(var.attrs['units'], None)
+
+        # Test units behavior with bounds.
+        bounds = Variable(value=[[5, 6]], dtype=float, name='bnds', dimensions=['t', 'bnds'], units='celsius')
+        var = Variable(name='some', value=[5.5], dimensions='t', bounds=bounds, units='K')
+        self.assertEqual(var.bounds.units, 'K')
+        var.units = None
+        self.assertIsNone(var.bounds.units)
 
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
@@ -703,15 +710,14 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.units, 'celsius')
 
         # Try with a bounded variable.
-        # tdk: test with a group index on conform_units_to
-        rd = self.get_request_dataset(conform_units_to={'lat_bnds': 'K', 'lat': 'K'})
+        # tdk: test with a group index on conform_units_to - remove group_index?
+        rd = self.get_request_dataset(conform_units_to={'lat': 'K'})
         bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius')
         sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius')
         self.assertIsNone(sv._value)
         self.assertGreater(sv.value.mean(), 250)
         self.assertEqual(sv.units, 'K')
-        self.assertEqual(sv.bounds.units, 'celsius')
-        self.assertIsNone(sv.bounds._value)
+        self.assertEqual(sv.bounds.units, 'K')
         self.assertGreater(sv.bounds.value.mean(), 250)
 
     def test_getitem(self):

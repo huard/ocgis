@@ -20,7 +20,6 @@ from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType
 from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatted_slice
 from ocgis.util.logging_ocgis import ocgis_lh
-from ocgis.util.units import get_conformed_units
 
 
 class NcTemporalDimension(TemporalDimension, NcVectorDimension):
@@ -132,9 +131,14 @@ class DriverNetcdf(AbstractDriver):
     def allocate_variable_without_value(self, variable):
         allocate_variable_using_metadata(variable, self.metadata)
 
-    def get_variable_value(self, variable):
+    def allocate_variable_value(self, variable):
         ret = get_value_from_request_dataset(variable)
-        return ret
+        variable._set_value_(ret)
+        # Conform the units if requested.
+        if self.rd.conform_units_to is not None:
+            if variable.name in self.rd.conform_units_to:
+                destination_units = self.rd.conform_units_to[variable.name]['units']
+                variable.cfunits_conform(destination_units)
 
         # def get_source_metadata(self):
         #     metadata = self.raw_metadata
@@ -648,12 +652,6 @@ def get_value_from_request_dataset(variable):
     try:
         ncvar = source.variables[desired_name]
         ret = get_variable_value(ncvar, variable.dimensions)
-
-        # Conform the units if requested.
-        if variable._request_dataset.conform_units_to is not None:
-            destination_units = variable._request_dataset.conform_units_to[variable.name]['units']
-            ret = get_conformed_units(ret, variable.cfunits, destination_units)
-            variable.units = destination_units
         return ret
     finally:
         ds.close()

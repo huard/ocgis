@@ -193,7 +193,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertIsNotNone(td.bounds.value_datetime)
         self.assertIsNotNone(td.bounds.value_numtime)
         sub = td[2]
-        self.assertEqual(sub.parent.shapes, OrderedDict([('time_bounds', (1, 2)), ('time', (1,))]))
+        self.assertEqual(sub.parent.shapes, OrderedDict([('time', (1,)), ('time_bounds', (1, 2))]))
         for target, subtarget in itertools.product([sub, sub.bounds], ['value_datetime', 'value_numtime']):
             real_target = getattr(target, subtarget)
             self.assertEqual(real_target.shape[0], 1)
@@ -505,8 +505,9 @@ class TestTemporalVariable(AbstractTestTemporal):
         """Test with real data and full seasons."""
 
         calc_grouping = [[12, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]]
-        tv_bounds = TemporalVariable(name='time_bnds', request_dataset=self.get_request_dataset())
-        tv = TemporalVariable(request_dataset=self.get_request_dataset(), bounds=tv_bounds)
+        rd = self.get_request_dataset()
+        tv_bounds = TemporalVariable(name='time_bnds', request_dataset=rd)
+        tv = TemporalVariable(request_dataset=rd, bounds=tv_bounds)
         tgd = tv.get_grouping(calc_grouping)
         self.assertEqual(tgd.shape, (4,))
         self.assertEqual([xx[1] for xx in calc_grouping], [xx.month for xx in tgd.value.flat])
@@ -848,7 +849,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             tv.write_netcdf(ds)
-        # self.ncdump(path)
+        self.ncdump(path)
         with self.nc_scope(path) as ds:
             time = ds.variables['time']
             self.assertEqual(time.ncattrs(), ['bounds', 'calendar', 'units'])

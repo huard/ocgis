@@ -213,8 +213,9 @@ class Variable(AbstractContainer, Attributes):
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
             if self.parent is None:
-                self.parent = VariableCollection()
+                self.parent = VariableCollection(variables=[self])
             self.parent.add_variable(value, force=True)
+            value.units = self.units
 
     @property
     def cfunits(self):
@@ -334,6 +335,8 @@ class Variable(AbstractContainer, Attributes):
         if value is not None:
             value = str(value)
         set_attribute_property(self, 'units', value)
+        if self.bounds is not None:
+            set_attribute_property(self.bounds, 'units', value)
 
     @property
     def value(self):
@@ -443,7 +446,7 @@ class Variable(AbstractContainer, Attributes):
             self.attrs.pop(remove, None)
 
         if self.has_bounds:
-            self.bounds.cfunits_conform(to_units)
+            self.bounds.cfunits_conform(to_units, from_units=from_units)
 
     def create_dimensions(self, names=None):
         if names is None and self.name is None:
@@ -706,6 +709,7 @@ class SourcedVariable(Variable):
         self.protected = kwargs.pop('protected', False)
         self._request_dataset = kwargs.pop('request_dataset', None)
         kwargs['attrs'] = kwargs.get('attrs') or OrderedDict()
+        bounds = kwargs.pop('bounds', None)
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
         if self._value is None and self._request_dataset is None:
@@ -714,10 +718,12 @@ class SourcedVariable(Variable):
 
         allocate_from_source(self)
 
+        if bounds is not None:
+            self.bounds = bounds
+
     def _get_value_(self):
         if self._value is None:
-            value = self._request_dataset.driver.get_variable_value(self)
-            super(SourcedVariable, self)._set_value_(value)
+            self._request_dataset.driver.allocate_variable_value(self)
             ret = self._value
         else:
             ret = super(SourcedVariable, self)._get_value_()
