@@ -5,7 +5,6 @@ from copy import copy, deepcopy
 import numpy as np
 
 from ocgis.api.collection import AbstractCollection
-from ocgis.constants import NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE
 from ocgis.exc import NoUnitsError, VariableInCollectionError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.util.helpers import get_iter, iter_array, set_new_value_mask_for_variable

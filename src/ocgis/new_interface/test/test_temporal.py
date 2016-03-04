@@ -2,7 +2,6 @@ import datetime
 import itertools
 import os
 from collections import deque, OrderedDict
-from copy import deepcopy
 from datetime import datetime as dt
 from unittest import SkipTest
 
@@ -866,47 +865,6 @@ class TestTemporalVariable(AbstractTestTemporal):
         with self.nc_scope(path2, 'w') as ds:
             tv2.write_netcdf(ds)
         self.assertNcEqual(path, path2)
-
-    @attr('data')
-    def test_write_netcdf_data(self):
-        raise SkipTest('test should be removed??')
-        rd = self.test_data.get_rd('cancm4_tas')
-        path = os.path.join(self.current_dir_output, 'foo.nc')
-
-        keywords = dict(with_bounds=[True, False],
-                        as_datetime=[False, True])
-
-        for k in self.iter_product_keywords(keywords, as_namedtuple=True):
-            field = rd.get()
-            td = field.temporal
-            if not k.with_bounds:
-                td.value
-                td._request_dataset = None
-                td.bounds = None
-                self.assertIsNone(td.bounds)
-            if k.as_datetime:
-                td._value = td.value_datetime
-                td._bounds = td.bounds_datetime
-
-            original_value = deepcopy(td.value)
-            original_bounds = deepcopy(td.bounds)
-
-            with self.nc_scope(path, 'w') as ds:
-                td.write_netcdf(ds)
-                for name, expected_value in zip([td.name_value, td.name_bounds], [td.value_numtime, td.bounds_numtime]):
-                    try:
-                        variable = ds.variables[name]
-                    except KeyError:
-                        self.assertFalse(k.with_bounds)
-                        continue
-                    self.assertEqual(variable.calendar, td.calendar)
-                    self.assertEqual(variable.units, td.units)
-            self.assertNumpyAll(original_value, td.value)
-            try:
-                self.assertNumpyAll(original_bounds, td.bounds)
-            except AttributeError:
-                self.assertFalse(k.with_bounds)
-                self.assertIsNone(original_bounds)
 
 
 class TestTemporalGroupVariable(AbstractTestNewInterface):

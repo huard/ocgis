@@ -444,9 +444,6 @@ class Variable(AbstractContainer, Attributes):
         # Let the data type and fill value load from the value array.
         self._dtype = None
         self._fill_value = None
-        # Remove any compression attributes if present.
-        for remove in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE:
-            self.attrs.pop(remove, None)
 
         if self.has_bounds:
             self.bounds.cfunits_conform(to_units, from_units=from_units)

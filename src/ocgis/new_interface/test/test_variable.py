@@ -6,7 +6,6 @@ from numpy.core.multiarray import ndarray
 from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
-from ocgis import constants
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.base import renamed_dimensions
@@ -271,14 +270,12 @@ class TestVariable(AbstractTestNewInterface):
 
     @attr('cfunits')
     def test_cfunits_conform(self):
-        # tdk: test loading from source a bounded variable conforming the units on the center variable and make sure the bounds are converted with specifying the bounds directly in cf_units conform
         units_kelvin = get_units_object('kelvin')
         original_value = np.array([5, 5, 5])
 
         # Conversion of celsius units to kelvin.
-        attrs = {k: 1 for k in constants.NETCDF_ATTRIBUTES_TO_REMOVE_ON_VALUE_CHANGE}
-        var = Variable(name='tas', units='celsius', value=original_value, attrs=attrs)
-        self.assertEqual(len(var.attrs), 3)
+        var = Variable(name='tas', units='celsius', value=original_value)
+        self.assertEqual(len(var.attrs), 1)
         var.cfunits_conform(units_kelvin)
         self.assertNumpyAll(var.masked_value, np.ma.array([278.15] * 3, fill_value=var.fill_value))
         self.assertEqual(var.cfunits, units_kelvin)
@@ -690,6 +687,21 @@ class TestSourcedVariable(AbstractTestNewInterface):
         assert bv.bounds.value is not None
         self.assertEqual(bv.units, 'celsius')
         self.assertEqual(bv.bounds.units, 'celsius')
+
+    def tet_combo_add_offset_and_scale_factor(self):
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.createDimension('four', 4)
+            var = ds.createVariable('var', int, dimensions=['four'])
+            var[:] = [1, 2, 3, 4]
+            var.add_offset = 100.
+            var.scale_factor = 0.5
+        rd = RequestDataset(uri=path)
+        sv = SourcedVariable(name='var', request_dataset=rd)
+        self.assertEqual(sv.dtype, np.float)
+        self.assertTrue(np.all(sv.value == [100.5, 101., 101.5, 102]))
+        self.assertNotIn('add_offset', sv.attrs)
+        self.assertNotIn('scale_factor', sv.attrs)
 
     def test_get_scatter_slices(self):
         sv = self.get_sourcedvariable(protected=True)

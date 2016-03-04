@@ -135,6 +135,7 @@ class DriverNetcdf(AbstractDriver):
         ret = get_value_from_request_dataset(variable)
         variable._set_value_(ret)
         # Conform the units if requested.
+        # tdk: this should be moved to superclass
         if self.rd.conform_units_to is not None:
             if variable.name in self.rd.conform_units_to:
                 destination_units = self.rd.conform_units_to[variable.name]['units']
@@ -610,13 +611,22 @@ def allocate_variable_using_metadata(variable, metadata):
         desired_dtype = deepcopy(var_dtype)
         if isinstance(var_dtype, VLType):
             desired_dtype = ObjectType(var_dtype)
-        variable.dtype = desired_dtype
+        elif var['dtype_packed'] is not None:
+            desired_dtype = deepcopy(var['dtype_packed'])
+        variable._dtype = desired_dtype
 
     if variable._fill_value is None:
-        variable._fill_value = deepcopy(var['attributes'].get('_FillValue'))
+        if var['fill_value_packed'] is not None:
+            desired_fill_value = var['fill_value_packed']
+        else:
+            desired_fill_value = var['fill_value']
+        variable._fill_value = deepcopy(desired_fill_value)
 
     variable_attrs = variable._attrs
+    exclude = ['add_offset', 'scale_factor']
     for k, v in var['attributes'].items():
+        if k in exclude:
+            continue
         if k not in variable_attrs:
             variable_attrs[k] = deepcopy(v)
 
