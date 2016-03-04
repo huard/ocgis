@@ -110,8 +110,8 @@ class AbstractTestNewInterface(TestBase):
         pa = GeometryVariable(**kwargs)
         return pa
 
-    def get_request_dataset(self):
-        data = self.test_data.get_rd('cancm4_tas')
+    def get_request_dataset(self, **kwargs):
+        data = self.test_data.get_rd('cancm4_tas', kwds=kwargs)
         return data
 
     def get_variable_x(self, bounds=True):

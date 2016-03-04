@@ -703,14 +703,11 @@ class Variable(AbstractContainer, Attributes):
 class SourcedVariable(Variable):
     # tdk: handle add_offset and scale_factor
     def __init__(self, *args, **kwargs):
-        self._conform_units_to = None
-
         # Flag to indicate if metadata already from source.
         self._allocated = False
 
         self.protected = kwargs.pop('protected', False)
 
-        self.conform_units_to = kwargs.pop('conform_units_to', None)
         self._request_dataset = kwargs.pop('request_dataset', None)
 
         kwargs['attrs'] = kwargs.get('attrs') or OrderedDict()
@@ -719,23 +716,10 @@ class SourcedVariable(Variable):
         if self._value is None and self._request_dataset is None:
             msg = 'A "value" or "request_dataset" is required.'
             raise ValueError(msg)
-        if self._value is not None and self._conform_units_to is not None:
-            msg = '"conform_units_to" only applicable when loading from source.'
-            raise ValueError(msg)
 
     def _get_shape_(self):
         allocate_from_source(self)
         return super(SourcedVariable, self)._get_shape_()
-
-    @property
-    def conform_units_to(self):
-        return self._conform_units_to
-
-    @conform_units_to.setter
-    def conform_units_to(self, value):
-        if value is not None:
-            value = get_units_object(value)
-        self._conform_units_to = value
 
     def _get_dtype_(self):
         allocate_from_source(self)

@@ -638,6 +638,7 @@ def get_dimensions_from_netcdf(dataset, desired_dimensions):
 def get_value_from_request_dataset(variable):
     if variable.protected:
         raise PayloadProtectedError
+    # tdk: this is called by the driver, so this de-referencing should be avoided. there are others in the function
     ds = variable._request_dataset.driver.open()
     source = ds
     if variable.parent is not None:
@@ -649,10 +650,11 @@ def get_value_from_request_dataset(variable):
         ret = get_variable_value(ncvar, variable.dimensions)
 
         # Conform the units if requested.
-        if variable.conform_units_to is not None:
-            ret = get_conformed_units(ret, variable.cfunits, variable.conform_units_to)
-            variable.units = variable.conform_units_to
-            variable.conform_units_to = None
+        if variable._request_dataset.conform_units_to is not None:
+            print variable._request_dataset.conform_units_to
+            destination_units = variable._request_dataset.conform_units_to[variable.name]['units']
+            ret = get_conformed_units(ret, variable.cfunits, destination_units)
+            variable.units = destination_units
         return ret
     finally:
         ds.close()

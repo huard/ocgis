@@ -259,21 +259,20 @@ class RequestDataset(object):
 
     @property
     def conform_units_to(self):
-        if self._conform_units_to is None:
-            ret = get_tuple([None] * len(get_tuple(self.variable)))
-        else:
-            ret = self._conform_units_to
-        ret = get_first_or_sequence(ret)
-        return ret
+        return self._conform_units_to
 
     @conform_units_to.setter
     def conform_units_to(self, value):
         if value is not None:
-            value = get_tuple(value)
-            if len(value) != len(get_tuple(self.variable)):
-                msg = 'Must match "variable" element-wise. The sequence lengths differ.'
-                raise RequestValidationError('conform_units_to', msg)
-            validate_units('conform_units_to', value)
+            # tdk: document dictionary form
+            if not isinstance(value, dict):
+                value = {v: c for v, c in zip(get_tuple(self.variable), get_tuple(value))}
+            else:
+                value = deepcopy(value)
+            for k, v in value.items():
+                if not isinstance(v, dict):
+                    value[k] = {'group_index': [], 'units': v}
+            validate_units('conform_units_to', [ii['units'] for ii in value.values()])
         self._conform_units_to = value
 
     @property

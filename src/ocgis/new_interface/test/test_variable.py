@@ -675,9 +675,9 @@ class TestSourcedVariable(AbstractTestNewInterface):
     @attr('data')
     def test_combo_with_data(self):
         # Test units are left on bounds if we are conforming.
-        rd = self.get_request_dataset()
-        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K', conform_units_to='celsius')
-        bv = SourcedVariable(name='lat', request_dataset=rd, conform_units_to='celsius', units='K', bounds=bounds)
+        rd = self.get_request_dataset(conform_units_to={'lat_bnds': 'celsius', 'lat': 'celsius'})
+        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K')
+        bv = SourcedVariable(name='lat', request_dataset=rd, units='K', bounds=bounds)
         self.assertIsNone(bv._value)
         self.assertIsNone(bv.bounds._value)
         self.assertEqual(bv.bounds.units, 'K')
@@ -695,33 +695,26 @@ class TestSourcedVariable(AbstractTestNewInterface):
                    (slice(0, 3650, None), slice(32, 64, None), slice(64, 128, None)))
         self.assertEqual(actual, desired)
 
-    def test_conform_units_to(self):
-        with self.assertRaises(ValueError):
-            SourcedVariable(value=[2, 3, 4], conform_units_to='celsius', name='tas')
-        sv = SourcedVariable(conform_units_to='celsius', name='tas', request_dataset='foo')
-        self.assertTrue(get_are_units_equal((sv.conform_units_to, get_units_object('celsius'))))
-
     @attr('data')
     def test_conform_units_to_data(self):
-        rd = self.get_request_dataset()
-        sv = SourcedVariable('tas', request_dataset=rd, conform_units_to='celsius')[5:9, 5, 9]
+        rd = self.get_request_dataset(conform_units_to='celsius')
+        sv = SourcedVariable('tas', request_dataset=rd)[5:9, 5, 9]
         self.assertIsNone(sv._value)
         self.assertEqual(sv.units, 'K')
         self.assertLess(sv.value.mean(), 200)
         self.assertEqual(sv.units, 'celsius')
-        self.assertIsNone(sv.conform_units_to)
 
         # Try with a bounded variable.
-        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius', conform_units_to='K')
-        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius', conform_units_to='K')
-        self.assertIsNotNone(sv.bounds.conform_units_to)
+        # tdk: test with a group index on conform_units_to
+        rd = self.get_request_dataset(conform_units_to={'lat_bnds': 'K', 'lat': 'K'})
+        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius')
+        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius')
         self.assertIsNone(sv._value)
         self.assertGreater(sv.value.mean(), 250)
         self.assertEqual(sv.units, 'K')
         self.assertEqual(sv.bounds.units, 'celsius')
         self.assertIsNone(sv.bounds._value)
         self.assertGreater(sv.bounds.value.mean(), 250)
-        self.assertIsNone(sv.bounds.conform_units_to)
 
     def test_getitem(self):
         sv = self.get_sourcedvariable()

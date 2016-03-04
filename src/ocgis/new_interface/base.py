@@ -20,6 +20,10 @@ class AbstractInterfaceObject(object):
     def write_netcdf(self, *args, **kwargs):
         """Write to an open NetCDF dataset object."""
 
+    @property
+    def conform_units_to(self):
+        raise ValueError('do not use')
+
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):
     ret = {}
