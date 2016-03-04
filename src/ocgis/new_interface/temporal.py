@@ -65,6 +65,8 @@ class TemporalVariable(SourcedVariable):
     @calendar.setter
     def calendar(self, value):
         set_attribute_property(self, 'calendar', value)
+        if self.has_bounds:
+            set_attribute_property(self.bounds, 'calendar', value)
 
     @property
     def cfunits(self):
@@ -334,35 +336,6 @@ class TemporalVariable(SourcedVariable):
 
         return ret
 
-    def write_netcdf(self, dataset, **kwargs):
-        """
-        Calls superclass write method then adds ``calendar`` and ``units`` attributes to time variable and time bounds
-        variable. See documentation for :meth:`~ocgis.interface.base.dimension.base.VectorDimension#write_netcdf`.
-        """
-
-        # Swap the value/bounds references from datetime to numtime for the duration for the write.
-        if not get_datetime_conversion_state(self.value.flatten()[0]):
-            self.value = self.value_numtime
-            self.bounds.value = self.bounds.value_numtime
-            swapped_value_bounds = True
-        else:
-            swapped_value_bounds = False
-
-        # Make the bounds aware of the calendar.
-        if self.bounds is not None:
-            self.bounds.attrs['calendar'] = self.calendar
-
-        super(TemporalVariable, self).write_netcdf(dataset, **kwargs)
-
-        # Return the value and bounds to their original state.
-        if swapped_value_bounds:
-            self.value = self.value_datetime
-            self.bounds._value = self.bounds.value_datetime
-
-    def write_attributes_to_netcdf_object(self, target):
-        super(TemporalVariable, self).write_attributes_to_netcdf_object(target)
-        target.calendar = self.calendar
-
     def _get_grouping_all_(self):
         '''
         Applied when the grouping is 'all'.
@@ -616,6 +589,15 @@ class TemporalVariable(SourcedVariable):
         else:
             ret = self.value_numtime
         return ret
+
+    def _get_netcdf_dtype_(self):
+        return self._get_netcdf_value_().dtype
+
+    def _get_netcdf_fill_value_(self):
+        return self._get_netcdf_value_().fill_value
+
+    def _get_netcdf_value_(self):
+        return self.value_numtime
 
     def _get_to_conform_value_(self):
         return self.value_numtime

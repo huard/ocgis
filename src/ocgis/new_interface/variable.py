@@ -656,7 +656,7 @@ class Variable(AbstractContainer, Attributes):
 
         dimensions = self.dimensions
 
-        dtype = self.dtype
+        dtype = self._get_netcdf_dtype_()
         if isinstance(dtype, ObjectType):
             dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
 
@@ -677,15 +677,16 @@ class Variable(AbstractContainer, Attributes):
             fill_value = self.fill_value
         else:
             # Copy from original attributes.
+            # tdk: try to remove this if statement
             if '_FillValue' not in self.attrs:
                 fill_value = None
             else:
-                fill_value = self.fill_value
+                fill_value = self._get_netcdf_fill_value_()
 
         var = dataset.createVariable(self.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
             try:
-                var[:] = self.masked_value
+                var[:] = self._get_netcdf_value_()
             except AttributeError:
                 # Assume ObjectType.
                 for idx, v in iter_array(self.value, use_mask=False, return_value=True):
@@ -704,6 +705,15 @@ class Variable(AbstractContainer, Attributes):
 
     def _set_to_conform_value_(self, value):
         self.value = value
+
+    def _get_netcdf_dtype_(self):
+        return self.dtype
+
+    def _get_netcdf_fill_value_(self):
+        return self.fill_value
+
+    def _get_netcdf_value_(self):
+        return self.masked_value
 
 
 class SourcedVariable(Variable):

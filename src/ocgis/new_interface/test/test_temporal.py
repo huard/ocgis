@@ -847,9 +847,11 @@ class TestTemporalVariable(AbstractTestTemporal):
     def test_write_netcdf(self):
         tv = self.get_temporalvariable()
         path = self.get_temporary_file_path('foo.nc')
+        self.assertEqual(tv.units, tv.bounds.units)
+        self.assertEqual(tv.calendar, tv.bounds.calendar)
         with self.nc_scope(path, 'w') as ds:
             tv.write_netcdf(ds)
-        self.ncdump(path)
+        # self.ncdump(path)
         with self.nc_scope(path) as ds:
             time = ds.variables['time']
             self.assertEqual(time.ncattrs(), ['bounds', 'calendar', 'units'])
