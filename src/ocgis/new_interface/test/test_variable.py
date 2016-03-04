@@ -271,6 +271,7 @@ class TestVariable(AbstractTestNewInterface):
 
     @attr('cfunits')
     def test_cfunits_conform(self):
+        # tdk: test loading from source a bounded variable conforming the units on the center variable and make sure the bounds are converted with specifying the bounds directly in cf_units conform
         units_kelvin = get_units_object('kelvin')
         original_value = np.array([5, 5, 5])
 
