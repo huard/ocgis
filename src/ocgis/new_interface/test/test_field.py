@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
+from ocgis import constants
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.grid import GridXY
@@ -114,15 +115,40 @@ class TestOcgField(AbstractTestNewInterface):
         value = [10, 20]
         bounds = [[5, 15], [15, 25]]
         variable_type = [Variable, TemporalVariable]
+        bounds_variable_type = [Variable, TemporalVariable]
 
-        keywords = dict(units=units, calendar=calendar, variable_type=variable_type)
+        keywords = dict(units=units, calendar=calendar, variable_type=variable_type,
+                        bounds_variable_type=bounds_variable_type)
 
         for k in self.iter_product_keywords(keywords):
-            var = k.variable_type(value=value, units=k.units, calendar=k.calendar)
+            attrs = {'units': k.units, 'calendar': k.calendar}
+            dimension_map = {'time': {'variable': 'time', 'bounds': 'time_bnds', 'attrs': attrs}}
+            var = k.variable_type(name='time', value=value, attrs=attrs, dimensions=['one'])
+            bounds_var = k.bounds_variable_type(name='time_bnds', value=bounds, dimensions=['one', 'two'])
+            f = OcgField(variables=[var, bounds_var], dimension_map=dimension_map)
+            self.assertTrue(len(f.dimension_map) > 1)
+            self.assertTrue(f.time.has_bounds)
+            self.assertIsInstance(f.time, TemporalVariable)
+            self.assertIsInstance(f.time.bounds, TemporalVariable)
+            self.assertEqual(f.time.value_datetime.shape, (2,))
+            self.assertEqual(f.time.bounds.value_datetime.shape, (2, 2))
+            if k.units is None:
+                desired = constants.DEFAULT_TEMPORAL_UNITS
+            else:
+                desired = k.units
+            self.assertEqual(f.time.units, desired)
+            self.assertEqual(f.time.bounds.units, desired)
+            if k.calendar is None:
+                desired = constants.DEFAULT_TEMPORAL_CALENDAR
+            else:
+                desired = k.calendar
+            self.assertEqual(f.time.calendar, desired)
+            self.assertEqual(f.time.bounds.calendar, desired)
 
-        # path = self.get_temporary_file_path('foo.nc')
-        # f.write_netcdf(path)
-        # self.ncdump(path)
+
+            # path = self.get_temporary_file_path('foo.nc')
+            # f.write_netcdf(path)
+            # self.ncdump(path)
 
 
 # class TestFieldBundle2(AbstractTestNewInterface):

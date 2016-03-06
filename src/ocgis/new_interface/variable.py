@@ -97,7 +97,6 @@ class ObjectType(object):
 
 
 class Variable(AbstractContainer, Attributes):
-    # tdk:doc
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
                  units='auto', parent=None, bounds=None):

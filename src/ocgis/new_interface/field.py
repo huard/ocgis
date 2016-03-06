@@ -4,6 +4,7 @@ from copy import deepcopy
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import renamed_dimensions_on_variables
 from ocgis.new_interface.grid import GridXY
+from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import VariableCollection
 
 # tdk: move this to ocgis.constants
@@ -20,7 +21,17 @@ _DIMENSION_MAP['crs'] = {'attrs': None, 'variable': None, 'names': []}
 class OcgField(VariableCollection):
 
     def __init__(self, *args, **kwargs):
-        self.dimension_map = kwargs.pop('dimension_map', deepcopy(_DIMENSION_MAP))
+        dimension_map = deepcopy(kwargs.pop('dimension_map', None))
+        dimension_map_template = deepcopy(_DIMENSION_MAP)
+        if dimension_map is not None:
+            for k, v in dimension_map.items():
+                for k2, v2, in v.items():
+                    if k2 == 'attrs':
+                        dimension_map_template[k][k2].update(v2)
+                    else:
+                        dimension_map_template[k][k2] = v2
+        self.dimension_map = dimension_map_template
+
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
         self.format_tine = kwargs.pop('format_time', True)
 
@@ -53,7 +64,9 @@ class OcgField(VariableCollection):
 
     @property
     def time(self):
-        return get_field_property(self, 'time')
+        ret = get_field_property(self, 'time')
+        ret = TemporalVariable.from_variable(ret, format_time=self.format_tine)
+        return ret
 
     @property
     def level(self):
@@ -95,9 +108,10 @@ class OcgField(VariableCollection):
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
-        # Attempt to load all instrumented dimensions once.
+        # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable.
         for k in self.dimension_map.keys():
-            getattr(self, k)
+            if k != 'geom':
+                getattr(self, k)
         return super(OcgField, self).write_netcdf(dataset_or_path, **kwargs)
 
 

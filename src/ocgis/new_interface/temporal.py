@@ -120,6 +120,16 @@ class TemporalVariable(SourcedVariable):
             ret = False
         return ret
 
+    @classmethod
+    def from_variable(cls, variable, format_time=True):
+        bounds = variable.bounds
+        if bounds is not None and not isinstance(bounds, TemporalVariable):
+            bounds = cls.from_variable(bounds, format_time=format_time)
+        ret = cls(name=variable.name, value=variable._value, mask=variable._mask, dimensions=variable._dimensions,
+                  dtype=variable._dtype, attrs=variable._attrs, fill_value=variable._fill_value,
+                  parent=variable.parent, bounds=bounds, format_time=format_time)
+        return ret
+
     def get_between(self, lower, upper, return_indices=False):
         if get_datetime_conversion_state(self.value[0]):
             lower, upper = tuple(self.get_numtime([lower, upper]))
