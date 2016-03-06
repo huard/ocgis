@@ -46,12 +46,18 @@ class GridXY(AbstractSpatialContainer):
         super(GridXY, self).__init__(crs=crs, parent=parent)
 
         if self.dimensions is None:
-            if self.is_vectorized:
+            if self._archetype.ndim == 1:
                 self.x.create_dimensions(names='ocgis_xc')
                 self.y.create_dimensions(names='ocgis_yc')
             else:
                 self.x.create_dimensions(names=_NAMES_2D)
                 self.y.create_dimensions(names=_NAMES_2D)
+
+        if self._archetype.ndim == 1:
+            self.is_vectorized = True
+            expand_grid(self)
+        else:
+            self.is_vectorized = False
 
     def __getitem__(self, slc):
         """
@@ -73,20 +79,16 @@ class GridXY(AbstractSpatialContainer):
     def __setitem__(self, slc, grid):
         slc = get_formatted_slice(slc, self.ndim)
 
-        if not grid.is_vectorized and self.is_vectorized:
-            self.expand()
-
         if self._point_name in grid.parent:
             self.point[slc] = grid.point
         if self._polygon_name in grid.parent:
             self.polygon[slc] = grid.polygon
 
-        if self.is_vectorized:
-            self.x[slc[1]] = grid.x
-            self.y[slc[0]] = grid.y
-        else:
-            self.x[slc] = grid.x
-            self.y[slc] = grid.y
+        self.x[slc] = grid.x
+        self.y[slc] = grid.y
+
+        # No way to know if the data is still vectorized...
+        self.is_vectorized = False
 
     def get_member_variables(self, include_bounds=False):
         targets = [self._x_name, self._y_name, self._point_name, self._polygon_name]
@@ -125,56 +127,13 @@ class GridXY(AbstractSpatialContainer):
         else:
             raise NotImplementedError(self.abstraction)
 
-    def expand(self):
-        # tdk: doc
-
-        if self.y.ndim == 1:
-            new_x_value, new_y_value = np.meshgrid(self.x.value, self.y.value)
-            new_dimensions = self.dimensions
-
-            self.x.value = None
-            self.x.dimensions = new_dimensions
-            self.x.value = new_x_value
-
-            self.y.value = None
-            self.y.dimensions = new_dimensions
-            self.y.value = new_y_value
-
-            assert self.y.ndim == 2
-            assert self.x.ndim == 2
-
-            if self.y.bounds is not None:
-                name_y = self.y.bounds.name
-                name_x = self.x.bounds.name
-                name_dimension = self.y.bounds.dimensions[1].name
-                self.y.bounds = None
-                self.x.bounds = None
-                # tdk: this should leverage the bounds already in place on the vectors
-                self.set_extrapolated_bounds(name_x, name_y, name_dimension)
-
     @property
     def dimensions(self):
-        if self.is_vectorized:
-            try:
-                ret = (self.y.dimensions[0], self.x.dimensions[0])
-            except TypeError:
-                # Assume dimensions are none.
-                ret = None
-        else:
-            ret = self.y.dimensions
-        return ret
+        return self._archetype.dimensions
 
     @property
     def has_bounds(self):
         return self._archetype.has_bounds
-
-    @property
-    def is_vectorized(self):
-        if self.y.ndim == 1:
-            ret = True
-        else:
-            ret = False
-        return ret
 
     @property
     def point(self):
@@ -227,27 +186,19 @@ class GridXY(AbstractSpatialContainer):
     def resolution(self):
         y = self.y
         x = self.x
-        if self.is_vectorized:
-            to_mean = [y.resolution, x.resolution]
-        else:
-            resolution_limit = constants.RESOLUTION_LIMIT
-            targets = [np.abs(np.diff(np.abs(y.value[0:resolution_limit, :]), axis=0)),
-                       np.abs(np.diff(np.abs(x.value[:, 0:resolution_limit]), axis=1))]
-            to_mean = [np.mean(t) for t in targets]
+        resolution_limit = constants.RESOLUTION_LIMIT
+        targets = [np.abs(np.diff(np.abs(y.value[0:resolution_limit, :]), axis=0)),
+                   np.abs(np.diff(np.abs(x.value[:, 0:resolution_limit]), axis=1))]
+        to_mean = [np.mean(t) for t in targets]
         ret = np.mean(to_mean)
         return ret
 
     @property
     def shape(self):
-        if self.is_vectorized:
-            ret = (self.y.shape[0], self.x.shape[0])
-        else:
-            ret = self._archetype.shape
-        return ret
+        return self._archetype.shape
 
     @property
     def value_stacked(self):
-        self.expand()
         y = self.y.value
         x = self.x.value
         fill = np.zeros([2] + list(y.shape))
@@ -257,7 +208,6 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def masked_value_stacked(self):
-        self.expand()
         y = self.y.masked_value
         x = self.x.masked_value
         fill = np.ma.zeros([2] + list(y.shape))
@@ -277,34 +227,19 @@ class GridXY(AbstractSpatialContainer):
     def create_dimensions(self, names=None):
         if names is None:
             names = [self.y.name, self.x.name]
-        if self.is_vectorized:
-            y_name, x_name = names
-            self.y.create_dimensions(names=y_name)
-            self.x.create_dimensions(names=x_name)
-        else:
-            self.y.create_dimensions(names=names)
-            self.x.create_dimensions(names=names)
+        self.y.create_dimensions(names=names)
+        self.x.create_dimensions(names=names)
 
     def get_mask(self):
-        if self.is_vectorized:
-            ret = np.zeros(self.shape, dtype=bool)
-            y_mask = self.y.get_mask()
-            x_mask = self.x.get_mask()
-            for idx_y, idx_x in itertools.product(range(self.shape[0]), range(self.shape[1])):
-                ret[idx_y, idx_x] = np.logical_or(y_mask[idx_y], x_mask[idx_x])
-        else:
-            ret = self._archetype.get_mask()
-        return ret
+        return self._archetype.get_mask()
 
     def set_mask(self, value, cascade=False):
-        self.expand()
         for v in self.get_member_variables():
             v.set_mask(value)
         if cascade:
             grid_set_mask_cascade(self)
 
     def iter(self, **kwargs):
-        self.expand()
         name_x = self.x.name
         value_x = self.x.value
         for idx, record in self.y.iter(**kwargs):
@@ -351,7 +286,7 @@ class GridXY(AbstractSpatialContainer):
         :param to_crs: The destination coordinate system.
         :type to_crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
         """
-        self.expand()
+
         assert self.crs is not None
         src_sr = self.crs.sr
         to_sr = to_crs.sr
@@ -371,6 +306,8 @@ class GridXY(AbstractSpatialContainer):
 
         self.crs = to_crs
 
+        self.is_vectorized = False
+
     def _get_extent_(self):
         #tdk: test, doc
         if not self.is_vectorized:
@@ -389,8 +326,8 @@ class GridXY(AbstractSpatialContainer):
                 maxx = x_value.max()
                 maxy = y_value.max()
         else:
-            row = self.y
-            col = self.x
+            row = self.y[:, 0]
+            col = self.x[0, :]
             if row.bounds is None:
                 minx = col.value.min()
                 miny = row.value.min()
@@ -448,12 +385,30 @@ class GridXY(AbstractSpatialContainer):
         popped = []
         for target in [self._point_name, self._polygon_name]:
             popped.append(self.parent.pop(target, None))
+        if self.is_vectorized:
+            original_x = self.x
+            original_y = self.y
+
+            self.x = self.x[0, :]
+            self.x.dimensions = None
+            self.x.value = self.x.value.reshape(-1)
+            self.x._mask = None
+            self.x.dimensions = list(original_x.dimensions)[1]
+
+            self.y = self.y[:, 0]
+            self.y.dimensions = None
+            self.y.value = self.y.value.reshape(-1)
+            self.y._mask = None
+            self.y.dimensions = list(original_y.dimensions)[0]
         try:
             super(GridXY, self).write_netcdf(dataset, **kwargs)
         finally:
             for p in popped:
                 if p is not None:
                     self.parent[p.name] = p
+            if self.is_vectorized:
+                self.x = original_x
+                self.y = original_y
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
@@ -489,15 +444,7 @@ def get_geometry_fill(shape, mask):
 def get_polygon_geometry_array(grid, fill):
     r_data = fill.data
 
-    if grid.is_vectorized and grid.has_bounds:
-        ref_row_bounds = grid.y.bounds.value
-        ref_col_bounds = grid.x.bounds.value
-        for idx_row, idx_col in itertools.product(range(ref_row_bounds.shape[0]), range(ref_col_bounds.shape[0])):
-            row_min, row_max = ref_row_bounds[idx_row, :].min(), ref_row_bounds[idx_row, :].max()
-            col_min, col_max = ref_col_bounds[idx_col, :].min(), ref_col_bounds[idx_col, :].max()
-            r_data[idx_row, idx_col] = Polygon([(col_min, row_min), (col_min, row_max),
-                                                (col_max, row_max), (col_max, row_min)])
-    elif not grid.is_vectorized and grid.has_bounds:
+    if grid.has_bounds:
         # We want geometries for everything even if masked.
         x_corners = grid.x.bounds.value
         y_corners = grid.y.bounds.value
@@ -526,17 +473,11 @@ def get_point_geometry_array(grid, fill):
     y_data = grid.y.value
 
     r_data = fill.data
-    if grid.is_vectorized:
-        for idx_row in range(y_data.shape[0]):
-            for idx_col in range(x_data.shape[0]):
-                pt = Point(x_data[idx_col], y_data[idx_row])
-                r_data[idx_row, idx_col] = pt
-    else:
-        for idx_row, idx_col in iter_array(y_data, use_mask=False):
-            y = y_data[idx_row, idx_col]
-            x = x_data[idx_row, idx_col]
-            pt = Point(x, y)
-            r_data[idx_row, idx_col] = pt
+    for idx_row, idx_col in iter_array(y_data, use_mask=False):
+        y = y_data[idx_row, idx_col]
+        x = x_data[idx_row, idx_col]
+        pt = Point(x, y)
+        r_data[idx_row, idx_col] = pt
     return fill
 
 
@@ -769,3 +710,31 @@ def grid_set_mask_cascade(grid):
     members = grid.get_member_variables(include_bounds=True)
     members = [m.name for m in members]
     grid.parent.set_mask(grid._archetype, exclude=members)
+
+
+def expand_grid(grid):
+    y = grid.y
+    if y.ndim == 1:
+        x = grid.x
+        new_x_value, new_y_value = np.meshgrid(x.value, y.value)
+        new_dimensions = [y.dimensions[0], x.dimensions[0]]
+
+        x.value = None
+        x.dimensions = new_dimensions
+        x.value = new_x_value
+
+        y.value = None
+        y.dimensions = new_dimensions
+        y.value = new_y_value
+
+        assert y.ndim == 2
+        assert x.ndim == 2
+
+        if y.bounds is not None:
+            name_y = y.bounds.name
+            name_x = x.bounds.name
+            name_dimension = y.bounds.dimensions[1].name
+            y.bounds = None
+            x.bounds = None
+            # tdk: this should leverage the bounds already in place on the vectors
+            grid.set_extrapolated_bounds(name_x, name_y, name_dimension)

@@ -294,8 +294,8 @@ class TestGridXY(AbstractTestNewInterface):
         x = Variable(name='col', value=[1], dimensions='col')
         y = Variable(name='row', value=[2], dimensions='row')
         grid = GridXY(x, y)
-        assert_equal(grid.x.value, [1])
-        assert_equal(grid.y.value, [2])
+        assert_equal(grid.x.value, [[1]])
+        assert_equal(grid.y.value, [[2]])
 
         # Test point and polygon representations.
         grid = self.get_gridxy(crs=WGS84())
@@ -332,16 +332,6 @@ class TestGridXY(AbstractTestNewInterface):
         grid = self.get_gridxy()
         grid.create_dimensions(names=['yy', 'xx'])
         self.assertEqual(grid.dimensions, (Dimension(name='yy', length=4), Dimension(name='xx', length=3)))
-
-    def test_expand(self):
-        grid = self.get_gridxy()
-        self.assertTrue(grid.is_vectorized)
-        grid.expand()
-        for target in [grid.x, grid.y]:
-            self.assertFalse(target.get_mask().any())
-        self.assertFalse(grid.is_vectorized)
-        self.assertEqual(grid.ndim, 2)
-        self.assertEqual(grid.shape, (4, 3))
 
     def test_iter(self):
         grid = self.get_gridxy()
@@ -446,7 +436,6 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
         self.assertNumpyAll(sub.value_stacked, desired_manual)
 
-    def test_tdk(self):
         # Test masks are updated.
         grid = self.get_gridxy(with_xy_bounds=True, with_parent=True)
         for t in ['xbounds', 'ybounds']:
@@ -522,7 +511,6 @@ class TestGridXY(AbstractTestNewInterface):
         grid = GridXY(x, y)
         grid.set_extrapolated_bounds('ybounds', 'xbounds', 'bounds')
         self.assertTrue(grid.is_vectorized)
-        grid.expand()
         self.assertEqual(grid.x.bounds.ndim, 3)
 
     def test_setitem(self):
@@ -549,7 +537,7 @@ class TestGridXY(AbstractTestNewInterface):
         mask[1, 1] = True
         self.assertTrue(grid.is_vectorized)
         grid.set_mask(mask)
-        self.assertFalse(grid.is_vectorized)
+        self.assertTrue(grid.is_vectorized)
         self.assertTrue(np.all(grid.y.get_mask()[1, 1]))
         self.assertTrue(np.all(grid.x.get_mask()[1, 1]))
         self.assertTrue(np.all(grid.point.get_mask()[1, 1]))
@@ -560,8 +548,9 @@ class TestGridXY(AbstractTestNewInterface):
         # self.ncdump(path)
         nvc = VariableCollection.read_netcdf(path)
         ngrid = GridXY(nvc['x'], nvc['y'], parent=nvc)
-        self.assertTrue(ngrid.get_mask()[1, 1])
-        self.assertNumpyAll(grid.masked_value_stacked.compressed(), ngrid.masked_value_stacked.compressed())
+        # Mask is not written to coordinate variables.
+        self.assertFalse(ngrid.get_mask()[1, 1])
+        self.assertNumpyNotAll(grid.masked_value_stacked.compressed(), ngrid.masked_value_stacked.compressed())
 
         # Test with a parent.
         grid = self.get_gridxy(with_parent=True)
