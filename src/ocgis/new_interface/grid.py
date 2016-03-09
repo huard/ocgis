@@ -400,6 +400,7 @@ class GridXY(AbstractSpatialContainer):
             self.y.value = self.y.value.reshape(-1)
             self.y._mask = None
             self.y.dimensions = list(original_y.dimensions)[0]
+            #tdk: test mask is returned after write
         try:
             super(GridXY, self).write_netcdf(dataset, **kwargs)
         finally:
