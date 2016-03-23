@@ -458,17 +458,15 @@ class TestGridXY(AbstractTestNewInterface):
         keywords = dict(with_bounds=[False, True])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
             grid = self.get_polygon_array_grid(with_bounds=k.with_bounds)
-            if k.with_bounds:
-                actual = self.polygon_value
-                self.assertTrue(grid.is_vectorized)
-            else:
+            self.assertTrue(grid.is_vectorized)
+            if not k.with_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
-                grid.expand()
-                self.assertFalse(grid.is_vectorized)
-                actual = self.polygon_value_alternate_ordering
+            # tdk: rename this
+            actual = self.polygon_value_alternate_ordering
             fill = get_geometry_fill(grid.shape, grid.get_mask())
             poly = GeometryVariable(value=get_polygon_geometry_array(grid, fill))
             self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
+            self.assertTrue(grid.is_vectorized)
 
     def test_resolution(self):
         for grid in self.get_iter_gridxy():
