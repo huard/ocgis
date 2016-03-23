@@ -739,3 +739,4 @@ def expand_grid(grid):
             x.bounds = None
             # tdk: this should leverage the bounds already in place on the vectors
             grid.set_extrapolated_bounds(name_x, name_y, name_dimension)
+
