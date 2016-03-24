@@ -167,6 +167,7 @@ class GridXY(AbstractSpatialContainer):
         ret = self.parent[self._x_name]
         if ret.ndim == 1:
             expand_grid(self)
+        return ret
 
     @x.setter
     def x(self, value):
@@ -177,6 +178,7 @@ class GridXY(AbstractSpatialContainer):
         ret = self.parent[self._y_name]
         if ret.ndim == 1:
             expand_grid(self)
+        return ret
 
     @y.setter
     def y(self, value):
