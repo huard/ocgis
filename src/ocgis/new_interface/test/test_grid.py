@@ -46,8 +46,6 @@ class Test(AbstractTestNewInterface):
                 log.debug(k)
 
             grid = self.get_gridxy()
-            if not k.is_vectorized:
-                grid.expand()
             if k.has_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
                 self.assertTrue(grid.has_bounds)
@@ -75,10 +73,7 @@ class Test(AbstractTestNewInterface):
                     else:
                         desired = (slice(1, 2, None), slice(1, 2, None))
                 self.assertEqual(grid.has_bounds, k.has_bounds)
-                if (not k.has_bounds or not k.use_bounds) and isinstance(bounds_sequence, tuple) and k.is_vectorized:
-                    self.assertTrue(grid.is_vectorized)
-                else:
-                    self.assertFalse(grid.is_vectorized)
+                self.assertTrue(grid.is_vectorized)
                 self.assertEqual(slc, desired)
             else:
                 self.assertIsNone(grid_sub)
@@ -311,6 +306,21 @@ class TestGridXY(AbstractTestNewInterface):
             self.assertEqual(t.shape, (1, 1))
             self.assertIsInstance(t, GeometryVariable)
 
+    def test_init_from_file(self):
+        """Test loading from file."""
+
+        grid = self.get_gridxy()
+        path = self.get_temporary_file_path('foo.nc')
+        grid.write_netcdf(path)
+        rd = RequestDataset(uri=path)
+        x = SourcedVariable(name=grid.x.name, request_dataset=rd)
+        y = SourcedVariable(name=grid.y.name, request_dataset=rd)
+        self.assertIsNone(x._value)
+        self.assertIsNone(y._value)
+        fgrid = GridXY(x, y)
+        self.assertIsNone(fgrid.x._value)
+        self.assertIsNone(fgrid.y._value)
+
     def test_corners_esmf(self):
         raise SkipTest('move to test for get_esmf_corners_from_ocgis_corners')
         x_bounds = Variable(value=[[-100.5, -99.5], [-99.5, -98.5], [-98.5, -97.5], [-97.5, -96.5]], name='x_bounds')
@@ -392,10 +402,7 @@ class TestGridXY(AbstractTestNewInterface):
             bg = grid.get_intersects(bounds_sequence)
             if MPI_RANK == 0:
                 self.assertNotEqual(grid.shape, bg.shape)
-                if k.bounds:
-                    self.assertFalse(bg.is_vectorized)
-                else:
-                    self.assertTrue(bg.is_vectorized)
+            self.assertTrue(bg.is_vectorized)
 
             with self.assertRaises(EmptySubsetError):
                 bounds_sequence = (1000, 1000, 1001, 10001)
@@ -432,7 +439,10 @@ class TestGridXY(AbstractTestNewInterface):
         desired_manual = np.array(desired_manual)
 
         grid = self.get_gridxy()
+        self.write_fiona_htmp(grid, 'grid')
+        self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
         sub, sub_slc = grid.get_intersects(subset, return_slice=True)
+        self.write_fiona_htmp(sub, 'sub')
         self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
         self.assertNumpyAll(sub.value_stacked, desired_manual)
 
@@ -590,9 +600,11 @@ class TestGridXY(AbstractTestNewInterface):
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
+        self.assertTrue(grid.is_vectorized)
         with self.nc_scope(path) as ds:
+            self.assertNumpyAll(ds.variables[grid.x.name][:], grid.x.value[0, :])
             var = ds.variables[grid.y.name]
-            self.assertNumpyAll(var[:], grid.y.value)
+            self.assertNumpyAll(var[:], grid.y.value[:, 0])
             self.assertEqual(var.axis, 'Y')
             self.assertIn(grid.crs.name, ds.variables)
 

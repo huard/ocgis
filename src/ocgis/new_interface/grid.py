@@ -87,9 +87,6 @@ class GridXY(AbstractSpatialContainer):
         self.x[slc] = grid.x
         self.y[slc] = grid.y
 
-        # No way to know if the data is still vectorized...
-        self.is_vectorized = False
-
     def get_member_variables(self, include_bounds=False):
         targets = [self._x_name, self._y_name, self._point_name, self._polygon_name]
         ret = []
@@ -535,9 +532,6 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
         bounds_sequence = buffered.bounds
         with_geometry = True
 
-    if with_geometry and grid.is_vectorized:
-        grid.expand()
-
     if mpi_rank == 0:
         log.info('split')
         splits = get_optimal_splits(MPI_SIZE, grid.shape)
@@ -593,23 +587,14 @@ def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_co
 def grid_update_mask(grid, bounds_sequence, keep_touches=True):
     minx, miny, maxx, maxy = bounds_sequence
 
-    has_bounds, is_vectorized = grid.has_bounds, grid.is_vectorized
-
-    res_x = get_coordinate_boolean_array(grid.x, is_vectorized, keep_touches, maxx, minx)
-    res_y = get_coordinate_boolean_array(grid.y, is_vectorized, keep_touches, maxy, miny)
+    res_x = get_coordinate_boolean_array(grid.x, keep_touches, maxx, minx)
+    res_y = get_coordinate_boolean_array(grid.y, keep_touches, maxy, miny)
 
     try:
-        if is_vectorized:
-            if any([np.all(r) for r in [res_x, res_y]]):
-                raise AllElementsMaskedError
-            else:
-                grid.x.set_mask(res_x)
-                grid.y.set_mask(res_y)
-        else:
-            res = np.invert(np.logical_and(res_x.reshape(*grid.shape), res_y.reshape(*grid.shape)))
-            if np.all(res):
-                raise AllElementsMaskedError
-            grid.set_mask(res)
+        res = np.invert(np.logical_and(res_x.reshape(*grid.shape), res_y.reshape(*grid.shape)))
+        if np.all(res):
+            raise AllElementsMaskedError
+        grid.set_mask(res)
     except AllElementsMaskedError:
         raise EmptySubsetError('grid')
 
@@ -670,12 +655,7 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
                 build = False
             fill_grid[as_local[idx]] = gs
 
-    if grid.is_vectorized:
-        _, y_slice = get_trimmed_array_by_mask(fill_grid.y.get_mask(), return_adjustments=True)
-        _, x_slice = get_trimmed_array_by_mask(fill_grid.x.get_mask(), return_adjustments=True)
-        slc_ret = (y_slice[0], x_slice[0])
-    else:
-        _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)
+    _, slc_ret = get_trimmed_array_by_mask(fill_grid.get_mask(), return_adjustments=True)
 
     fill_grid = fill_grid[slc_ret]
 
@@ -689,14 +669,12 @@ def get_filled_grid_and_slice(grid, grid_subs, slices_global):
     return fill_grid, slc_ret
 
 
-def get_coordinate_boolean_array(grid_target, is_vectorized, keep_touches, max_target, min_target):
+def get_coordinate_boolean_array(grid_target, keep_touches, max_target, min_target):
     target_centers = grid_target.value
 
     res_target = np.array(get_arr_intersects_bounds(target_centers, min_target, max_target, keep_touches=keep_touches))
     res_target = res_target.reshape(-1)
 
-    if is_vectorized:
-        res_target = np.invert(res_target)
     return res_target
 
 
