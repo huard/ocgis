@@ -64,9 +64,9 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertIsInstance(sub.grid, GridXY)
         desired = OrderedDict([('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (3,)), ('yc', (4,))])
         self.assertEqual(sub.shapes, desired)
-        sub.grid.expand()
+        # sub.grid.expand()
         desired = OrderedDict(
-            [('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (4, 3)), ('yc', (4, 3))])
+            [('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (3,)), ('yc', (4,))])
         self.assertEqual(sub.shapes, desired)
         self.assertIsNotNone(sub.grid.point)
         self.assertEqual(sub.shapes[sub.grid.point.name], (4, 3))
@@ -79,7 +79,8 @@ class TestOcgField(AbstractTestNewInterface):
         f2.dimension_map['y']['variable'] = 'yc'
         spatial_sub = f2.grid.get_intersects(bbox).parent
         desired = OrderedDict(
-            [('time', (3,)), ('time_bounds', (3, 2)), ('other', (3,)), ('xc', (1,)), ('yc', (2,)), ('data', (1, 2))])
+            [('time', (3,)), ('time_bounds', (3, 2)), ('other', (3,)), ('xc', (2, 1)), ('yc', (2, 1)),
+             ('data', (1, 2))])
         self.assertEqual(spatial_sub.shapes, desired)
 
         # path = self.get_temporary_file_path('foo.nc')

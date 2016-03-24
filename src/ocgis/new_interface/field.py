@@ -65,7 +65,8 @@ class OcgField(VariableCollection):
     @property
     def time(self):
         ret = get_field_property(self, 'time')
-        ret = TemporalVariable.from_variable(ret, format_time=self.format_tine)
+        if ret is not None:
+            ret = TemporalVariable.from_variable(ret, format_time=self.format_tine)
         return ret
 
     @property
