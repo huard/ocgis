@@ -9,7 +9,7 @@ from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedErr
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log, log_entry_exit
-from ocgis.new_interface.variable import VariableCollection, get_dslice
+from ocgis.new_interface.variable import VariableCollection, get_dslice, get_dimension_lengths
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_formatted_slice
 
@@ -23,6 +23,9 @@ class GridXY(AbstractSpatialContainer):
     ndim = 2
 
     def __init__(self, x, y, abstraction='auto', crs=None, parent=None):
+        if x.dimensions is None or y.dimensions is None:
+            raise ValueError('Grid variables must have dimensions.')
+
         self._abstraction = None
 
         self.abstraction = abstraction
@@ -44,14 +47,6 @@ class GridXY(AbstractSpatialContainer):
                 parent.add_variable(var, force=True)
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
-
-        if self.dimensions is None:
-            if self._archetype.ndim == 1:
-                self.x.create_dimensions(names='ocgis_xc')
-                self.y.create_dimensions(names='ocgis_yc')
-            else:
-                self.x.create_dimensions(names=_NAMES_2D)
-                self.y.create_dimensions(names=_NAMES_2D)
 
         if self._archetype.ndim == 1:
             self.is_vectorized = True
@@ -125,7 +120,10 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def dimensions(self):
-        return self._archetype.dimensions
+        ret = self._archetype.dimensions
+        if len(ret) == 1:
+            ret = (self.parent[self._y_name].dimensions[0], self.parent[self._x_name].dimensions[0])
+        return ret
 
     @property
     def has_bounds(self):
@@ -197,7 +195,7 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def shape(self):
-        return self._archetype.shape
+        return get_dimension_lengths(self.dimensions)
 
     @property
     def value_stacked(self):
@@ -233,7 +231,7 @@ class GridXY(AbstractSpatialContainer):
         self.x.create_dimensions(names=names)
 
     def get_mask(self):
-        return self._archetype.get_mask()
+        return self.y.get_mask()
 
     def set_mask(self, value, cascade=False):
         for v in self.get_member_variables():
@@ -388,21 +386,23 @@ class GridXY(AbstractSpatialContainer):
         for target in [self._point_name, self._polygon_name]:
             popped.append(self.parent.pop(target, None))
         if self.is_vectorized:
-            original_x = self.x
-            original_y = self.y
+            original_dimensions = deepcopy(self.dimensions)
+            original_x = self.x.copy()
+            original_y = self.y.copy()
 
             self.x = self.x[0, :]
-            self.x.dimensions = None
-            self.x.value = self.x.value.reshape(-1)
-            self.x._mask = None
-            self.x.dimensions = list(original_x.dimensions)[1]
-
             self.y = self.y[:, 0]
-            self.y.dimensions = None
-            self.y.value = self.y.value.reshape(-1)
-            self.y._mask = None
-            self.y.dimensions = list(original_y.dimensions)[0]
-            #tdk: test mask is returned after write
+            x, y = self.x, self.y
+
+            x.dimensions = None
+            x.value = x.value.reshape(-1)
+            x._mask = None
+            x.dimensions = original_dimensions[1]
+
+            y.dimensions = None
+            y.value = y.value.reshape(-1)
+            y._mask = None
+            y.dimensions = original_dimensions[0]
         try:
             super(GridXY, self).write_netcdf(dataset, **kwargs)
         finally:

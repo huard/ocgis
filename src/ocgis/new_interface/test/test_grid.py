@@ -97,11 +97,13 @@ class Test(AbstractTestNewInterface):
         y = SourcedVariable(name='y', request_dataset=rd)
         self.assertIsNone(x._value)
         self.assertIsNone(y._value)
-        grid = GridXY(x, y)
-        self.assertIsNone(grid.x._value)
 
+        grid = GridXY(x, y)
+
+        for target in [grid._y_name, grid._x_name]:
+            self.assertIsNone(grid.parent[target]._value)
         self.assertTrue(grid.is_vectorized)
-        self.assertIsNone(grid.x._value)
+
         sub, slc = grid_get_intersects(grid, bounds_sequence, mpi_comm=MPI_COMM)
 
         if MPI_RANK == 0:
@@ -313,14 +315,15 @@ class TestGridXY(AbstractTestNewInterface):
         path = self.get_temporary_file_path('foo.nc')
         grid.write_netcdf(path)
         rd = RequestDataset(uri=path)
-        x = SourcedVariable(name=grid.x.name, request_dataset=rd)
-        y = SourcedVariable(name=grid.y.name, request_dataset=rd)
+        x = SourcedVariable(name=grid.x.name, request_dataset=rd, protected=True)
+        y = SourcedVariable(name=grid.y.name, request_dataset=rd, protected=True)
         self.assertIsNone(x._value)
         self.assertIsNone(y._value)
         fgrid = GridXY(x, y)
-        self.assertIsNone(fgrid.x._value)
-        self.assertIsNone(fgrid.y._value)
-        thh
+        self.assertEqual(len(fgrid.dimensions), 2)
+        for target in [fgrid._y_name, fgrid._x_name]:
+            fgrid.parent[target].protected = False
+        self.assertEqual(fgrid.value_stacked.mean(), 71.75)
 
     def test_corners_esmf(self):
         raise SkipTest('move to test for get_esmf_corners_from_ocgis_corners')
@@ -598,6 +601,7 @@ class TestGridXY(AbstractTestNewInterface):
 
     def test_write_netcdf(self):
         grid = self.get_gridxy(crs=WGS84())
+        self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write_netcdf(ds)
