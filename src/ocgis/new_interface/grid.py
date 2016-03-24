@@ -55,7 +55,6 @@ class GridXY(AbstractSpatialContainer):
 
         if self._archetype.ndim == 1:
             self.is_vectorized = True
-            expand_grid(self)
         else:
             self.is_vectorized = False
 
@@ -165,7 +164,9 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def x(self):
-        return self.parent[self._x_name]
+        ret = self.parent[self._x_name]
+        if ret.ndim == 1:
+            expand_grid(self)
 
     @x.setter
     def x(self, value):
@@ -173,7 +174,9 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def y(self):
-        return self.parent[self._y_name]
+        ret = self.parent[self._y_name]
+        if ret.ndim == 1:
+            expand_grid(self)
 
     @y.setter
     def y(self, value):
@@ -214,7 +217,7 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def _archetype(self):
-        return self.y
+        return self.parent[self._y_name]
 
     def allocate_geometry_variable(self, target):
         targets = {'point': {'name': self._point_name, 'func': get_point_geometry_array},
@@ -692,9 +695,11 @@ def grid_set_mask_cascade(grid):
 
 
 def expand_grid(grid):
-    y = grid.y
+    # y = grid.y
+    y = grid.parent[grid._y_name]
+    # x = grid.x
+    x = grid.parent[grid._x_name]
     if y.ndim == 1:
-        x = grid.x
         new_x_value, new_y_value = np.meshgrid(x.value, y.value)
         new_dimensions = [y.dimensions[0], x.dimensions[0]]
 

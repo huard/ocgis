@@ -320,6 +320,7 @@ class TestGridXY(AbstractTestNewInterface):
         fgrid = GridXY(x, y)
         self.assertIsNone(fgrid.x._value)
         self.assertIsNone(fgrid.y._value)
+        thh
 
     def test_corners_esmf(self):
         raise SkipTest('move to test for get_esmf_corners_from_ocgis_corners')
