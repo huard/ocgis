@@ -476,7 +476,7 @@ class TestGridXY(AbstractTestNewInterface):
             if not k.with_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
             # tdk: rename this
-            actual = self.polygon_value_alternate_ordering
+            actual = self.polygon_value
             fill = get_geometry_fill(grid.shape, grid.get_mask())
             poly = GeometryVariable(value=get_polygon_geometry_array(grid, fill))
             self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
