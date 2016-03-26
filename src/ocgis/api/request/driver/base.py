@@ -63,7 +63,7 @@ class AbstractDriver(object):
         """
 
     @abc.abstractmethod
-    def get_dimension_map(self):
+    def get_dimension_map(self, metadata):
         """:rtype: dict"""
 
     @abc.abstractmethod

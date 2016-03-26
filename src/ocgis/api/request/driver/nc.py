@@ -18,7 +18,7 @@ from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType
-from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatted_slice
+from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatted_slice, get_by_key_list
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
@@ -88,6 +88,48 @@ class DriverNetcdf(AbstractDriver):
             except ProjectionDoesNotMatch:
                 continue
         return crs
+
+    def get_dimension_map(self, metadata):
+        # print metadata['variables'].keys()
+        # print metadata.keys()
+        # for variable in metadata['variables']:
+        #     print variable
+
+        def get_dimension_map_entry(axis, variables):
+            axis_vars = []
+            for variable in variables.values():
+                vattrs = variable['attributes']
+                if vattrs.get('axis') == axis:
+                    axis_vars.append(variable['name'])
+            assert len(axis_vars) <= 1
+            if len(axis_vars) == 1:
+                ret = {'variable': axis_vars[0]}
+            else:
+                ret = None
+            return ret
+
+        variables = metadata['variables']
+        axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
+        check_bounds = axes.keys()
+        check_bounds.pop(check_bounds.index('realization'))
+        for k, v in axes.items():
+            axes[k] = get_dimension_map_entry(v, variables)
+        for k in check_bounds:
+            if axes[k] is not None:
+                keys = ['bounds']
+                if k == 'time':
+                    keys += ['climatology']
+                bounds_var = get_by_key_list(variables[axes[k]['variable']]['attributes'], keys)
+                if bounds_var is not None:
+                    if bounds_var not in variables:
+                        msg = 'Bounds listed for variable "{0}" but the destination bounds variable "{1}" does not exist.'. \
+                            format(axes[k]['variable'], bounds_var)
+                        ocgis_lh(msg, logger='nc.driver', level=logging.WARNING)
+                        bounds_var = None
+                axes[k]['bounds'] = bounds_var
+
+        # tdk: add crs check
+        return {k: v for k, v in axes.items() if v is not None}
 
     def get_dimensioned_variables(self):
         # tdk: implement

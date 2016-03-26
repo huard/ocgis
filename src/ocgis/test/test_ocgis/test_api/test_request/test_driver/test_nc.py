@@ -34,8 +34,18 @@ class TestDriverNetcdf(TestBase):
             ds.convention = 'CF-1.6'
             ds.createDimension('time')
             ds.createDimension('x', 5)
+            ds.createDimension('bounds', 2)
+
             vx = ds.createVariable('x', np.float32, dimensions=['time', 'x'])
             vx[:] = np.random.rand(3, 5) * 100
+
+            vt = ds.createVariable('time', np.float32, dimensions=['time'])
+            vt.axis = 'T'
+            vt.climatology = 'time_bounds'
+            vt[:] = np.arange(1, 4)
+            vtb = ds.createVariable('time_bounds', np.float32, dimensions=['time', 'bounds'])
+            vtb[:] = [[0.5, 1.5], [1.5, 2.5], [2.5, 3.5]]
+
             group1 = ds.createGroup('group1')
             group1.contact = 'email'
             group1.createDimension('y', 4)
@@ -131,6 +141,22 @@ class TestDriverNetcdf(TestBase):
         # for line in r:
         #     print line
         self.assertGreaterEqual(len(r), 24)
+
+    def test_get_dimension_map(self):
+        d = self.get_drivernetcdf()
+        dmap = d.get_dimension_map(d.metadata)
+        self.assertEqual(dmap, {'time': {'variable': 'time', 'bounds': 'time_bounds'}})
+        raise self.ToTest('check with a CRS in the metadata')
+
+        def _run_():
+            env.SUPPRESS_WARNINGS = False
+            metadata = {'variables': {'x': {'name': 'x', 'attributes': {'axis': 'X', 'bounds': 'x_bounds'}}}}
+            d.get_dimension_map(metadata)
+
+        self.assertWarns(OcgWarning, _run_)
+
+    ## OLD TESTS BELOW THIS LINE ###########################################################################################
+
 
     @attr('data')
     def test_get_dimensioned_variables_one_variable_in_target_dataset(self):

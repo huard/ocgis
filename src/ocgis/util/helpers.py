@@ -110,6 +110,19 @@ def get_bbox_poly(minx, miny, maxx, maxy):
     return make_poly(rtup, ctup)
 
 
+def get_by_key_list(src, keys):
+    found = False
+    ret = None
+    for key in keys:
+        if key in src:
+            if found:
+                raise ValueError('Key already found in source.')
+            else:
+                found = True
+                ret = src[key]
+    return ret
+
+
 def get_bounds_from_1d(centroids):
     """
     :param centroids: Vector representing center coordinates from which to interpolate bounds.
