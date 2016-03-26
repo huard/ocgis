@@ -22,6 +22,7 @@ from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatte
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
+# tdk: remove me
 class NcTemporalDimension(TemporalDimension, NcVectorDimension):
     """Allows the temporal dimension use the source loading for netCDF formats."""
 

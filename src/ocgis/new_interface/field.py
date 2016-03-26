@@ -23,6 +23,7 @@ class OcgField(VariableCollection):
     def __init__(self, *args, **kwargs):
         dimension_map = deepcopy(kwargs.pop('dimension_map', None))
         dimension_map_template = deepcopy(_DIMENSION_MAP)
+        # Merge incoming dimension map with the template.
         if dimension_map is not None:
             for k, v in dimension_map.items():
                 for k2, v2, in v.items():
@@ -109,7 +110,8 @@ class OcgField(VariableCollection):
         return ret
 
     def write_netcdf(self, dataset_or_path, **kwargs):
-        # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable.
+        # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
+        # ensure proper attributes are applied to dimension variables before writing.
         for k in self.dimension_map.keys():
             if k != 'geom':
                 getattr(self, k)
