@@ -146,7 +146,6 @@ class TestDriverNetcdf(TestBase):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata)
         self.assertEqual(dmap, {'time': {'variable': 'time', 'bounds': 'time_bounds'}})
-        raise self.ToTest('check with a CRS in the metadata')
 
         def _run_():
             env.SUPPRESS_WARNINGS = False
