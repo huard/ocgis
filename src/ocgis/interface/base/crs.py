@@ -468,28 +468,19 @@ class CFCoordinateReferenceSystem(CoordinateReferenceSystem):
         def _get_projection_coordinate_(target, meta):
             key = 'projection_{0}_coordinate'.format(target)
             for k, v in meta['variables'].iteritems():
-                if 'standard_name' in v['attrs']:
-                    if v['attrs']['standard_name'] == key:
+                if 'standard_name' in v['attributes']:
+                    if v['attributes']['standard_name'] == key:
                         return (k)
             raise ProjectionCoordinateNotFound(key)
 
         r_var = meta['variables'][var]
         try:
             # Look for the grid_mapping attribute on the target variable.
-            r_grid_mapping = meta['variables'][r_var['attrs']['grid_mapping']]
+            r_grid_mapping = meta['variables'][r_var['attributes']['grid_mapping']]
         except KeyError:
-            # Search for grid mapping name across variables.
-            found = False
-            for v in meta['variables'].itervalues():
-                if 'grid_mapping_name' in v['attrs']:
-                    if v['attrs']['grid_mapping_name'] == cls.grid_mapping_name:
-                        r_grid_mapping = v
-                        found = True
-                        break
-            if not found:
-                raise ProjectionDoesNotMatch
+            raise ProjectionDoesNotMatch
         try:
-            grid_mapping_name = r_grid_mapping['attrs']['grid_mapping_name']
+            grid_mapping_name = r_grid_mapping['attributes']['grid_mapping_name']
         except KeyError:
             raise ProjectionDoesNotMatch
         if grid_mapping_name != cls.grid_mapping_name:
@@ -504,7 +495,7 @@ class CFCoordinateReferenceSystem(CoordinateReferenceSystem):
         # this variable name is used by the netCDF converter
         meta['grid_mapping_variable_name'] = r_grid_mapping['name']
 
-        kwds = r_grid_mapping['attrs'].copy()
+        kwds = r_grid_mapping['attributes'].copy()
         kwds.pop('grid_mapping_name', None)
         kwds['projection_x_coordinate'] = pc_x
         kwds['projection_y_coordinate'] = pc_y
@@ -530,7 +521,7 @@ class CFCoordinateReferenceSystem(CoordinateReferenceSystem):
         return variable
 
 
-class CFWGS84(WGS84, CFCoordinateReferenceSystem):
+class CFSpherical(Spherical, CFCoordinateReferenceSystem):
     grid_mapping_name = 'latitude_longitude'
     iterable_parameters = None
     map_parameters = None
@@ -538,18 +529,23 @@ class CFWGS84(WGS84, CFCoordinateReferenceSystem):
 
     def __init__(self, *args, **kwargs):
         self.map_parameters_values = {}
-        WGS84.__init__(self, *args, **kwargs)
+        Spherical.__init__(self, *args, **kwargs)
 
     @classmethod
     def load_from_metadata(cls, var, meta):
         try:
-            r_grid_mapping = meta['variables'][var]['attrs']['grid_mapping']
+            r_grid_mapping = meta['variables'][var]['attributes']['grid_mapping']
             if r_grid_mapping == cls.grid_mapping_name:
-                return (cls())
+                return cls()
             else:
-                raise (ProjectionDoesNotMatch)
+                raise ProjectionDoesNotMatch
         except KeyError:
-            raise (ProjectionDoesNotMatch)
+            raise ProjectionDoesNotMatch
+
+
+# tdk: remove or fine-tune me. this is just copying spherical at the moment
+class CFWGS84(CFSpherical):
+    pass
 
 
 class CFAlbersEqualArea(CFCoordinateReferenceSystem):
@@ -576,7 +572,7 @@ class CFLambertConformal(CFCoordinateReferenceSystem):
 
     @classmethod
     def _load_from_metadata_finalize_(cls, kwds, var, meta):
-        kwds['units'] = meta['variables'][kwds['projection_x_coordinate']]['attrs'].get('units')
+        kwds['units'] = meta['variables'][kwds['projection_x_coordinate']]['attributes'].get('units')
 
 
 class CFPolarStereographic(CFCoordinateReferenceSystem):

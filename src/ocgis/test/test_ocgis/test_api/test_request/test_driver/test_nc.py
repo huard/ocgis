@@ -38,6 +38,7 @@ class TestDriverNetcdf(TestBase):
 
             vx = ds.createVariable('x', np.float32, dimensions=['time', 'x'])
             vx[:] = np.random.rand(3, 5) * 100
+            vx.grid_mapping = 'latitude_longitude'
 
             vt = ds.createVariable('time', np.float32, dimensions=['time'])
             vt.axis = 'T'
@@ -145,7 +146,8 @@ class TestDriverNetcdf(TestBase):
     def test_get_dimension_map(self):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata)
-        self.assertEqual(dmap, {'time': {'variable': 'time', 'bounds': 'time_bounds'}})
+        desired = {'crs': {'variable': 'latitude_longitude'}, 'time': {'variable': u'time', 'bounds': u'time_bounds'}}
+        self.assertEqual(dmap, desired)
 
         def _run_():
             env.SUPPRESS_WARNINGS = False

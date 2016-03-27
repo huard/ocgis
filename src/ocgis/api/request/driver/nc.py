@@ -80,6 +80,7 @@ class DriverNetcdf(AbstractDriver):
         obj.close()
 
     def get_crs(self):
+        # tdk: remove get_crs as abstract method
         crs = None
         for potential in itersubclasses(CFCoordinateReferenceSystem):
             try:
@@ -128,8 +129,20 @@ class DriverNetcdf(AbstractDriver):
                         bounds_var = None
                 axes[k]['bounds'] = bounds_var
 
-        # tdk: add crs check
-        return {k: v for k, v in axes.items() if v is not None}
+        ret = {k: v for k, v in axes.items() if v is not None}
+
+        crs = None
+        for vname, var in variables.items():
+            for potential in itersubclasses(CFCoordinateReferenceSystem):
+                try:
+                    crs = potential.load_from_metadata(vname, metadata)
+                    break
+                except ProjectionDoesNotMatch:
+                    continue
+        if crs is not None:
+            ret['crs'] = {'variable': crs.name}
+
+        return ret
 
     def get_dimensioned_variables(self):
         # tdk: implement
