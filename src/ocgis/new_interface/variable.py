@@ -1027,3 +1027,4 @@ def allocate_from_source(variable):
     request_dataset = variable._request_dataset
     if request_dataset is not None:
         request_dataset.driver.allocate_variable_without_value(variable)
+
