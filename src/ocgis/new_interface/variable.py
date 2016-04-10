@@ -1,7 +1,6 @@
 import itertools
 from abc import ABCMeta, abstractproperty, abstractmethod
 from collections import OrderedDict
-from copy import deepcopy
 from itertools import izip
 
 import numpy as np
@@ -833,6 +832,16 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 if len(slice_map) > 0:
                     set_mask_by_variable(variable, v, slice_map)
 
+    @staticmethod
+    def read(rd):
+        return rd.driver.get_variable_collection()
+
+    @classmethod
+    def read_netcdf(cls, path):
+        from ocgis import RequestDataset
+        rd = RequestDataset(uri=path, driver='netCDF')
+        return cls.read(rd)
+
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
@@ -865,27 +874,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         finally:
             if close_dataset:
                 dataset.close()
-
-    @staticmethod
-    def read_netcdf(path):
-        from ocgis import RequestDataset
-        rd = RequestDataset(uri=path)
-        ds = Dataset(path)
-        try:
-            ret = VariableCollection._read_from_collection_(ds, rd, parent=None)
-        finally:
-            ds.close()
-        return ret
-
-    @staticmethod
-    def _read_from_collection_(target, request_dataset, parent=None, name=None):
-        ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
-        for name, ncvar in target.variables.iteritems():
-            ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
-        for name, ncgroup in target.groups.items():
-            child = VariableCollection._read_from_collection_(ncgroup, request_dataset, parent=ret, name=name)
-            ret.add_child(child)
-        return ret
 
 
 def get_dimension_lengths(dimensions):

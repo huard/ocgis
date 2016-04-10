@@ -71,6 +71,9 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
+    def allocate_variable_value(self, variable):
+        raise NotImplementedError
+
     def allocate_variable_without_value(self, variable):
         raise NotImplementedError
 
@@ -92,6 +95,12 @@ class AbstractDriver(object):
         meta = deepcopy(self.metadata)
         _jsonformat_(meta)
         return json.dumps(meta)
+
+    @abc.abstractmethod
+    def get_variable_collection(self):
+        """
+        :rtype: :class:`ocgis.new_interface.variable.VariableCollection`
+        """
 
     def get_field(self, **kwargs):
         field = self._get_field_(**kwargs)

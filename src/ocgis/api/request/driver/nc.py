@@ -12,12 +12,12 @@ from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialDimension
-from ocgis.interface.base.variable import VariableCollection, Variable
+from ocgis.interface.base.variable import Variable
 from ocgis.interface.nc.dimension import NcVectorDimension
 from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import SourcedDimension
-from ocgis.new_interface.variable import SourcedVariable, ObjectType
+from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -174,6 +174,14 @@ class DriverNetcdf(AbstractDriver):
             lines.append('  }')
         lines.append('}')
         return lines
+
+    def get_variable_collection(self):
+        ds = self.open()
+        try:
+            ret = read_from_collection(ds, self.rd, parent=None)
+        finally:
+            ds.close()
+        return ret
 
     def allocate_variable_without_value(self, variable):
         allocate_variable_using_metadata(variable, self.metadata)
@@ -417,7 +425,18 @@ class DriverNetcdf(AbstractDriver):
         return name_bounds_suffix
 
 
+def read_from_collection(target, request_dataset, parent=None, name=None):
+    ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
+    for name, ncvar in target.variables.iteritems():
+        ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
+    for name, ncgroup in target.groups.items():
+        child = read_from_collection(ncgroup, request_dataset, parent=ret, name=name)
+        ret.add_child(child)
+    return ret
+
+
 def get_axis(dimvar, dims, dim):
+    # tdk: remove
     try:
         axis = dimvar['attrs']['axis']
     except KeyError:
@@ -429,6 +448,7 @@ def get_axis(dimvar, dims, dim):
 
 
 def get_dimension_map(variable, metadata):
+    #tdk: remove
     """
     :param str variable: The target variable of the dimension mapping procedure.
     :param dict metadata: The meta dictionary to add the dimension map to.
@@ -513,6 +533,7 @@ def get_dimension_map(variable, metadata):
 
 
 def guess_by_location(dims, target):
+    # tdk: remove
     mp = {3: {0: 'T', 1: 'Y', 2: 'X'},
           4: {0: 'T', 2: 'Y', 3: 'X', 1: 'Z'}}
     try:
