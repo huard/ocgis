@@ -57,12 +57,6 @@ class AbstractDriver(object):
         """
 
     @abc.abstractmethod
-    def get_crs(self):
-        """
-        :rtype: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
-        """
-
-    @abc.abstractmethod
     def get_dimension_map(self, metadata):
         """:rtype: dict"""
 
@@ -78,9 +72,6 @@ class AbstractDriver(object):
         """
 
     def allocate_variable_without_value(self, variable):
-        raise NotImplementedError
-
-    def get_variable_value(self, variable):
         raise NotImplementedError
 
     def get_source_metadata_as_json(self):

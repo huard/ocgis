@@ -174,6 +174,7 @@ class GeometryVariable(AbstractSpatialVariable):
 
     @classmethod
     def read_gis(cls, source, name, name_uid, name_dimension=None):
+        # tdk: RESUME: this should be creating a field and using a driver
         if name_dimension is None:
             name_dimension = constants.NAME_GEOMETRY_DIMENSION
 

@@ -88,6 +88,7 @@ class TestOcgField(AbstractTestNewInterface):
         # self.ncdump(path)
 
     def test_combo_grid_mapping(self):
+        # tdk: RESUME: determine way to identify "dimensionsed" variable. this should probably occur using the request dataset (i.e. required dimensions)
         raise self.ToTest('test grid_mapping_name applied to dimensioned variables')
 
     def test_combo_crs_and_grid_abstraction(self):

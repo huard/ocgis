@@ -18,7 +18,7 @@ from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType
-from ocgis.util.helpers import itersubclasses, get_iter, get_tuple, get_formatted_slice, get_by_key_list
+from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
@@ -79,22 +79,7 @@ class DriverNetcdf(AbstractDriver):
     def close(self, obj):
         obj.close()
 
-    def get_crs(self):
-        # tdk: remove get_crs as abstract method
-        crs = None
-        for potential in itersubclasses(CFCoordinateReferenceSystem):
-            try:
-                crs = potential.load_from_metadata(get_tuple(self.rd.variable)[0], self.rd.source_metadata)
-                break
-            except ProjectionDoesNotMatch:
-                continue
-        return crs
-
     def get_dimension_map(self, metadata):
-        # print metadata['variables'].keys()
-        # print metadata.keys()
-        # for variable in metadata['variables']:
-        #     print variable
 
         def get_dimension_map_entry(axis, variables):
             axis_vars = []
@@ -109,6 +94,7 @@ class DriverNetcdf(AbstractDriver):
                 ret = None
             return ret
 
+        # Get dimension variable metadata. This involves checking for the presence of any bounds variables.
         variables = metadata['variables']
         axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
         check_bounds = axes.keys()
@@ -129,8 +115,10 @@ class DriverNetcdf(AbstractDriver):
                         bounds_var = None
                 axes[k]['bounds'] = bounds_var
 
+        # Create the template dimension map dictionary.
         ret = {k: v for k, v in axes.items() if v is not None}
 
+        # Check for coordinate system variables. This will check every variable.
         crs = None
         for vname, var in variables.items():
             for potential in itersubclasses(CFCoordinateReferenceSystem):

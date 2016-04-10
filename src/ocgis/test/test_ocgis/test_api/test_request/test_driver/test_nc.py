@@ -95,41 +95,9 @@ class TestDriverNetcdf(TestBase):
 
     def test_metadata(self):
         d = self.get_drivernetcdf()
-        desired = OrderedDict([('groups', OrderedDict([(u'group1', OrderedDict(
-            [('global_attributes', OrderedDict([(u'contact', u'email')])), ('file_format', 'NETCDF4'), ('variables',
-                                                                                                        OrderedDict([(
-                                                                                                                     u'y',
-                                                                                                                     {
-                                                                                                                         'dimensions': (
-                                                                                                                         u'y',),
-                                                                                                                         'dtype': np.dtype(
-                                                                                                                             'int16'),
-                                                                                                                         'fill_value': 999999,
-                                                                                                                         'fill_value_packed': 1e+20,
-                                                                                                                         'dtype_packed': np.dtype(
-                                                                                                                             'float64'),
-                                                                                                                         'attributes': OrderedDict(
-                                                                                                                             [
-                                                                                                                                 (
-                                                                                                                                 u'scale_factor',
-                                                                                                                                 5.0),
-                                                                                                                                 (
-                                                                                                                                 u'add_offset',
-                                                                                                                                 100.0)]),
-                                                                                                                         'name': u'y'})])),
-             ('dimensions', OrderedDict([(u'y', {'isunlimited': False, 'len': 4})]))]))])),
-                               ('global_attributes', OrderedDict([(u'convention', u'CF-1.6')])),
-                               ('file_format', 'NETCDF4'), ('variables', OrderedDict([(u'x',
-                                                                                       {'dimensions': (u'time', u'x'),
-                                                                                        'dtype': np.dtype('float32'),
-                                                                                        'fill_value': 1e+20,
-                                                                                        'fill_value_packed': None,
-                                                                                        'dtype_packed': None,
-                                                                                        'attributes': OrderedDict(),
-                                                                                        'name': u'x'})])), (
-                               'dimensions', OrderedDict([(u'time', {'isunlimited': True, 'len': 3}),
-                                                          (u'x', {'isunlimited': False, 'len': 5})]))])
-        self.assertEqual(d.metadata, desired)
+        self.assertIsInstance(d.metadata, dict)
+
+        desired = d.metadata.copy()
         pickled = pickle.dumps(d.metadata)
         unpickled = pickle.loads(pickled)
         self.assertEqual(unpickled, desired)
@@ -156,8 +124,8 @@ class TestDriverNetcdf(TestBase):
 
         self.assertWarns(OcgWarning, _run_)
 
-    ## OLD TESTS BELOW THIS LINE ###########################################################################################
 
+class OldTestDriverNetcdf(TestBase):
 
     @attr('data')
     def test_get_dimensioned_variables_one_variable_in_target_dataset(self):
