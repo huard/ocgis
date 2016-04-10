@@ -833,14 +833,14 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                     set_mask_by_variable(variable, v, slice_map)
 
     @staticmethod
-    def read(rd):
+    def read(*args, **kwargs):
+        from ocgis import RequestDataset
+        rd = RequestDataset(*args, **kwargs)
         return rd.driver.get_variable_collection()
 
     @classmethod
     def read_netcdf(cls, path):
-        from ocgis import RequestDataset
-        rd = RequestDataset(uri=path, driver='netCDF')
-        return cls.read(rd)
+        return cls.read(uri=path, driver='netCDF')
 
     def write_netcdf(self, dataset_or_path, **kwargs):
         """
