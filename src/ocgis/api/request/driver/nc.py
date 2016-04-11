@@ -257,7 +257,6 @@ class DriverNetcdf(AbstractDriver):
                     break
             # Create the dimensions.
             for dim in dimensions:
-                # tdk: move this to driver file
                 create_dimension_or_pass(dim, dataset)
             dimensions = [d.name for d in dimensions]
 
@@ -431,6 +430,7 @@ class DriverNetcdf(AbstractDriver):
         # return fill
 
     def _get_field_(self, format_time=True):
+        # tdk: RESUME: have the driver return the new field object
         """
         :param bool format_time:
         :raises ValueError:

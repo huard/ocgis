@@ -16,13 +16,14 @@ from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
 from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map
-from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning
-from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal
+from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError
+from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension, SpatialGeometryDimension, \
     SpatialDimension
 from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
+from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
 
@@ -92,6 +93,16 @@ class TestDriverNetcdf(TestBase):
     def test_init(self):
         d = self.get_drivernetcdf()
         self.assertIsInstance(d, DriverNetcdf)
+
+    def test_get_field(self):
+        driver = self.get_drivernetcdf()
+        field = driver.get_field(format_time=False)
+        self.assertIsInstance(field.time, TemporalVariable)
+        with self.assertRaises(CannotFormatTimeError):
+            assert field.time.value_datetime
+        self.assertIsInstance(field.crs, CoordinateReferenceSystem)
+        # tdk: test crs is loaded correctly
+        # import ipdb;ipdb.set_trace()
 
     def test_metadata(self):
         d = self.get_drivernetcdf()

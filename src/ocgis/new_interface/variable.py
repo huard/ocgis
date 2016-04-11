@@ -683,9 +683,9 @@ class SourcedVariable(Variable):
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
-    def __init__(self, name=None, variables=None, attrs=None, parent=None):
+    def __init__(self, name=None, variables=None, attrs=None, parent=None, children=None):
         self.name = name
-        self.children = OrderedDict()
+        self.children = children or OrderedDict()
         self.parent = parent
 
         AbstractCollection.__init__(self)

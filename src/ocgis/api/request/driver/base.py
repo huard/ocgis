@@ -3,6 +3,7 @@ import json
 from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
+from ocgis.new_interface.field import OcgField
 
 
 class AbstractDriver(object):
@@ -102,8 +103,12 @@ class AbstractDriver(object):
         :rtype: :class:`ocgis.new_interface.variable.VariableCollection`
         """
 
-    def get_field(self, **kwargs):
-        field = self._get_field_(**kwargs)
+    def get_field(self, *args, **kwargs):
+        # tdk: test dimension map overloading
+        kwargs['dimension_map'] = self.get_dimension_map(self.metadata)
+        vc = self.get_variable_collection()
+        field = OcgField.from_variable_collection(vc, *args, **kwargs)
+
         # If this is a source grid for regridding, ensure the flag is updated.
         if self.rd.regrid_source:
             field._should_regrid = True
@@ -147,9 +152,10 @@ class AbstractDriver(object):
                 msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'.format(cls.key, cls.output_formats)
                 raise DefinitionValidationError('output_format', msg)
 
-    @abc.abstractmethod
-    def _get_field_(self, **kwargs):
-        """:rtype: :class:`ocgis.interface.base.field.Field`"""
+    # tdk: remove
+    # @abc.abstractmethod
+    # def _get_field_(self, **kwargs):
+    #     """Return the default field object."""
 
     @abc.abstractmethod
     def write_gridxy(self, *args, **kwargs):

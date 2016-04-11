@@ -125,9 +125,13 @@ class TemporalVariable(SourcedVariable):
         bounds = variable.bounds
         if bounds is not None and not isinstance(bounds, TemporalVariable):
             bounds = cls.from_variable(bounds, format_time=format_time)
+        if isinstance(variable, SourcedVariable):
+            request_dataset = variable._request_dataset
+        else:
+            request_dataset = None
         ret = cls(name=variable.name, value=variable._value, mask=variable._mask, dimensions=variable._dimensions,
                   dtype=variable._dtype, attrs=variable._attrs, fill_value=variable._fill_value,
-                  parent=variable.parent, bounds=bounds, format_time=format_time)
+                  parent=variable.parent, bounds=bounds, format_time=format_time, request_dataset=request_dataset)
         return ret
 
     def get_between(self, lower, upper, return_indices=False):

@@ -34,7 +34,7 @@ class OcgField(VariableCollection):
         self.dimension_map = dimension_map_template
 
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
-        self.format_tine = kwargs.pop('format_time', True)
+        self.format_time = kwargs.pop('format_time', True)
 
         VariableCollection.__init__(self, *args, **kwargs)
 
@@ -67,7 +67,7 @@ class OcgField(VariableCollection):
     def time(self):
         ret = get_field_property(self, 'time')
         if ret is not None:
-            ret = TemporalVariable.from_variable(ret, format_time=self.format_tine)
+            ret = TemporalVariable.from_variable(ret, format_time=self.format_time)
         return ret
 
     @property
@@ -84,7 +84,6 @@ class OcgField(VariableCollection):
 
     @property
     def grid(self):
-        # tdk: test abstraction
         x = self.x
         y = self.y
         if x is None or y is None:
@@ -108,6 +107,15 @@ class OcgField(VariableCollection):
             if grid is not None:
                 ret = grid.abstraction_geometry
         return ret
+
+    @classmethod
+    def from_variable_collection(cls, vc, *args, **kwargs):
+        kwargs['name'] = vc.name
+        kwargs['variables'] = vc.values()
+        kwargs['attrs'] = vc.attrs
+        kwargs['parent'] = vc.parent
+        kwargs['children'] = vc.children
+        return cls(*args, **kwargs)
 
     def write(self, *args, **kwargs):
         # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
