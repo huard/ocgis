@@ -17,7 +17,7 @@ from ocgis.interface.nc.dimension import NcVectorDimension
 from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.base import orphaned
-from ocgis.new_interface.dimension import SourcedDimension, Dimension, create_dimension_or_pass
+from ocgis.new_interface.dimension import SourcedDimension, Dimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list, iter_array
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -201,7 +201,7 @@ class DriverNetcdf(AbstractDriver):
     @staticmethod
     def write_variable(var, dataset, **kwargs):
         if var.parent is not None:
-            return var.parent.write_netcdf(dataset, **kwargs)
+            return var.parent.write(dataset, **kwargs)
 
         if var.name is None:
             msg = 'A variable "name" is required.'
@@ -285,10 +285,10 @@ class DriverNetcdf(AbstractDriver):
             vc.write_attributes_to_netcdf_object(dataset)
             for variable in vc.values():
                 with orphaned(vc, variable):
-                    variable.write_netcdf(dataset, **kwargs)
+                    variable.write(dataset, **kwargs)
             for child in vc.children.values():
                 group = nc.Group(dataset, child.name)
-                child.write_netcdf(group, **kwargs)
+                child.write(group, **kwargs)
             dataset.sync()
         finally:
             if close_dataset:
@@ -840,3 +840,8 @@ def get_variable_value(variable, dimensions):
         slc = slice(None)
     ret = variable.__getitem__(slc)
     return ret
+
+
+def create_dimension_or_pass(dim, dataset):
+    if dim.name not in dataset.dimensions:
+        dataset.createDimension(dim.name, dim.length)

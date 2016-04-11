@@ -108,16 +108,6 @@ class Dimension(AbstractInterfaceObject):
         self._variable.dimensions = None
 
 
-    def write_netcdf(self, dataset, **kwargs):
-        create_dimension_or_pass(self, dataset)
-        if self._variable is not None:
-            self._variable.dimensions = self
-            try:
-                self._variable.write_netcdf(dataset, **kwargs)
-            finally:
-                self._variable.dimensions = None
-
-
 class SourcedDimension(Dimension):
     _default_dtype = np.int32
 
@@ -162,8 +152,3 @@ class SourcedDimension(Dimension):
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
         self.__src_idx__ = value
-
-
-def create_dimension_or_pass(dim, dataset):
-    if dim.name not in dataset.dimensions:
-        dataset.createDimension(dim.name, dim.length)

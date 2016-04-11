@@ -635,6 +635,8 @@ class Variable(AbstractContainer, Attributes):
         """
         from ocgis.api.request.driver.nc import DriverNetcdf
         driver = kwargs.pop('driver', DriverNetcdf)
+        args = list(args)
+        args.insert(0, self)
         driver.write_variable(*args, **kwargs)
 
     def _get_to_conform_value_(self):
@@ -785,24 +787,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return cls.read(uri=path, driver='netCDF')
 
     def write(self, *args, **kwargs):
-        driver = kwargs.pop('driver')
-        driver.write_variable_collection(*args, **kwargs)
-
-    def write_netcdf(self, dataset_or_path, **kwargs):
-        """
-        Write the variable collection to an open netCDF dataset or file path.
-
-        :param dataset: The open dataset object or path for the write.
-        :type dataset: :class:`netCDF4.Dataset` or str
-        :param bool file_only: If ``True``, we are not filling the value variables. Only the file schema and dimension
-         values will be written.
-        :param bool unlimited_to_fixedsize: If ``True``, convert the unlimited dimension to fixed size.
-        :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
-         ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
-        """
         from ocgis.api.request.driver.nc import DriverNetcdf
-        kwargs['driver'] = DriverNetcdf
-        self.write(self, dataset_or_path, **kwargs)
+        driver = kwargs.pop('driver', DriverNetcdf)
+        args = list(args)
+        args.insert(0, self)
+        driver.write_variable_collection(*args, **kwargs)
 
 
 def get_dimension_lengths(dimensions):

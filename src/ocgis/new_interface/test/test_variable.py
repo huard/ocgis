@@ -161,7 +161,7 @@ class TestVariable(AbstractTestNewInterface):
         v = Variable(value=value, name='foo', dtype=ObjectType(np.float32))
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
-            v.write_netcdf(ds)
+            v.write(ds)
         # self.ncdump(path)
         with self.nc_scope(path) as ds:
             desired = ds.variables['foo'][:]
@@ -555,7 +555,7 @@ class TestVariable(AbstractTestNewInterface):
         var.attrs['axis'] = 'not_an_ally'
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
-            var.write_netcdf(ds)
+            var.write(ds)
         with self.nc_scope(path) as ds:
             ncvar = ds.variables[var.name]
             self.assertEqual(ncvar.units, 'kelvin')
@@ -570,7 +570,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.shape, (3,))
         for unlimited_to_fixedsize in [False, True]:
             with self.nc_scope(path, 'w') as ds:
-                var.write_netcdf(ds, unlimited_to_fixedsize=unlimited_to_fixedsize)
+                var.write(ds, unlimited_to_fixedsize=unlimited_to_fixedsize)
             # subprocess.check_call(['ncdump', path])
             with self.nc_scope(path) as ds:
                 rdim = ds.dimensions['time']
@@ -589,7 +589,7 @@ class TestVariable(AbstractTestNewInterface):
         bv.bounds.dimensions = [dim_x, Dimension('bounds', 2)]
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
-            bv.write_netcdf(ds)
+            bv.write(ds)
         # self.ncdump(path)
         with self.nc_scope(path, 'r') as ds:
             var = ds.variables[bv.name]
@@ -672,7 +672,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(suby.bounds.shape, (2, 1, 4))
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
-            suby.write_netcdf(ds)
+            suby.write(ds)
 
     @attr('data')
     def test_combo_with_data(self):
@@ -847,7 +847,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         nvc.add_variable(desired)
         vc.add_child(nvc)
         path = self.get_temporary_file_path('foo.nc')
-        vc.write_netcdf(path)
+        vc.write(path)
         # self.ncdump(path)
         rvc = VariableCollection.read_netcdf(path)
         self.assertIn('nest', rvc.children)
@@ -871,10 +871,10 @@ class TestVariableCollection(AbstractTestNewInterface):
     def test_write_netcdf_and_read_netcdf(self):
         vc = self.get_variablecollection()
         path = self.get_temporary_file_path('foo.nc')
-        vc.write_netcdf(path)
+        vc.write(path)
         nvc = VariableCollection.read_netcdf(path)
         path2 = self.get_temporary_file_path('foo2.nc')
-        nvc.write_netcdf(path2)
+        nvc.write(path2)
         self.assertNcEqual(path, path2)
 
     def test_write_netcdf_and_read_netcdf_data(self):
@@ -885,14 +885,14 @@ class TestVariableCollection(AbstractTestNewInterface):
         for var in rvc.itervalues():
             self.assertIsNone(var._value)
         path3 = self.get_temporary_file_path('foo3.nc')
-        rvc.write_netcdf(path3)
+        rvc.write(path3)
         self.assertNcEqual(path3, rd.uri)
 
         # Test creating dimensions when writing to netCDF.
         v = Variable(value=np.arange(2 * 4 * 3).reshape(2, 4, 3), name='hello')
         path4 = self.get_temporary_file_path('foo4.nc')
         with self.nc_scope(path4, 'w') as ds:
-            v.write_netcdf(ds)
+            v.write(ds)
         dname = 'dim_ocgis_hello_1'
         with self.nc_scope(path4) as ds:
             self.assertIn(dname, ds.dimensions)
@@ -904,5 +904,4 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertEqual(actual, desired)
         path5 = self.get_temporary_file_path('foo5.nc')
         with self.nc_scope(path5, 'w') as ds:
-            vc.write_netcdf(ds)
-
+            vc.write(ds)
