@@ -14,7 +14,7 @@ from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, Em
 from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
-from ocgis.new_interface.dimension import Dimension, create_dimension_or_pass
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import create_nd_slices
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
@@ -621,7 +621,7 @@ class Variable(AbstractContainer, Attributes):
     def _get_iter_value_(self):
         return self.masked_value
 
-    def write_netcdf(self, dataset, **kwargs):
+    def write(self, *args, **kwargs):
         """
         Write the field object to an open netCDF dataset object.
 
@@ -633,66 +633,9 @@ class Variable(AbstractContainer, Attributes):
         :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
-
-        if self.parent is not None:
-            return self.parent.write_netcdf(dataset, **kwargs)
-
-        if self.name is None:
-            msg = 'A variable "name" is required.'
-            raise ValueError(msg)
-
-        file_only = kwargs.pop('file_only', False)
-        unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
-
-        if self.dimensions is None:
-            new_names = ['dim_ocgis_{}_{}'.format(self.name, ctr) for ctr in range(self.ndim)]
-            self.create_dimensions(new_names)
-
-        dimensions = self.dimensions
-
-        dtype = self._get_netcdf_dtype_()
-        if isinstance(dtype, ObjectType):
-            dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
-
-        if len(dimensions) > 0:
-            dimensions = list(dimensions)
-            # Convert the unlimited dimension to fixed size if requested.
-            for idx, d in enumerate(dimensions):
-                if d.length is None and unlimited_to_fixedsize:
-                    dimensions[idx] = Dimension(d.name, length=self.shape[idx])
-                    break
-            # Create the dimensions.
-            for dim in dimensions:
-                create_dimension_or_pass(dim, dataset)
-            dimensions = [d.name for d in dimensions]
-
-        # Only use the fill value if something is masked.
-        if len(dimensions) > 0 and not file_only and self.get_mask().any():
-            fill_value = self.fill_value
-        else:
-            # Copy from original attributes.
-            # tdk: try to remove this if statement
-            if '_FillValue' not in self.attrs:
-                fill_value = None
-            else:
-                fill_value = self._get_netcdf_fill_value_()
-
-        var = dataset.createVariable(self.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
-        if not file_only:
-            try:
-                var[:] = self._get_netcdf_value_()
-            except AttributeError:
-                # Assume ObjectType.
-                for idx, v in iter_array(self.value, use_mask=False, return_value=True):
-                    var[idx] = np.array(v)
-
-        self.write_attributes_to_netcdf_object(var)
-
-        # tdk: units are updated here for writing to netCDF
-        if self.units is not None:
-            var.units = self.units
-
-        dataset.sync()
+        from ocgis.api.request.driver.nc import DriverNetcdf
+        driver = kwargs.pop('driver', DriverNetcdf)
+        driver.write_variable(*args, **kwargs)
 
     def _get_to_conform_value_(self):
         return self.masked_value
