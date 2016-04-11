@@ -109,13 +109,13 @@ class OcgField(VariableCollection):
                 ret = grid.abstraction_geometry
         return ret
 
-    def write_netcdf(self, dataset_or_path, **kwargs):
+    def write(self, *args, **kwargs):
         # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
         # ensure proper attributes are applied to dimension variables before writing.
         for k in self.dimension_map.keys():
             if k != 'geom':
                 getattr(self, k)
-        return super(OcgField, self).write_netcdf(dataset_or_path, **kwargs)
+        return super(OcgField, self).write(*args, **kwargs)
 
 
 def get_field_property(field, name):

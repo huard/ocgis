@@ -86,7 +86,7 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             path_grid = self.get_temporary_file_path('grid.nc')
             grid_to_write = self.get_gridxy()
-            grid_to_write.write_netcdf(path_grid)
+            grid_to_write.write(path_grid)
             rd = RequestDataset(uri=path_grid)
         else:
             rd = None
@@ -313,7 +313,7 @@ class TestGridXY(AbstractTestNewInterface):
 
         grid = self.get_gridxy()
         path = self.get_temporary_file_path('foo.nc')
-        grid.write_netcdf(path)
+        grid.write(path)
         rd = RequestDataset(uri=path)
         x = SourcedVariable(name=grid.x.name, request_dataset=rd, protected=True)
         y = SourcedVariable(name=grid.y.name, request_dataset=rd, protected=True)
@@ -556,7 +556,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('coordinate_system', grid.parent)
 
         path = self.get_temporary_file_path('foo.nc')
-        grid.write_netcdf(path)
+        grid.write(path)
         # self.ncdump(path)
         nvc = VariableCollection.read_netcdf(path)
         ngrid = GridXY(nvc['x'], nvc['y'], parent=nvc)
@@ -599,12 +599,12 @@ class TestGridXY(AbstractTestNewInterface):
             for target in [element.value, element.bounds.value]:
                 self.assertTrue(np.all(target > 10000))
 
-    def test_write_netcdf(self):
+    def test_write(self):
         grid = self.get_gridxy(crs=WGS84())
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
+            grid.write(ds)
         self.assertTrue(grid.is_vectorized)
         with self.nc_scope(path) as ds:
             self.assertNumpyAll(ds.variables[grid.x.name][:], grid.x.value[0, :])
@@ -618,7 +618,7 @@ class TestGridXY(AbstractTestNewInterface):
         path = self.get_temporary_file_path('out.nc')
         grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
         with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
+            grid.write(ds)
         # self.ncdump(path)
         with self.nc_scope(path) as ds:
             var = ds.variables['y']
@@ -629,7 +629,7 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
-            grid.write_netcdf(ds)
+            grid.write(ds)
         with self.nc_scope(path, 'r') as ds:
             self.assertEqual(['ydim'], [d for d in ds.variables['y'].dimensions])
             self.assertEqual(['xdim'], [d for d in ds.variables['x'].dimensions])

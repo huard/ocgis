@@ -110,10 +110,6 @@ class AbstractSpatialContainer(AbstractContainer, AbstractOperationsSpatialObjec
         AbstractContainer.__init__(self, name, parent=parent)
         AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
-    def write_netcdf(self, dataset, **kwargs):
-        self.parent.write_netcdf(dataset, **kwargs)
-        AbstractOperationsSpatialObject.write_netcdf(self, dataset)
-
 
 class AbstractSpatialVariable(Variable, AbstractOperationsSpatialObject):
     __metaclass__ = ABCMeta
@@ -364,10 +360,6 @@ class GeometryVariable(AbstractSpatialVariable):
             for record in self.iter_records(use_mask=use_mask):
                 f.write(record)
         return path
-
-    def write_netcdf(self, *args, **kwargs):
-        # tdk: test with a joint netcdf-shapefile output
-        pass
 
     def _get_extent_(self):
         raise NotImplementedError

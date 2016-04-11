@@ -849,7 +849,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertEqual(tv.units, tv.bounds.units)
         self.assertEqual(tv.calendar, tv.bounds.calendar)
         with self.nc_scope(path, 'w') as ds:
-            tv.write_netcdf(ds)
+            tv.write(ds)
         # self.ncdump(path)
         with self.nc_scope(path) as ds:
             time = ds.variables['time']
@@ -863,7 +863,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         self.assertNumpyAll(tv.bounds.value_datetime, tv2.bounds.value_datetime)
         path2 = self.get_temporary_file_path('foo2.nc')
         with self.nc_scope(path2, 'w') as ds:
-            tv2.write_netcdf(ds)
+            tv2.write(ds)
         self.assertNcEqual(path, path2)
 
 
@@ -884,7 +884,7 @@ class TestTemporalGroupVariable(AbstractTestNewInterface):
         tgd = self.get_tgv()
         path = os.path.join(self.current_dir_output, 'foo.nc')
         with self.nc_scope(path, 'w') as ds:
-            tgd.write_netcdf(ds)
+            tgd.write(ds)
         with self.nc_scope(path) as ds:
             self.assertIn('climatology_bounds', ds.variables)
             ncvar = ds.variables[tgd.name]

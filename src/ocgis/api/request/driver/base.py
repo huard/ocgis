@@ -152,6 +152,10 @@ class AbstractDriver(object):
         """:rtype: :class:`ocgis.interface.base.field.Field`"""
 
     @abc.abstractmethod
+    def write_gridxy(self, *args, **kwargs):
+        """Write a grid."""
+
+    @abc.abstractmethod
     def write_variable(self, *args, **kwargs):
         """Write a variable."""
 

@@ -381,37 +381,12 @@ class GridXY(AbstractSpatialContainer):
     def write_fiona(self, *args, **kwargs):
         return self.abstraction_geometry.write_fiona(*args, **kwargs)
 
-    def write_netcdf(self, dataset, **kwargs):
-        popped = []
-        for target in [self._point_name, self._polygon_name]:
-            popped.append(self.parent.pop(target, None))
-        if self.is_vectorized:
-            original_dimensions = deepcopy(self.dimensions)
-            original_x = self.x.copy()
-            original_y = self.y.copy()
-
-            self.x = self.x[0, :]
-            self.y = self.y[:, 0]
-            x, y = self.x, self.y
-
-            x.dimensions = None
-            x.value = x.value.reshape(-1)
-            x._mask = None
-            x.dimensions = original_dimensions[1]
-
-            y.dimensions = None
-            y.value = y.value.reshape(-1)
-            y._mask = None
-            y.dimensions = original_dimensions[0]
-        try:
-            super(GridXY, self).write_netcdf(dataset, **kwargs)
-        finally:
-            for p in popped:
-                if p is not None:
-                    self.parent[p.name] = p
-            if self.is_vectorized:
-                self.x = original_x
-                self.y = original_y
+    def write(self, *args, **kwargs):
+        from ocgis.api.request.driver.nc import DriverNetcdf
+        driver = kwargs.pop('driver', DriverNetcdf)
+        args = list(args)
+        args.insert(0, self)
+        driver.write_gridxy(*args, **kwargs)
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):

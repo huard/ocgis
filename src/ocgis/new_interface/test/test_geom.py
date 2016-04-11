@@ -305,9 +305,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
         with fiona.open(path) as source:
             self.assertEqual(source.schema['geometry'], 'MultiPoint')
 
-    def test_write_netcdf(self):
-        raise SkipTest
-
 
 class TestGeometryVariablePolygons(AbstractTestNewInterface):
     """Test a geometry variable using polygons."""

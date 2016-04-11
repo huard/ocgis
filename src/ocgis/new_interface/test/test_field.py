@@ -54,7 +54,7 @@ class TestOcgField(AbstractTestNewInterface):
 
         # Test writing to netCDF will load attributes.
         path = self.get_temporary_file_path('foo.nc')
-        sub.write_netcdf(path)
+        sub.write(path)
         with self.nc_scope(path) as ds:
             self.assertEqual(ds.variables[x.name].axis, 'X')
             self.assertEqual(ds.variables[y.name].axis, 'Y')

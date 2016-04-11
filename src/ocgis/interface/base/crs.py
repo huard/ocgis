@@ -125,7 +125,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
             variable.proj4 = self.proj4
         return variable
 
-    def write_netcdf(self, *args, **kwargs):
+    def write(self, *args, **kwargs):
         return self.write_to_rootgrp(*args, **kwargs)
 
 

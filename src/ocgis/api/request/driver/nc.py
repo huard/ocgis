@@ -199,6 +199,39 @@ class DriverNetcdf(AbstractDriver):
                 variable.cfunits_conform(destination_units)
 
     @staticmethod
+    def write_gridxy(gridxy, dataset, **kwargs):
+        popped = []
+        for target in [gridxy._point_name, gridxy._polygon_name]:
+            popped.append(gridxy.parent.pop(target, None))
+        if gridxy.is_vectorized:
+            original_dimensions = deepcopy(gridxy.dimensions)
+            original_x = gridxy.x.copy()
+            original_y = gridxy.y.copy()
+
+            gridxy.x = gridxy.x[0, :]
+            gridxy.y = gridxy.y[:, 0]
+            x, y = gridxy.x, gridxy.y
+
+            x.dimensions = None
+            x.value = x.value.reshape(-1)
+            x._mask = None
+            x.dimensions = original_dimensions[1]
+
+            y.dimensions = None
+            y.value = y.value.reshape(-1)
+            y._mask = None
+            y.dimensions = original_dimensions[0]
+        try:
+            gridxy.parent.write(dataset, **kwargs)
+        finally:
+            for p in popped:
+                if p is not None:
+                    gridxy.parent[p.name] = p
+            if gridxy.is_vectorized:
+                gridxy.x = original_x
+                gridxy.y = original_y
+
+    @staticmethod
     def write_variable(var, dataset, **kwargs):
         if var.parent is not None:
             return var.parent.write(dataset, **kwargs)
