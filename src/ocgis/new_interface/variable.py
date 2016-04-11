@@ -843,6 +843,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return cls.read(uri=path, driver='netCDF')
 
     def write_netcdf(self, dataset_or_path, **kwargs):
+        # tdk: RESUME: move this to the driver and create a write method
         """
         Write the field object to an open netCDF dataset object.
 
