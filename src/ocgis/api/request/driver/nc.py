@@ -36,11 +36,6 @@ class DriverNetcdf(AbstractDriver):
     key = 'netCDF'
     output_formats = 'all'
 
-    def __init__(self, *args, **kwargs):
-        AbstractDriver.__init__(self, *args, **kwargs)
-        # tdk: remove this
-        self._raw_metadata = None
-
     def get_metadata(self):
         ds = self.open()
         try:
@@ -789,8 +784,6 @@ def format_attribute_for_dump_report(attr_value):
 
 
 def allocate_variable_using_metadata(variable, metadata):
-    # tdk: remove comments
-    # dataset = variable._request_dataset.driver.open()
     source = metadata
     if variable.parent is not None:
         if variable.parent.parent is not None:
@@ -851,13 +844,15 @@ def get_dimensions_from_netcdf(dataset, desired_dimensions):
 def get_value_from_request_dataset(variable):
     if variable.protected:
         raise PayloadProtectedError
-    # tdk: this is called by the driver, so this de-referencing should be avoided. there are others in the function
-    ds = variable._request_dataset.driver.open()
+
+    rd = variable._request_dataset
+
+    ds = rd.driver.open()
     source = ds
     if variable.parent is not None:
         if variable.parent.parent is not None:
             source = ds.groups[variable.parent.name]
-    desired_name = variable.name or variable._request_dataset.variable
+    desired_name = variable.name or rd.variable
     try:
         ncvar = source.variables[desired_name]
         ret = get_variable_value(ncvar, variable.dimensions)
