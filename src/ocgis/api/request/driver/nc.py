@@ -16,6 +16,7 @@ from ocgis.interface.base.variable import Variable
 from ocgis.interface.nc.dimension import NcVectorDimension
 from ocgis.interface.nc.field import NcField
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
+from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list
@@ -37,6 +38,7 @@ class DriverNetcdf(AbstractDriver):
 
     def __init__(self, *args, **kwargs):
         AbstractDriver.__init__(self, *args, **kwargs)
+        # tdk: remove this
         self._raw_metadata = None
 
     def get_metadata(self):
@@ -47,9 +49,9 @@ class DriverNetcdf(AbstractDriver):
             self.close(ds)
         return ret
 
-    def open(self, group_indexing=None):
+    def open(self, group_indexing=None, mode='r'):
         try:
-            ret = nc.Dataset(self.rd.uri, 'r')
+            ret = nc.Dataset(self.rd.uri, mode=mode)
         except (TypeError, RuntimeError):
             try:
                 ret = nc.MFDataset(self.rd.uri)
@@ -67,7 +69,7 @@ class DriverNetcdf(AbstractDriver):
                     finally:
                         ds.close()
 
-                # if all variables were found, raise the other error
+                # If all variables were found, raise the other error.
                 raise e
 
         if group_indexing is not None:
@@ -195,6 +197,43 @@ class DriverNetcdf(AbstractDriver):
             if variable.name in self.rd.conform_units_to:
                 destination_units = self.rd.conform_units_to[variable.name]['units']
                 variable.cfunits_conform(destination_units)
+
+    def write_variable(self, *args, **kwargs):
+        thh
+
+    @staticmethod
+    def write_variable_collection(vc, dataset_or_path, **kwargs):
+        """
+        Write the variable collection to an open netCDF dataset or file path.
+
+        :param dataset: The open dataset object or path for the write.
+        :type dataset: :class:`netCDF4.Dataset` or str
+        :param bool file_only: If ``True``, we are not filling the value variables. Only the file schema and dimension
+         values will be written.
+        :param bool unlimited_to_fixedsize: If ``True``, convert the unlimited dimension to fixed size.
+        :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
+         ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
+        """
+
+        if not isinstance(dataset_or_path, (nc.Dataset, nc.Group)):
+            dataset = nc.Dataset(dataset_or_path, 'w')
+            close_dataset = True
+        else:
+            dataset = dataset_or_path
+            close_dataset = False
+
+        try:
+            vc.write_attributes_to_netcdf_object(dataset)
+            for variable in vc.values():
+                with orphaned(vc, variable):
+                    variable.write_netcdf(dataset, **kwargs)
+            for child in vc.children.values():
+                group = nc.Group(dataset, child.name)
+                child.write_netcdf(group, **kwargs)
+            dataset.sync()
+        finally:
+            if close_dataset:
+                dataset.close()
 
         # def get_source_metadata(self):
         #     metadata = self.raw_metadata

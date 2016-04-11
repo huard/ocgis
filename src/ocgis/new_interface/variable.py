@@ -4,7 +4,6 @@ from collections import OrderedDict
 from itertools import izip
 
 import numpy as np
-from netCDF4 import Dataset, Group
 from numpy.core.multiarray import ndarray
 from numpy.ma import MaskedArray
 
@@ -842,10 +841,13 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def read_netcdf(cls, path):
         return cls.read(uri=path, driver='netCDF')
 
+    def write(self, *args, **kwargs):
+        driver = kwargs.pop('driver')
+        driver.write_variable_collection(*args, **kwargs)
+
     def write_netcdf(self, dataset_or_path, **kwargs):
-        # tdk: RESUME: move this to the driver and create a write method
         """
-        Write the field object to an open netCDF dataset object.
+        Write the variable collection to an open netCDF dataset or file path.
 
         :param dataset: The open dataset object or path for the write.
         :type dataset: :class:`netCDF4.Dataset` or str
@@ -855,26 +857,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
-
-        if not isinstance(dataset_or_path, (Dataset, Group)):
-            dataset = Dataset(dataset_or_path, 'w')
-            close_dataset = True
-        else:
-            dataset = dataset_or_path
-            close_dataset = False
-
-        try:
-            self.write_attributes_to_netcdf_object(dataset)
-            for variable in self.values():
-                with orphaned(self, variable):
-                    variable.write_netcdf(dataset, **kwargs)
-            for child in self.children.values():
-                group = Group(dataset, child.name)
-                child.write_netcdf(group, **kwargs)
-            dataset.sync()
-        finally:
-            if close_dataset:
-                dataset.close()
+        from ocgis.api.request.driver.nc import DriverNetcdf
+        kwargs['driver'] = DriverNetcdf
+        self.write(self, dataset_or_path, **kwargs)
 
 
 def get_dimension_lengths(dimensions):

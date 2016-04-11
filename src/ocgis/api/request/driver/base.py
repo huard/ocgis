@@ -150,3 +150,11 @@ class AbstractDriver(object):
     @abc.abstractmethod
     def _get_field_(self, **kwargs):
         """:rtype: :class:`ocgis.interface.base.field.Field`"""
+
+    @abc.abstractmethod
+    def write_variable(self, *args, **kwargs):
+        """Write a variable."""
+
+    @abc.abstractmethod
+    def write_variable_collection(self, *args, **kwargs):
+        """Write a variable collection to file(s)."""
