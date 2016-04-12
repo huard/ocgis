@@ -107,7 +107,8 @@ class TestDriverNetcdf(TestBase):
         dm = {'time': {'variable': 'does_not_exist'}}
         driver = self.get_drivernetcdf(dimension_map=dm)
         self.assertDictEqual(driver.rd.dimension_map, dm)
-        self.assertDictEqual(driver.dimension_map, dm)
+        # The driver dimension map always loads from the data.
+        self.assertNotEqual(driver.dimension_map, dm)
         self.assertNotEqual(dm, driver.get_dimension_map(driver.metadata))
         field = driver.get_field()
         with self.assertRaises(KeyError):

@@ -274,11 +274,7 @@ class RequestDataset(object):
 
     @property
     def crs(self):
-        if self._crs is None:
-            ret = self.driver.crs
-        else:
-            ret = self._crs
-        return ret
+        return self._crs or self.driver.crs
 
     @property
     def level_range(self):
@@ -304,7 +300,7 @@ class RequestDataset(object):
 
     @property
     def dimension_map(self):
-        return self._dimension_map
+        return self._dimension_map or self.driver.dimension_map
 
     @property
     def source_metadata(self):

@@ -37,7 +37,7 @@ class AbstractDriver(object):
     @property
     def dimension_map(self):
         if self._dimension_map is None:
-            self._dimension_map = self.rd._dimension_map or self.get_dimension_map(self.metadata)
+            self._dimension_map = self.get_dimension_map(self.metadata)
         return self._dimension_map
 
     @property
@@ -144,7 +144,7 @@ class AbstractDriver(object):
             vc.add_variable(to_add, force=True)
 
         # Convert the raw variable collection to a field.
-        kwargs['dimension_map'] = self.dimension_map
+        kwargs['dimension_map'] = self.rd.dimension_map
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
         # If this is a source grid for regridding, ensure the flag is updated.
