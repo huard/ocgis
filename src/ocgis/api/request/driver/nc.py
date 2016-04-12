@@ -116,14 +116,7 @@ class DriverNetcdf(AbstractDriver):
         ret = {k: v for k, v in axes.items() if v is not None}
 
         # Check for coordinate system variables. This will check every variable.
-        crs = None
-        for vname, var in variables.items():
-            for potential in itersubclasses(CFCoordinateReferenceSystem):
-                try:
-                    crs = potential.load_from_metadata(vname, metadata)
-                    break
-                except ProjectionDoesNotMatch:
-                    continue
+        crs = get_crs_variable(metadata)
         if crs is not None:
             ret['crs'] = {'variable': crs.name}
 
@@ -873,3 +866,19 @@ def get_variable_value(variable, dimensions):
 def create_dimension_or_pass(dim, dataset):
     if dim.name not in dataset.dimensions:
         dataset.createDimension(dim.name, dim.length)
+
+
+def get_crs_variable(metadata, to_search=None):
+    crs = None
+    variables = metadata['variables']
+    for vname, var in variables.items():
+        if to_search is not None:
+            if vname not in to_search:
+                continue
+        for potential in itersubclasses(CFCoordinateReferenceSystem):
+            try:
+                crs = potential.load_from_metadata(vname, metadata)
+                break
+            except ProjectionDoesNotMatch:
+                continue
+    return crs

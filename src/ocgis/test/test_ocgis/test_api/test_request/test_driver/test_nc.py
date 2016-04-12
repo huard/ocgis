@@ -41,6 +41,9 @@ class TestDriverNetcdf(TestBase):
             vx[:] = np.random.rand(3, 5) * 100
             vx.grid_mapping = 'latitude_longitude'
 
+            crs = ds.createVariable('latitude_longitude', np.int8)
+            crs.grid_mapping_name = 'latitude_longitude'
+
             vt = ds.createVariable('time', np.float32, dimensions=['time'])
             vt.axis = 'T'
             vt.climatology = 'time_bounds'
@@ -95,14 +98,13 @@ class TestDriverNetcdf(TestBase):
         self.assertIsInstance(d, DriverNetcdf)
 
     def test_get_field(self):
+        # tdk: RESUME: test is failing. need a method to insert the coordinate reference system into the variable collection
         driver = self.get_drivernetcdf()
         field = driver.get_field(format_time=False)
         self.assertIsInstance(field.time, TemporalVariable)
         with self.assertRaises(CannotFormatTimeError):
             assert field.time.value_datetime
         self.assertIsInstance(field.crs, CoordinateReferenceSystem)
-        # tdk: test crs is loaded correctly
-        # import ipdb;ipdb.set_trace()
 
     def test_metadata(self):
         d = self.get_drivernetcdf()

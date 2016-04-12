@@ -105,7 +105,8 @@ class AbstractDriver(object):
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
-        kwargs['dimension_map'] = self.get_dimension_map(self.metadata)
+        dm = self.get_dimension_map(self.metadata)
+        kwargs['dimension_map'] = dm
         vc = self.get_variable_collection()
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
