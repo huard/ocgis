@@ -29,7 +29,14 @@ from ocgis.util.units import get_units_object
 
 
 class TestDriverNetcdf(TestBase):
-    def get_drivernetcdf(self):
+    def get_drivernetcdf(self, **kwargs):
+        path = self.get_drivernetcdf_file_path()
+        kwargs['uri'] = path
+        rd = RequestDataset(**kwargs)
+        d = DriverNetcdf(rd)
+        return d
+
+    def get_drivernetcdf_file_path(self):
         path = self.get_temporary_file_path('drivernetcdf.nc')
         with self.nc_scope(path, 'w') as ds:
             ds.convention = 'CF-1.6'
@@ -58,9 +65,7 @@ class TestDriverNetcdf(TestBase):
             vy.scale_factor = 5.0
             vy.add_offset = 100.0
             vy[:] = np.ma.array([1, 2, 3, 4], mask=[False, True, False, False])
-        rd = RequestDataset(uri=path)
-        d = DriverNetcdf(rd)
-        return d
+        return path
 
     def get_2d_state_boundaries(self):
         geoms = []
@@ -96,6 +101,17 @@ class TestDriverNetcdf(TestBase):
     def test_init(self):
         d = self.get_drivernetcdf()
         self.assertIsInstance(d, DriverNetcdf)
+
+    def test_dimension_map(self):
+        # Test overloaded dimension map from request dataset is used.
+        dm = {'time': {'variable': 'does_not_exist'}}
+        driver = self.get_drivernetcdf(dimension_map=dm)
+        self.assertDictEqual(driver.rd.dimension_map, dm)
+        self.assertDictEqual(driver.dimension_map, dm)
+        self.assertNotEqual(dm, driver.get_dimension_map(driver.metadata))
+        field = driver.get_field()
+        with self.assertRaises(KeyError):
+            assert field.time
 
     def test_get_field(self):
         # tdk: test that one-dimensional subsets are applied

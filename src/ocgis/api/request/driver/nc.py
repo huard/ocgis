@@ -431,7 +431,6 @@ class DriverNetcdf(AbstractDriver):
         # return fill
 
     def _get_field_(self, format_time=True):
-        # tdk: RESUME: have the driver return the new field object
         """
         :param bool format_time:
         :raises ValueError:
@@ -509,6 +508,7 @@ class DriverNetcdf(AbstractDriver):
                       realization=loaded['realization'], meta=source_metadata.copy(), uid=self.rd.did,
                       name=self.rd.name, attrs=source_metadata['dataset'].copy())
 
+        # tdk: RESUME: apply any subset parameters
         # Apply any subset parameters after the field is loaded.
         if self.rd.time_range is not None:
             ret = ret.get_between('temporal', min(self.rd.time_range), max(self.rd.time_range))

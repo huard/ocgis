@@ -37,7 +37,7 @@ class AbstractDriver(object):
     @property
     def dimension_map(self):
         if self._dimension_map is None:
-            self._dimension_map = self.get_dimension_map(self.metadata)
+            self._dimension_map = self.rd._dimension_map or self.get_dimension_map(self.metadata)
         return self._dimension_map
 
     @property
