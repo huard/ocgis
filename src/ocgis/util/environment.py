@@ -1,10 +1,10 @@
 import os
 import subprocess
+import sys
 from importlib import import_module
 from warnings import warn
 
 import numpy as np
-import sys
 
 from ocgis import constants
 from ocgis.util.helpers import get_iter
@@ -71,9 +71,9 @@ class Environment(object):
         self.NP_INT = EnvParm('NP_INT', constants.DEFAULT_NP_INT)
         self.NP_FLOAT = EnvParm('NP_FLOAT', constants.DEFAULT_NP_FLOAT)
 
-        from ocgis.interface.base.crs import CFWGS84
+        from ocgis.interface.base.crs import CFSpherical
 
-        self.DEFAULT_COORDSYS = EnvParm('DEFAULT_COORDSYS', CFWGS84())
+        self.DEFAULT_COORDSYS = EnvParm('DEFAULT_COORDSYS', CFSpherical())
 
         self.ops = None
         self._optimize_store = {}

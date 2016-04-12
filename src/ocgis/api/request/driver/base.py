@@ -14,6 +14,8 @@ class AbstractDriver(object):
 
     __metaclass__ = abc.ABCMeta
 
+    _default_crs = None
+
     def __init__(self, rd):
         self.rd = rd
         self._metadata = None
@@ -29,7 +31,7 @@ class AbstractDriver(object):
     @property
     def crs(self):
         if self._crs is None:
-            self._crs = self.get_crs()
+            self._crs = self.get_crs() or self._default_crs
         return self._crs
 
     @property
@@ -123,10 +125,26 @@ class AbstractDriver(object):
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
-        kwargs['dimension_map'] = self.dimension_map
+        # Get the raw variable collection from source.
         vc = self.get_variable_collection()
-        if self.crs is not None:
-            vc.add_variable(self.crs, force=True)
+
+        # Modify the coordinate system variable. If it is overloaded on the request dataset, then the variable
+        # collection needs to be updated to hold the variable and any alternative coordinate systems needs to be
+        # removed.
+        to_remove = None
+        to_add = None
+        if self.rd._crs is not None:
+            to_add = self.rd._crs
+            to_remove = self.crs.name
+        elif self.crs is not None:
+            to_add = self.crs
+        if to_remove is not None:
+            vc.pop(to_remove, None)
+        if to_add is not None:
+            vc.add_variable(to_add, force=True)
+
+        # Convert the raw variable collection to a field.
+        kwargs['dimension_map'] = self.dimension_map
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
         # If this is a source grid for regridding, ensure the flag is updated.

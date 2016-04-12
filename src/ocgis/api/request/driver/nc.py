@@ -7,7 +7,7 @@ import netCDF4 as nc
 import numpy as np
 from netCDF4._netCDF4 import VLType
 
-from ocgis import messages, TemporalDimension
+from ocgis import messages, TemporalDimension, env
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
@@ -35,6 +35,7 @@ class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
     key = 'netCDF'
     output_formats = 'all'
+    _default_crs = env.DEFAULT_COORDSYS
 
     def get_metadata(self):
         ds = self.open()
@@ -119,8 +120,13 @@ class DriverNetcdf(AbstractDriver):
         ret = {k: v for k, v in axes.items() if v is not None}
 
         # Check for coordinate system variables. This will check every variable.
-        if self.crs is not None:
-            ret['crs'] = {'variable': self.crs.name}
+        crs_name = None
+        if self.rd._crs is not None:
+            crs_name = self.rd._crs.name
+        elif self.crs is not None:
+            crs_name = self.crs.name
+        if crs_name is not None:
+            ret['crs'] = {'variable': crs_name}
 
         return ret
 
@@ -886,10 +892,11 @@ def get_crs_variable(metadata, to_search=None):
             except ProjectionDoesNotMatch:
                 continue
 
-    if len(found) > 1:
+    fset = set([f.name for f in found])
+    if len(fset) > 1:
         msg = 'Multiple coordinate systems found. There should be only one.'
         raise ValueError(msg)
-    elif len(found) == 0:
+    elif len(fset) == 0:
         crs = None
     else:
         crs = found[0]

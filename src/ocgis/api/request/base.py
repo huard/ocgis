@@ -1,6 +1,5 @@
 import inspect
 import itertools
-import logging
 import os
 import re
 from collections import OrderedDict
@@ -11,10 +10,8 @@ from ocgis.api.collection import AbstractCollection
 from ocgis.api.request.driver.nc import DriverNetcdf
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoUnitsError, NoDimensionedVariablesFound
-from ocgis.interface.base.crs import CFWGS84
 from ocgis.interface.base.field import Field
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple
-from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.util.units import get_units_object, get_are_units_equivalent
 
 
@@ -278,11 +275,7 @@ class RequestDataset(object):
     @property
     def crs(self):
         if self._crs is None:
-            ret = self.driver.get_crs()
-            if ret is None:
-                ocgis_lh('No "grid_mapping" attribute available assuming WGS84: {0}'.format(self.uri),
-                         'request', logging.WARN)
-                ret = CFWGS84()
+            ret = self.driver.crs
         else:
             ret = self._crs
         return ret

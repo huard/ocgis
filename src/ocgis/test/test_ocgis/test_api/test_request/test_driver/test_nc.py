@@ -17,7 +17,7 @@ from ocgis import RequestDataset
 from ocgis import env
 from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError
-from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem
+from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem, CFSpherical
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension, SpatialGeometryDimension, \
     SpatialDimension
@@ -98,7 +98,6 @@ class TestDriverNetcdf(TestBase):
         self.assertIsInstance(d, DriverNetcdf)
 
     def test_get_field(self):
-        # tdk: test with an overloaded coordinate reference system
         # tdk: test that one-dimensional subsets are applied
         driver = self.get_drivernetcdf()
         field = driver.get_field(format_time=False)
@@ -106,6 +105,37 @@ class TestDriverNetcdf(TestBase):
         with self.assertRaises(CannotFormatTimeError):
             assert field.time.value_datetime
         self.assertIsInstance(field.crs, CoordinateReferenceSystem)
+
+        # Test overloading the coordinate system.
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            v = ds.createVariable('latitude_longitude', np.int)
+            v.grid_mapping_name = 'latitude_longitude'
+        # First, test the default is found.
+        rd = RequestDataset(uri=path)
+        driver = DriverNetcdf(rd)
+        self.assertEqual(driver.crs, CFSpherical())
+        self.assertEqual(driver.get_field().crs, CFSpherical())
+        # Second, test the overloaded CRS is found.
+        desired = CoordinateReferenceSystem(epsg=2136)
+        rd = RequestDataset(uri=path, crs=desired)
+        self.assertEqual(rd.crs, desired)
+        driver = DriverNetcdf(rd)
+        self.assertEqual(driver.crs, CFSpherical())
+        field = driver.get_field()
+        self.assertEqual(field.crs, desired)
+        # Test file coordinate system variable is removed.
+        self.assertNotIn('latitude_longitude', field)
+
+        # Test the default coordinate system is used when nothing is in the file.
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.createVariable('nothing', np.int)
+        rd = RequestDataset(uri=path)
+        driver = DriverNetcdf(rd)
+        self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
+        self.assertEqual(driver.crs, env.DEFAULT_COORDSYS)
+        self.assertEqual(driver.get_field().crs, env.DEFAULT_COORDSYS)
 
     def test_metadata(self):
         d = self.get_drivernetcdf()

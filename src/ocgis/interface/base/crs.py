@@ -533,13 +533,11 @@ class CFSpherical(Spherical, CFCoordinateReferenceSystem):
 
     @classmethod
     def load_from_metadata(cls, var, meta):
-        try:
-            r_grid_mapping = meta['variables'][var]['attributes']['grid_mapping']
-            if r_grid_mapping == cls.grid_mapping_name:
-                return cls()
-            else:
-                raise ProjectionDoesNotMatch
-        except KeyError:
+        r_grid_mapping = meta['variables'][var]['attributes'].get('grid_mapping')
+        r_grid_mapping_name = meta['variables'][var]['attributes'].get('grid_mapping_name')
+        if cls.grid_mapping_name in (r_grid_mapping, r_grid_mapping_name):
+            return cls()
+        else:
             raise ProjectionDoesNotMatch
 
 
