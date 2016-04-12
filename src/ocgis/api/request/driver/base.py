@@ -17,12 +17,19 @@ class AbstractDriver(object):
     def __init__(self, rd):
         self.rd = rd
         self._metadata = None
+        self._dimension_map = None
 
     def __eq__(self, other):
         return self.key == other.key
 
     def __str__(self):
         return '"{0}"'.format(self.key)
+
+    @property
+    def dimension_map(self):
+        if self._dimension_map is None:
+            self._dimension_map = self.get_dimension_map(self.metadata)
+        return self._dimension_map
 
     @property
     def metadata(self):
@@ -56,6 +63,10 @@ class AbstractDriver(object):
         """
         Close and finalize the open file object.
         """
+
+    @abc.abstractmethod
+    def get_crs(self):
+        """:rtype: ~ocgis.interface.base.crs.CoordinateReferenceSystem"""
 
     @abc.abstractmethod
     def get_dimension_map(self, metadata):
@@ -108,6 +119,9 @@ class AbstractDriver(object):
         dm = self.get_dimension_map(self.metadata)
         kwargs['dimension_map'] = dm
         vc = self.get_variable_collection()
+        crs = self.get_crs()
+        if crs is not None:
+            vc.add_variable(crs, force=True)
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
         # If this is a source grid for regridding, ensure the flag is updated.

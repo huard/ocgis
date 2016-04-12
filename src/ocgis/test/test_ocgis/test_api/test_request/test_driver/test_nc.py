@@ -99,6 +99,7 @@ class TestDriverNetcdf(TestBase):
 
     def test_get_field(self):
         # tdk: RESUME: test is failing. need a method to insert the coordinate reference system into the variable collection
+        # tdk: test with an overloaded coordinate reference system
         driver = self.get_drivernetcdf()
         field = driver.get_field(format_time=False)
         self.assertIsInstance(field.time, TemporalVariable)

@@ -76,6 +76,12 @@ class DriverNetcdf(AbstractDriver):
     def close(self, obj):
         obj.close()
 
+    def get_crs(self):
+        v = self.dimension_map['crs']['variable']
+        if v is not None:
+            v = get_crs_variable(self.metadata, to_search=[v])
+        return v
+
     def get_dimension_map(self, metadata):
 
         def get_dimension_map_entry(axis, variables):
@@ -869,8 +875,9 @@ def create_dimension_or_pass(dim, dataset):
 
 
 def get_crs_variable(metadata, to_search=None):
-    crs = None
+    found = []
     variables = metadata['variables']
+
     for vname, var in variables.items():
         if to_search is not None:
             if vname not in to_search:
@@ -878,7 +885,17 @@ def get_crs_variable(metadata, to_search=None):
         for potential in itersubclasses(CFCoordinateReferenceSystem):
             try:
                 crs = potential.load_from_metadata(vname, metadata)
+                found.append(crs)
                 break
             except ProjectionDoesNotMatch:
                 continue
+
+    if len(found) > 1:
+        msg = 'Multiple coordinate systems found. There should be only one.'
+        raise ValueError(msg)
+    elif len(found) == 0:
+        crs = None
+    else:
+        crs = found[0]
+
     return crs
