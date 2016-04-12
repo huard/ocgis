@@ -77,10 +77,7 @@ class DriverNetcdf(AbstractDriver):
         obj.close()
 
     def get_crs(self):
-        v = self.dimension_map['crs']['variable']
-        if v is not None:
-            v = get_crs_variable(self.metadata, to_search=[v])
-        return v
+        return get_crs_variable(self.metadata)
 
     def get_dimension_map(self, metadata):
 
@@ -122,9 +119,8 @@ class DriverNetcdf(AbstractDriver):
         ret = {k: v for k, v in axes.items() if v is not None}
 
         # Check for coordinate system variables. This will check every variable.
-        crs = get_crs_variable(metadata)
-        if crs is not None:
-            ret['crs'] = {'variable': crs.name}
+        if self.crs is not None:
+            ret['crs'] = {'variable': self.crs.name}
 
         return ret
 

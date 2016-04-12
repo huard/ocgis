@@ -18,12 +18,19 @@ class AbstractDriver(object):
         self.rd = rd
         self._metadata = None
         self._dimension_map = None
+        self._crs = None
 
     def __eq__(self, other):
         return self.key == other.key
 
     def __str__(self):
         return '"{0}"'.format(self.key)
+
+    @property
+    def crs(self):
+        if self._crs is None:
+            self._crs = self.get_crs()
+        return self._crs
 
     @property
     def dimension_map(self):
@@ -116,12 +123,10 @@ class AbstractDriver(object):
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
-        dm = self.get_dimension_map(self.metadata)
-        kwargs['dimension_map'] = dm
+        kwargs['dimension_map'] = self.dimension_map
         vc = self.get_variable_collection()
-        crs = self.get_crs()
-        if crs is not None:
-            vc.add_variable(crs, force=True)
+        if self.crs is not None:
+            vc.add_variable(self.crs, force=True)
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
         # If this is a source grid for regridding, ensure the flag is updated.
