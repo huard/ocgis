@@ -23,14 +23,6 @@ from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, ge
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
-# tdk: remove me
-class NcTemporalDimension(TemporalDimension, NcVectorDimension):
-    """Allows the temporal dimension use the source loading for netCDF formats."""
-
-    def __init__(self, *args, **kwargs):
-        TemporalDimension.__init__(self, *args, **kwargs)
-
-
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
     key = 'netCDF'

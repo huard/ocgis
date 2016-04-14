@@ -31,7 +31,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
     :param name: (``=:attr:`ocgis.constants.DEFAULT_COORDINATE_SYSTEM_NAME```) A custom name for the coordinate system.
     :type name: str
     """
-
+    # tdk: implement reading proj4 attribute from coordinate systems if present
     def __init__(self, value=None, proj4=None, epsg=None, name=constants.DEFAULT_COORDINATE_SYSTEM_NAME):
         self.name = name
 

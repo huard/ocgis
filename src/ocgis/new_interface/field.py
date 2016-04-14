@@ -15,7 +15,7 @@ _DIMENSION_MAP['level'] = {'attrs': {'axis': 'L'}, 'variable': None, 'bounds': N
 _DIMENSION_MAP['y'] = {'attrs': {'axis': 'Y'}, 'variable': None, 'bounds': None, 'names': []}
 _DIMENSION_MAP['x'] = {'attrs': {'axis': 'X'}, 'variable': None, 'bounds': None, 'names': []}
 _DIMENSION_MAP['geom'] = {'attrs': {'axis': 'ocgis_geom'}, 'variable': None, 'names': []}
-_DIMENSION_MAP['crs'] = {'attrs': None, 'variable': None, 'names': []}
+_DIMENSION_MAP['crs'] = {'attrs': None, 'variable': None}
 
 
 class OcgField(VariableCollection):
