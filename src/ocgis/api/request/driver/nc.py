@@ -23,6 +23,8 @@ from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, ge
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
+# tdk: rename key to "netcdf-cf"
+
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
     key = 'netCDF'

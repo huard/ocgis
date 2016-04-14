@@ -147,7 +147,6 @@ class RequestDataset(object):
 
         # flag used for regridding to determine if the coordinate system was assigned during initialization
         self._has_assigned_coordinate_system = False if crs is None else True
-        self._source_metadata = None
 
         if uri is None:
             raise RequestValidationError('uri', 'Cannot be None')
@@ -303,10 +302,8 @@ class RequestDataset(object):
         return self._dimension_map or self.driver.dimension_map
 
     @property
-    def source_metadata(self):
-        if self._source_metadata is None:
-            self._source_metadata = self.driver.get_source_metadata()
-        return self._source_metadata
+    def metadata(self):
+        return self.driver.metadata
 
     @property
     def time_range(self):
@@ -371,7 +368,7 @@ class RequestDataset(object):
     @property
     def variable(self):
         if self._variable is None:
-            self._variable = get_tuple(self.driver.get_dimensioned_variables())
+            self._variable = get_tuple(self.driver.get_dimensioned_variables(self.dimension_map, self.metadata))
         try:
             ret = get_first_or_sequence(self._variable)
         except IndexError:

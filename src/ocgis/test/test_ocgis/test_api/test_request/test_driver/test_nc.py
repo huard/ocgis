@@ -16,13 +16,15 @@ from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
 from ocgis.api.request.driver.nc import DriverNetcdf
-from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError
+from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError, \
+    NoDimensionedVariablesFound
 from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem, CFSpherical
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension, SpatialGeometryDimension, \
     SpatialDimension
 from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
+from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
@@ -102,6 +104,13 @@ class TestDriverNetcdf(TestBase):
         d = self.get_drivernetcdf()
         self.assertIsInstance(d, DriverNetcdf)
 
+    @attr('data')
+    def test_combo_data(self):
+        rd = self.test_data.get_rd('cancm4_tas')
+        field = rd.get()
+        self.assertIsInstance(field, OcgField)
+        self.assertEqual(rd.variable, 'tas')
+
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.
         dm = {'time': {'variable': 'does_not_exist'}}
@@ -127,6 +136,11 @@ class TestDriverNetcdf(TestBase):
                                   'pr': {'dimensions': ('foo',)}}}
         dvars = driver.get_dimensioned_variables(dimension_map, metadata)
         self.assertEqual(dvars, ['tas'])
+
+        # Test request dataset uses the dimensioned variables.
+        driver = self.get_drivernetcdf()
+        with self.assertRaises(NoDimensionedVariablesFound):
+            assert driver.rd.variable
 
     def test_get_field(self):
         # tdk: test that one-dimensional subsets are applied
