@@ -15,7 +15,7 @@ import ocgis
 from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
-from ocgis.api.request.driver.nc import DriverNetcdf, get_dimension_map
+from ocgis.api.request.driver.nc import DriverNetcdf
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError
 from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem, CFSpherical
 from ocgis.interface.base.dimension.base import VectorDimension
@@ -27,7 +27,7 @@ from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
 
-
+#tdk: clean-up
 class TestDriverNetcdf(TestBase):
     def get_drivernetcdf(self, **kwargs):
         path = self.get_drivernetcdf_file_path()
@@ -114,6 +114,20 @@ class TestDriverNetcdf(TestBase):
         with self.assertRaises(KeyError):
             assert field.time
 
+    def test_get_dimensioned_variables(self):
+        driver = self.get_drivernetcdf()
+        dvars = driver.get_dimensioned_variables(driver.dimension_map, driver.metadata)
+        self.assertEqual(len(dvars), 0)
+
+        # Test a found variable.
+        dimension_map = {'time': {'variable': 'the_time', 'names': ['tt', 'ttt']},
+                         'x': {'variable': 'xx', 'names': ['xx', 'xxx']},
+                         'y': {'variable': 'yy', 'names': ['yy', 'yyy']}}
+        metadata = {'variables': {'tas': {'dimensions': ('xx', 'ttt', 'yyy')},
+                                  'pr': {'dimensions': ('foo',)}}}
+        dvars = driver.get_dimensioned_variables(dimension_map, metadata)
+        self.assertEqual(dvars, ['tas'])
+
     def test_get_field(self):
         # tdk: test that one-dimensional subsets are applied
         driver = self.get_drivernetcdf()
@@ -175,12 +189,15 @@ class TestDriverNetcdf(TestBase):
     def test_get_dimension_map(self):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata)
-        desired = {'crs': {'variable': 'latitude_longitude'}, 'time': {'variable': u'time', 'bounds': u'time_bounds'}}
+        desired = {'crs': {'variable': 'latitude_longitude'},
+                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time']}}
         self.assertEqual(dmap, desired)
 
         def _run_():
             env.SUPPRESS_WARNINGS = False
-            metadata = {'variables': {'x': {'name': 'x', 'attributes': {'axis': 'X', 'bounds': 'x_bounds'}}}}
+            metadata = {'variables': {'x': {'name': 'x',
+                                            'attributes': {'axis': 'X', 'bounds': 'x_bounds'},
+                                            'dimensions': ('xx',)}}}
             d.get_dimension_map(metadata)
 
         self.assertWarns(OcgWarning, _run_)

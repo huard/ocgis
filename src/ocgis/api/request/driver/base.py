@@ -82,7 +82,7 @@ class AbstractDriver(object):
         """:rtype: dict"""
 
     @abc.abstractmethod
-    def get_dimensioned_variables(self):
+    def get_dimensioned_variables(self, dimension_map, metadata):
         """:rtype: tuple(str, ...)"""
 
     @abc.abstractmethod

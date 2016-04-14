@@ -82,7 +82,8 @@ class DriverNetcdf(AbstractDriver):
                     axis_vars.append(variable['name'])
             assert len(axis_vars) <= 1
             if len(axis_vars) == 1:
-                ret = {'variable': axis_vars[0]}
+                var_name = axis_vars[0]
+                ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
             else:
                 ret = None
             return ret
@@ -122,37 +123,68 @@ class DriverNetcdf(AbstractDriver):
 
         return ret
 
-    def get_dimensioned_variables(self):
-        # tdk: implement
-        # tdk: test
-        metadata = self.raw_metadata
-        variables = metadata['variables'].keys()
-        ret = []
+    def get_dimensioned_variables(self, dimension_map, metadata):
+        # tdk: add option to specify needed axes
+        axes_needed = ['time', 'x', 'y']
+        dvars = []
 
-        # check each variable for appropriate dimensions.
-        for variable in variables:
-            if self.rd._dimension_map is None:
-                try:
-                    dim_map = get_dimension_map(variable, metadata)
-                except DimensionNotFound:
-                    # if a dimension is not located, then it is not an appropriate variable for subsetting.
-                    continue
-            else:
-                dim_map = self.rd.dimension_map
-            missing_dimensions = []
+        for vname, v in metadata['variables'].items():
+            found_axis = []
+            for a in axes_needed:
+                to_append = False
+                d = dimension_map.get(a)
+                if d is not None:
+                    for dname in v['dimensions']:
+                        if dname in d['names']:
+                            to_append = True
+                            break
+                found_axis.append(to_append)
+            if all(found_axis):
+                dvars.append(vname)
 
-            # these dimensions are required for subsetting.
-            for required_dimension in ['X', 'Y', 'T']:
-                if dim_map[required_dimension] is None:
-                    missing_dimensions.append(required_dimension)
+        return dvars
 
-            if len(missing_dimensions) > 0:
-                # if any of the required dimensions are missing, the variable is not appropriate for subsetting.
-                continue
-            else:
-                ret.append(variable)
 
-        return ret
+        # variables = []
+        # for a in axes_needed:
+        #     entry = dimension_map.get(a)
+        #     if entry is not None:
+        #         entry = entry['variable']
+        #     variables.append(entry)
+        # if any([v is None for v in variables]):
+        #     ret = None
+        # else:
+        #     ret = thh
+        # return ret
+
+        # metadata = self.raw_metadata
+        # variables = metadata['variables'].keys()
+        # ret = []
+        #
+        # # check each variable for appropriate dimensions.
+        # for variable in variables:
+        #     if self.rd._dimension_map is None:
+        #         try:
+        #             dim_map = get_dimension_map(variable, metadata)
+        #         except DimensionNotFound:
+        #             # if a dimension is not located, then it is not an appropriate variable for subsetting.
+        #             continue
+        #     else:
+        #         dim_map = self.rd.dimension_map
+        #     missing_dimensions = []
+        #
+        #     # these dimensions are required for subsetting.
+        #     for required_dimension in ['X', 'Y', 'T']:
+        #         if dim_map[required_dimension] is None:
+        #             missing_dimensions.append(required_dimension)
+        #
+        #     if len(missing_dimensions) > 0:
+        #         # if any of the required dimensions are missing, the variable is not appropriate for subsetting.
+        #         continue
+        #     else:
+        #         ret.append(variable)
+        #
+        # return ret
 
     def get_dump_report(self):
         lines = get_dump_report_for_group(self.metadata)
@@ -251,7 +283,6 @@ class DriverNetcdf(AbstractDriver):
             fill_value = var.fill_value
         else:
             # Copy from original attributes.
-            # tdk: try to remove this if statement
             if '_FillValue' not in var.attrs:
                 fill_value = None
             else:
@@ -545,116 +576,6 @@ def read_from_collection(target, request_dataset, parent=None, name=None):
         child = read_from_collection(ncgroup, request_dataset, parent=ret, name=name)
         ret.add_child(child)
     return ret
-
-
-def get_axis(dimvar, dims, dim):
-    # tdk: remove
-    try:
-        axis = dimvar['attrs']['axis']
-    except KeyError:
-        ocgis_lh('Guessing dimension location with "axis" attribute missing for variable "{0}".'.format(dimvar['name']),
-                 logger='nc.dataset',
-                 level=logging.WARN)
-        axis = guess_by_location(dims, dim)
-    return axis
-
-
-def get_dimension_map(variable, metadata):
-    #tdk: remove
-    """
-    :param str variable: The target variable of the dimension mapping procedure.
-    :param dict metadata: The meta dictionary to add the dimension map to.
-    :returns: The dimension mapping for the target variable.
-    :rtype: dict
-    """
-
-    dims = metadata['variables'][variable]['dimensions']
-    mp = dict.fromkeys(['T', 'Z', 'X', 'Y'])
-
-    # try to pull dimensions
-    for dim in dims:
-        dimvar = None
-        try:
-            dimvar = metadata['variables'][dim]
-        except KeyError:
-            # search for variable with the matching dimension
-            for key, value in metadata['variables'].iteritems():
-                if len(value['dimensions']) == 1 and value['dimensions'][0] == dim:
-                    dimvar = metadata['variables'][key]
-                    break
-        # the dimension variable may not exist
-        if dimvar is None:
-            raise DimensionNotFound(dim)
-        axis = get_axis(dimvar, dims, dim)
-        # pull metadata information the variable and dimension names
-        mp[axis] = {'variable': dimvar['name'], 'dimension': dim}
-        try:
-            mp[axis].update({'pos': dims.index(dimvar['name'])})
-        except ValueError:
-            # variable name may differ from the dimension name
-            mp[axis].update({'pos': dims.index(dim)})
-
-    # look for bounds variables
-    # bounds_names = set(constants.name_bounds)
-    for key, value in mp.iteritems():
-
-        if value is None:
-            # this occurs for such things as levels or realizations where the dimensions is not present. the value is
-            # set to none and should not be processed.
-            continue
-
-        # if the dimension is found, search for the bounds by various approaches.
-
-        # try to get the bounds attribute from the variable directly. if the attribute is not present in the metadata
-        # dictionary, continue looking for other options.
-        bounds_var = metadata['variables'][value['variable']]['attrs'].get('bounds')
-        var = metadata['variables'][variable]
-
-        if bounds_var is None:
-            # if no attribute is found, try some other options...
-
-            # if no bounds variable is found for time, it may be a climatological.
-            if key == 'T':
-                try:
-                    bounds_var = metadata['variables'][value['variable']]['attrs']['climatology']
-                    ocgis_lh('Climatological bounds found for variable: {0}'.format(var['name']), logger='request.nc',
-                             level=logging.INFO)
-                # climatology is not found on time axis
-                except KeyError:
-                    pass
-
-        # the bounds variable was found, but the variable is not actually present in the output file
-        if bounds_var not in metadata['variables']:
-            msg = 'Bounds listed for variable "{0}" but the destination bounds variable "{1}" does not exist.'.\
-                format(var['name'], bounds_var)
-            ocgis_lh(msg, logger='nc.driver', level=logging.WARNING)
-            bounds_var = None
-
-        # bounds variables sometime appear oddly, if it is not none and not a string, display what the value is, raise a
-        # warning and continue setting the bounds variable to None.
-        if not isinstance(bounds_var, basestring):
-            if bounds_var is not None:
-                msg = 'Bounds variable is not a string and is not None. The value is "{0}". Setting bounds to None.'. \
-                    format(bounds_var)
-                warn(msg)
-                bounds_var = None
-
-        value.update({'bounds': bounds_var})
-
-    return mp
-
-
-def guess_by_location(dims, target):
-    # tdk: remove
-    mp = {3: {0: 'T', 1: 'Y', 2: 'X'},
-          4: {0: 'T', 2: 'Y', 3: 'X', 1: 'Z'}}
-    try:
-        axis_map = mp[len(dims)]
-    except KeyError:
-        # if there an improper number of dimensions, then the variable does not have appropriate dimensions for
-        # subsetting
-        raise DimensionNotFound(target)
-    return axis_map[dims.index(target)]
 
 
 def parse_metadata(rootgrp):
