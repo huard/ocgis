@@ -73,21 +73,6 @@ class DriverNetcdf(AbstractDriver):
         return get_crs_variable(self.metadata)
 
     def get_dimension_map(self, metadata):
-
-        def get_dimension_map_entry(axis, variables):
-            axis_vars = []
-            for variable in variables.values():
-                vattrs = variable['attributes']
-                if vattrs.get('axis') == axis:
-                    axis_vars.append(variable['name'])
-            assert len(axis_vars) <= 1
-            if len(axis_vars) == 1:
-                var_name = axis_vars[0]
-                ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
-            else:
-                ret = None
-            return ret
-
         # Get dimension variable metadata. This involves checking for the presence of any bounds variables.
         variables = metadata['variables']
         axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
@@ -808,3 +793,18 @@ def get_crs_variable(metadata, to_search=None):
         crs = found[0]
 
     return crs
+
+
+def get_dimension_map_entry(axis, variables):
+    axis_vars = []
+    for variable in variables.values():
+        vattrs = variable['attributes']
+        if vattrs.get('axis') == axis:
+            axis_vars.append(variable['name'])
+    assert len(axis_vars) <= 1
+    if len(axis_vars) == 1:
+        var_name = axis_vars[0]
+        ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
+    else:
+        ret = None
+    return ret
