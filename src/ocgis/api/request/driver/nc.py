@@ -176,15 +176,8 @@ class DriverNetcdf(AbstractDriver):
     def allocate_variable_without_value(self, variable):
         allocate_variable_using_metadata(variable, self.metadata)
 
-    def allocate_variable_value(self, variable):
-        ret = get_value_from_request_dataset(variable)
-        variable._set_value_(ret)
-        # Conform the units if requested.
-        # tdk: this should be moved to superclass
-        if self.rd.conform_units_to is not None:
-            if variable.name in self.rd.conform_units_to:
-                destination_units = self.rd.conform_units_to[variable.name]['units']
-                variable.cfunits_conform(destination_units)
+    def get_variable_value(self, variable):
+        return get_value_from_request_dataset(variable)
 
     @staticmethod
     def write_gridxy(gridxy, dataset, **kwargs):

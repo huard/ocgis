@@ -93,10 +93,20 @@ class AbstractDriver(object):
         """
 
     def allocate_variable_value(self, variable):
-        raise NotImplementedError
+        value = self.get_variable_value(variable)
+        variable._set_value_(value)
+        # Conform the units if requested.
+        if self.rd.conform_units_to is not None:
+            if variable.name in self.rd.conform_units_to:
+                destination_units = self.rd.conform_units_to[variable.name]['units']
+                variable.cfunits_conform(destination_units)
 
     def allocate_variable_without_value(self, variable):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_variable_value(self):
+        """Get value for the variable."""
 
     def get_source_metadata_as_json(self):
         # tdk: test
