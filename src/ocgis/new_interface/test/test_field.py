@@ -111,6 +111,11 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertEqual(f.geom.geom_type, 'Point')
         self.assertEqual(len(f), 7)
 
+    def test_dimensions(self):
+        crs = CoordinateReferenceSystem(epsg=2136)
+        field = OcgField(variables=[crs])
+        self.assertEqual(len(field.dimensions), 0)
+
     def test_time(self):
         units = [None, 'days since 2012-1-1']
         calendar = [None, '365_day']

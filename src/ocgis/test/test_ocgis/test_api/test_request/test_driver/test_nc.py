@@ -106,10 +106,19 @@ class TestDriverNetcdf(TestBase):
 
     @attr('data')
     def test_combo_data(self):
+        # tdk: test request dataset get() checks for appropriate dimensions
         rd = self.test_data.get_rd('cancm4_tas')
         field = rd.get()
         self.assertIsInstance(field, OcgField)
         self.assertEqual(rd.variable, 'tas')
+        self.assertEqual(field['tas'].units, 'K')
+        self.assertEqual(len(field.dimensions), 4)
+
+        # Test overloading units.
+        path = self.test_data.get_uri('cancm4_tas')
+        rd = RequestDataset(uri=path, units='celsius')
+        field = rd.get()
+        self.assertEqual(field['tas'].units, 'celsius')
 
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.

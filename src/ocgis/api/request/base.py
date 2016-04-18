@@ -299,7 +299,9 @@ class RequestDataset(object):
 
     @property
     def dimension_map(self):
-        return self._dimension_map or self.driver.dimension_map
+        ret = self._dimension_map or self.driver.dimension_map
+        if self._units is not None:
+            thh
 
     @property
     def metadata(self):

@@ -728,6 +728,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def dimensions(self):
         ret = {}
         for variable in self.itervalues():
+            try:
+                dimensions = variable.dimensions
+            except AttributeError:
+                # Assume an object like a coordinate reference system or other.
+                continue
             for d in variable.dimensions:
                 if d not in ret:
                     ret[d.name] = d
