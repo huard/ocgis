@@ -7,9 +7,9 @@ import netCDF4 as nc
 import numpy as np
 from netCDF4._netCDF4 import VLType
 
-from ocgis import messages, TemporalDimension, env
+from ocgis import messages, env
 from ocgis.api.request.driver.base import AbstractDriver
-from ocgis.exc import ProjectionDoesNotMatch, DimensionNotFound, PayloadProtectedError
+from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.variable import Variable
@@ -101,7 +101,7 @@ class DriverNetcdf(AbstractDriver):
 
         # Check for coordinate system variables. This will check every variable.
         crs_name = None
-        if self.rd._crs is not None:
+        if self.rd._crs is not None and self.rd._crs != 'auto':
             crs_name = self.rd._crs.name
         elif self.crs is not None:
             crs_name = self.crs.name

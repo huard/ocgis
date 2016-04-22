@@ -45,7 +45,7 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertIn('other', f.time.parent)
 
         f.dimension_map['time']['names'] += ['times', 'times_again']
-        sub = f[{'time': slice(1, 2)}]
+        sub = f.get_field_slice({'time': slice(1, 2)})
         desired = OrderedDict([('time', (1,)), ('time_bounds', (1, 2)), ('other', (1,)), ('xc', (3,)), ('yc', (4,))])
         self.assertEqual(sub.shapes, desired)
         self.assertIsNone(sub.grid)

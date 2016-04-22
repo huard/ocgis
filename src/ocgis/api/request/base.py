@@ -129,7 +129,7 @@ class RequestDataset(object):
     _Drivers[DriverVector.key] = DriverVector
 
     def __init__(self, uri=None, variable=None, alias=None, units=None, time_range=None, time_region=None,
-                 time_subset_func=None, level_range=None, conform_units_to=None, crs=None, t_units=None,
+                 time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, did=None, meta=None, s_abstraction=None, dimension_map=None,
                  name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None):
 
@@ -274,7 +274,11 @@ class RequestDataset(object):
 
     @property
     def crs(self):
-        return self._crs or self.driver.crs
+        if self._crs == 'auto':
+            ret = self.driver.crs
+        else:
+            ret = self._crs
+        return ret
 
     @property
     def level_range(self):
@@ -337,6 +341,7 @@ class RequestDataset(object):
 
     @property
     def time_subset_func(self):
+        # tdk: implement
         return self._time_subset_func.value
 
     @time_subset_func.setter

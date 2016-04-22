@@ -19,6 +19,7 @@ from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import DefinitionValidationError, NoUnitsError, VariableNotFoundError, RequestValidationError
 from ocgis.interface.base.crs import CoordinateReferenceSystem, CFWGS84
 from ocgis.interface.base.field import Field
+from ocgis.new_interface.field import OcgField
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.geom_cabinet import GeomCabinet
 from ocgis.util.helpers import get_iter
@@ -45,6 +46,7 @@ class TestRequestDataset(TestBase):
         path = self.get_temporary_file_path('rd_netcdf.nc')
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('a', 5)
+            ds.createDimension('lvl', 6)
 
             var_a = ds.createVariable('a', int, ('a',))
             var_a[:] = [1, 2, 3, 4, 5]
@@ -55,11 +57,31 @@ class TestRequestDataset(TestBase):
 
             var_time = ds.createVariable('tt', float, ('a',))
             var_time[:] = [10, 20, 30, 40, 50]
-            var_time.calendar = 'fake_calendar'
+            var_time.calendar = '360_day'
             var_time.units = 'days since 2000-1-1'
+
+            var_level = ds.createVariable('the_level', float, ('lvl',))
+            var_level[:] = [9, 10, 11, 12, 13, 14]
 
         kwargs['uri'] = path
         return RequestDataset(**kwargs)
+
+    def test_crs(self):
+        rd = self.get_request_dataset_netcdf(crs=None)
+        self.assertIsNone(rd.crs)
+
+        crs = CoordinateReferenceSystem(epsg=2136)
+        rd = self.get_request_dataset_netcdf(crs=crs)
+        self.assertEqual(rd.crs, crs)
+
+    def test_level_range(self):
+        dimension_map = {'level': {'variable': 'the_level'}}
+        rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, level_range=[10.5, 13.5])
+
+        field = rd.get()
+
+        self.assertEqual(field.dimensions['lvl'].length, 3)
+        self.assertIsInstance(field, OcgField)
 
     def test_metadata(self):
         # Test overloaded metadata is held on the request dataset but the original remains the same.
@@ -68,25 +90,66 @@ class TestRequestDataset(TestBase):
         rd.metadata['variables']['a']['dtype'] = float
         rd.metadata['variables']['a']['fill_value'] = 1000.
         rd.metadata['variables']['a']['fill_value'] = 1000.
-        rd.metadata['variables']['tt']['attributes']['calendar'] = '360_day'
+        rd.metadata['variables']['tt']['attributes']['calendar'] = 'blah'
 
         self.assertNotEqual(rd.metadata, rd.driver.metadata)
         field = rd.get()
         self.assertEqual(field['a'].attrs['units'], 'overloaded_units')
         self.assertEqual(field['a'].dtype, float)
         self.assertEqual(field['a'].fill_value, 1000.)
-        self.assertEqual(field['tt'].attrs['calendar'], '360_day')
+        self.assertEqual(field['tt'].attrs['calendar'], 'blah')
 
     def test_time_range(self):
         time_range = [datetime.datetime(2000, 1, 20), datetime.datetime(2000, 2, 12)]
         dimension_map = {'time': {'variable': 'tt'}}
         rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, time_range=time_range)
-        rd.metadata['variables']['tt']['attributes']['calendar'] = '360_day'
 
         field = rd.get()
 
         self.assertEqual(field.dimensions['a'].length, 3)
+        self.assertIsInstance(field, OcgField)
+        self.assertIsNone(field['a']._value)
 
+    def test_time_region(self):
+        time_region = {'month': [1]}
+        dimension_map = {'time': {'variable': 'tt'}}
+        rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, time_region=time_region)
+
+        field = rd.get()
+
+        self.assertEqual(field.dimensions['a'].length, 2)
+        self.assertIsInstance(field, OcgField)
+        self.assertIsNone(field['a']._value)
+
+    def test_time_subset_func(self):
+
+        def tsf(dts, bounds=None):
+            ret = []
+            for idx, dt in enumerate(dts):
+                if dt.day == 11:
+                    ret.append(idx)
+            return ret
+
+        dimension_map = {'time': {'variable': 'tt'}}
+        rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, time_subset_func=tsf)
+
+        field = rd.get()
+
+        self.assertEqual(field.dimensions['a'].length, 2)
+        self.assertIsInstance(field, OcgField)
+        self.assertIsNone(field['a']._value)
+
+    def test_units(self):
+        # tdk: RESUME: test is failing - unable to use units to set units
+        variable = ['a', 'b']
+        units = ['kelvin', 'celsius']
+        rd = self.get_request_dataset_netcdf(variable=variable, units=units)
+        self.assertEqual(rd.units, ('kelvin', 'celsius'))
+        field = rd.get()
+
+        for v, u in zip(variable, units):
+            self.assertEqual(field[v].units, u)
+        thh
 
 # tdk: migrate to TestRequestDataset or remove
 class OldTestRequestDataset(TestBase):

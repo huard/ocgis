@@ -143,7 +143,7 @@ class AbstractDriver(object):
         # removed.
         to_remove = None
         to_add = None
-        if self.rd._crs is not None:
+        if self.rd._crs is not None and self.rd._crs != 'auto':
             to_add = self.rd._crs
             to_remove = self.crs.name
         elif self.crs is not None:
@@ -168,6 +168,12 @@ class AbstractDriver(object):
         # Apply any requested subsets.
         if self.rd.time_range is not None:
             field = field.time.get_between(*self.rd.time_range).parent
+        if self.rd.time_region is not None:
+            field = field.time.get_time_region(self.rd.time_region).parent
+        if self.rd.time_subset_func is not None:
+            field = field.time.get_subset_by_function(self.rd.time_subset_func).parent
+        if self.rd.level_range is not None:
+            field = field.level.get_between(*self.rd.level_range).parent
 
         return field
 
