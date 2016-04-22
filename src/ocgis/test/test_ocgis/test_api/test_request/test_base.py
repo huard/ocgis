@@ -84,14 +84,8 @@ class TestRequestDataset(TestBase):
         rd.metadata['variables']['tt']['attributes']['calendar'] = '360_day'
 
         field = rd.get()
-        # tdk: RESUME: this slice is not working due to interference with the dimension map this indexing should work
-        sub = field[{'a': [False, True, True, True, False]}]
-        self.assertEqual(sub.dimensions['a'].length, 3)
+
         self.assertEqual(field.dimensions['a'].length, 3)
-        print field.dimensions
-        print field.time.calendar
-        print field.time.value_datetime
-        thh
 
 
 # tdk: migrate to TestRequestDataset or remove

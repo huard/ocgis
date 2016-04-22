@@ -38,24 +38,22 @@ class OcgField(VariableCollection):
 
         VariableCollection.__init__(self, *args, **kwargs)
 
-    def __getitem__(self, item):
-        if not isinstance(item, basestring):
-            name_mapping = {}
-            for k, v in self.dimension_map.items():
-                # Do not slice the coordinate system variable.
-                if k == 'crs':
-                    continue
-                variable_name = v['variable']
-                if variable_name is not None:
-                    dimension_name = self[variable_name].dimensions[0].name
-                    variable_names = v['names']
-                    if dimension_name not in variable_names:
-                        variable_names.append(dimension_name)
-                    name_mapping[k] = variable_names
-            with renamed_dimensions_on_variables(self, name_mapping):
-                ret = super(OcgField, self).__getitem__(item)
-        else:
-            ret = super(OcgField, self).__getitem__(item)
+    # tdk: order
+    def get_field_slice(self, dslice):
+        name_mapping = {}
+        for k, v in self.dimension_map.items():
+            # Do not slice the coordinate system variable.
+            if k == 'crs':
+                continue
+            variable_name = v['variable']
+            if variable_name is not None:
+                dimension_name = self[variable_name].dimensions[0].name
+                variable_names = v['names']
+                if dimension_name not in variable_names:
+                    variable_names.append(dimension_name)
+                name_mapping[k] = variable_names
+        with renamed_dimensions_on_variables(self, name_mapping):
+            ret = super(OcgField, self).__getitem__(dslice)
         return ret
 
     @property
