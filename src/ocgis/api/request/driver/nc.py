@@ -151,7 +151,7 @@ class DriverNetcdf(AbstractDriver):
         return ret
 
     def allocate_variable_without_value(self, variable):
-        allocate_variable_using_metadata(variable, self.metadata)
+        allocate_variable_using_metadata(variable, self.rd.metadata)
 
     def get_variable_value(self, variable):
         return get_value_from_request_dataset(variable)
@@ -283,6 +283,7 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
+    # tdk: remove
     def _get_field_(self, format_time=True):
         """
         :param bool format_time:
@@ -382,6 +383,7 @@ class DriverNetcdf(AbstractDriver):
 
         return ret
 
+    # tdk: remove
     @staticmethod
     def _get_name_bounds_dimension_(source_metadata):
         """

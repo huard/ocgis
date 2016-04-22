@@ -119,6 +119,7 @@ class TestDriverNetcdf(TestBase):
         rd = RequestDataset(uri=path, units='celsius')
         field = rd.get()
         self.assertEqual(field['tas'].units, 'celsius')
+        thh
 
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.

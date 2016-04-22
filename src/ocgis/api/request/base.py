@@ -131,7 +131,7 @@ class RequestDataset(object):
     def __init__(self, uri=None, variable=None, alias=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs=None, t_units=None,
                  t_calendar=None, t_conform_units_to=None, did=None, meta=None, s_abstraction=None, dimension_map=None,
-                 name=None, driver=None, regrid_source=True, regrid_destination=False):
+                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None):
 
         self._alias = None
         self._conform_units_to = None
@@ -142,6 +142,7 @@ class RequestDataset(object):
         self._time_subset_func = None
         self._units = None
         self._dimension_map = deepcopy(dimension_map)
+        self._metadata = deepcopy(metadata)
 
         self._is_init = True
 
@@ -304,7 +305,9 @@ class RequestDataset(object):
 
     @property
     def metadata(self):
-        return self.driver.metadata
+        if self._metadata is None:
+            self._metadata = deepcopy(self.driver.metadata)
+        return self._metadata
 
     @property
     def time_range(self):

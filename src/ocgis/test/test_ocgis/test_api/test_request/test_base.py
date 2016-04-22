@@ -25,7 +25,7 @@ from ocgis.util.helpers import get_iter
 from ocgis.util.itester import itr_products_keywords
 from ocgis.util.units import get_units_object, get_conformed_units
 
-
+# tdk: clean-up
 class Test(TestBase):
 
     def test_get_is_none_false(self):
@@ -40,6 +40,38 @@ class Test(TestBase):
 
 
 class TestRequestDataset(TestBase):
+
+    def get_request_dataset_netcdf(self):
+        path = self.get_temporary_file_path('rd_netcdf.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.createDimension('a', 5)
+
+            var_a = ds.createVariable('a', int, ('a',))
+            var_a[:] = [1, 2, 3, 4, 5]
+            var_a.units = 'original_units'
+
+            var_b = ds.createVariable('b', float)
+            var_b.something = 'an_attribute'
+
+        return RequestDataset(uri=path)
+
+    def test_metadata(self):
+        # Test overloaded metadata is held on the request dataset but the original remains the same.
+        rd = self.get_request_dataset_netcdf()
+        rd.metadata['variables']['a']['attributes']['units'] = 'overloaded_units'
+        rd.metadata['variables']['a']['dtype'] = float
+        rd.metadata['variables']['a']['fill_value'] = 1000.
+        rd.metadata['variables'].pop('b')
+
+        self.assertNotEqual(rd.metadata, rd.driver.metadata)
+        field = rd.get()
+        self.assertEqual(field['a'].attrs['units'], 'overloaded_units')
+        self.assertEqual(field['a'].dtype, float)
+        self.assertEqual(field['a'].fill_value, 1000.)
+
+
+# tdk: migrate to TestRequestDataset or remove
+class OldTestRequestDataset(TestBase):
 
     def setUp(self):
         TestBase.setUp(self)
