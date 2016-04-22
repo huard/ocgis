@@ -34,6 +34,8 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
     # tdk: implement reading proj4 attribute from coordinate systems if present
     def __init__(self, value=None, proj4=None, epsg=None, name=constants.DEFAULT_COORDINATE_SYSTEM_NAME):
         self.name = name
+        # Allows operations on data variables to look through an empty dimension list. Alleviates instance checking.
+        self.dimensions = tuple()
 
         # Add a special check for init keys in value dictionary.
         if value is not None:

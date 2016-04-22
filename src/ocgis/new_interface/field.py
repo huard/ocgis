@@ -42,6 +42,9 @@ class OcgField(VariableCollection):
         if not isinstance(item, basestring):
             name_mapping = {}
             for k, v in self.dimension_map.items():
+                # Do not attempt any slicing on the coordinate system variable.
+                if k == 'crs':
+                    continue
                 variable_name = v['variable']
                 if variable_name is not None:
                     dimension_name = self[variable_name].dimensions[0].name

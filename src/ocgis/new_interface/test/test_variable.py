@@ -262,6 +262,11 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(sub.bounds.shape, (1, 2))
         self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
 
+        # Test with a boolean array.
+        var = Variable(value=[1, 2, 3, 4, 5])
+        sub = var[[False, True, True, True, False]]
+        self.assertEqual(sub.shape, (3,))
+
     @attr('cfunits')
     def test_cfunits(self):
         var = self.get_variable(return_original_data=False)

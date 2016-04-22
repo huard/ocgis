@@ -197,6 +197,11 @@ class TestTemporalVariable(AbstractTestTemporal):
             real_target = getattr(target, subtarget)
             self.assertEqual(real_target.shape[0], 1)
 
+        # Test with a boolean array.
+        var = TemporalVariable(value=[1, 2, 3, 4, 5])
+        sub = var[np.array([False, True, True, True, False])]
+        self.assertEqual(sub.shape, (3,))
+
     def test_360_day_calendar(self):
         months = range(1, 13)
         days = range(1, 31)

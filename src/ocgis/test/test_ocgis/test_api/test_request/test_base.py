@@ -25,6 +25,7 @@ from ocgis.util.helpers import get_iter
 from ocgis.util.itester import itr_products_keywords
 from ocgis.util.units import get_units_object, get_conformed_units
 
+
 # tdk: clean-up
 class Test(TestBase):
 
@@ -40,8 +41,7 @@ class Test(TestBase):
 
 
 class TestRequestDataset(TestBase):
-
-    def get_request_dataset_netcdf(self):
+    def get_request_dataset_netcdf(self, **kwargs):
         path = self.get_temporary_file_path('rd_netcdf.nc')
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('a', 5)
@@ -53,7 +53,13 @@ class TestRequestDataset(TestBase):
             var_b = ds.createVariable('b', float)
             var_b.something = 'an_attribute'
 
-        return RequestDataset(uri=path)
+            var_time = ds.createVariable('tt', float, ('a',))
+            var_time[:] = [10, 20, 30, 40, 50]
+            var_time.calendar = 'fake_calendar'
+            var_time.units = 'days since 2000-1-1'
+
+        kwargs['uri'] = path
+        return RequestDataset(**kwargs)
 
     def test_metadata(self):
         # Test overloaded metadata is held on the request dataset but the original remains the same.
@@ -61,13 +67,31 @@ class TestRequestDataset(TestBase):
         rd.metadata['variables']['a']['attributes']['units'] = 'overloaded_units'
         rd.metadata['variables']['a']['dtype'] = float
         rd.metadata['variables']['a']['fill_value'] = 1000.
-        rd.metadata['variables'].pop('b')
+        rd.metadata['variables']['a']['fill_value'] = 1000.
+        rd.metadata['variables']['tt']['attributes']['calendar'] = '360_day'
 
         self.assertNotEqual(rd.metadata, rd.driver.metadata)
         field = rd.get()
         self.assertEqual(field['a'].attrs['units'], 'overloaded_units')
         self.assertEqual(field['a'].dtype, float)
         self.assertEqual(field['a'].fill_value, 1000.)
+        self.assertEqual(field['tt'].attrs['calendar'], '360_day')
+
+    def test_time_range(self):
+        time_range = [datetime.datetime(2000, 1, 20), datetime.datetime(2000, 2, 12)]
+        dimension_map = {'time': {'variable': 'tt'}}
+        rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, time_range=time_range)
+        rd.metadata['variables']['tt']['attributes']['calendar'] = '360_day'
+
+        field = rd.get()
+        # tdk: RESUME: this slice is not working due to interference with the dimension map this indexing should work
+        sub = field[{'a': [False, True, True, True, False]}]
+        self.assertEqual(sub.dimensions['a'].length, 3)
+        self.assertEqual(field.dimensions['a'].length, 3)
+        print field.dimensions
+        print field.time.calendar
+        print field.time.value_datetime
+        thh
 
 
 # tdk: migrate to TestRequestDataset or remove

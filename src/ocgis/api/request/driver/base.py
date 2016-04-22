@@ -163,6 +163,12 @@ class AbstractDriver(object):
         # Update the assigned coordinate system flag.
         if self.rd._has_assigned_coordinate_system:
             field._has_assigned_coordinate_system = True
+
+        # tdk: what is the appropriate subset order?
+        # Apply any requested subsets.
+        if self.rd.time_range is not None:
+            field = field.time.get_between(*self.rd.time_range).parent
+
         return field
 
     @abc.abstractmethod
