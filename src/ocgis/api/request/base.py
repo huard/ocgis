@@ -140,7 +140,6 @@ class RequestDataset(object):
         self._time_range = None
         self._time_range = None
         self._time_subset_func = None
-        self._units = None
         self._dimension_map = deepcopy(dimension_map)
         self._metadata = deepcopy(metadata)
 
@@ -352,10 +351,9 @@ class RequestDataset(object):
 
     @property
     def units(self):
-        if self._units is None:
-            ret = get_tuple([None] * len(get_tuple(self.variable)))
-        else:
-            ret = self._units
+        ret = []
+        for v in get_iter(self.variable):
+            ret.append(self.metadata['variables'][v]['attributes'].get('units'))
         ret = get_first_or_sequence(ret)
         return ret
 
@@ -368,7 +366,15 @@ class RequestDataset(object):
                 raise RequestValidationError('units', msg)
             if env.USE_CFUNITS:
                 validate_units('units', value)
-        self._units = value
+
+            m = self.metadata['variables']
+            for v, u in zip(self.variable, value):
+                m[v]['attributes']['units'] = u
+
+    # tdk: remove
+    @property
+    def _units(self):
+        raise NotImplementedError
 
     @property
     def uri(self):
