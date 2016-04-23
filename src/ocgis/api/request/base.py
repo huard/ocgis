@@ -244,7 +244,7 @@ class RequestDataset(object):
             ret = get_tuple(self.variable)
         else:
             ret = self._alias
-        return get_first_or_sequence(ret)
+        return get_first_or_tuple(ret)
 
     @alias.setter
     def alias(self, value):
@@ -354,7 +354,7 @@ class RequestDataset(object):
         ret = []
         for v in get_iter(self.variable):
             ret.append(self.metadata['variables'][v]['attributes'].get('units'))
-        ret = get_first_or_sequence(ret)
+        ret = get_first_or_tuple(ret)
         return ret
 
     @units.setter
@@ -378,14 +378,14 @@ class RequestDataset(object):
 
     @property
     def uri(self):
-        return get_first_or_sequence(self._uri)
+        return get_first_or_tuple(self._uri)
 
     @property
     def variable(self):
         if self._variable is None:
             self._variable = get_tuple(self.driver.get_dimensioned_variables(self.dimension_map, self.metadata))
         try:
-            ret = get_first_or_sequence(self._variable)
+            ret = get_first_or_tuple(self._variable)
         except IndexError:
             raise NoDimensionedVariablesFound
         return ret
@@ -645,9 +645,9 @@ class RequestDatasetCollection(AbstractCollection):
             target.uid = uid
 
 
-def get_first_or_sequence(value):
+def get_first_or_tuple(value):
     if len(value) > 1:
-        ret = value
+        ret = tuple(value)
     else:
         ret = value[0]
     return ret

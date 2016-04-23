@@ -16,7 +16,8 @@ from ocgis.api.operations import OcgOperations
 from ocgis.api.request.base import RequestDataset, RequestDatasetCollection, get_tuple, get_is_none
 from ocgis.api.request.driver.nc import DriverNetcdf
 from ocgis.api.request.driver.vector import DriverVector
-from ocgis.exc import DefinitionValidationError, NoUnitsError, VariableNotFoundError, RequestValidationError
+from ocgis.exc import DefinitionValidationError, NoUnitsError, VariableNotFoundError, RequestValidationError, \
+    NoDimensionedVariablesFound
 from ocgis.interface.base.crs import CoordinateReferenceSystem, CFWGS84
 from ocgis.interface.base.field import Field
 from ocgis.new_interface.field import OcgField
@@ -140,7 +141,6 @@ class TestRequestDataset(TestBase):
         self.assertIsNone(field['a']._value)
 
     def test_units(self):
-        # tdk: RESUME: test is failing - unable to use units to set units
         variable = ['a', 'b']
         units = ['kelvin', 'celsius']
         rd = self.get_request_dataset_netcdf(variable=variable, units=units)
@@ -149,7 +149,11 @@ class TestRequestDataset(TestBase):
 
         for v, u in zip(variable, units):
             self.assertEqual(field[v].units, u)
-        thh
+
+        # Test with no variables.
+        rd = self.get_request_dataset_netcdf()
+        with self.assertRaises(NoDimensionedVariablesFound):
+            assert rd.units
 
 # tdk: migrate to TestRequestDataset or remove
 class OldTestRequestDataset(TestBase):
