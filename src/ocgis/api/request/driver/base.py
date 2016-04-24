@@ -96,10 +96,9 @@ class AbstractDriver(object):
         value = self.get_variable_value(variable)
         variable._set_value_(value)
         # Conform the units if requested.
-        if self.rd.conform_units_to is not None:
-            if variable.name in self.rd.conform_units_to:
-                destination_units = self.rd.conform_units_to[variable.name]['units']
-                variable.cfunits_conform(destination_units)
+        conform_units_to = self.rd.metadata['variables'][variable.name].get('conform_units_to')
+        if conform_units_to is not None:
+            variable.cfunits_conform(conform_units_to)
 
     def allocate_variable_without_value(self, variable):
         raise NotImplementedError

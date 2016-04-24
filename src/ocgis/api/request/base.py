@@ -5,13 +5,14 @@ import re
 from collections import OrderedDict
 from copy import deepcopy
 
+from ocgis import constants
 from ocgis import env
 from ocgis.api.collection import AbstractCollection
 from ocgis.api.request.driver.nc import DriverNetcdf
 from ocgis.api.request.driver.vector import DriverVector
-from ocgis.exc import RequestValidationError, NoUnitsError, NoDimensionedVariablesFound
+from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
 from ocgis.interface.base.field import Field
-from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple
+from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple, get_by_sequence
 from ocgis.util.units import get_units_object, get_are_units_equivalent
 
 
@@ -128,13 +129,12 @@ class RequestDataset(object):
     _Drivers[DriverNetcdf.key] = DriverNetcdf
     _Drivers[DriverVector.key] = DriverVector
 
-    def __init__(self, uri=None, variable=None, alias=None, units=None, time_range=None, time_region=None,
+    # tdk: RESUME: driver-specific option for netcdf: s_abstraction
+    def __init__(self, uri=None, variable=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
-                 t_calendar=None, t_conform_units_to=None, did=None, meta=None, s_abstraction=None, dimension_map=None,
-                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None):
+                 t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,
+                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True):
 
-        self._alias = None
-        self._conform_units_to = None
         self._name = None
         self._level_range = None
         self._time_range = None
@@ -145,7 +145,10 @@ class RequestDataset(object):
 
         self._is_init = True
 
-        # flag used for regridding to determine if the coordinate system was assigned during initialization
+        # Field creation options.
+        self.format_time = format_time
+        self.grid_abstraction = grid_abstraction
+        # Flag used for regridding to determine if the coordinate system was assigned during initialization.
         self._has_assigned_coordinate_system = False if crs is None else True
 
         if uri is None:
@@ -166,7 +169,6 @@ class RequestDataset(object):
             variable = get_tuple(variable)
         self._variable = variable
 
-        self.alias = alias
         self.name = name
         self.time_range = time_range
         self.time_region = time_region
@@ -175,31 +177,29 @@ class RequestDataset(object):
 
         self._crs = deepcopy(crs)
 
-        self.t_units = t_units
-        self.t_calendar = t_calendar
-        self.t_conform_units_to = t_conform_units_to
-
-        self.did = did
-        self.meta = meta or {}
-
         self.units = units
         self.conform_units_to = conform_units_to
 
-        self.s_abstraction = s_abstraction
-        try:
-            self.s_abstraction = self.s_abstraction.lower()
-            assert self.s_abstraction in ('point', 'polygon')
-        except AttributeError:
-            if s_abstraction is None:
-                pass
-            else:
-                raise
         self.regrid_source = regrid_source
         self.regrid_destination = regrid_destination
 
         self._is_init = False
 
         self._validate_time_subset_()
+
+        # Update metadata for time variable.
+        tvar = get_by_sequence(self.dimension_map, ['time', 'variable'])
+        if tvar is not None:
+            m = self.metadata['variables'][tvar]
+            if t_units is not None:
+                m['attributes']['units'] = t_units
+            if t_calendar is not None:
+                m['attributes']['calendar'] = t_calendar
+            if t_conform_units_to is not None:
+                from ocgis.util.units import get_units_object
+                t_calendar = m['attributes'].get('calendar', constants.DEFAULT_TEMPORAL_CALENDAR)
+                t_conform_units_to = get_units_object(t_conform_units_to, calendar=t_calendar)
+                m['conform_units_to'] = t_conform_units_to
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -239,37 +239,33 @@ class RequestDataset(object):
         return msg
 
     @property
-    def alias(self):
-        if self._alias is None:
-            ret = get_tuple(self.variable)
-        else:
-            ret = self._alias
-        return get_first_or_tuple(ret)
-
-    @alias.setter
-    def alias(self, value):
-        if value is not None:
-            self._alias = get_tuple(value)
-            if len(self._alias) != len(get_tuple(self.variable)):
-                raise RequestValidationError('alias', 'Each variable must have an alias. The sequence lengths differ.')
-
-    @property
     def conform_units_to(self):
-        return self._conform_units_to
+        ret = []
+        m = self.metadata['variables']
+        for v in get_iter(self.variable):
+            ret.append(m[v].get('conform_units_to'))
+        ret = get_first_or_tuple(ret)
+        return ret
 
     @conform_units_to.setter
     def conform_units_to(self, value):
         if value is not None:
-            # tdk: document dictionary form
-            if not isinstance(value, dict):
-                value = {v: c for v, c in zip(get_tuple(self.variable), get_tuple(value))}
-            else:
-                value = deepcopy(value)
-            for k, v in value.items():
-                if not isinstance(v, dict):
-                    value[k] = {'group_index': [], 'units': v}
-            validate_units('conform_units_to', [ii['units'] for ii in value.values()])
-        self._conform_units_to = value
+            value = get_tuple(value)
+            if len(value) != len(get_tuple(self.variable)):
+                msg = 'Must match "variable" element-wise. The sequence lengths differ.'
+                raise RequestValidationError('units', msg)
+            if env.USE_CFUNITS:
+                validate_units('conform_units_to', value)
+            # If we are conforming units, assert that units are equivalent.
+            validate_unit_equivalence(get_tuple(self.units), value)
+
+            m = self.metadata['variables']
+            for v, u in zip(self.variable, value):
+                m[v]['conform_units_to'] = u
+
+    @property
+    def _conform_units_to(self):
+        raise NotImplementedError
 
     @property
     def crs(self):
@@ -394,24 +390,14 @@ class RequestDataset(object):
         """
         :rtype: :class:`~ocgis.interface.base.Field`
         """
-        if not get_is_none(self._conform_units_to):
-            src_units = []
-            dst_units = []
-            for rdict in self:
-                if rdict['conform_units_to'] is not None:
-                    variable_units = rdict.get('units') or self._get_units_from_metadata_(rdict['variable'])
-                    if variable_units is None:
-                        raise NoUnitsError(rdict['variable'])
-                    src_units.append(variable_units)
-                    dst_units.append(rdict['conform_units_to'])
-            validate_unit_equivalence(src_units, dst_units)
+        # Get the field from the driver object.
         return self.driver.get_field(**kwargs)
 
     def inspect(self):
         """
         Print a string containing important information about the source driver.
         """
-
+        # tdk: test
         return self.driver.inspect()
 
     def inspect_as_dct(self):
@@ -430,6 +416,7 @@ class RequestDataset(object):
 
         :rtype: :class:`collections.OrderedDict`
         '''
+        # tdk: test
         from ocgis import Inspect
         ip = Inspect(request_dataset=self)
         ret = ip._as_dct_()
@@ -474,9 +461,6 @@ class RequestDataset(object):
                 '      Time Units: {0}'.format(self.t_units),
                 '      Time Calendar: {0}'.format(self.t_calendar)]
         return rows
-
-    def _get_units_from_metadata_(self, variable):
-        return self.source_metadata['variables'][variable]['attrs'].get('units')
 
     @staticmethod
     def _get_uri_(uri, ignore_errors=False, followlinks=True):

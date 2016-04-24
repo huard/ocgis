@@ -63,9 +63,30 @@ class TestRequestDataset(TestBase):
 
             var_level = ds.createVariable('the_level', float, ('lvl',))
             var_level[:] = [9, 10, 11, 12, 13, 14]
+            var_level.units = 'meters'
 
         kwargs['uri'] = path
         return RequestDataset(**kwargs)
+
+    def test_conform_units_to(self):
+        rd = self.get_request_dataset_netcdf(variable='a', units='celsius', conform_units_to='fahrenheit')
+        self.assertEqual(rd.conform_units_to, 'fahrenheit')
+        field = rd.get()
+
+        self.assertAlmostEqual(field['a'].value.mean(), 36.79999999999999)
+        self.assertEqual(field['a'].units, 'fahrenheit')
+
+        # Test modifying the metadata to conform arbitrary variables.
+        m = rd.metadata
+        m['variables']['the_level']['conform_units_to'] = 'kilometers'
+        rd = self.get_request_dataset_netcdf(metadata=m)
+        actual = rd.get()['the_level'].value.mean()
+        desired = 0.011500000000000002
+        self.assertAlmostEqual(actual, desired)
+
+        # Test units are evaluated for equivalence.
+        with self.assertRaises(RequestValidationError):
+            self.get_request_dataset_netcdf(variable='a', units='celsius', conform_units_to='meters')
 
     def test_crs(self):
         rd = self.get_request_dataset_netcdf(crs=None)
@@ -99,6 +120,14 @@ class TestRequestDataset(TestBase):
         self.assertEqual(field['a'].dtype, float)
         self.assertEqual(field['a'].fill_value, 1000.)
         self.assertEqual(field['tt'].attrs['calendar'], 'blah')
+
+    def test_t_conform_units_to(self):
+        t_conform_units_to = 'hours since 2000-1-1'
+        rd = self.get_request_dataset_netcdf(dimension_map={'time': {'variable': 'tt'}},
+                                             t_conform_units_to=t_conform_units_to)
+        field = rd.get()
+        self.assertEqual(field.time.value.mean(), 720.0)
+        self.assertEqual(field.time.units, t_conform_units_to)
 
     def test_time_range(self):
         time_range = [datetime.datetime(2000, 1, 20), datetime.datetime(2000, 2, 12)]

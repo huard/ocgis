@@ -189,6 +189,17 @@ def get_bounds_vector_from_centroids(centroids):
     return mids
 
 
+def get_by_sequence(dictionary, key_sequence, default=None):
+    target = dictionary
+    for key in get_iter(key_sequence):
+        try:
+            target = target[key]
+        except KeyError:
+            target = default
+            break
+    return target
+
+
 def get_date_list(start, stop, days):
     ret = []
     delta = datetime.timedelta(days=days)
