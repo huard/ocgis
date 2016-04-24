@@ -27,7 +27,7 @@ from ocgis.util.logging_ocgis import ocgis_lh
 
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
-    key = 'netcdf'
+    key = 'netcdf-cf'
     output_formats = 'all'
     _default_crs = env.DEFAULT_COORDSYS
 

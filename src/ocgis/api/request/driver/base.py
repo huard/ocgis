@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
 from ocgis.new_interface.field import OcgField
+from ocgis.util.logging_ocgis import ocgis_lh
 
 
 class AbstractDriver(object):
@@ -170,7 +171,7 @@ class AbstractDriver(object):
         if self.rd._has_assigned_coordinate_system:
             field._has_assigned_coordinate_system = True
 
-        # tdk: what is the appropriate subset order?
+        # tdk: incorporate spatial subset
         # Apply any requested subsets.
         if self.rd.time_range is not None:
             field = field.time.get_between(*self.rd.time_range).parent
@@ -199,9 +200,9 @@ class AbstractDriver(object):
         for line in Inspect(request_dataset=self.rd).get_report_possible():
             print line
 
-    def open(self):
+    def open(self, *args, **kwargs):
         if self.rd.opened is None:
-            ret = self._open_()
+            ret = self._open_(*args, **kwargs)
         else:
             ret = self.rd.opened
         return ret
@@ -224,12 +225,7 @@ class AbstractDriver(object):
         if cls.output_formats != 'all':
             if ops.output_format not in cls.output_formats:
                 msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'.format(cls.key, cls.output_formats)
-                raise DefinitionValidationError('output_format', msg)
-
-    # tdk: remove
-    # @abc.abstractmethod
-    # def _get_field_(self, **kwargs):
-    #     """Return the default field object."""
+                ocgis_lh(logger='driver', exc=DefinitionValidationError('output_format', msg))
 
     @abc.abstractmethod
     def write_gridxy(self, *args, **kwargs):
