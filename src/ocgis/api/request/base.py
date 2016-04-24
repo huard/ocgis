@@ -13,6 +13,7 @@ from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
 from ocgis.interface.base.field import Field
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple, get_by_sequence
+from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.util.units import get_units_object, get_are_units_equivalent
 
 
@@ -133,7 +134,8 @@ class RequestDataset(object):
     def __init__(self, uri=None, variable=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,
-                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True):
+                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True,
+                 opened=None):
 
         self._name = None
         self._level_range = None
@@ -142,8 +144,16 @@ class RequestDataset(object):
         self._time_subset_func = None
         self._dimension_map = deepcopy(dimension_map)
         self._metadata = deepcopy(metadata)
+        self._uri = None
 
         self._is_init = True
+
+        # This is an "open" file-like object that may be passed in-place of file location parameters.
+        self.opened = opened
+        if self.opened is not None and driver is None:
+            msg = 'If "opened" is not None, then a "driver" must be provided.'
+            exc = RequestValidationError('driver', msg)
+            ocgis_lh(logger='request', exc=exc)
 
         # Field creation options.
         self.format_time = format_time
@@ -152,7 +162,8 @@ class RequestDataset(object):
         self._has_assigned_coordinate_system = False if crs is None else True
 
         if uri is None:
-            raise RequestValidationError('uri', 'Cannot be None')
+            if opened is None:
+                raise RequestValidationError('uri', 'Cannot be None')
         else:
             self._uri = self._get_uri_(uri)
 
@@ -160,6 +171,8 @@ class RequestDataset(object):
             klass = self._get_autodiscovered_driver_(self.uri)
         else:
             try:
+                if not isinstance(basestring, driver):
+                    driver = driver.key
                 klass = self._Drivers[driver]
             except KeyError:
                 raise RequestValidationError('driver', 'Driver not found: {0}'.format(driver))

@@ -68,6 +68,14 @@ class TestRequestDataset(TestBase):
         kwargs['uri'] = path
         return RequestDataset(**kwargs)
 
+    def test_init(self):
+        # Test passing an open dataset object.
+        rd = self.get_request_dataset_netcdf()
+        path = rd.uri
+        with self.nc_scope(path) as ds:
+            rd2 = RequestDataset(opened=ds, driver=DriverNetcdf)
+        thh
+
     def test_conform_units_to(self):
         rd = self.get_request_dataset_netcdf(variable='a', units='celsius', conform_units_to='fahrenheit')
         self.assertEqual(rd.conform_units_to, 'fahrenheit')
