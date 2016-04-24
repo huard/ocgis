@@ -29,8 +29,9 @@ from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
 
+
 #tdk: clean-up
-class TestDriverNetcdf(TestBase):
+class TestDriverNetcdfCF(TestBase):
     def get_drivernetcdf(self, **kwargs):
         path = self.get_drivernetcdf_file_path()
         kwargs['uri'] = path

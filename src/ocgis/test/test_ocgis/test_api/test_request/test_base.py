@@ -13,8 +13,9 @@ import numpy as np
 import ocgis
 from ocgis import env, constants
 from ocgis.api.operations import OcgOperations
-from ocgis.api.request.base import RequestDataset, RequestDatasetCollection, get_tuple, get_is_none
-from ocgis.api.request.driver.nc import DriverNetcdf
+from ocgis.api.request.base import RequestDataset, RequestDatasetCollection, get_tuple, get_is_none, \
+    get_autodiscovered_driver
+from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import DefinitionValidationError, NoUnitsError, VariableNotFoundError, RequestValidationError, \
     NoDimensionedVariablesFound
@@ -28,8 +29,13 @@ from ocgis.util.itester import itr_products_keywords
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
-# tdk: clean-up
+# tdk: clean-up file
 class Test(TestBase):
+    def test_get_autodiscovered_driver(self):
+        # Test the priority driver is chosen for netcdf.
+        path = self.get_temporary_file_path('foo.nc')
+        driver = get_autodiscovered_driver(path)
+        self.assertEqual(driver, DriverNetcdfCF)
 
     def test_get_is_none_false(self):
         possible_false = ['a', ['a', 'b'], ['b', None]]

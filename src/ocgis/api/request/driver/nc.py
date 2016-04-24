@@ -7,15 +7,10 @@ import netCDF4 as nc
 import numpy as np
 from netCDF4._netCDF4 import VLType
 
-from ocgis import messages, env
+from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
-from ocgis.interface.base.dimension.spatial import SpatialDimension
-from ocgis.interface.base.variable import Variable
-from ocgis.interface.nc.dimension import NcVectorDimension
-from ocgis.interface.nc.field import NcField
-from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import SourcedDimension, Dimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
@@ -25,112 +20,14 @@ from ocgis.util.logging_ocgis import ocgis_lh
 
 # tdk: rename key to "netcdf-cf"
 
+# tdk: order
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
-    key = 'netcdf-cf'
+    key = 'netcdf'
     output_formats = 'all'
-    _default_crs = env.DEFAULT_COORDSYS
 
-    def get_metadata(self):
-        ds = self.open()
-        try:
-            ret = parse_metadata(ds)
-        finally:
-            self.close(ds)
-        return ret
-
-    def _open_(self, group_indexing=None, mode='r'):
-        try:
-            ret = nc.Dataset(self.rd.uri, mode=mode)
-        except (TypeError, RuntimeError):
-            try:
-                ret = nc.MFDataset(self.rd.uri)
-            except KeyError as e:
-                # it is possible the variable is not in one of the data URIs. check for this to raise a cleaner error.
-                for uri in get_iter(self.rd.uri):
-                    # tdk: this should use request datasets?
-                    ds = nc.Dataset(uri, 'r')
-                    try:
-                        for variable in get_iter(self.rd.variable):
-                            try:
-                                ds.variables[variable]
-                            except KeyError:
-                                msg = 'The variable "{0}" was not found in URI "{1}".'.format(variable, uri)
-                                raise KeyError(msg)
-                    finally:
-                        ds.close()
-
-                # If all variables were found, raise the other error.
-                raise e
-
-        if group_indexing is not None:
-            for group_name in get_iter(group_indexing):
-                ret = ret.groups[group_name]
-
-        return ret
-
-    def _close_(self, obj):
-        obj.close()
-
-    def get_crs(self):
-        return get_crs_variable(self.metadata)
-
-    def get_dimension_map(self, metadata):
-        # Get dimension variable metadata. This involves checking for the presence of any bounds variables.
-        variables = metadata['variables']
-        axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
-        check_bounds = axes.keys()
-        check_bounds.pop(check_bounds.index('realization'))
-        for k, v in axes.items():
-            axes[k] = get_dimension_map_entry(v, variables)
-        for k in check_bounds:
-            if axes[k] is not None:
-                keys = ['bounds']
-                if k == 'time':
-                    keys += ['climatology']
-                bounds_var = get_by_key_list(variables[axes[k]['variable']]['attributes'], keys)
-                if bounds_var is not None:
-                    if bounds_var not in variables:
-                        msg = 'Bounds listed for variable "{0}" but the destination bounds variable "{1}" does not exist.'. \
-                            format(axes[k]['variable'], bounds_var)
-                        ocgis_lh(msg, logger='nc.driver', level=logging.WARNING)
-                        bounds_var = None
-                axes[k]['bounds'] = bounds_var
-
-        # Create the template dimension map dictionary.
-        ret = {k: v for k, v in axes.items() if v is not None}
-
-        # Check for coordinate system variables. This will check every variable.
-        crs_name = None
-        if self.rd._crs is not None and self.rd._crs != 'auto':
-            crs_name = self.rd._crs.name
-        elif self.crs is not None:
-            crs_name = self.crs.name
-        if crs_name is not None:
-            ret['crs'] = {'variable': crs_name}
-
-        return ret
-
-    def get_dimensioned_variables(self, dimension_map, metadata):
-        # tdk: add option to specify needed axes
-        axes_needed = ['time', 'x', 'y']
-        dvars = []
-
-        for vname, v in metadata['variables'].items():
-            found_axis = []
-            for a in axes_needed:
-                to_append = False
-                d = dimension_map.get(a)
-                if d is not None:
-                    for dname in v['dimensions']:
-                        if dname in d['names']:
-                            to_append = True
-                            break
-                found_axis.append(to_append)
-            if all(found_axis):
-                dvars.append(vname)
-
-        return dvars
+    def allocate_variable_without_value(self, variable):
+        allocate_variable_using_metadata(variable, self.rd.metadata)
 
     def get_dump_report(self):
         lines = get_dump_report_for_group(self.metadata)
@@ -143,6 +40,14 @@ class DriverNetcdf(AbstractDriver):
         lines.append('}')
         return lines
 
+    def get_metadata(self):
+        ds = self.open()
+        try:
+            ret = parse_metadata(ds)
+        finally:
+            self.close(ds)
+        return ret
+
     def get_variable_collection(self):
         ds = self.open()
         try:
@@ -150,9 +55,6 @@ class DriverNetcdf(AbstractDriver):
         finally:
             self.close(ds)
         return ret
-
-    def allocate_variable_without_value(self, variable):
-        allocate_variable_using_metadata(variable, self.rd.metadata)
 
     def get_variable_value(self, variable):
         return get_value_from_request_dataset(variable)
@@ -284,128 +186,104 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
-    # tdk: remove
-    def _get_field_(self, format_time=True):
-        """
-        :param bool format_time:
-        :raises ValueError:
-        """
+    def _close_(self, obj):
+        obj.close()
 
-        # reference the request dataset's source metadata
-        source_metadata = self.rd.source_metadata
-
-        def _get_temporal_adds_(ref_attrs):
-            # calendar should default to standard if it is not present and the t_calendar overload is not used.
-            calendar = self.rd.t_calendar or ref_attrs.get('calendar', None) or 'standard'
-
-            return {'units': self.rd.t_units or ref_attrs['units'], 'calendar': calendar, 'format_time': format_time,
-                    'conform_units_to': self.rd.t_conform_units_to}
-
-        # parameters for the loading loop
-        to_load = {'temporal': {'cls': NcTemporalDimension, 'adds': _get_temporal_adds_, 'axis': 'T', 'name_uid': 'tid',
-                                'name': 'time'},
-                   'level': {'cls': NcVectorDimension, 'adds': None, 'axis': 'Z', 'name_uid': 'lid', 'name': 'level'},
-                   'row': {'cls': NcVectorDimension, 'adds': None, 'axis': 'Y', 'name_uid': 'yc_id', 'name': 'yc'},
-                   'col': {'cls': NcVectorDimension, 'adds': None, 'axis': 'X', 'name_uid': 'xc_id', 'name': 'xc'},
-                   'realization': {'cls': NcVectorDimension, 'adds': None, 'axis': 'R', 'name_uid': 'rlz_id',
-                                   'name_value': 'rlz'}}
-
-        loaded = {}
-        kwds_grid = {}
-        has_row_column = True
-        for k, v in to_load.iteritems():
-            fill = self._get_vector_dimension_(k, v, source_metadata)
-            if k != 'realization' and not isinstance(fill, NcVectorDimension) and fill is not None:
-                assert k in ('row', 'col')
-                has_row_column = False
-                kwds_grid[k] = fill
-            loaded[k] = fill
-
-        loaded_keys = set([k for k, v in loaded.iteritems() if v is not None])
-        if has_row_column:
-            if not {'temporal', 'row', 'col'}.issubset(loaded_keys):
-                raise ValueError('Target variable must at least have temporal, row, and column dimensions.')
-            kwds_grid = {'row': loaded['row'], 'col': loaded['col']}
-        else:
-            shape_src_idx = [source_metadata['dimensions'][xx]['len'] for xx in kwds_grid['row']['dimensions']]
-            src_idx = {'row': np.arange(0, shape_src_idx[0], dtype=np.int32),
-                       'col': np.arange(0, shape_src_idx[1], dtype=np.int32)}
-            name_row = kwds_grid['row']['name']
-            name_col = kwds_grid['col']['name']
-            kwds_grid = {'name_row': name_row, 'name_col': name_col, 'request_dataset': self.rd, 'src_idx': src_idx}
-
-        grid = NcSpatialGridDimension(**kwds_grid)
-
-        spatial = SpatialDimension(name_uid='gid', grid=grid, crs=self.rd.crs, abstraction=self.rd.s_abstraction)
-
-        vc = VariableCollection()
-        for vdict in self.rd:
-            variable_meta = deepcopy(source_metadata['variables'][vdict['variable']])
-            variable_units = vdict['units'] or variable_meta['attrs'].get('units')
-            attrs = variable_meta['attrs'].copy()
-            if variable_meta['dtype_packed'] is None:
-                dtype = np.dtype(variable_meta['dtype'])
-                fill_value = variable_meta['fill_value']
-            else:
-                dtype = np.dtype(variable_meta['dtype_packed'])
-                fill_value = variable_meta['fill_value_packed']
-                # Remove scale factors and offsets from the metadata.
-                attrs.pop('scale_factor')
-                attrs.pop('add_offset', None)
-                attrs.pop('missing_value', None)
-                attrs.pop('_Fill_Value', None)
-            variable = Variable(vdict['variable'], vdict['alias'], units=variable_units, meta=variable_meta,
-                                request_dataset=self.rd, conform_units_to=vdict['conform_units_to'], dtype=dtype,
-                                fill_value=fill_value, attrs=attrs)
-            vc.add_variable(variable)
-
-        ret = NcField(variables=vc, spatial=spatial, temporal=loaded['temporal'], level=loaded['level'],
-                      realization=loaded['realization'], meta=source_metadata.copy(), uid=self.rd.did,
-                      name=self.rd.name, attrs=source_metadata['dataset'].copy())
-
-        # tdk: RESUME: apply any subset parameters
-        # Apply any subset parameters after the field is loaded.
-        if self.rd.time_range is not None:
-            ret = ret.get_between('temporal', min(self.rd.time_range), max(self.rd.time_range))
-        if self.rd.time_region is not None:
-            ret = ret.get_time_region(self.rd.time_region)
-        if self.rd.time_subset_func is not None:
-            ret = ret.get_time_subset_by_function(self.rd.time_subset_func)
-        if self.rd.level_range is not None:
+    def _open_(self, group_indexing=None, mode='r'):
+        try:
+            ret = nc.Dataset(self.rd.uri, mode=mode)
+        except (TypeError, RuntimeError):
             try:
-                ret = ret.get_between('level', min(self.rd.level_range), max(self.rd.level_range))
-            except AttributeError:
-                # there may be no level dimension
-                if ret.level is None:
-                    msg = messages.M4.format(self.rd.alias)
-                    raise ValueError(msg)
-                else:
-                    raise
+                ret = nc.MFDataset(self.rd.uri)
+            except KeyError as e:
+                # it is possible the variable is not in one of the data URIs. check for this to raise a cleaner error.
+                for uri in get_iter(self.rd.uri):
+                    # tdk: this should use request datasets?
+                    ds = nc.Dataset(uri, 'r')
+                    try:
+                        for variable in get_iter(self.rd.variable):
+                            try:
+                                ds.variables[variable]
+                            except KeyError:
+                                msg = 'The variable "{0}" was not found in URI "{1}".'.format(variable, uri)
+                                raise KeyError(msg)
+                    finally:
+                        ds.close()
+
+                # If all variables were found, raise the other error.
+                raise e
+
+        if group_indexing is not None:
+            for group_name in get_iter(group_indexing):
+                ret = ret.groups[group_name]
 
         return ret
 
-    # tdk: remove
-    @staticmethod
-    def _get_name_bounds_dimension_(source_metadata):
-        """
-        :param dict source_metadata: Metadata dictionary as returned from :attr:`~ocgis.RequestDataset.source_metadata`.
-        :returns: The name of the bounds suffix to use when creating dimensions. If no bounds are found in the source
-         metadata return ``None``.
-        :rtype: str or None
-        """
 
-        name_bounds_suffix = None
-        for v2 in source_metadata['dim_map'].itervalues():
-            # it is possible the dimension itself is none
-            try:
-                if v2 is not None and v2['bounds'] is not None:
-                    name_bounds_suffix = source_metadata['variables'][v2['bounds']]['dimensions'][1]
-                    break
-            except KeyError:
-                # bounds key is likely just not there
-                if 'bounds' in v2:
-                    raise
-        return name_bounds_suffix
+class DriverNetcdfCF(DriverNetcdf):
+    key = 'netcdf-cf'
+    _default_crs = env.DEFAULT_COORDSYS
+    _priority = True
+
+    def get_crs(self):
+        return get_crs_variable(self.metadata)
+
+    def get_dimension_map(self, metadata):
+        # Get dimension variable metadata. This involves checking for the presence of any bounds variables.
+        variables = metadata['variables']
+        axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
+        check_bounds = axes.keys()
+        check_bounds.pop(check_bounds.index('realization'))
+        for k, v in axes.items():
+            axes[k] = get_dimension_map_entry(v, variables)
+        for k in check_bounds:
+            if axes[k] is not None:
+                keys = ['bounds']
+                if k == 'time':
+                    keys += ['climatology']
+                bounds_var = get_by_key_list(variables[axes[k]['variable']]['attributes'], keys)
+                if bounds_var is not None:
+                    if bounds_var not in variables:
+                        msg = 'Bounds listed for variable "{0}" but the destination bounds variable "{1}" does not exist.'. \
+                            format(axes[k]['variable'], bounds_var)
+                        ocgis_lh(msg, logger='nc.driver', level=logging.WARNING)
+                        bounds_var = None
+                axes[k]['bounds'] = bounds_var
+
+        # Create the template dimension map dictionary.
+        ret = {k: v for k, v in axes.items() if v is not None}
+
+        # Check for coordinate system variables. This will check every variable.
+        crs_name = None
+        if self.rd._crs is not None and self.rd._crs != 'auto':
+            crs_name = self.rd._crs.name
+        elif self.crs is not None:
+            crs_name = self.crs.name
+        if crs_name is not None:
+            ret['crs'] = {'variable': crs_name}
+
+        return ret
+
+    def get_dimensioned_variables(self, dimension_map, metadata):
+        # tdk: add option to specify needed axes
+        axes_needed = ['time', 'x', 'y']
+        dvars = []
+
+        for vname, v in metadata['variables'].items():
+            found_axis = []
+            for a in axes_needed:
+                to_append = False
+                d = dimension_map.get(a)
+                if d is not None:
+                    for dname in v['dimensions']:
+                        if dname in d['names']:
+                            to_append = True
+                            break
+                found_axis.append(to_append)
+            if all(found_axis):
+                dvars.append(vname)
+
+        return dvars
 
 
 def read_from_collection(target, request_dataset, parent=None, name=None):

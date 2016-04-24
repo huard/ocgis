@@ -16,6 +16,7 @@ class AbstractDriver(object):
     __metaclass__ = abc.ABCMeta
 
     _default_crs = None
+    _priority = None
 
     def __init__(self, rd):
         self.rd = rd
@@ -81,17 +82,17 @@ class AbstractDriver(object):
         Close and finalize the open file object.
         """
 
-    @abc.abstractmethod
     def get_crs(self):
         """:rtype: ~ocgis.interface.base.crs.CoordinateReferenceSystem"""
+        return None
 
-    @abc.abstractmethod
     def get_dimension_map(self, metadata):
         """:rtype: dict"""
+        return {}
 
-    @abc.abstractmethod
     def get_dimensioned_variables(self, dimension_map, metadata):
         """:rtype: tuple(str, ...)"""
+        return None
 
     @abc.abstractmethod
     def get_dump_report(self):

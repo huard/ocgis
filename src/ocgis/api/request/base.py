@@ -8,7 +8,7 @@ from copy import deepcopy
 from ocgis import constants
 from ocgis import env
 from ocgis.api.collection import AbstractCollection
-from ocgis.api.request.driver.nc import DriverNetcdf
+from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
 from ocgis.interface.base.field import Field
@@ -129,6 +129,7 @@ class RequestDataset(object):
     # contains key-value links to drivers. as new drivers are added, this dictionary must be updated.
     _Drivers = OrderedDict()
     _Drivers[DriverNetcdf.key] = DriverNetcdf
+    _Drivers[DriverNetcdfCF.key] = DriverNetcdfCF
     _Drivers[DriverVector.key] = DriverVector
 
     # tdk: RESUME: driver-specific option for netcdf: grid_abstraction - perhaps driver_options?
@@ -612,20 +613,38 @@ def get_autodiscovered_driver(uri):
     :raises: RequestValidationError
     """
 
+    possible = []
     for element in get_iter(uri):
         for driver in RequestDataset._Drivers.itervalues():
             for pattern in driver.extensions:
                 if re.match(pattern, element) is not None:
-                    return driver
+                    possible.append(driver)
 
-    msg = 'Driver not found for URI: {0}'.format(uri)
-    exc = RequestValidationError('driver/uri', msg)
-    ocgis_lh(logger='request', exc=exc)
+    exc_msg = None
+    ret = None
+    if len(possible) == 0:
+        exc_msg = 'Driver not found for URI: {0}'.format(uri)
+    elif len(possible) == 1:
+        ret = possible[0]
+    else:
+        sub_possible = []
+        for p in possible:
+            if p._priority is True:
+                sub_possible.append(p)
+        if len(sub_possible) == 1:
+            ret = sub_possible[0]
+        else:
+            exc_msg = 'More than one possible driver matched URI: {}'.format(uri)
+
+    if exc_msg is None:
+        return ret
+    else:
+        ocgis_lh(logger='request', exc=RequestValidationError('driver/uri', exc_msg))
 
 
 def get_driver(driver):
     try:
-        if not isinstance(basestring, driver):
+        if not isinstance(driver, basestring):
             driver = driver.key.lower()
         klass = RequestDataset._Drivers[driver]
     except KeyError:
