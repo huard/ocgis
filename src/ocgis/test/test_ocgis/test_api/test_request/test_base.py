@@ -141,6 +141,12 @@ class TestRequestDataset(TestBase):
         self.assertEqual(field['a'].fill_value, 1000.)
         self.assertEqual(field['tt'].attrs['calendar'], 'blah')
 
+    def test_name(self):
+        for name in [None, 'morning']:
+            rd = self.get_request_dataset_netcdf(name=name)
+            field = rd.get()
+            self.assertEqual(field.name, name)
+
     def test_t_conform_units_to(self):
         t_conform_units_to = 'hours since 2000-1-1'
         rd = self.get_request_dataset_netcdf(dimension_map={'time': {'variable': 'tt'}},

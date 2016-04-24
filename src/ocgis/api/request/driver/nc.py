@@ -27,7 +27,7 @@ from ocgis.util.logging_ocgis import ocgis_lh
 
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
-    key = 'netCDF'
+    key = 'netcdf'
     output_formats = 'all'
     _default_crs = env.DEFAULT_COORDSYS
 
@@ -409,6 +409,7 @@ class DriverNetcdf(AbstractDriver):
 
 
 def read_from_collection(target, request_dataset, parent=None, name=None):
+    name = name or request_dataset.name
     ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
     for name, ncvar in target.variables.iteritems():
         ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)

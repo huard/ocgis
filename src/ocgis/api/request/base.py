@@ -17,6 +17,7 @@ from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.util.units import get_units_object, get_are_units_equivalent
 
 
+# tdk: clean-up
 class RequestDataset(object):
     #todo: document vector format
     """
@@ -137,7 +138,6 @@ class RequestDataset(object):
                  name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True,
                  opened=None):
 
-        self._name = None
         self._level_range = None
         self._time_range = None
         self._time_range = None
@@ -152,8 +152,7 @@ class RequestDataset(object):
         self.opened = opened
         if self.opened is not None and driver is None:
             msg = 'If "opened" is not None, then a "driver" must be provided.'
-            exc = RequestValidationError('driver', msg)
-            ocgis_lh(logger='request', exc=exc)
+            ocgis_lh(logger='request', exc=RequestValidationError('driver', msg))
 
         # Field creation options.
         self.format_time = format_time
@@ -163,19 +162,14 @@ class RequestDataset(object):
 
         if uri is None:
             if opened is None:
-                raise RequestValidationError('uri', 'Cannot be None')
+                ocgis_lh(logger='request', exc=RequestValidationError('uri', 'Cannot be None'))
         else:
-            self._uri = self._get_uri_(uri)
+            self._uri = get_uri(uri)
 
         if driver is None:
-            klass = self._get_autodiscovered_driver_(self.uri)
+            klass = get_autodiscovered_driver(uri)
         else:
-            try:
-                if not isinstance(basestring, driver):
-                    driver = driver.key
-                klass = self._Drivers[driver]
-            except KeyError:
-                raise RequestValidationError('driver', 'Driver not found: {0}'.format(driver))
+            klass = get_driver(driver)
         self.driver = klass(self)
 
         if variable is not None:
@@ -220,8 +214,13 @@ class RequestDataset(object):
         else:
             return False
 
+    # tdk: remove
+    @property
+    def _name(self):
+        raise NotImplementedError
+
     def __iter__(self):
-        attrs = ['alias', 'variable', 'units', 'conform_units_to']
+        attrs = ['variable', 'units', 'conform_units_to']
         for ii in range(len(self)):
             yield {a: get_tuple(getattr(self, a))[ii] for a in attrs}
 
@@ -297,18 +296,6 @@ class RequestDataset(object):
         from ocgis.api.parms.definition import LevelRange
 
         self._level_range = LevelRange(value)
-
-    @property
-    def name(self):
-        if self._name is None:
-            ret = '_'.join(get_tuple(self.alias))
-        else:
-            ret = self._name
-        return ret
-
-    @name.setter
-    def name(self, value):
-        self._name = value
 
     @property
     def dimension_map(self):
@@ -435,24 +422,6 @@ class RequestDataset(object):
         ret = ip._as_dct_()
         return ret
 
-    @classmethod
-    def _get_autodiscovered_driver_(cls, uri):
-        """
-        :param str uri: The target URI containing data for which to choose a driver.
-        :returns: The correct driver for opening the ``uri``.
-        :rtype: :class:`ocgis.api.request.driver.base.AbstractDriver`
-        :raises: RequestValidationError
-        """
-
-        for element in get_iter(uri):
-            for driver in cls._Drivers.itervalues():
-                for pattern in driver.extensions:
-                    if re.match(pattern, element) is not None:
-                        return driver
-
-        msg = 'Driver not found for URI: {0}'.format(uri)
-        raise RequestValidationError('driver/uri', msg)
-
     def _get_meta_rows_(self):
         if self.time_range is None:
             tr = None
@@ -474,43 +443,6 @@ class RequestDataset(object):
                 '      Time Units: {0}'.format(self.t_units),
                 '      Time Calendar: {0}'.format(self.t_calendar)]
         return rows
-
-    @staticmethod
-    def _get_uri_(uri, ignore_errors=False, followlinks=True):
-        out_uris = []
-        if isinstance(uri, basestring):
-            uris = [uri]
-        else:
-            uris = uri
-        assert (len(uri) >= 1)
-        for uri in uris:
-            ret = None
-            # check if the path exists locally
-            if os.path.exists(uri) or '://' in uri:
-                ret = uri
-            # if it does not exist, check the directory locations
-            else:
-                if env.DIR_DATA is not None:
-                    if isinstance(env.DIR_DATA, basestring):
-                        dirs = [env.DIR_DATA]
-                    else:
-                        dirs = env.DIR_DATA
-                    for directory in dirs:
-                        for filepath in locate(uri, directory, followlinks=followlinks):
-                            ret = filepath
-                            break
-                if ret is None:
-                    if not ignore_errors:
-                        raise (ValueError(
-                            'File not found: "{0}". Check env.DIR_DATA or ensure a fully qualified URI is used.'.format(
-                                uri)))
-                else:
-                    if not os.path.exists(ret) and not ignore_errors:
-                        raise (ValueError(
-                            'Path does not exist and is likely not a remote URI: "{0}". Set "ignore_errors" to True if this is not the case.'.format(
-                                ret)))
-            out_uris.append(ret)
-        return out_uris
 
     def _validate_time_subset_(self):
         if not validate_time_subset(self.time_range, self.time_region):
@@ -670,3 +602,70 @@ def validate_unit_equivalence(src_units, dst_units):
         if not get_are_units_equivalent((s, d)):
             msg = 'The units specified in "{2}" ("{0}") are not equivalent to the source units "{1}".'
             raise RequestValidationError(ConformUnitsTo.name, msg.format(s, d, ConformUnitsTo.name))
+
+
+def get_autodiscovered_driver(uri):
+    """
+    :param str uri: The target URI containing data for which to choose a driver.
+    :returns: The correct driver for opening the ``uri``.
+    :rtype: :class:`ocgis.api.request.driver.base.AbstractDriver`
+    :raises: RequestValidationError
+    """
+
+    for element in get_iter(uri):
+        for driver in RequestDataset._Drivers.itervalues():
+            for pattern in driver.extensions:
+                if re.match(pattern, element) is not None:
+                    return driver
+
+    msg = 'Driver not found for URI: {0}'.format(uri)
+    exc = RequestValidationError('driver/uri', msg)
+    ocgis_lh(logger='request', exc=exc)
+
+
+def get_driver(driver):
+    try:
+        if not isinstance(basestring, driver):
+            driver = driver.key.lower()
+        klass = RequestDataset._Drivers[driver]
+    except KeyError:
+        exc = RequestValidationError('driver', 'Driver not found: {0}'.format(driver))
+        ocgis_lh(logger='request', exc=exc)
+    return klass
+
+
+def get_uri(uri, ignore_errors=False, followlinks=True):
+    out_uris = []
+    if isinstance(uri, basestring):
+        uris = [uri]
+    else:
+        uris = uri
+    assert (len(uri) >= 1)
+    for uri in uris:
+        ret = None
+        # check if the path exists locally
+        if os.path.exists(uri) or '://' in uri:
+            ret = uri
+        # if it does not exist, check the directory locations
+        else:
+            if env.DIR_DATA is not None:
+                if isinstance(env.DIR_DATA, basestring):
+                    dirs = [env.DIR_DATA]
+                else:
+                    dirs = env.DIR_DATA
+                for directory in dirs:
+                    for filepath in locate(uri, directory, followlinks=followlinks):
+                        ret = filepath
+                        break
+            if ret is None:
+                if not ignore_errors:
+                    msg = 'File not found: "{0}". Check env.DIR_DATA or ensure a fully qualified URI is used.'.format(
+                        uri)
+                    ocgis_lh(logger='request', exc=ValueError(msg))
+            else:
+                if not os.path.exists(ret) and not ignore_errors:
+                    msg = 'Path does not exist and is likely not a remote URI: "{0}". Set "ignore_errors" to True if this is not the case.'.format(
+                        ret)
+                    ocgis_lh(msg, exc=ValueError(msg))
+        out_uris.append(ret)
+    return out_uris
