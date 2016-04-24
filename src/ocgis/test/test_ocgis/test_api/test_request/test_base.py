@@ -73,8 +73,10 @@ class TestRequestDataset(TestBase):
         rd = self.get_request_dataset_netcdf()
         path = rd.uri
         with self.nc_scope(path) as ds:
-            rd2 = RequestDataset(opened=ds, driver=DriverNetcdf)
-        thh
+            for _ in range(1):
+                rd2 = RequestDataset(opened=ds, driver=DriverNetcdf)
+                field = rd2.get()
+                self.assertIsInstance(field, OcgField)
 
     def test_conform_units_to(self):
         rd = self.get_request_dataset_netcdf(variable='a', units='celsius', conform_units_to='fahrenheit')

@@ -39,7 +39,7 @@ class DriverNetcdf(AbstractDriver):
             self.close(ds)
         return ret
 
-    def open(self, group_indexing=None, mode='r'):
+    def _open_(self, group_indexing=None, mode='r'):
         try:
             ret = nc.Dataset(self.rd.uri, mode=mode)
         except (TypeError, RuntimeError):
@@ -48,6 +48,7 @@ class DriverNetcdf(AbstractDriver):
             except KeyError as e:
                 # it is possible the variable is not in one of the data URIs. check for this to raise a cleaner error.
                 for uri in get_iter(self.rd.uri):
+                    # tdk: this should use request datasets?
                     ds = nc.Dataset(uri, 'r')
                     try:
                         for variable in get_iter(self.rd.variable):
@@ -68,7 +69,7 @@ class DriverNetcdf(AbstractDriver):
 
         return ret
 
-    def close(self, obj):
+    def _close_(self, obj):
         obj.close()
 
     def get_crs(self):
@@ -147,7 +148,7 @@ class DriverNetcdf(AbstractDriver):
         try:
             ret = read_from_collection(ds, self.rd, parent=None)
         finally:
-            ds.close()
+            self.close(ds)
         return ret
 
     def allocate_variable_without_value(self, variable):

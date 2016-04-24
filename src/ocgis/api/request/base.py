@@ -130,7 +130,7 @@ class RequestDataset(object):
     _Drivers[DriverNetcdf.key] = DriverNetcdf
     _Drivers[DriverVector.key] = DriverVector
 
-    # tdk: RESUME: driver-specific option for netcdf: s_abstraction
+    # tdk: RESUME: driver-specific option for netcdf: grid_abstraction - perhaps driver_options?
     def __init__(self, uri=None, variable=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,

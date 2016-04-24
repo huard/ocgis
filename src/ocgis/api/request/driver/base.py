@@ -67,8 +67,15 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
-    @abc.abstractmethod
     def close(self, obj):
+        if self.rd.opened is None:
+            self._close_(obj)
+        else:
+            pass
+
+    # tdk: order
+    @abc.abstractmethod
+    def _close_(self, obj):
         """
         Close and finalize the open file object.
         """
@@ -192,8 +199,16 @@ class AbstractDriver(object):
         for line in Inspect(request_dataset=self.rd).get_report_possible():
             print line
 
-    @abc.abstractmethod
     def open(self):
+        if self.rd.opened is None:
+            ret = self._open_()
+        else:
+            ret = self.rd.opened
+        return ret
+
+    # tdk: order
+    @abc.abstractmethod
+    def _open_(self):
         """
         :rtype: object
         """
