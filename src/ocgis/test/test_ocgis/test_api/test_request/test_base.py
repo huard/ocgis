@@ -96,6 +96,16 @@ class TestRequestDataset(TestBase):
         rd = self.get_request_dataset_netcdf(crs=crs)
         self.assertEqual(rd.crs, crs)
 
+    def test_get(self):
+        format_time = False
+        grid_abstraction = 'pool'
+        dimension_map = {'time': {'variable': 'tt'}}
+        rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, format_time=format_time,
+                                             grid_abstraction=grid_abstraction)
+        field = rd.get()
+        self.assertEqual(field.grid_abstraction, grid_abstraction)
+        self.assertEqual(field.time.format_time, False)
+
     def test_level_range(self):
         dimension_map = {'level': {'variable': 'the_level'}}
         rd = self.get_request_dataset_netcdf(dimension_map=dimension_map, level_range=[10.5, 13.5])

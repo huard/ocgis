@@ -386,12 +386,12 @@ class RequestDataset(object):
             raise NoDimensionedVariablesFound
         return ret
 
-    def get(self, **kwargs):
+    def get(self):
         """
         :rtype: :class:`~ocgis.interface.base.Field`
         """
         # Get the field from the driver object.
-        return self.driver.get_field(**kwargs)
+        return self.driver.get_field(format_time=self.format_time, grid_abstraction=self.grid_abstraction)
 
     def inspect(self):
         """
