@@ -365,7 +365,7 @@ class RequestDataset(object):
                 validate_units('units', value)
 
             m = self.metadata['variables']
-            for v, u in zip(self.variable, value):
+            for v, u in zip(get_tuple(self.variable), value):
                 m[v]['attributes']['units'] = u
 
     # tdk: remove

@@ -216,6 +216,11 @@ class TestRequestDataset(TestBase):
         with self.assertRaises(NoDimensionedVariablesFound):
             assert rd.units
 
+        # Test with a single variable. Multi-character variable names were not appropriately iterated across.
+        rd = self.get_request_dataset_netcdf(variable='the_level', units='hectopascals')
+        field = rd.get()
+        self.assertEqual(field['the_level'].units, 'hectopascals')
+
 # tdk: migrate to TestRequestDataset or remove
 class OldTestRequestDataset(TestBase):
 

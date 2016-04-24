@@ -15,7 +15,7 @@ import ocgis
 from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
-from ocgis.api.request.driver.nc import DriverNetcdf
+from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError, \
     NoDimensionedVariablesFound
 from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem, CFSpherical
@@ -31,12 +31,24 @@ from ocgis.util.units import get_units_object
 
 
 #tdk: clean-up
+
+class TestDriverNetcdf(TestBase):
+    def test_init(self):
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.createDimension('a', 2)
+        rd = RequestDataset(uri=path, driver='netcdf')
+        self.assertIsInstance(rd.driver, DriverNetcdf)
+        field = rd.get()
+        self.assertEqual(len(field), 0)
+
+
 class TestDriverNetcdfCF(TestBase):
     def get_drivernetcdf(self, **kwargs):
         path = self.get_drivernetcdf_file_path()
         kwargs['uri'] = path
         rd = RequestDataset(**kwargs)
-        d = DriverNetcdf(rd)
+        d = DriverNetcdfCF(rd)
         return d
 
     def get_drivernetcdf_file_path(self):
@@ -107,7 +119,7 @@ class TestDriverNetcdfCF(TestBase):
 
     @attr('data')
     def test_combo_data(self):
-        # tdk: test request dataset get() checks for appropriate dimensions
+        # tdk: test request dataset get() checks for appropriate dimensions - perhaps add a "strict" option
         rd = self.test_data.get_rd('cancm4_tas')
         field = rd.get()
         self.assertIsInstance(field, OcgField)
@@ -120,19 +132,17 @@ class TestDriverNetcdfCF(TestBase):
         rd = RequestDataset(uri=path, units='celsius')
         field = rd.get()
         self.assertEqual(field['tas'].units, 'celsius')
-        thh
 
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.
-        dm = {'time': {'variable': 'does_not_exist'}}
+        dm = {'level': {'variable': 'does_not_exist'}}
         driver = self.get_drivernetcdf(dimension_map=dm)
         self.assertDictEqual(driver.rd.dimension_map, dm)
         # The driver dimension map always loads from the data.
         self.assertNotEqual(driver.dimension_map, dm)
         self.assertNotEqual(dm, driver.get_dimension_map(driver.metadata))
         field = driver.get_field()
-        with self.assertRaises(KeyError):
-            assert field.time
+        self.assertIsNone(field.time)
 
     def test_get_dimensioned_variables(self):
         driver = self.get_drivernetcdf()
@@ -169,14 +179,14 @@ class TestDriverNetcdfCF(TestBase):
             v.grid_mapping_name = 'latitude_longitude'
         # First, test the default is found.
         rd = RequestDataset(uri=path)
-        driver = DriverNetcdf(rd)
+        driver = DriverNetcdfCF(rd)
         self.assertEqual(driver.crs, CFSpherical())
         self.assertEqual(driver.get_field().crs, CFSpherical())
         # Second, test the overloaded CRS is found.
         desired = CoordinateReferenceSystem(epsg=2136)
         rd = RequestDataset(uri=path, crs=desired)
         self.assertEqual(rd.crs, desired)
-        driver = DriverNetcdf(rd)
+        driver = DriverNetcdfCF(rd)
         self.assertEqual(driver.crs, CFSpherical())
         field = driver.get_field()
         self.assertEqual(field.crs, desired)
@@ -188,7 +198,7 @@ class TestDriverNetcdfCF(TestBase):
         with self.nc_scope(path, 'w') as ds:
             ds.createVariable('nothing', np.int)
         rd = RequestDataset(uri=path)
-        driver = DriverNetcdf(rd)
+        driver = DriverNetcdfCF(rd)
         self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
         self.assertEqual(driver.crs, env.DEFAULT_COORDSYS)
         self.assertEqual(driver.get_field().crs, env.DEFAULT_COORDSYS)
