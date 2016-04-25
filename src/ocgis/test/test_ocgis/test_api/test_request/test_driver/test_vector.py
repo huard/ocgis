@@ -54,6 +54,8 @@ class TestDriverVector(TestBase):
         self.assertIsInstance(field.geom, GeometryVariable)
         self.assertIsInstance(field.crs, CoordinateReferenceSystem)
         self.assertIsNone(field.time)
+        for v in field.values():
+            self.assertIsNotNone(v.value)
 
     def test_get_variable_collection(self):
         driver = self.get_driver()

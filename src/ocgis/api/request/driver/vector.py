@@ -1,6 +1,8 @@
 from collections import OrderedDict
 from copy import deepcopy
 
+import numpy as np
+
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.interface.base.crs import CoordinateReferenceSystem
@@ -16,6 +18,15 @@ class DriverVector(AbstractDriver):
     key = 'vector'
     output_formats = [constants.OUTPUT_FORMAT_NUMPY, constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH,
                       constants.OUTPUT_FORMAT_SHAPEFILE]
+
+    def allocate_variable_value(self, variable):
+        value = self.get_variable_value(variable)
+        for k, v in value.items():
+            variable.parent[k]._set_value_(v)
+        # Conform the units if requested.
+        conform_units_to = self.rd.metadata['variables'][variable.name].get('conform_units_to')
+        if conform_units_to is not None:
+            variable.cfunits_conform(conform_units_to)
 
     def _close_(self, obj):
         pass
@@ -67,10 +78,11 @@ class DriverVector(AbstractDriver):
                                                                    'name': constants.NAME_GEOMETRY_DIMENSION}}
             m['variables'] = OrderedDict()
             for p, d in m['schema']['properties'].items():
+                d = get_dtype_from_fiona_type(d)
                 m['variables'][p] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,), 'dtype': d, 'name': p,
                                      'attributes': OrderedDict()}
             m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
-                                                    'dtype': m['schema']['geometry'],
+                                                    'dtype': object,
                                                     'name': constants.NAME_GEOMETRY_DIMENSION,
                                                                  'attributes': OrderedDict()}
             return m
@@ -95,6 +107,9 @@ class DriverVector(AbstractDriver):
             new_dimension = SourcedDimension(name=desired_dimension['name'], length=desired_dimension['length'])
             super(SourcedVariable, variable)._set_dimensions_(new_dimension)
 
+        if variable._dtype is None:
+            variable.dtype = mv['dtype']
+
         variable_attrs = variable._attrs
         for k, v in mv['attributes'].items():
             if k not in variable_attrs:
@@ -114,8 +129,23 @@ class DriverVector(AbstractDriver):
         parent.add_variable(self.get_crs())
         return parent
 
-    def get_variable_value(self):
-        raise NotImplementedError
+    def get_variable_value(self, variable):
+        # tdk: test conforming units!
+        # For vector formats based on loading via iteration, it makes sense to load all values with a single pass.
+        if variable.parent is None:
+            raise NotImplementedError
+        else:
+            ret = {}
+            for v in variable.parent.values():
+                if not isinstance(v, CoordinateReferenceSystem):
+                    ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
+            g = self.open()
+            for idx, row in enumerate(g):
+                for v in self.get_dimensioned_variables():
+                    ret[v][idx] = row['properties'][v]
+                ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+            self.close(g)
+        return ret
 
     def write_gridxy(self, *args, **kwargs):
         raise NotImplementedError
@@ -125,3 +155,15 @@ class DriverVector(AbstractDriver):
 
     def write_variable_collection(self, *args, **kwargs):
         raise NotImplementedError
+
+
+def get_dtype_from_fiona_type(ftype):
+    if ftype.startswith('int'):
+        ret = np.int
+    elif ftype.startswith('str'):
+        ret = object
+    elif ftype.startswith('float'):
+        ret = np.float
+    else:
+        raise NotImplementedError(ftype)
+    return ret

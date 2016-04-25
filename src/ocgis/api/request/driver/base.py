@@ -113,7 +113,7 @@ class AbstractDriver(object):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_variable_value(self):
+    def get_variable_value(self, variable):
         """Get value for the variable."""
 
     def get_source_metadata_as_json(self):
