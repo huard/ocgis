@@ -33,7 +33,6 @@ class DriverVector(AbstractDriver):
         return ret
 
     def get_dimensioned_variables(self):
-        # tdk: the geometry variable should not be part of this?
         return self.rd.metadata['variables'].keys()
 
     def get_dump_report(self):
@@ -74,8 +73,9 @@ class DriverVector(AbstractDriver):
             for p, d in m['schema']['properties'].items():
                 m['variables'][p] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,), 'dtype': d, 'name': p,
                                      'attributes': OrderedDict()}
-            m['variables'][constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
-                                                                 'dtype': m['schema']['geometry'], 'name': p,
+            m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
+                                                    'dtype': m['schema']['geometry'],
+                                                    'name': constants.NAME_GEOMETRY_DIMENSION,
                                                                  'attributes': OrderedDict()}
             return m
         finally:
@@ -88,15 +88,19 @@ class DriverVector(AbstractDriver):
     def allocate_variable_without_value(self, variable):
         # tdk: set the variable's data type from the fiona datatype
         m = self.rd.metadata
+        if isinstance(variable, GeometryVariable):
+            mv = m[constants.NAME_GEOMETRY_DIMENSION]
+        else:
+            mv = m['variables'][variable.name]
 
         if variable._dimensions is None:
-            desired_dimension = m['variables'][variable.name]['dimensions'][0]
+            desired_dimension = mv['dimensions'][0]
             desired_dimension = m['dimensions'][desired_dimension]
             new_dimension = SourcedDimension(name=desired_dimension['name'], length=desired_dimension['length'])
             super(SourcedVariable, variable)._set_dimensions_(new_dimension)
 
         variable_attrs = variable._attrs
-        for k, v in m['variables'][variable.name]['attributes'].items():
+        for k, v in mv['attributes'].items():
             if k not in variable_attrs:
                 variable_attrs[k] = deepcopy(v)
 
