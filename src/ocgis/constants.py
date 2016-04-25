@@ -150,4 +150,6 @@ NAME_UID_FIELD = 'fid'
 DEFAULT_UID_START = 1
 
 # Default name for the geometry dimensions.
-NAME_GEOMETRY_DIMENSION = 'ngeom'
+NAME_GEOMETRY_DIMENSION = 'ocgis_geom'
+
+DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER = 'ocgis_geom_uid'

@@ -16,7 +16,7 @@ from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer
+from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer, SourcedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -111,12 +111,12 @@ class AbstractSpatialContainer(AbstractContainer, AbstractOperationsSpatialObjec
         AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
 
-class AbstractSpatialVariable(Variable, AbstractOperationsSpatialObject):
+class AbstractSpatialVariable(SourcedVariable, AbstractOperationsSpatialObject):
     __metaclass__ = ABCMeta
 
     def __init__(self, **kwargs):
         crs = kwargs.pop('crs', None)
-        Variable.__init__(self, **kwargs)
+        SourcedVariable.__init__(self, **kwargs)
         AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
 
@@ -168,6 +168,7 @@ class GeometryVariable(AbstractSpatialVariable):
         else:
             return self.parent[self._name_uid]
 
+    # tdk: remove
     @classmethod
     def read_gis(cls, source, name, name_uid, name_dimension=None):
         # tdk: RESUME: this should be creating a field and using a driver
@@ -198,8 +199,7 @@ class GeometryVariable(AbstractSpatialVariable):
             self.parent = VariableCollection(variables=[self])
         self.parent.add_variable(variable, force=True)
         self._name_uid = variable.name
-        # tdk: this should be a constant
-        variable.attrs['ocgis'] = 'ocgis_geom_uid'
+        variable.attrs['ocgis'] = constants.DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER
 
     def get_intersects(self, *args, **kwargs):
         return_slice = kwargs.pop('return_slice', False)

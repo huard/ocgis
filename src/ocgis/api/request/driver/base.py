@@ -16,7 +16,7 @@ class AbstractDriver(object):
     __metaclass__ = abc.ABCMeta
 
     _default_crs = None
-    _priority = None
+    _priority = False
 
     def __init__(self, rd):
         self.rd = rd

@@ -1,24 +1,26 @@
-from ocgis import RequestDataset, GeomCabinet, GeomCabinetIterator
+import os
+
+from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector
-from ocgis.interface.base.crs import WGS84
+from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.test.base import TestBase
-from ocgis.test.base import attr
 
 
 class TestDriverVector(TestBase):
     def get_driver(self, **kwargs):
-        rd = self.get_rd(**kwargs)
+        rd = self.get_request_dataset(**kwargs)
         driver = DriverVector(rd)
         return driver
 
-    def get_rd(self, variable=None):
-        uri = GeomCabinet().get_shp_path('state_boundaries')
+    def get_request_dataset(self, variable=None):
+        uri = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
+        # uri = GeomCabinet().get_shp_path('state_boundaries')
         rd = RequestDataset(uri=uri, driver='vector', variable=variable)
         return rd
 
-    @attr('data')
     def test_init(self):
         self.assertIsInstances(self.get_driver(), (DriverVector, AbstractDriver))
 
@@ -26,68 +28,55 @@ class TestDriverVector(TestBase):
                   constants.OUTPUT_FORMAT_SHAPEFILE]
         self.assertAsSetEqual(actual, DriverVector.output_formats)
 
-    @attr('data')
     def test_close(self):
         driver = self.get_driver()
         sci = driver.open()
         driver.close(sci)
 
-    @attr('data')
     def test_get_crs(self):
         driver = self.get_driver()
         self.assertEqual(WGS84(), driver.get_crs())
 
-    @attr('data')
     def test_get_dimensioned_variables(self):
         driver = self.get_driver()
         target = driver.get_dimensioned_variables()
         self.assertEqual(target, [u'UGID', u'STATE_FIPS', u'ID', u'STATE_NAME', u'STATE_ABBR'])
 
-    @attr('data')
     def test_get_dump_report(self):
         driver = self.get_driver()
         lines = driver.get_dump_report()
         self.assertTrue(len(lines) > 5)
 
-    @attr('data')
     def test_get_field(self):
         driver = self.get_driver()
         field = driver.get_field()
-        self.assertIsNone(field.spatial.properties)
-        self.assertEqual(len(field.variables), 5)
-        for variable in field.variables.itervalues():
-            self.assertEqual(variable.shape, (1, 1, 1, 1, 51))
+        self.assertEqual(len(field), 7)
+        self.assertIsInstance(field.geom, GeometryVariable)
+        self.assertIsInstance(field.crs, CoordinateReferenceSystem)
+        self.assertIsNone(field.time)
 
-        # test with a variable
-        driver = self.get_driver(variable=['ID', 'STATE_NAME'])
-        field = driver.get_field()
-        self.assertIn('ID', field.variables)
-        self.assertEqual(field.variables['ID'].shape, (1, 1, 1, 1, 51))
-
-        # test an alias and name
-        rd = self.get_rd(variable='ID')
-        rd.alias = 'another'
-        rd.name = 'something_else'
-        driver = DriverVector(rd)
-        field = driver.get_field()
-        self.assertEqual(field.name, rd.name)
-        self.assertIn('another', field.variables)
-
-    @attr('data')
-    def test_get_source_metadata(self):
+    def test_get_variable_collection(self):
         driver = self.get_driver()
-        meta = driver.get_source_metadata()
-        self.assertIsInstance(meta, dict)
-        self.assertTrue(len(meta) > 2)
+        vc = driver.get_variable_collection()
+        self.assertEqual(len(vc), 7)
+        for v in vc.values():
+            if not isinstance(v, CoordinateReferenceSystem):
+                self.assertEqual(v.dimensions[0]._src_idx.shape[0], 51)
+                self.assertIsNone(v._value)
 
-    @attr('data')
     def test_inspect(self):
         driver = self.get_driver()
         with self.print_scope() as ps:
             driver.inspect()
         self.assertTrue(len(ps.storage) >= 1)
 
-    @attr('data')
+    def test_metadata(self):
+        driver = self.get_driver()
+        m = driver.metadata
+        self.assertIsInstance(m, dict)
+        self.assertTrue(len(m) > 2)
+        self.assertIn('variables', m)
+
     def test_open(self):
         driver = self.get_driver()
         sci = driver.open()
