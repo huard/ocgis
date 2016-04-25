@@ -1,7 +1,11 @@
+import datetime
 from collections import OrderedDict
 from copy import deepcopy
+from types import NoneType
 
+import fiona
 import numpy as np
+from shapely.geometry import mapping
 
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
@@ -153,8 +157,41 @@ class DriverVector(AbstractDriver):
     def write_variable(self, *args, **kwargs):
         raise NotImplementedError
 
-    def write_variable_collection(self, *args, **kwargs):
-        raise NotImplementedError
+    @staticmethod
+    def write_variable_collection(field, fiona_or_path, **kwargs):
+        # tdk: test passing an open fiona file object
+        # tdk: test with a time dimension
+        # tdk: test writing cf netcdf data
+
+        if isinstance(fiona_or_path, basestring):
+            fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
+            fiona_crs = get_fiona_crs(field, kwargs.get('crs'))
+            fiona_schema = get_fiona_schema(field, kwargs.get('schema'))
+            sink = fiona.open(fiona_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
+            should_close = True
+        else:
+            sink = fiona_or_path
+            should_close = False
+
+        try:
+            iterators = {k: (ii for ii in range(len(v))) for k, v in field.dimensions.items()}
+            properties = fiona_schema['properties'].keys()
+            while True:
+                try:
+                    dslice = {k: v.next() for k, v in iterators.items()}
+                except StopIteration:
+                    break
+                else:
+                    sub = field[dslice]
+                    record = OrderedDict()
+                    for p in properties:
+                        record[p] = sub[p].value[0]
+                    record = {'properties': record}
+                    record['geometry'] = mapping(sub.geom.value[0])
+                    sink.write(record)
+        finally:
+            if should_close:
+                sink.close()
 
 
 def get_dtype_from_fiona_type(ftype):
@@ -166,4 +203,81 @@ def get_dtype_from_fiona_type(ftype):
         ret = np.float
     else:
         raise NotImplementedError(ftype)
+    return ret
+
+
+def get_fiona_type_from_variable(variable):
+    # tdk: test with all masked data
+    m = {datetime.date: 'str',
+         datetime.datetime: 'str',
+         np.int64: 'int',
+         NoneType: None,
+         np.int32: 'int',
+         np.float64: 'float',
+         np.float32: 'float',
+         np.float16: 'float',
+         np.int16: 'int',
+         np.int32: 'int',
+         str: 'str',
+         np.dtype('int32'): 'int',
+         np.dtype('int64'): 'int',
+         np.dtype('float32'): 'float',
+         np.dtype('float64'): 'float',
+         int: 'int',
+         float: 'float',
+         object: 'str'}
+    dtype = variable.dtype
+    ftype = m[dtype]
+    return ftype
+
+
+def get_fiona_crs(vc_or_field, default):
+    ret = default
+    if ret is None:
+        try:
+            ret = vc_or_field.crs.value
+        except AttributeError:
+            ret = None
+    return ret
+
+
+def get_fiona_string_width(value):
+    pass
+
+
+def get_fiona_schema(vc_or_field, default):
+    ret = default
+    if ret is None:
+        ret = {}
+        ret['geometry'] = get_fiona_geometry_type(vc_or_field)
+        ret['properties'] = OrderedDict()
+        p = ret['properties']
+        for v in vc_or_field.values():
+            if not isinstance(v, (GeometryVariable, CoordinateReferenceSystem)):
+                p[v.name] = get_fiona_type_from_variable(v)
+        for k, v in p.items():
+            if v == 'str':
+                p[k] = get_fiona_string_width(vc_or_field[k].masked_value.compressed())
+    return ret
+
+
+def get_fiona_string_width(arr):
+    ret = 0
+    for ii in arr.flat:
+        if len(ii) > ret:
+            ret = len(ii)
+    ret = 'str:{}'.format(ret)
+    return ret
+
+
+def get_fiona_geometry_type(vc_or_field):
+    try:
+        ret = vc_or_field.geom.geom_type
+    except AttributeError:
+        for v in vc_or_field.values:
+            try:
+                ret = v.geom_type
+                break
+            except AttributeError:
+                continue
     return ret

@@ -1,5 +1,7 @@
 import os
 
+import fiona
+
 from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
@@ -56,6 +58,19 @@ class TestDriverVector(TestBase):
         self.assertIsNone(field.time)
         for v in field.values():
             self.assertIsNotNone(v.value)
+
+        # Test writing the field to file.
+        path = self.get_temporary_file_path('out.shp')
+        field.write(path, driver=DriverVector)
+        with fiona.open(path) as source:
+            self.assertEqual(len(source), 51)
+        rd = RequestDataset(uri=path)
+        field2 = rd.get()
+        for v in field.values():
+            if isinstance(v, CoordinateReferenceSystem):
+                self.assertEqual(v, field2.crs)
+            else:
+                self.assertNumpyAll(v.value, field2[v.name].value)
 
     def test_get_variable_collection(self):
         driver = self.get_driver()
