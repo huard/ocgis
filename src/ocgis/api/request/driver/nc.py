@@ -18,9 +18,6 @@ from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, ge
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
-# tdk: rename key to "netcdf-cf"
-
-# tdk: order
 class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
     key = 'netcdf'
@@ -186,38 +183,21 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
-    def _close_(self, obj):
-        obj.close()
-
     def _open_(self, group_indexing=None, mode='r'):
-        try:
-            ret = nc.Dataset(self.rd.uri, mode=mode)
-        except (TypeError, RuntimeError):
-            try:
-                ret = nc.MFDataset(self.rd.uri)
-            except KeyError as e:
-                # it is possible the variable is not in one of the data URIs. check for this to raise a cleaner error.
-                for uri in get_iter(self.rd.uri):
-                    # tdk: this should use request datasets?
-                    ds = nc.Dataset(uri, 'r')
-                    try:
-                        for variable in get_iter(self.rd.variable):
-                            try:
-                                ds.variables[variable]
-                            except KeyError:
-                                msg = 'The variable "{0}" was not found in URI "{1}".'.format(variable, uri)
-                                raise KeyError(msg)
-                    finally:
-                        ds.close()
-
-                # If all variables were found, raise the other error.
-                raise e
+        uri = self.rd.uri
+        if isinstance(uri, basestring):
+            ret = nc.Dataset(uri, mode=mode)
+        else:
+            ret = nc.MFDataset(uri)
 
         if group_indexing is not None:
             for group_name in get_iter(group_indexing):
                 ret = ret.groups[group_name]
 
         return ret
+
+    def _close_(self, obj):
+        obj.close()
 
 
 class DriverNetcdfCF(DriverNetcdf):
@@ -265,7 +245,6 @@ class DriverNetcdfCF(DriverNetcdf):
         return ret
 
     def get_dimensioned_variables(self, dimension_map, metadata):
-        # tdk: add option to specify needed axes
         axes_needed = ['time', 'x', 'y']
         dvars = []
 
@@ -286,6 +265,17 @@ class DriverNetcdfCF(DriverNetcdf):
         return dvars
 
 
+def parse_metadata(rootgrp):
+    fill = OrderedDict()
+    fill['groups'] = OrderedDict()
+    update_group_metadata(rootgrp, fill)
+    for group in rootgrp.groups.values():
+        fill['groups'][group.name] = OrderedDict()
+        fill_group = fill['groups'][group.name]
+        update_group_metadata(group, fill_group)
+    return fill
+
+
 def read_from_collection(target, request_dataset, parent=None, name=None):
     name = name or request_dataset.name
     ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
@@ -297,15 +287,50 @@ def read_from_collection(target, request_dataset, parent=None, name=None):
     return ret
 
 
-def parse_metadata(rootgrp):
-    fill = OrderedDict()
-    fill['groups'] = OrderedDict()
-    update_group_metadata(rootgrp, fill)
-    for group in rootgrp.groups.values():
-        fill['groups'][group.name] = OrderedDict()
-        fill_group = fill['groups'][group.name]
-        update_group_metadata(group, fill_group)
-    return fill
+def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
+    lines = ['dimensions:']
+    template = '    {0} = {1} ;{2}'
+    for key, value in group['dimensions'].iteritems():
+        if value['isunlimited']:
+            one = 'ISUNLIMITED'
+            two = ' // {0} currently'.format(value['len'])
+        else:
+            one = value['len']
+            two = ''
+        lines.append(template.format(key, one, two))
+
+    lines.append('')
+    lines.append('variables:')
+    var_template = '    {0} {1}({2}) ;'
+    attr_template = '      {0}:{1} = {2} ;'
+    for key, value in group['variables'].iteritems():
+        dims = [str(d) for d in value['dimensions']]
+        dims = ', '.join(dims)
+        lines.append(var_template.format(value['dtype'], key, dims))
+        for key2, value2 in value['attributes'].iteritems():
+            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
+
+    lines.append('')
+    lines.append('// {} attributes:'.format(global_attributes_name))
+    template = '    :{0} = {1} ;'
+    for key, value in group['global_attributes'].iteritems():
+        try:
+            lines.append(template.format(key, format_attribute_for_dump_report(value)))
+        except UnicodeEncodeError:
+            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
+            # template formatting will break.
+            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
+            warn(msg)
+
+    if indent > 0:
+        indent_string = ''
+        for _ in range(indent):
+            indent_string += ' '
+        for idx, current in enumerate(lines):
+            if len(current) > 0:
+                lines[idx] = indent_string + current
+
+    return lines
 
 
 def update_group_metadata(rootgrp, fill):
@@ -353,52 +378,6 @@ def update_group_metadata(rootgrp, fill):
         subdim = {key: {'len': len(value), 'isunlimited': value.isunlimited()}}
         dimensions.update(subdim)
     fill.update({'dimensions': dimensions})
-
-
-def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
-    lines = ['dimensions:']
-    template = '    {0} = {1} ;{2}'
-    for key, value in group['dimensions'].iteritems():
-        if value['isunlimited']:
-            one = 'ISUNLIMITED'
-            two = ' // {0} currently'.format(value['len'])
-        else:
-            one = value['len']
-            two = ''
-        lines.append(template.format(key, one, two))
-
-    lines.append('')
-    lines.append('variables:')
-    var_template = '    {0} {1}({2}) ;'
-    attr_template = '      {0}:{1} = {2} ;'
-    for key, value in group['variables'].iteritems():
-        dims = [str(d) for d in value['dimensions']]
-        dims = ', '.join(dims)
-        lines.append(var_template.format(value['dtype'], key, dims))
-        for key2, value2 in value['attributes'].iteritems():
-            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
-
-    lines.append('')
-    lines.append('// {} attributes:'.format(global_attributes_name))
-    template = '    :{0} = {1} ;'
-    for key, value in group['global_attributes'].iteritems():
-        try:
-            lines.append(template.format(key, format_attribute_for_dump_report(value)))
-        except UnicodeEncodeError:
-            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
-            # template formatting will break.
-            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
-            warn(msg)
-
-    if indent > 0:
-        indent_string = ''
-        for _ in range(indent):
-            indent_string += ' '
-        for idx, current in enumerate(lines):
-            if len(current) > 0:
-                lines[idx] = indent_string + current
-
-    return lines
 
 
 def format_attribute_for_dump_report(attr_value):

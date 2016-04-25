@@ -42,6 +42,20 @@ class TestDriverNetcdf(TestBase):
         field = rd.get()
         self.assertEqual(len(field), 0)
 
+    def test_open(self):
+        # Test with a multi-file dataset.
+        path1 = self.get_temporary_file_path('foo1.nc')
+        path2 = self.get_temporary_file_path('foo2.nc')
+        for idx, path in enumerate([path1, path2]):
+            with self.nc_scope(path, 'w', format='NETCDF4_CLASSIC') as ds:
+                ds.createDimension('a', None)
+                b = ds.createVariable('b', np.int32, ('a',))
+                b[:] = idx
+        uri = [path1, path2]
+        rd = RequestDataset(uri=uri, driver=DriverNetcdf)
+        field = rd.get()
+        self.assertEqual(field['b'].value.tolist(), [0, 1])
+
 
 class TestDriverNetcdfCF(TestBase):
     def get_drivernetcdf(self, **kwargs):
