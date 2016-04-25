@@ -1,13 +1,9 @@
 from collections import OrderedDict
 from copy import deepcopy
 
-import numpy as np
-
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.interface.base.crs import CoordinateReferenceSystem
-from ocgis.interface.base.field import Field
-from ocgis.interface.base.variable import Variable
 
 # tdk: clean-up
 from ocgis.new_interface.dimension import SourcedDimension
@@ -129,26 +125,3 @@ class DriverVector(AbstractDriver):
 
     def write_variable_collection(self, *args, **kwargs):
         raise NotImplementedError
-
-    def _get_field_(self, format_time=None):
-        # todo: option to pass select_ugid
-        # todo: option for time dimension and time subsetting
-        # todo: remove format_time option - there for compatibility with the netCDF driver
-        from ocgis import SpatialDimension
-
-        ds = self.open()
-        try:
-            records = list(ds)
-            sdim = SpatialDimension.from_records(records, crs=self.get_crs())
-            # do not load the properties - they are transformed to variables in the case of the values put into fields
-            sdim.properties = None
-            vc = VariableCollection()
-            for xx in self.rd:
-                value = np.array([yy['properties'][xx['variable']] for yy in records]).reshape(1, 1, 1, 1, -1)
-                var = Variable(name=xx['variable'], alias=xx['alias'], units=xx['units'], conform_units_to=xx['units'],
-                               value=value)
-                vc.add_variable(var, assign_new_uid=True)
-            field = Field(spatial=sdim, variables=vc, name=self.rd.name)
-            return field
-        finally:
-            self.close(ds)
