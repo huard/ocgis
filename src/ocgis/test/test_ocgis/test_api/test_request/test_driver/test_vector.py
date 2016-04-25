@@ -5,7 +5,7 @@ import fiona
 from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
-from ocgis.api.request.driver.vector import DriverVector
+from ocgis.api.request.driver.vector import DriverVector, get_fiona_crs, get_fiona_schema
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.test.base import TestBase
@@ -59,19 +59,6 @@ class TestDriverVector(TestBase):
         for v in field.values():
             self.assertIsNotNone(v.value)
 
-        # Test writing the field to file.
-        path = self.get_temporary_file_path('out.shp')
-        field.write(path, driver=DriverVector)
-        with fiona.open(path) as source:
-            self.assertEqual(len(source), 51)
-        rd = RequestDataset(uri=path)
-        field2 = rd.get()
-        for v in field.values():
-            if isinstance(v, CoordinateReferenceSystem):
-                self.assertEqual(v, field2.crs)
-            else:
-                self.assertNumpyAll(v.value, field2[v.name].value)
-
     def test_get_variable_collection(self):
         driver = self.get_driver()
         vc = driver.get_variable_collection()
@@ -99,3 +86,30 @@ class TestDriverVector(TestBase):
         sci = driver.open()
         self.assertIsInstance(sci, GeomCabinetIterator)
         self.assertFalse(sci.as_spatial_dimension)
+
+    def test_write_variable_collection(self):
+        # Test writing the field to file.
+        field = self.get_driver().get_field()
+        path1 = self.get_temporary_file_path('out1.shp')
+        path2 = self.get_temporary_file_path('out2.shp')
+        fiona_crs = get_fiona_crs(field, None)
+        fiona_schema = get_fiona_schema(field, None)
+        fobject = fiona.open(path2, mode='w', schema=fiona_schema, crs=fiona_crs, driver='ESRI Shapefile')
+        for target in [path1, fobject]:
+            field.write(target, driver=DriverVector)
+
+            if isinstance(target, basestring):
+                path = path1
+            else:
+                path = path2
+                fobject.close()
+
+            with fiona.open(path) as source:
+                self.assertEqual(len(source), 51)
+            rd = RequestDataset(uri=path)
+            field2 = rd.get()
+            for v in field.values():
+                if isinstance(v, CoordinateReferenceSystem):
+                    self.assertEqual(v, field2.crs)
+                else:
+                    self.assertNumpyAll(v.value, field2[v.name].value)

@@ -28,9 +28,18 @@ class DriverVector(AbstractDriver):
         for k, v in value.items():
             variable.parent[k]._set_value_(v)
         # Conform the units if requested.
-        conform_units_to = self.rd.metadata['variables'][variable.name].get('conform_units_to')
-        if conform_units_to is not None:
-            variable.cfunits_conform(conform_units_to)
+        for k in value.keys():
+            v = variable.parent[k]
+            try:
+                conform_units_to = self.rd.metadata['variables'][v.name].get('conform_units_to')
+            except KeyError:
+                # This is okay if the target variable is a geometry variable.
+                if isinstance(v, GeometryVariable):
+                    pass
+                else:
+                    raise
+            if conform_units_to is not None:
+                v.cfunits_conform(conform_units_to)
 
     def _close_(self, obj):
         pass
@@ -98,7 +107,6 @@ class DriverVector(AbstractDriver):
         raise NotImplementedError
 
     def allocate_variable_without_value(self, variable):
-        # tdk: set the variable's data type from the fiona datatype
         m = self.rd.metadata
         if isinstance(variable, GeometryVariable):
             mv = m[constants.NAME_GEOMETRY_DIMENSION]
@@ -134,7 +142,6 @@ class DriverVector(AbstractDriver):
         return parent
 
     def get_variable_value(self, variable):
-        # tdk: test conforming units!
         # For vector formats based on loading via iteration, it makes sense to load all values with a single pass.
         if variable.parent is None:
             raise NotImplementedError
@@ -162,6 +169,7 @@ class DriverVector(AbstractDriver):
         # tdk: test passing an open fiona file object
         # tdk: test with a time dimension
         # tdk: test writing cf netcdf data
+        # tdk: test conforming units!
 
         if isinstance(fiona_or_path, basestring):
             fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
@@ -171,6 +179,7 @@ class DriverVector(AbstractDriver):
             should_close = True
         else:
             sink = fiona_or_path
+            fiona_schema = sink.schema
             should_close = False
 
         try:
@@ -207,12 +216,10 @@ def get_dtype_from_fiona_type(ftype):
 
 
 def get_fiona_type_from_variable(variable):
-    # tdk: test with all masked data
     m = {datetime.date: 'str',
          datetime.datetime: 'str',
          np.int64: 'int',
          NoneType: None,
-         np.int32: 'int',
          np.float64: 'float',
          np.float32: 'float',
          np.float16: 'float',
@@ -239,10 +246,6 @@ def get_fiona_crs(vc_or_field, default):
         except AttributeError:
             ret = None
     return ret
-
-
-def get_fiona_string_width(value):
-    pass
 
 
 def get_fiona_schema(vc_or_field, default):
