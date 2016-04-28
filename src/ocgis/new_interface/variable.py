@@ -792,6 +792,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return cls.read(uri=path, driver='netCDF')
 
     def write(self, *args, **kwargs):
+        # tdk: the driver argument should accept the string key of the target driver
         from ocgis.api.request.driver.nc import DriverNetcdf
         driver = kwargs.pop('driver', DriverNetcdf)
         args = list(args)

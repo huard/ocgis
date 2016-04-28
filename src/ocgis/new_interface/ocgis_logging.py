@@ -8,16 +8,16 @@ from ocgis.new_interface.mpi import MPI_RANK
 
 sh = StreamHandler(sys.stdout, bubble=True)
 sh.format_string += ' (rank={})'.format(MPI_RANK)
-sh.push_application()
+# sh.push_application()
 
 fh = FileHandler('/home/benkoziol/htmp/ocgis.log', bubble=True)
 fh.format_string += ' (rank={})'.format(MPI_RANK)
-fh.push_application()
+# fh.push_application()
 
 log = Logger('ocgis', level=ERROR)
 
-# log.handlers.append(fh)
-# # log.handlers.append(sh)
+log.handlers.append(fh)
+log.handlers.append(sh)
 
 
 class log_entry_exit(object):

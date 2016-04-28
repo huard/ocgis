@@ -50,6 +50,7 @@ class TestDriverVector(TestBase):
         self.assertTrue(len(lines) > 5)
 
     def test_get_field(self):
+        # tdk: RESUME: loading fails when slicing before the value is loaded. implemented indexed loading.
         driver = self.get_driver()
         field = driver.get_field()
         self.assertEqual(len(field), 7)
@@ -88,6 +89,7 @@ class TestDriverVector(TestBase):
         self.assertFalse(sci.as_spatial_dimension)
 
     def test_write_variable_collection(self):
+        # tdk: RESUME: test writing mix polygons and multi-polygons to file
         # Test writing the field to file.
         field = self.get_driver().get_field()
         path1 = self.get_temporary_file_path('out1.shp')
