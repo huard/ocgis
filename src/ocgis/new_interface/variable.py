@@ -595,7 +595,7 @@ class Variable(AbstractContainer, Attributes):
         slices = create_nd_slices(splits, self.shape)
         return slices
 
-    def iter(self, use_mask=True):
+    def iter(self, use_mask=True, ):
         has_bounds = self.has_bounds
         name = self.name
         for idx, value in iter_array(self._get_iter_value_(), use_mask=use_mask, return_value=True):

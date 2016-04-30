@@ -196,7 +196,7 @@ class DriverVector(AbstractDriver):
             should_close = False
 
         try:
-            iterators = {k: (ii for ii in range(len(v))) for k, v in field.dimensions.items()}
+            iterators = {d.name: (ii for ii in range(len(d))) for d in field.geom.dimensions}
             properties = fiona_schema['properties'].keys()
             while True:
                 try:
@@ -211,6 +211,8 @@ class DriverVector(AbstractDriver):
                             indexed_value = sub[p].value_datetime[0]
                         except AttributeError:
                             indexed_value = sub[p].value[0]
+                        # Convert object to string if this is its data type. This is important for things like datetime
+                        # objects which require this conversion before writing.
                         if fiona_schema['properties'][p].startswith('str') and indexed_value is not None:
                             indexed_value = str(indexed_value)
                         record[p] = indexed_value
