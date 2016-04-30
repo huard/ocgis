@@ -1,13 +1,15 @@
-from collections import OrderedDict
 import os
-from copy import deepcopy
+from collections import OrderedDict
 
+import fiona
+import numpy as np
 import ogr
 from shapely import wkb
-import fiona
 
 from ocgis import env
 from ocgis.interface.base.dimension.spatial import SpatialDimension
+from ocgis.util.helpers import get_formatted_slice
+from ocgis.util.logging_ocgis import ocgis_lh
 
 
 class GeomCabinet(object):
@@ -75,41 +77,42 @@ class GeomCabinet(object):
             msg = 'a shapefile with key "{0}" was not found under the directory: {1}'.format(key, self.path)
             raise ValueError(msg)
 
+    # tdk: rename "slice" to "slc"
     def iter_geoms(self, key=None, select_uid=None, path=None, load_geoms=True, as_spatial_dimension=False,
-                   uid=None, select_sql_where=None, slice=None):
+                   uid=None, select_sql_where=None, slc=None):
         """
         See documentation for :class:`~ocgis.GeomCabinetIterator`.
         """
 
-        # ensure select ugid is in ascending order
-        if select_uid is not None:
-            test_select_ugid = list(deepcopy(select_uid))
-            test_select_ugid.sort()
-            if test_select_ugid != list(select_uid):
-                raise ValueError('"select_uid" must be sorted in ascending order.')
+        if slc is not None and (select_uid is not None or select_sql_where is not None):
+            exc = ValueError('Slice is not allowed with other select statements.')
+            ocgis_lh(exc=exc, logger='geom_cabinet')
 
-        # get the path to the output shapefile
+        # Get the path to the output shapefile.
         shp_path = self._get_path_by_key_or_direct_path_(key=key, path=path)
 
-        # get the source CRS
+        # Get the source CRS.
         meta = self.get_meta(path=shp_path)
 
-        # open the target shapefile
+        # Format the slice for iteration. We will get the features by index if a slice is provided.
+        if slc is not None:
+            slc = get_index_slice_for_iteration(slc)
+
+        # Open the target shapefile.
         ds = ogr.Open(shp_path)
         try:
-            # return the features iterator
+            # Return the features iterator.
             features = self._get_features_object_(ds, uid=uid, select_uid=select_uid, select_sql_where=select_sql_where)
-            build = True
-            for ctr, feature in enumerate(features):
-                # With a slice passed, ...
-                if slice is not None:
-                    # ... iterate until start is reached.
-                    if ctr < slice[0]:
-                        continue
-                    # ... stop if we have reached the stop.
-                    elif ctr == slice[1]:
-                        raise StopIteration
 
+            # Using slicing, we will select the features individually from the object.
+            if slc is None:
+                itr = features
+            else:
+                # Convert the slice index to an integer to avoid type conflict in GDAL layer.
+                itr = (features.GetFeature(int(idx)) for idx in slc)
+
+            # Convert feature objects to record dictionaries.
+            for ctr, feature in enumerate(itr):
                 if load_geoms:
                     yld = {'geom': wkb.loads(feature.geometry().ExportToWkb())}
                 else:
@@ -118,21 +121,21 @@ class GeomCabinet(object):
                 properties = OrderedDict([(key, items[key]) for key in feature.keys()])
                 yld.update({'properties': properties, 'meta': meta})
 
-                if build:
+                if ctr == 0:
                     uid, add_uid = get_uid_from_properties(properties, uid)
                     # The properties schema needs to be updated to account for the adding of a unique identifier.
                     if add_uid:
                         meta['schema']['properties'][uid] = 'int'
-                    build = False
 
-                # add the unique identifier if required
+                # Add the unique identifier if required
                 if add_uid:
-                    properties[uid] = ctr + 1
-                # ensure the unique identifier is an integer
+                    properties[uid] = feature.GetFID()
+                # Ensure the unique identifier is an integer
                 else:
                     properties[uid] = int(properties[uid])
 
                 if as_spatial_dimension:
+                    # tdk: no more spatial dimensions
                     yld = SpatialDimension.from_records([yld], meta['schema'], crs=yld['meta']['crs'], uid=uid)
 
                 yield yld
@@ -252,7 +255,7 @@ class GeomCabinetIterator(object):
     """
 
     def __init__(self, key=None, select_uid=None, path=None, load_geoms=True, as_spatial_dimension=False, uid=None,
-                 select_sql_where=None, slice=None):
+                 select_sql_where=None, slc=None):
         self.key = key
         self.path = path
         self.select_uid = select_uid
@@ -260,7 +263,7 @@ class GeomCabinetIterator(object):
         self.as_spatial_dimension = as_spatial_dimension
         self.uid = uid
         self.select_sql_where = select_sql_where
-        self.slice = slice
+        self.slc = slc
         self.sc = GeomCabinet()
 
     def __iter__(self):
@@ -270,19 +273,19 @@ class GeomCabinetIterator(object):
 
         for row in self.sc.iter_geoms(key=self.key, select_uid=self.select_uid, path=self.path,
                                       load_geoms=self.load_geoms, as_spatial_dimension=self.as_spatial_dimension,
-                                      uid=self.uid, select_sql_where=self.select_sql_where, slice=self.slice):
+                                      uid=self.uid, select_sql_where=self.select_sql_where, slc=self.slc):
             yield row
 
     def __len__(self):
-        # get the path to the output shapefile
+        # Get the path to the output shapefile.
         shp_path = self.sc._get_path_by_key_or_direct_path_(key=self.key, path=self.path)
 
-        if self.slice is not None:
-            ret = self.slice[1] - self.slice[0]
+        if self.slc is not None:
+            return len(get_index_slice_for_iteration(self.slc))
         elif self.select_uid is not None:
             ret = len(self.select_uid)
         else:
-            # get the geometries
+            # Get the geometries using a select statement.
             ds = ogr.Open(shp_path)
             try:
                 features = self.sc._get_features_object_(ds, uid=self.uid, select_uid=self.select_uid,
@@ -338,3 +341,10 @@ class ShpCabinet(GeomCabinet):
 class ShpCabinetIterator(GeomCabinetIterator):
     """Left in for backwards compatibility."""
     pass
+
+
+def get_index_slice_for_iteration(slc):
+    slc = get_formatted_slice(slc, 1)[0]
+    if isinstance(slc, slice):
+        slc = np.arange(slc.start, slc.stop)
+    return slc

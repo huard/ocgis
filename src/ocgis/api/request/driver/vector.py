@@ -15,6 +15,7 @@ from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
+from ocgis.util.logging_ocgis import ocgis_lh
 
 
 class DriverVector(AbstractDriver):
@@ -35,7 +36,7 @@ class DriverVector(AbstractDriver):
             except KeyError:
                 # This is okay if the target variable is a geometry variable.
                 if isinstance(v, GeometryVariable):
-                    pass
+                    conform_units_to = None
                 else:
                     raise
             if conform_units_to is not None:
@@ -45,11 +46,18 @@ class DriverVector(AbstractDriver):
         pass
 
     def get_crs(self):
-        return CoordinateReferenceSystem(value=self.metadata['crs'])
+        crs = self.metadata['crs']
+        if len(crs) == 0:
+            ret = None
+        else:
+            ret = CoordinateReferenceSystem(value=self.metadata['crs'])
+        return ret
 
     def get_dimension_map(self, metadata):
-        ret = {'geom': {'variable': constants.NAME_GEOMETRY_DIMENSION},
-               'crs': {'variable': self.get_crs().name}}
+        ret = {'geom': {'variable': constants.NAME_GEOMETRY_DIMENSION}}
+        crs = self.get_crs()
+        if crs is not None:
+            ret['crs'] = {'variable': self.get_crs().name}
         return ret
 
     def get_dimensioned_variables(self):
@@ -129,16 +137,18 @@ class DriverVector(AbstractDriver):
 
         variable._allocated = True
 
-    def _open_(self):
+    def _open_(self, slc=None):
         from ocgis import GeomCabinetIterator
-        return GeomCabinetIterator(path=self.rd.uri)
+        return GeomCabinetIterator(path=self.rd.uri, slc=slc)
 
     def get_variable_collection(self):
         parent = VariableCollection(name=self.rd.name)
         for n, v in self.metadata['variables'].items():
             SourcedVariable(name=n, request_dataset=self.rd, parent=parent)
         GeometryVariable(name=constants.NAME_GEOMETRY_DIMENSION, request_dataset=self.rd, parent=parent)
-        parent.add_variable(self.get_crs())
+        crs = self.get_crs()
+        if crs is not None:
+            parent.add_variable(self.get_crs())
         return parent
 
     def get_variable_value(self, variable):
@@ -150,7 +160,7 @@ class DriverVector(AbstractDriver):
             for v in variable.parent.values():
                 if not isinstance(v, CoordinateReferenceSystem):
                     ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
-            g = self.open()
+            g = self.open(slc=variable.dimensions[0]._src_idx)
             for idx, row in enumerate(g):
                 for v in self.get_dimensioned_variables():
                     ret[v][idx] = row['properties'][v]
@@ -166,10 +176,13 @@ class DriverVector(AbstractDriver):
 
     @staticmethod
     def write_variable_collection(field, fiona_or_path, **kwargs):
-        # tdk: test passing an open fiona file object
         # tdk: test with a time dimension
         # tdk: test writing cf netcdf data
         # tdk: test conforming units!
+
+        if field.geom is None:
+            exc = ValueError('A geometry variable is required.')
+            ocgis_lh(exc=exc)
 
         if isinstance(fiona_or_path, basestring):
             fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
@@ -194,9 +207,14 @@ class DriverVector(AbstractDriver):
                     sub = field[dslice]
                     record = OrderedDict()
                     for p in properties:
-                        record[p] = sub[p].value[0]
-                    record = {'properties': record}
-                    record['geometry'] = mapping(sub.geom.value[0])
+                        try:
+                            indexed_value = sub[p].value_datetime[0]
+                        except AttributeError:
+                            indexed_value = sub[p].value[0]
+                        if fiona_schema['properties'][p].startswith('str') and indexed_value is not None:
+                            indexed_value = str(indexed_value)
+                        record[p] = indexed_value
+                    record = {'properties': record, 'geometry': mapping(sub.geom.value[0])}
                     sink.write(record)
         finally:
             if should_close:
@@ -233,7 +251,7 @@ def get_fiona_type_from_variable(variable):
          int: 'int',
          float: 'float',
          object: 'str'}
-    dtype = variable.dtype
+    dtype = variable._get_vector_dtype_()
     ftype = m[dtype]
     return ftype
 
@@ -267,6 +285,7 @@ def get_fiona_schema(vc_or_field, default):
 def get_fiona_string_width(arr):
     ret = 0
     for ii in arr.flat:
+        ii = str(ii)
         if len(ii) > ret:
             ret = len(ii)
     ret = 'str:{}'.format(ret)

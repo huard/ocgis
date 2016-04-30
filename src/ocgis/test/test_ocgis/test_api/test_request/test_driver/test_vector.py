@@ -1,17 +1,26 @@
 import os
 
 import fiona
+from shapely.geometry import Point
 
 from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector, get_fiona_crs, get_fiona_schema
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
+from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.test.base import TestBase
+from ocgis.new_interface.temporal import TemporalVariable
+from ocgis.new_interface.variable import Variable
+from ocgis.test.base import TestBase, attr
 
 
 class TestDriverVector(TestBase):
+    def assertPrivateValueIsNone(self, field_like):
+        for v in field_like.values():
+            if not isinstance(v, CoordinateReferenceSystem):
+                self.assertIsNone(v._value)
+
     def get_driver(self, **kwargs):
         rd = self.get_request_dataset(**kwargs)
         driver = DriverVector(rd)
@@ -29,6 +38,29 @@ class TestDriverVector(TestBase):
         actual = [constants.OUTPUT_FORMAT_NUMPY, constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH,
                   constants.OUTPUT_FORMAT_SHAPEFILE]
         self.assertAsSetEqual(actual, DriverVector.output_formats)
+
+    @attr('data')
+    def test_combo_cf_data(self):
+        # tdk: RESUME: this is failing because we are trying to write the latitude and longitude variables
+        rd = self.test_data.get_rd('cancm4_tas')
+        path = self.get_temporary_file_path('grid.shp')
+        field = rd.get()[{'time': 0}]
+        field.write(path, driver=DriverVector)
+        self.fail()
+
+    def test_combo_with_time_data(self):
+        """Test writing data with a time dimension."""
+
+        path = self.get_temporary_file_path('what.shp')
+        t = TemporalVariable(value=[1.5, 2.5], name='time', dimensions='time')
+        geom = GeometryVariable(value=[Point(1, 2), Point(3, 4)], name='geom', dimensions='time')
+        field = OcgField(variables=[t, geom], dimension_map={'time': {'variable': 'time'},
+                                                             'geom': {'variable': 'geom'}})
+        field.write(path, driver=DriverVector)
+
+        rd = RequestDataset(uri=path)
+        field2 = rd.get()
+        self.assertEqual(field2['time'].value.tolist(), ['0001-01-02 12:00:00', '0001-01-03 12:00:00'])
 
     def test_close(self):
         driver = self.get_driver()
@@ -50,15 +82,22 @@ class TestDriverVector(TestBase):
         self.assertTrue(len(lines) > 5)
 
     def test_get_field(self):
-        # tdk: RESUME: loading fails when slicing before the value is loaded. implemented indexed loading.
         driver = self.get_driver()
         field = driver.get_field()
+        self.assertPrivateValueIsNone(field)
         self.assertEqual(len(field), 7)
         self.assertIsInstance(field.geom, GeometryVariable)
         self.assertIsInstance(field.crs, CoordinateReferenceSystem)
         self.assertIsNone(field.time)
         for v in field.values():
             self.assertIsNotNone(v.value)
+
+        # Test slicing does not break loading from file.
+        field = driver.get_field()
+        self.assertPrivateValueIsNone(field)
+        sub = field.geom[10, 15, 25].parent
+        self.assertPrivateValueIsNone(sub)
+        self.assertEqual(len(sub.dimensions[constants.NAME_GEOMETRY_DIMENSION]), 3)
 
     def test_get_variable_collection(self):
         driver = self.get_driver()
@@ -89,7 +128,6 @@ class TestDriverVector(TestBase):
         self.assertFalse(sci.as_spatial_dimension)
 
     def test_write_variable_collection(self):
-        # tdk: RESUME: test writing mix polygons and multi-polygons to file
         # Test writing the field to file.
         field = self.get_driver().get_field()
         path1 = self.get_temporary_file_path('out1.shp')
@@ -115,3 +153,10 @@ class TestDriverVector(TestBase):
                     self.assertEqual(v, field2.crs)
                 else:
                     self.assertNumpyAll(v.value, field2[v.name].value)
+
+        # Attempt to write without a geometry variable.
+        v = Variable('a', value=[1, 2], dimensions='bb')
+        field = OcgField(variables=v)
+        path = self.get_temporary_file_path('out.shp')
+        with self.assertRaises(ValueError):
+            field.write(path, driver=DriverVector)

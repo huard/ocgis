@@ -36,6 +36,18 @@ class Test(TestBase):
 
 
 class TestGeomCabinetIterator(TestBase):
+    def get_shapefile_path_no_default_unique_identifier(self):
+        path_sink = self.get_temporary_file_path('no_uid.shp')
+        path_source = GeomCabinet().get_shp_path('state_boundaries')
+        with fiona.open(path_source) as source:
+            sink_meta = source.meta
+            sink_meta['schema']['properties'].pop('UGID')
+            with fiona.open(path_sink, mode='w', **sink_meta) as sink:
+                for record in source:
+                    record['properties'].pop('UGID')
+                    sink.write(record)
+        return path_sink
+
     def setUp(self):
         super(TestGeomCabinetIterator, self).setUp()
         self._original_dir_geomcabinet = env.DIR_GEOMCABINET
@@ -43,17 +55,30 @@ class TestGeomCabinetIterator(TestBase):
         env.DIR_GEOMCABINET = path
 
     def test_init(self):
-        sci = GeomCabinetIterator(key='state_boundaries', uid='ID', as_spatial_dimension=True)
+        g = GeomCabinetIterator(key='state_boundaries')
+        records = list(g)
+        self.assertEqual(len(records), 51)
+
+        # Test overloading the unique identifier.
+        path = self.get_shapefile_path_no_default_unique_identifier()
+        sci = GeomCabinetIterator(path=path, uid='ID')
         self.assertIsNone(sci.select_sql_where)
         self.assertEqual(sci.uid, 'ID')
-        for sdim in sci:
-            self.assertEqual(sdim.name_uid, 'ID')
-            break
+        for _ in range(2):
+            for record in sci:
+                self.assertNotIn('UGID', record['properties'])
+                self.assertEqual(type(record['properties']['ID']), int)
 
+        # Test slice is not allowed with other select statements.
+        with self.assertRaises(ValueError):
+            list(GeomCabinetIterator(key='state_boundaries', select_uid=[1], slc=slice(0, 3)))
+
+        # Test SQL statement is stored.
         s = 'STATE_NAME = "Wisconsin"'
         sci = GeomCabinetIterator(key='state_boundaries', select_sql_where=s)
         self.assertEqual(sci.select_sql_where, s)
 
+    # tdk: remove - this will need to yield ocgfields
     def test_as_spatial_dimension(self):
         """Test iteration returned as SpatialDimension objects."""
 
@@ -86,10 +111,16 @@ class TestGeomCabinetIterator(TestBase):
             self.assertIsInstance(sdim.geom.get_highest_order_abstraction(), SpatialGeometryPointDimension)
 
     def test_iter(self):
-        # test with a select statement
+        # Test with a select statement.
         sci = GeomCabinetIterator(key='state_boundaries', select_sql_where='STATE_NAME in ("Wisconsin", "Vermont")')
         for row in sci:
             self.assertIn(row['properties']['STATE_NAME'], ("Wisconsin", "Vermont"))
+
+        # Test with a slice object.
+        g = GeomCabinetIterator(key='state_boundaries', slice=slice(3, 7))
+        for record in g:
+            print g
+        self.fail('we should be able to use slice')
 
     @attr('data')
     def test_select_ugids_absent_raises_exception(self):
@@ -118,6 +149,9 @@ class TestGeomCabinetIterator(TestBase):
 
         sci = GeomCabinetIterator(key='state_boundaries', select_sql_where='STATE_NAME = "Vermont"')
         self.assertEqual(len(sci), 1)
+
+        sci = GeomCabinetIterator(key='state_boundaries', slc=[4, 10, 20])
+        self.assertEqual(len(sci), 3)
 
     def test_iteration_by_path(self):
         # test that a shapefile may be retrieved by passing a full path to the file
@@ -259,11 +293,6 @@ class TestGeomCabinet(TestBase):
         ret = list(GeomCabinetIterator(select_uid=[23], path=out_path))
         self.assertEqual(len(ret), 1)
 
-    def test_iter_geoms_select_ugid_is_sorted(self):
-        sc = GeomCabinet()
-        with self.assertRaises(ValueError):
-            list(sc.iter_geoms('state_boundaries', select_uid=[23, 18]))
-
     def test_iter_geoms_no_load_geoms(self):
         sc = GeomCabinet()
         it = sc.iter_geoms('state_boundaries', load_geoms=False)
@@ -282,14 +311,14 @@ class TestGeomCabinet(TestBase):
         for geom in geoms:
             self.assertIn(type(geom['geom']), (Polygon, MultiPolygon))
 
-        # test with a shapefile not having a unique identifier
+        # Test with a shapefile not having a unique identifier.
         env.DEFAULT_GEOM_UID = 'ggidd'
         new = self.get_shapefile_path_with_no_ugid()
         sc = GeomCabinet()
         target = list(sc.iter_geoms(path=new))
         self.assertEqual(len(target), 11)
-        self.assertEqual(target[0]['properties'][env.DEFAULT_GEOM_UID], 1)
-        self.assertEqual(target[3]['properties'][env.DEFAULT_GEOM_UID], 4)
+        self.assertEqual(target[0]['properties'][env.DEFAULT_GEOM_UID], 0)
+        self.assertEqual(target[3]['properties'][env.DEFAULT_GEOM_UID], 3)
 
         target = list(sc.iter_geoms(path=new, uid='ID'))
         self.assertNotIn(env.DEFAULT_GEOM_UID, target[9]['properties'])
@@ -300,7 +329,7 @@ class TestGeomCabinet(TestBase):
         self.assertEqual(ref.uid[0, 0], 10)
         self.assertNotIn(env.DEFAULT_GEOM_UID, ref.properties.dtype.names)
 
-        # test with a different geometry unique identifier
+        # Test with a different geometry unique identifier.
         path = self.get_shapefile_path_with_no_ugid()
         geom_select_uid = [12, 15]
         geom_uid = 'ID'
@@ -321,7 +350,16 @@ class TestGeomCabinet(TestBase):
         self.assertEqual(len(geoms), 1)
         self.assertEqual(geoms[0]['properties']['STATE_NAME'], 'New Hampshire')
 
-    def test_sql_subset(self):
+    def test_iter_geoms_slice(self):
+        """Test iteration providing a slice."""
+        g = GeomCabinet()
+        slices = [3, slice(4, 7), [2, 6, 9, 40]]
+        lengths = [1, 3, 4]
+        for idx, slc in enumerate(slices):
+            records = list(g.iter_geoms('state_boundaries', slc=slc))
+            self.assertEqual(len(records), lengths[idx])
+
+    def test_misc_sql_subset(self):
         sc = GeomCabinet()
         path = sc.get_shp_path('state_boundaries')
         ds = ogr.Open(path)

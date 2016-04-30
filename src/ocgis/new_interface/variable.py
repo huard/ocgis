@@ -654,6 +654,12 @@ class Variable(AbstractContainer, Attributes):
     def _get_netcdf_value_(self):
         return self.masked_value
 
+    def _get_vector_value_(self):
+        return self.masked_value
+
+    def _get_vector_dtype_(self):
+        return self.dtype
+
 
 class SourcedVariable(Variable):
     # tdk: handle add_offset and scale_factor
@@ -742,7 +748,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
     @property
     def shapes(self):
-        return OrderedDict([[k, v.shape] for k, v in self.items()])
+        return OrderedDict([[k, v.shape] for k, v in self.items() if not isinstance(v, CoordinateReferenceSystem)])
 
     def add_variable(self, variable, force=False):
         """
