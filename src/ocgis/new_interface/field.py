@@ -22,16 +22,7 @@ class OcgField(VariableCollection):
 
     def __init__(self, *args, **kwargs):
         dimension_map = deepcopy(kwargs.pop('dimension_map', None))
-        dimension_map_template = deepcopy(_DIMENSION_MAP)
-        # Merge incoming dimension map with the template.
-        if dimension_map is not None:
-            for k, v in dimension_map.items():
-                for k2, v2, in v.items():
-                    if k2 == 'attrs':
-                        dimension_map_template[k][k2].update(v2)
-                    else:
-                        dimension_map_template[k][k2] = v2
-        self.dimension_map = dimension_map_template
+        self.dimension_map = get_merged_dimension_map(dimension_map)
 
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
         self.format_time = kwargs.pop('format_time', True)
@@ -139,3 +130,16 @@ def get_field_property(field, name):
             if bounds is not None:
                 ret.bounds = field[bounds]
     return ret
+
+
+def get_merged_dimension_map(dimension_map):
+    dimension_map_template = deepcopy(_DIMENSION_MAP)
+    # Merge incoming dimension map with the template.
+    if dimension_map is not None:
+        for k, v in dimension_map.items():
+            for k2, v2, in v.items():
+                if k2 == 'attrs':
+                    dimension_map_template[k][k2].update(v2)
+                else:
+                    dimension_map_template[k][k2] = v2
+    return dimension_map_template
