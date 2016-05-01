@@ -1,6 +1,7 @@
 import os
 
 import fiona
+import numpy as np
 from shapely.geometry import Point
 
 from ocgis import RequestDataset, GeomCabinetIterator
@@ -11,7 +12,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.temporal import TemporalVariable
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase, attr
 
 
@@ -41,11 +42,14 @@ class TestDriverVector(TestBase):
 
     @attr('data')
     def test_combo_cf_data(self):
-        # tdk: RESUME: this is failing because we are trying to write the latitude and longitude variables
+        # tdk: RESUME: taking too long because we are writing the lat and lon bnds
+        # tdk: RESUME: the time variable is not being written... should it be?
         rd = self.test_data.get_rd('cancm4_tas')
         path = self.get_temporary_file_path('grid.shp')
-        field = rd.get()[{'time': 0}]
-        field.write(path, driver=DriverVector)
+        field = rd.get()[{'time': slice(3, 6)}]
+        field.write(path, driver=DriverVector, variables=['time', 'lat', 'lon', 'tas'])
+        import ipdb;
+        ipdb.set_trace()
         self.fail()
 
     def test_combo_with_time_data(self):
@@ -133,7 +137,7 @@ class TestDriverVector(TestBase):
         path1 = self.get_temporary_file_path('out1.shp')
         path2 = self.get_temporary_file_path('out2.shp')
         fiona_crs = get_fiona_crs(field, None)
-        fiona_schema = get_fiona_schema(field, None)
+        fiona_schema = get_fiona_schema(field, field.geom, None, None)
         fobject = fiona.open(path2, mode='w', schema=fiona_schema, crs=fiona_crs, driver='ESRI Shapefile')
         for target in [path1, fobject]:
             field.write(target, driver=DriverVector)
@@ -160,3 +164,31 @@ class TestDriverVector(TestBase):
         path = self.get_temporary_file_path('out.shp')
         with self.assertRaises(ValueError):
             field.write(path, driver=DriverVector)
+
+        # Test writing a field with two-dimensional geometry storage.
+        value = [Point(1, 2), Point(3, 4), Point(5, 6), Point(6, 7), Point(8, 9), Point(10, 11)]
+        gvar = GeometryVariable(value=value, name='points')
+        gvar.reshape(2, 3, dimensions=['lat', 'lon'])
+        var1 = Variable(name='dummy', value=[6, 7, 8], dimensions=['a'])
+        var2 = Variable(name='some_lats', value=[41, 41], dimensions=['lat'])
+        var3 = Variable(name='some_lons', value=[0, 90, 280], dimensions=['lon'])
+        var4 = Variable(name='data', value=np.random.rand(4, 3, 2), dimensions=['time', 'lon', 'lat'])
+        vc = VariableCollection(variables=[gvar, var1, var2, var3, var4])
+        path = self.get_temporary_file_path('2d.shp')
+        vc.write(path, driver=DriverVector)
+        read = RequestDataset(uri=path).get()
+        self.assertTrue(len(read) > 2)
+        self.assertEqual(read.keys(), ['some_lats', 'some_lons', 'data', constants.NAME_GEOMETRY_DIMENSION])
+
+    def test_tdk(self):
+        # Test writing a subset of the variables.
+        path = self.get_temporary_file_path('limited.shp')
+        value = [Point(1, 2), Point(3, 4), Point(5, 6)]
+        gvar = GeometryVariable(value=value, name='points', dimensions='points')
+        var1 = Variable('keep', value=[1, 2, 3], dimensions='points')
+        var2 = Variable('remove', value=[4, 5, 6], dimensions='points')
+        vc = VariableCollection(variables=[gvar, var1, var2])
+        vc.write(path, variables=['keep'], driver=DriverVector)
+        read = RequestDataset(uri=path).get()
+        self.assertNotIn('remove', read)
+        self.fail()

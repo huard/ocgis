@@ -1,4 +1,5 @@
 import datetime
+import itertools
 from collections import OrderedDict
 from copy import deepcopy
 from types import NoneType
@@ -176,18 +177,36 @@ class DriverVector(AbstractDriver):
 
     @staticmethod
     def write_variable_collection(field, fiona_or_path, **kwargs):
-        # tdk: test with a time dimension
-        # tdk: test writing cf netcdf data
         # tdk: test conforming units!
 
-        if field.geom is None:
+        # Find the geometry variable.
+        geom = None
+        try:
+            geom = field.geom
+        except AttributeError:
+            for v in field.values():
+                if isinstance(v, GeometryVariable):
+                    geom = v
+        if geom is None:
             exc = ValueError('A geometry variable is required.')
             ocgis_lh(exc=exc)
 
+        # Identify the dimensions to use for variable iteration. These are found by accumulating variables having the
+        # same dimensions as the geometry variable. Any additional dimensions are appended to this list. Also collect
+        # the variables that have these dimensions as they are the variables we are writing to file.
+        dimensions_to_iterate = list(geom.dimensions_names)
+        variables_to_write = []
+        for v in field.values():
+            if len(set(dimensions_to_iterate).intersection(v.dimensions_names)) > 0:
+                dimensions_to_iterate += list(v.dimensions_names)
+                variables_to_write.append(v)
+        dimensions_to_iterate = set(dimensions_to_iterate)
+
+        # Open the output Fiona object using overloaded values or values determined at call-time.
         if isinstance(fiona_or_path, basestring):
             fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
             fiona_crs = get_fiona_crs(field, kwargs.get('crs'))
-            fiona_schema = get_fiona_schema(field, kwargs.get('schema'))
+            fiona_schema = get_fiona_schema(field, geom, variables_to_write, kwargs.get('schema'))
             sink = fiona.open(fiona_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
             should_close = True
         else:
@@ -196,28 +215,31 @@ class DriverVector(AbstractDriver):
             should_close = False
 
         try:
-            iterators = {d.name: (ii for ii in range(len(d))) for d in field.geom.dimensions}
+            iter_dslices = iter_field_slices_for_records(field, dimensions_to_iterate,
+                                                         [v.name for v in variables_to_write])
             properties = fiona_schema['properties'].keys()
-            while True:
-                try:
-                    dslice = {k: v.next() for k, v in iterators.items()}
-                except StopIteration:
-                    break
-                else:
-                    sub = field[dslice]
-                    record = OrderedDict()
-                    for p in properties:
-                        try:
-                            indexed_value = sub[p].value_datetime[0]
-                        except AttributeError:
-                            indexed_value = sub[p].value[0]
-                        # Convert object to string if this is its data type. This is important for things like datetime
-                        # objects which require this conversion before writing.
-                        if fiona_schema['properties'][p].startswith('str') and indexed_value is not None:
+            for sub in iter_dslices:
+                record = OrderedDict()
+                for p in properties:
+                    try:
+                        indexed_value = sub[p].value_datetime.flatten()[0]
+                    except AttributeError:
+                        indexed_value = sub[p].value.flatten()[0]
+                    # Convert object to string if this is its data type. This is important for things like datetime
+                    # objects which require this conversion before writing.
+                    if indexed_value is not None:
+                        if fiona_schema['properties'][p].startswith('str'):
                             indexed_value = str(indexed_value)
-                        record[p] = indexed_value
-                    record = {'properties': record, 'geometry': mapping(sub.geom.value[0])}
-                    sink.write(record)
+                        else:
+                            # Attempt to convert the data to a Python-native data type.
+                            try:
+                                indexed_value = indexed_value.tolist()
+                            except AttributeError:
+                                pass
+                    record[p] = indexed_value
+                # tdk: OPTIMIZE: this mapping should not repeat for each geometry. there should be a cache.
+                record = {'properties': record, 'geometry': mapping(sub[geom.name].value.flatten()[0])}
+                sink.write(record)
         finally:
             if should_close:
                 sink.close()
@@ -268,14 +290,20 @@ def get_fiona_crs(vc_or_field, default):
     return ret
 
 
-def get_fiona_schema(vc_or_field, default):
+def get_fiona_schema(vc_or_field, geometry_variable, variables_to_write, default):
     ret = default
+    if variables_to_write is not None:
+        variable_names_to_write = [v.name for v in variables_to_write]
+    else:
+        variable_names_to_write = [v.name for v in vc_or_field.values()]
     if ret is None:
         ret = {}
-        ret['geometry'] = get_fiona_geometry_type(vc_or_field)
+        ret['geometry'] = geometry_variable.geom_type
         ret['properties'] = OrderedDict()
         p = ret['properties']
         for v in vc_or_field.values():
+            if v.name not in variable_names_to_write:
+                continue
             if not isinstance(v, (GeometryVariable, CoordinateReferenceSystem)):
                 p[v.name] = get_fiona_type_from_variable(v)
         for k, v in p.items():
@@ -294,14 +322,17 @@ def get_fiona_string_width(arr):
     return ret
 
 
-def get_fiona_geometry_type(vc_or_field):
-    try:
-        ret = vc_or_field.geom.geom_type
-    except AttributeError:
-        for v in vc_or_field.values:
-            try:
-                ret = v.geom_type
-                break
-            except AttributeError:
-                continue
-    return ret
+def iter_field_slices_for_records(vc_like, dimension_names, variable_names):
+    dimensions = [vc_like.dimensions[d] for d in dimension_names]
+    target = vc_like.copy()
+    to_pop = []
+    for v in target.values():
+        if v.name not in variable_names:
+            to_pop.append(v.name)
+    for tp in to_pop:
+        target.pop(tp)
+
+    iterators = [range(len(d)) for d in dimensions]
+    for indices in itertools.product(*iterators):
+        dslice = {d.name: indices[idx] for idx, d in enumerate(dimensions)}
+        yield target[dslice]

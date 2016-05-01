@@ -264,6 +264,10 @@ class Variable(AbstractContainer, Attributes):
             pass
         return ret
 
+    @property
+    def dimensions_names(self):
+        return [d.name for d in self.dimensions]
+
     def _get_dimensions_(self):
         return self._dimensions
 
@@ -463,6 +467,19 @@ class Variable(AbstractContainer, Attributes):
             for name, shp in izip(names, value.shape):
                 new_dimensions.append(Dimension(name, length=shp))
         self.dimensions = new_dimensions
+
+    def reshape(self, *args, **kwargs):
+        assert not self.has_bounds
+
+        new_dimensions = kwargs.get('dimensions')
+        self.dimensions = None
+        mask = self.get_mask()
+        if mask is not None:
+            new_mask = mask.reshape(*args)
+        self.value = self.value.reshape(*args)
+        self.set_mask(new_mask)
+        if new_dimensions is not None:
+            self.create_dimensions(new_dimensions)
 
     def set_extrapolated_bounds(self, name_variable, name_dimension):
         """Set the bounds variable using extrapolation."""
