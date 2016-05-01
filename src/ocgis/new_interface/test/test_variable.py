@@ -416,23 +416,21 @@ class TestVariable(AbstractTestNewInterface):
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
 
-        for attach in [False, True]:
-            if attach:
-                var_time = Variable(value=np.arange(6) * 2, name='time_attach')
-                var.dimensions_dict['time'].attach_variable(var_time)
-            for ctr, (idx, record) in enumerate(var.iter()):
-                if attach:
-                    self.assertIn(var_time.name, record)
-                else:
-                    self.assertEqual(len(record), 1)
-                self.assertEqual(ctr, idx[0])
-                self.assertIsInstance(record, OrderedDict)
-            self.assertEqual(ctr, 5)
+        for ctr, (idx, record) in enumerate(var.iter()):
+            self.assertEqual(ctr, idx[0])
+            self.assertIsInstance(record, OrderedDict)
+        self.assertEqual(ctr, 5)
 
         bv = self.get_boundedvariable()
-        for idx, element in bv.iter():
+        for idx, element in bv.iter(add_bounds=True):
             self.assertEqual(len(element), 3)
         self.assertEqual(idx[0], 2)
+
+        # Test with a formatter.
+        bv = self.get_boundedvariable()
+        for idx, element in bv.iter(formatter=str, add_bounds=True):
+            for v in element.values():
+                self.assertEqual(type(v), str)
 
     def test_set_extrapolated_bounds(self):
         bv = self.get_boundedvariable(mask=[False, True, False])

@@ -595,26 +595,22 @@ class Variable(AbstractContainer, Attributes):
         slices = create_nd_slices(splits, self.shape)
         return slices
 
-    def iter(self, use_mask=True, ):
+    def iter(self, use_mask=False, add_bounds=False, formatter=None):
         has_bounds = self.has_bounds
         name = self.name
         for idx, value in iter_array(self._get_iter_value_(), use_mask=use_mask, return_value=True):
             yld = OrderedDict()
-            try:
-                for idx_d, d in enumerate(self.dimensions):
-                    try:
-                        yld[d._variable.name] = d._variable.value[idx[idx_d]]
-                    except AttributeError:  # Assume None.
-                        pass
-            except TypeError:  # Assume None.
-                pass
             yld[name] = value
 
-            if has_bounds:
+            if has_bounds and add_bounds:
                 row = self.bounds.value[idx, :]
                 lb, ub = np.min(row), np.max(row)
-                yld['lb_{}'.format(self.name)] = lb
-                yld['ub_{}'.format(self.name)] = ub
+                yld['lb_{}'.format(name)] = lb
+                yld['ub_{}'.format(name)] = ub
+
+            if formatter is not None:
+                for k, v in yld.items():
+                    yld[k] = formatter(v)
 
             yield idx, yld
 
