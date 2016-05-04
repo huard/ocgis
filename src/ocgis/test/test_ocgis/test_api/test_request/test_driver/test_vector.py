@@ -42,14 +42,15 @@ class TestDriverVector(TestBase):
 
     @attr('data')
     def test_combo_cf_data(self):
-        # tdk: RESUME: taking too long because we are writing the lat and lon bnds
-        # tdk: RESUME: the time variable is not being written... should it be?
+        # tdk: RESUME: assert coordinate systems are equal (i.e. they should both be spherical)
         rd = self.test_data.get_rd('cancm4_tas')
         path = self.get_temporary_file_path('grid.shp')
-        field = rd.get()[{'time': slice(3, 6)}]
-        field.write(path, driver=DriverVector, variables=['time', 'lat', 'lon', 'tas'])
-        import ipdb;
-        ipdb.set_trace()
+        field = rd.get()[{'time': slice(3, 6), 'lat': slice(10, 20), 'lon': slice(21, 27)}]
+        variable_names = ['time', 'lat', 'lon', 'tas']
+        field.write(path, driver=DriverVector, variable_names=variable_names)
+        read = RequestDataset(path).get()
+        self.assertEqual(len(read.dimensions.values()[0]), 3 * 10 * 6)
+        self.assertEqual(read.keys(), 'ocgis_polygon')
         self.fail()
 
     def test_combo_with_time_data(self):
@@ -180,7 +181,6 @@ class TestDriverVector(TestBase):
         self.assertTrue(len(read) > 2)
         self.assertEqual(read.keys(), ['some_lats', 'some_lons', 'data', constants.NAME_GEOMETRY_DIMENSION])
 
-    def test_tdk(self):
         # Test writing a subset of the variables.
         path = self.get_temporary_file_path('limited.shp')
         value = [Point(1, 2), Point(3, 4), Point(5, 6)]
@@ -188,7 +188,6 @@ class TestDriverVector(TestBase):
         var1 = Variable('keep', value=[1, 2, 3], dimensions='points')
         var2 = Variable('remove', value=[4, 5, 6], dimensions='points')
         vc = VariableCollection(variables=[gvar, var1, var2])
-        vc.write(path, variables=['keep'], driver=DriverVector)
+        vc.write(path, variable_names=['keep'], driver=DriverVector)
         read = RequestDataset(uri=path).get()
         self.assertNotIn('remove', read)
-        self.fail()

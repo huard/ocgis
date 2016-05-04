@@ -179,6 +179,11 @@ class DriverVector(AbstractDriver):
     def write_variable_collection(field, fiona_or_path, **kwargs):
         # tdk: test conforming units!
 
+        crs = kwargs.get('crs')
+        fiona_schema = kwargs.get('fiona_schema')
+        fiona_driver = kwargs.get('fiona_driver', 'ESRI Shapefile')
+        variable_names = kwargs.get('variable_names', [])
+
         # Find the geometry variable.
         geom = None
         try:
@@ -195,18 +200,25 @@ class DriverVector(AbstractDriver):
         # same dimensions as the geometry variable. Any additional dimensions are appended to this list. Also collect
         # the variables that have these dimensions as they are the variables we are writing to file.
         dimensions_to_iterate = list(geom.dimensions_names)
-        variables_to_write = []
-        for v in field.values():
-            if len(set(dimensions_to_iterate).intersection(v.dimensions_names)) > 0:
+        if len(variable_names) > 0:
+            if geom.name not in variable_names:
+                variable_names.append(geom.name)
+            variables_to_write = [field[v] for v in variable_names]
+            for v in variables_to_write:
                 dimensions_to_iterate += list(v.dimensions_names)
-                variables_to_write.append(v)
+        else:
+            variables_to_write = []
+            for v in field.values():
+                if len(set(dimensions_to_iterate).intersection(v.dimensions_names)) > 0:
+                    dimensions_to_iterate += list(v.dimensions_names)
+                    variables_to_write.append(v)
         dimensions_to_iterate = set(dimensions_to_iterate)
 
         # Open the output Fiona object using overloaded values or values determined at call-time.
         if isinstance(fiona_or_path, basestring):
             fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
-            fiona_crs = get_fiona_crs(field, kwargs.get('crs'))
-            fiona_schema = get_fiona_schema(field, geom, variables_to_write, kwargs.get('schema'))
+            fiona_crs = get_fiona_crs(field, crs)
+            fiona_schema = get_fiona_schema(field, geom, variables_to_write, fiona_schema)
             sink = fiona.open(fiona_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
             should_close = True
         else:
@@ -221,6 +233,7 @@ class DriverVector(AbstractDriver):
             for sub in iter_dslices:
                 record = OrderedDict()
                 for p in properties:
+                    # Attempt to pull a datetime object if they are available.
                     try:
                         indexed_value = sub[p].value_datetime.flatten()[0]
                     except AttributeError:
@@ -331,6 +344,10 @@ def iter_field_slices_for_records(vc_like, dimension_names, variable_names):
             to_pop.append(v.name)
     for tp in to_pop:
         target.pop(tp)
+
+    # tdk: RESUME: there should be a high-level method to load all values from source
+    for v in target.values():
+        assert v.value is not None
 
     iterators = [range(len(d)) for d in dimensions]
     for indices in itertools.product(*iterators):
