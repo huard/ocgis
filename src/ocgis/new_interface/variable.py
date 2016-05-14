@@ -522,9 +522,6 @@ class Variable(AbstractContainer, Attributes):
                 if fill_value is not None:
                     is_equal = self.value == fill_value
                     ret[is_equal] = True
-                else:
-                    if self.dtype != object:
-                        self._fill_value = np.ma.array([], dtype=self.dtype).fill_value
         return ret
 
     def set_mask(self, mask, cascade=False):
