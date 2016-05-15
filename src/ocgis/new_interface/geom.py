@@ -121,12 +121,11 @@ class AbstractSpatialVariable(SourcedVariable, AbstractOperationsSpatialObject):
 
 
 class GeometryVariable(AbstractSpatialVariable):
-
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         self._name_uid = None
 
         self._geom_type = kwargs.pop('geom_type', 'auto')
-        super(GeometryVariable, self).__init__(**kwargs)
+        super(GeometryVariable, self).__init__(*args, **kwargs)
 
     @property
     def area(self):

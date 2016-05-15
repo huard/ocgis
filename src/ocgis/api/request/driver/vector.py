@@ -289,7 +289,14 @@ def get_fiona_type_from_variable(variable):
          float: 'float',
          object: 'str'}
     dtype = variable._get_vector_dtype_()
-    ftype = m[dtype]
+    try:
+        ftype = m[dtype]
+    except KeyError:
+        # This may be a NumPy string type.
+        if str(dtype).startswith('|S'):
+            ftype = 'str'
+        else:
+            raise
     return ftype
 
 
