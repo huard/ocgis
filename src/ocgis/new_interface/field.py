@@ -103,11 +103,13 @@ class OcgField(VariableCollection):
     @classmethod
     def from_variable_collection(cls, vc, *args, **kwargs):
         kwargs['name'] = vc.name
-        kwargs['variables'] = vc.values()
         kwargs['attrs'] = vc.attrs
         kwargs['parent'] = vc.parent
         kwargs['children'] = vc.children
-        return cls(*args, **kwargs)
+        ret = cls(*args, **kwargs)
+        for v in vc.values():
+            ret.add_variable(v, force=True)
+        return ret
 
     def write(self, *args, **kwargs):
         # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
