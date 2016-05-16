@@ -37,6 +37,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         # Allows operations on data variables to look through an empty dimension list. Alleviates instance checking.
         self.dimensions = tuple()
         self.dimensions_names = tuple()
+        self.ndim = 0
 
         # Add a special check for init keys in value dictionary.
         if value is not None:

@@ -724,7 +724,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return ret
 
     def __getitem__(self, item):
-        if isinstance(item, basestring):
+        if not isinstance(item, dict):
             ret = AbstractCollection.__getitem__(self, item)
         else:
             # Assume a dictionary slice.
@@ -733,7 +733,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for k, v in ret.items():
                 v = v.copy()
                 v.parent = None
-                if not isinstance(v, CoordinateReferenceSystem) and v.ndim > 0:
+                if v.ndim > 0:
                     v_dimension_names = set([d.name for d in v.dimensions])
                     if len(v_dimension_names.intersection(names)) > 0:
                         v = v.__getitem__(item)
