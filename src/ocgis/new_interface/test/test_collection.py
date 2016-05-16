@@ -5,11 +5,12 @@ import numpy as np
 from shapely.geometry import Point
 
 from ocgis.api.request.driver.vector import DriverVector
+from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.collection import SpatialCollection
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, VariableCollection
 
 
 class TestSpatialCollection(AbstractTestNewInterface):
@@ -23,6 +24,7 @@ class TestSpatialCollection(AbstractTestNewInterface):
         return exact
 
     def test(self):
+        # tdk: RESUME: this is the main test for the spatial collection
         # Create exact field 1.
         gridxy = self.get_gridxy(with_xy_bounds=True)
         exact = self.get_exact_field(gridxy.x.value, gridxy.y.value)
@@ -39,16 +41,21 @@ class TestSpatialCollection(AbstractTestNewInterface):
         field2.name = 'exact2'
 
         # These are the subset geometries.
+        crs = CoordinateReferenceSystem(epsg=2136)
         geoms = GeometryVariable(name='geoms', value=[Point(100.972, 41.941), Point(102.898, 40.978)],
-                                 dimensions='ngeom')
+                                 dimensions='ngeom', crs=crs)
         gridcode = Variable('gridcode', [110101, 12103], dimensions='ngeom')
+        geoms.set_uid(gridcode)
         description = Variable('description', ['high point', 'low point'], dimensions='ngeom')
         dimension_map = {'geom': {'variable': 'geoms'}}
         poi = OcgField(variables=[geoms, gridcode, description], dimension_map=dimension_map)
+        self.assertEqual(geoms.crs, crs)
+        self.assertEqual(poi.crs, crs)
 
         # Execute a subset for each geometry and add to the collection.
         # sc = SpatialCollection(variables=poi.values())
-        sc = SpatialCollection()
+        sc = SpatialCollection(properties=VariableCollection(variables=[gridcode, description]),
+                               geometry_variable=geoms)
         for ii in range(poi.geom.shape[0]):
             subset = poi.geom[ii]
             subset_geom = subset.value[0]
@@ -66,7 +73,12 @@ class TestSpatialCollection(AbstractTestNewInterface):
         self.assertTrue(sc[12103]['exact1'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
         self.assertTrue(sc[12103]['exact2'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
 
-        self.assertEqual(len(sc), 5)
+        self.assertEqual(len(sc.properties), 2)
+        self.assertIsInstance(sc.geometry_variable, GeometryVariable)
+        self.assertEqual(sc.crs, crs)
+
+        # print sc.properties
+
         # for cname, c in poi.children.items():
         #     out_path = self.get_temporary_file_path(str(cname) + '.shp')
         #     c.write(out_path, driver=DriverVector)
