@@ -38,6 +38,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         self.dimensions = tuple()
         self.dimensions_names = tuple()
         self.ndim = 0
+        self.has_bounds = False
 
         # Add a special check for init keys in value dictionary.
         if value is not None:

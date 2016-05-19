@@ -50,6 +50,7 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def allocate_parent(self):
         self.parent = VariableCollection()
+        self.parent.add_variable(self)
 
     @abstractmethod
     def get_mask(self):
@@ -139,6 +140,15 @@ class Variable(AbstractContainer, Attributes):
 
         if mask is not None:
             self.set_mask(mask)
+
+    def __add_to_collection_finalize__(self, vc):
+        """
+        Finalize adding the variable to the collection.
+
+        :param vc: :class:`ocgis.VariableCollection`
+        """
+        if self.has_bounds:
+            vc.add_variable(self.bounds, force=True)
 
     def _getitem_main_(self, ret, slc):
         dimensions = ret.dimensions
@@ -680,10 +690,6 @@ class SourcedVariable(Variable):
         bounds = kwargs.pop('bounds', None)
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
-        if self._value is None and self._request_dataset is None:
-            msg = 'A "value" or "request_dataset" is required.'
-            raise ValueError(msg)
-
         allocate_from_source(self)
 
         if bounds is not None:
@@ -777,12 +783,14 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         self[variable.name] = variable
+
+        # Allow variables to optionally overload how they are added to the collection.
         try:
-            if variable.has_bounds:
-                self.add_variable(variable.bounds, force=True)
+            variable.__add_to_collection_finalize__(self)
         except AttributeError:
-            if not isinstance(variable, CoordinateReferenceSystem):
-                raise
+            # It is okay that is not overloaded. The variable is simply added without special operations.
+            pass
+
         variable.parent = self
 
     def set_mask(self, variable, exclude=None):

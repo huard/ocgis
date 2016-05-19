@@ -47,19 +47,17 @@ class TestSpatialCollection(AbstractTestNewInterface):
         gridcode = Variable('gridcode', [110101, 12103], dimensions='ngeom')
         geoms.set_uid(gridcode)
         description = Variable('description', ['high point', 'low point'], dimensions='ngeom')
-        dimension_map = {'geom': {'variable': 'geoms'}}
+        dimension_map = {'geom': {'variable': 'geoms'}, 'crs': {'variable': crs.name}}
         poi = OcgField(variables=[geoms, gridcode, description], dimension_map=dimension_map)
         self.assertEqual(geoms.crs, crs)
         self.assertEqual(poi.crs, crs)
 
         # Execute a subset for each geometry and add to the collection.
-        # sc = SpatialCollection(variables=poi.values())
         sc = SpatialCollection(properties=VariableCollection(variables=[gridcode, description]),
                                geometry_variable=geoms)
         for ii in range(poi.geom.shape[0]):
             subset = poi.geom[ii]
             subset_geom = subset.value[0]
-            print subset, subset_geom
             for field in [field1, field2]:
                 subset_field = field.geom.get_intersects(subset_geom).parent
                 uid = subset.parent['gridcode'].value[0]
@@ -77,14 +75,8 @@ class TestSpatialCollection(AbstractTestNewInterface):
         self.assertIsInstance(sc.geometry_variable, GeometryVariable)
         self.assertEqual(sc.crs, crs)
 
-        # print sc.properties
-
-        # for cname, c in poi.children.items():
-        #     out_path = self.get_temporary_file_path(str(cname) + '.shp')
-        #     c.write(out_path, driver=DriverVector)
-
         path = self.get_temporary_file_path('grid.shp')
         path2 = self.get_temporary_file_path('poi.shp')
         field2.write(path, driver=DriverVector)
         poi.write(path2, driver=DriverVector)
-        self.fail()
+        self.fail('continue testing usage of spatial collection')

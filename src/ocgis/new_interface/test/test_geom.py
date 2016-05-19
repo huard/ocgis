@@ -119,11 +119,18 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_crs(self):
         crs = WGS84()
-        gvar = GeometryVariable(crs=crs)
+        gvar = GeometryVariable(crs=crs, name='var')
         self.assertEqual(gvar.crs, crs)
+        self.assertIn(crs.name, gvar.parent)
         gvar.crs = None
         self.assertIsNone(gvar.crs)
-        self.assertEqual(len(gvar.parent), 0)
+        self.assertEqual(len(gvar.parent), 1)
+        self.assertNotIn(crs.name, gvar.parent)
+
+        # Test coordinate system is maintained.
+        gvar = GeometryVariable(crs=crs, name='var')
+        vc = VariableCollection(variables=gvar)
+        self.assertIn(crs.name, vc)
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
