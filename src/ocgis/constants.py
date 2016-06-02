@@ -2,6 +2,8 @@ import numpy as np
 
 
 # : Standard bounds name used when none is available from the input data.
+from ocgis.util.enum import IntEnum
+
 OCGIS_BOUNDS = 'bounds'
 
 #: Default netCDF4 output file type
@@ -146,3 +148,23 @@ NAME_UID_FIELD = 'fid'
 CALC_KEY_KEYWORDS = 'kwds'
 CALC_KEY_CLASS_REFERENCE = 'ref'
 NAME_UID_FIELD = 'fid'
+
+
+# Enumerations for wrapped states and actions. #########################################################################
+
+class WrappedState(IntEnum):
+    # Data is wrapped -180 to 180.
+    WRAPPED = 1
+    # Data is unwrapped 0 to 360.
+    UNWRAPPED = 2
+    # The wrapped state is unknown due to coordinate values only in the range 0 to 180.
+    UNKNOWN = 3
+
+
+class WrapAction(IntEnum):
+    # Wrap the data to -180 to 180.
+    WRAP = 1
+    # Unwrap the data 0 to 360.
+    UNWRAP = 2
+
+########################################################################################################################

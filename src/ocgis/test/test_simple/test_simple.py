@@ -26,9 +26,10 @@ from ocgis.api.operations import OcgOperations
 from ocgis.api.parms.definition import OutputFormat
 from ocgis.api.parms.definition import SpatialOperation
 from ocgis.api.request.base import RequestDataset
+from ocgis.constants import WrappedState
 from ocgis.exc import ExtentError, DefinitionValidationError
 from ocgis.interface.base import crs
-from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84, CFWGS84, WrappableCoordinateReferenceSystem
+from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84, CFWGS84
 from ocgis.interface.base.field import DerivedMultivariateField
 from ocgis.test import strings
 from ocgis.test.base import TestBase, nc_scope, attr
@@ -1339,16 +1340,16 @@ class TestSimple360(TestSimpleBase):
 
         rd = RequestDataset(**self.get_dataset())
         field = rd.get()
-        self.assertEqual(field.spatial.wrapped_state, WrappableCoordinateReferenceSystem._flag_unwrapped)
+        self.assertEqual(field.spatial.wrapped_state, WrappedState.UNWRAPPED)
         ops = OcgOperations(dataset=rd, vector_wrap=True)
         ret = ops.execute()
-        self.assertEqual(ret[1]['foo'].spatial.wrapped_state, WrappableCoordinateReferenceSystem._flag_wrapped)
+        self.assertEqual(ret[1]['foo'].spatial.wrapped_state, WrappedState.WRAPPED)
 
     def test_wrap(self):
 
         def _get_longs_(geom):
             ret = np.array([g.centroid.x for g in geom.flat])
-            return (ret)
+            return ret
 
         ret = self.get_ret(kwds={'vector_wrap': False})
         longs_unwrap = _get_longs_(ret[1][self.var].spatial.abstraction_geometry.value)

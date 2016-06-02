@@ -9,9 +9,10 @@ from ocgis.api.collection import SpatialCollection
 from ocgis.calc.base import AbstractMultivariateFunction, AbstractKeyedOutputFunction
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis.calc.eval_function import MultivariateEvalFunction
+from ocgis.constants import WrappedState
 from ocgis.exc import EmptyData, ExtentError, MaskedDataError, EmptySubsetError, VariableInCollectionError, \
     BoundsAlreadyAvailableError
-from ocgis.interface.base.crs import CFWGS84, CFRotatedPole, WrappableCoordinateReferenceSystem
+from ocgis.interface.base.crs import CFWGS84, CFRotatedPole
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension
 from ocgis.interface.base.field import Field
 from ocgis.util.helpers import get_default_or_apply
@@ -393,8 +394,8 @@ class SubsetOperation(object):
             self._geom_unique_store.append(subset_geom)
 
         # unwrap the data if it is geographic and 360
-        if field.spatial.wrapped_state == WrappableCoordinateReferenceSystem._flag_unwrapped:
-            if subset_sdim.wrapped_state == WrappableCoordinateReferenceSystem._flag_wrapped:
+        if field.spatial.wrapped_state == WrappedState.UNWRAPPED:
+            if subset_sdim.wrapped_state == WrappedState.WRAPPED:
                 ocgis_lh('unwrapping selection geometry', self._subset_log, alias=alias, ugid=subset_ugid,
                          level=logging.DEBUG)
                 subset_sdim.unwrap()
@@ -417,13 +418,14 @@ class SubsetOperation(object):
                          level=logging.WARN)
                 sfield = None
             else:
-                msg = ' This typically means the selection geometry falls outside the spatial domain of the target dataset.'
+                msg = 'This typically means the selection geometry falls outside the spatial domain of the target ' \
+                      'dataset.'
                 msg = str(e) + msg
                 ocgis_lh(exc=ExtentError(message=msg), alias=alias, logger=self._subset_log)
 
-        # if the subset geometry is unwrapped and the vector wrap option is true, wrap the subset geometry.
+        # If the subset geometry is unwrapped and the vector wrap option is true, wrap the subset geometry.
         if self.ops.vector_wrap:
-            if subset_sdim.wrapped_state == WrappableCoordinateReferenceSystem._flag_unwrapped:
+            if subset_sdim.wrapped_state == WrappedState.UNWRAPPED:
                 subset_sdim.wrap()
 
         return sfield
@@ -592,7 +594,7 @@ class SubsetOperation(object):
 
                     # wrap the returned data.
                     if not env.OPTIMIZE_FOR_CALC:
-                        if sfield is not None and sfield.spatial.wrapped_state == WrappableCoordinateReferenceSystem._flag_unwrapped:
+                        if sfield is not None and sfield.spatial.wrapped_state == WrappedState.UNWRAPPED:
                             if self.ops.output_format != 'nc' and self.ops.vector_wrap:
                                 ocgis_lh('wrapping output geometries', self._subset_log, alias=alias, ugid=subset_ugid,
                                          level=logging.DEBUG)
