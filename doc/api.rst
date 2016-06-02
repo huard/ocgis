@@ -435,7 +435,7 @@ Value                      Description
 spatial_wrapping
 ~~~~~~~~~~~~~~~~
 
-Allows control of the wrapped state for all input fields. Only field objects with a wrappable coordinate system are affected.
+Allows control of the wrapped state for all input fields. Only field objects with a wrappable coordinate system are affected. Wrapping operations are applied before all other operations.
 
 ================== ======================================================================
 Value              Description
