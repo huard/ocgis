@@ -242,14 +242,26 @@ class TestSpherical(TestBase):
         """Test wrapped and unwrapped geometries with a mask ensuring that masked values are wrapped and unwrapped."""
 
         rd = self.test_data.get_rd('cancm4_tas')
-        ops = ocgis.OcgOperations(dataset=rd, geom='state_boundaries', select_ugid=[23])
+
+        ops = ocgis.OcgOperations(dataset=rd, geom='state_boundaries', select_ugid=[23], spatial_wrapping='wrap')
         ret = ops.execute()
         sdim = ret[23]['tas'].spatial
-        actual = np.array([[[34.88252349825162, 34.88252349825162, 34.88252349825162], [37.67309213352349, 37.67309213352349, 37.67309213352349], [40.4636506825932, 40.4636506825932, 40.4636506825932], [43.254197169829105, 43.254197169829105, 43.254197169829105]], [[-120.9375, -118.125, -115.3125], [-120.9375, -118.125, -115.3125], [-120.9375, -118.125, -115.3125], [-120.9375, -118.125, -115.3125]]], dtype=sdim.grid.value.dtype)
+        actual = np.array([[[34.88252349825162, 34.88252349825162, 34.88252349825162],
+                            [37.67309213352349, 37.67309213352349, 37.67309213352349],
+                            [40.4636506825932, 40.4636506825932, 40.4636506825932],
+                            [43.254197169829105, 43.254197169829105, 43.254197169829105]],
+                           [[-120.9375, -118.125, -115.3125], [-120.9375, -118.125, -115.3125],
+                            [-120.9375, -118.125, -115.3125], [-120.9375, -118.125, -115.3125]]],
+                          dtype=sdim.grid.value.dtype)
         self.assertNumpyAll(actual, sdim.grid.value.data)
 
         Spherical().unwrap(sdim)
-        actual = np.array([[[34.88252349825162, 34.88252349825162, 34.88252349825162], [37.67309213352349, 37.67309213352349, 37.67309213352349], [40.4636506825932, 40.4636506825932, 40.4636506825932], [43.254197169829105, 43.254197169829105, 43.254197169829105]], [[239.0625, 241.875, 244.6875], [239.0625, 241.875, 244.6875], [239.0625, 241.875, 244.6875], [239.0625, 241.875, 244.6875]]], dtype=sdim.grid.value.dtype)
+        actual = np.array([[[34.88252349825162, 34.88252349825162, 34.88252349825162],
+                            [37.67309213352349, 37.67309213352349, 37.67309213352349],
+                            [40.4636506825932, 40.4636506825932, 40.4636506825932],
+                            [43.254197169829105, 43.254197169829105, 43.254197169829105]],
+                           [[239.0625, 241.875, 244.6875], [239.0625, 241.875, 244.6875], [239.0625, 241.875, 244.6875],
+                            [239.0625, 241.875, 244.6875]]], dtype=sdim.grid.value.dtype)
         self.assertNumpyAll(actual, sdim.grid.value.data)
 
     def test_wrap_normal(self):
@@ -308,9 +320,10 @@ class TestSpherical(TestBase):
         # bounds values on the other side of the prime meridian
         orig, sdim = _get_sdim_(182, [180, 184])
         sdim.wrap()
-        self.assertIsNone(sdim.grid.col.bounds)
-        self.assertIsNone(sdim.grid.row.bounds)
-        self.assertIsNone(sdim.grid.corners)
+        self.assertNumpyAll(sdim.grid.col.bounds, np.array([[180., -176.]]))
+        self.assertNumpyAll(sdim.grid.row.bounds, np.array([[38., 42.]]))
+        self.assertNumpyAll(sdim.grid.corners, np.ma.array([[[[38.0, 38.0, 42.0, 42.0]]],
+                                                            [[[180.0, -176.0, -176.0, 180.0]]]]))
         self.assertEqual(sdim.geom.polygon.value[0, 0][0].bounds, (-180.0, 38.0, -176.0, 42.0))
         self.assertNumpyAll(np.array(sdim.geom.point.value[0, 0]), np.array([-178., 40.]))
 

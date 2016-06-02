@@ -425,12 +425,25 @@ Value                  Description
 spatial_operation
 ~~~~~~~~~~~~~~~~~
 
-======================== =============================================================================================================================================
-Value                    Description
-======================== =============================================================================================================================================
-``intersects`` (default) Source geometries touching or overlapping selection geometries are returned (see :ref:`appendix-intersects`).
-``clip``                 A full geometric intersection is performed between source and selection geometries. New geometries may be created. (see :ref:`appendix-clip`)
-======================== =============================================================================================================================================
+========================== =============================================================================================================================================
+Value                      Description
+========================== =============================================================================================================================================
+``"intersects"`` (default) Source geometries touching or overlapping selection geometries are returned (see :ref:`appendix-intersects`).
+``"clip"``                 A full geometric intersection is performed between source and selection geometries. New geometries may be created. (see :ref:`appendix-clip`)
+========================== =============================================================================================================================================
+
+spatial_wrapping
+~~~~~~~~~~~~~~~~
+
+Allows control of the wrapped state for all input fields. Only field objects with a wrappable coordinate system are affected.
+
+================== ======================================================================
+Value              Description
+================== ======================================================================
+``None`` (default) Do not attempt a wrap or unwrap operation.
+``"wrap"``         Wrap spherical coordinates to the -180 to 180 longitudinal domain.
+``"unwrap"``       Unwrap spherical coordinate to the 0 to 360 longitudinal domain.
+================== ======================================================================
 
 time_range
 ~~~~~~~~~~

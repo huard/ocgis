@@ -248,22 +248,8 @@ class WrappableCoordinateReferenceSystem(object):
                     ref[select] -= 360
                     if spatial.grid.col.bounds is not None:
                         ref = spatial.grid.col.bounds
-                        # check for bounds containing the prime meridian. to avoid adjusting data, bounds will need to
-                        # be removed.
-                        bounds_min = np.min(ref, axis=1)
-                        bounds_max = np.max(ref, axis=1)
-                        select_min = bounds_min <= 180
-                        select_max = bounds_max > 180
-                        select_cross = np.logical_and(select_min, select_max)
-                        if np.any(select_cross):
-                            spatial.grid.row.bounds
-                            spatial.grid.row.bounds = None
-                            spatial.grid.col.bounds
-                            spatial.grid.col.bounds = None
-                            bounds_cross_meridian = True
-                        else:
-                            select = ref > 180
-                            ref[select] -= 360
+                        select = ref > 180
+                        ref[select] -= 360
 
                 # attempt to wrap the grid corners if they exist
                 if spatial.grid.corners is not None:

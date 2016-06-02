@@ -421,7 +421,7 @@ class SubsetOperation(object):
                          level=logging.WARN)
                 sfield = None
             else:
-                msg = 'This typically means the selection geometry falls outside the spatial domain of the target ' \
+                msg = ' This typically means the selection geometry falls outside the spatial domain of the target ' \
                       'dataset.'
                 msg = str(e) + msg
                 ocgis_lh(exc=ExtentError(message=msg), alias=alias, logger=self._subset_log)

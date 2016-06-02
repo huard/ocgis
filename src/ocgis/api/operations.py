@@ -109,6 +109,8 @@ class OcgOperations(object):
      individual columns in tabular output formats (i.e. ``'csv'``). If ``True``, all variable values will be collected
      under a single value column.
     :param dict output_format_options: A dictionary of output-specific format options.
+    :param str spatial_wrapping: If ``"wrap"`` or ``"unwrap"``, wrap or unwrap the spatial coordinates if the associated
+     coordinate system is a wrappable coordinate system like spherical latitude/longitude.
     """
 
     def __init__(self, dataset=None, spatial_operation='intersects', geom=None, geom_select_sql_where=None,
