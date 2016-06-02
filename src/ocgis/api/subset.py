@@ -9,10 +9,10 @@ from ocgis.api.collection import SpatialCollection
 from ocgis.calc.base import AbstractMultivariateFunction, AbstractKeyedOutputFunction
 from ocgis.calc.engine import OcgCalculationEngine
 from ocgis.calc.eval_function import MultivariateEvalFunction
-from ocgis.constants import WrappedState
+from ocgis.constants import WrappedState, WrapAction
 from ocgis.exc import EmptyData, ExtentError, MaskedDataError, EmptySubsetError, VariableInCollectionError, \
     BoundsAlreadyAvailableError
-from ocgis.interface.base.crs import CFWGS84, CFRotatedPole
+from ocgis.interface.base.crs import CFWGS84, CFRotatedPole, WrappableCoordinateReferenceSystem
 from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimension
 from ocgis.interface.base.field import Field
 from ocgis.util.helpers import get_default_or_apply
@@ -227,6 +227,9 @@ class SubsetOperation(object):
                         except BoundsAlreadyAvailableError:
                             msg = 'Bounds/corners already on object. Ignoring "interpolate_spatial_bounds".'
                             ocgis_lh(msg=msg, logger=self._subset_log, level=logging.WARNING)
+
+                    # Wrap or unwrap the data if the coordinate system permits.
+                    update_wrapping(self, field_object)
 
                     field[ii] = field_object
 
@@ -629,3 +632,20 @@ class SubsetOperation(object):
             coll.add_field(sfield, ugeom=subset_sdim, name=name)
 
             yield coll
+
+
+def update_wrapping(obj, field_object):
+    """
+    Update the wrapped state of the incoming field object. This only affects fields with wrappable coordinate systems.
+
+    :param obj: :class:`ocgis.api.subset.SubsetOperation`
+    :param field_object: :class:`ocgis.Field`
+    """
+    if obj.ops.spatial_wrapping is not None:
+        if isinstance(field_object.crs, WrappableCoordinateReferenceSystem):
+            as_enum = obj.ops._get_object_('spatial_wrapping').as_enum
+            if field_object.spatial.wrapped_state != as_enum:
+                if as_enum == WrapAction.WRAP:
+                    field_object.spatial.wrap()
+                else:
+                    field_object.spatial.unwrap()

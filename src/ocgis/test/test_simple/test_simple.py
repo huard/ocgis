@@ -14,7 +14,7 @@ import netCDF4 as nc
 import numpy as np
 from fiona.crs import from_string
 from shapely import wkt
-from shapely.geometry.geo import mapping
+from shapely.geometry.geo import mapping, shape
 from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
 
@@ -1341,9 +1341,25 @@ class TestSimple360(TestSimpleBase):
         rd = RequestDataset(**self.get_dataset())
         field = rd.get()
         self.assertEqual(field.spatial.wrapped_state, WrappedState.UNWRAPPED)
+
+        # Data should maintain its original wrapped state if the output format is not a vector format.
         ops = OcgOperations(dataset=rd, vector_wrap=True)
         ret = ops.execute()
-        self.assertEqual(ret[1]['foo'].spatial.wrapped_state, WrappedState.WRAPPED)
+        self.assertEqual(ret[1]['foo'].spatial.wrapped_state, WrappedState.UNWRAPPED)
+
+        # If this is a vector output format, the data should be wrapped.
+        for vector_wrap in [True, False]:
+            ops = OcgOperations(dataset=rd, vector_wrap=vector_wrap, output_format=constants.OUTPUT_FORMAT_GEOJSON,
+                                snippet=True, prefix=str(vector_wrap))
+            ret = ops.execute()
+            with fiona.open(ret, driver='GeoJSON') as source:
+                for record in source:
+                    geom = shape(record['geometry'])
+                    arr = np.array(geom[0].exterior)[:, 0]
+                    if vector_wrap:
+                        self.assertTrue(np.all(arr < 0))
+                    else:
+                        self.assertTrue(np.all(arr > 0))
 
     def test_wrap(self):
 
@@ -1355,7 +1371,7 @@ class TestSimple360(TestSimpleBase):
         longs_unwrap = _get_longs_(ret[1][self.var].spatial.abstraction_geometry.value)
         self.assertTrue(np.all(longs_unwrap > 180))
 
-        ret = self.get_ret(kwds={'vector_wrap': True})
+        ret = self.get_ret(kwds={'spatial_wrapping': 'wrap'})
         longs_wrap = _get_longs_(ret[1][self.var].spatial.abstraction_geometry.value)
         self.assertTrue(np.all(np.array(longs_wrap) < 180))
 
