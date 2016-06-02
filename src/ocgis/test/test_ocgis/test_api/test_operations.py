@@ -9,14 +9,19 @@ import numpy as np
 from numpy import dtype
 
 import ocgis
+from ocgis import Field
 from ocgis import constants
 from ocgis import env
 from ocgis.api.operations import OcgOperations
 from ocgis.api.parms import definition
-from ocgis.api.parms.definition import RegridOptions, OutputFormat
+from ocgis.api.parms.definition import RegridOptions, OutputFormat, SpatialWrapping
 from ocgis.api.request.base import RequestDataset
+from ocgis.constants import WrappedState
 from ocgis.exc import DefinitionValidationError, DimensionNotFound, RequestValidationError
-from ocgis.interface.base.crs import CFWGS84
+from ocgis.interface.base.crs import CFWGS84, Spherical
+from ocgis.interface.base.dimension.base import VectorDimension
+from ocgis.interface.base.dimension.spatial import SpatialGridDimension, SpatialDimension
+from ocgis.interface.base.variable import Variable
 from ocgis.test.base import TestBase, attr
 from ocgis.util.geom_cabinet import GeomCabinetIterator, GeomCabinet
 from ocgis.util.helpers import make_poly
@@ -26,7 +31,6 @@ class TestOcgOperations(TestBase):
     def setUp(self):
         TestBase.setUp(self)
 
-        # data may need to be pulled from remote repository
         rds = [self.test_data.get_rd('cancm4_tasmin_2001'), self.test_data.get_rd('cancm4_tasmax_2011'),
                self.test_data.get_rd('cancm4_tas')]
 
@@ -670,3 +674,38 @@ class TestOcgOperations(TestBase):
         rd = RequestDataset(path)
         with self.assertRaises(DefinitionValidationError):
             OcgOperations(dataset=rd, output_format='csv')
+
+
+class TestOcgOperationsNoData(TestBase):
+    def test_keyword_spatial_wrapping(self):
+        row = VectorDimension(value=[20, 40])
+        col = VectorDimension(value=[1, 180, 270])
+        grid = SpatialGridDimension(row=row, col=col)
+        spatial = SpatialDimension(grid=grid, crs=Spherical())
+        value = np.random.rand(2, 3).reshape(1, 1, 1, 2, 3)
+        var = Variable(name='foo', value=value)
+        field = Field(spatial=spatial, variables=var)
+
+        poss = SpatialWrapping.iter_possible()
+        for p in poss:
+            print p
+            ops = OcgOperations(dataset=field, spatial_wrapping=p)
+            ret = ops.execute()
+            actual_field = ret[1]['foo']
+            actual = actual_field.spatial.wrapped_state
+
+            if p is None:
+                desired = WrappedState.UNWRAPPED
+            elif p == 'wrap':
+                desired = WrappedState.WRAPPED
+            else:
+                desired = WrappedState.UNWRAPPED
+
+            self.assertEqual(actual, desired)
+
+            print actual_field.spatial.grid.value
+            print actual
+
+            print ret
+
+        self.fail()

@@ -97,6 +97,10 @@ OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH = 'nc-ugrid-2d-flexible-mesh'
 OUTPUT_FORMAT_NUMPY = 'numpy'
 OUTPUT_FORMAT_SHAPEFILE = 'shp'
 
+#: These output formats are considered vector output formats affected by operations manipulation vector GIS data. For
+#: example, vector GIS outputs are always wrapped to -180 to 180 if there is a spherical coordinate system.
+VECTOR_OUTPUT_FORMATS = [OUTPUT_FORMAT_GEOJSON, OUTPUT_FORMAT_SHAPEFILE]
+
 # Download URL for test datasets.
 TEST_DATA_DOWNLOAD_PREFIX = None
 

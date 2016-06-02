@@ -595,7 +595,7 @@ class SubsetOperation(object):
                     # wrap the returned data.
                     if not env.OPTIMIZE_FOR_CALC:
                         if sfield is not None and sfield.spatial.wrapped_state == WrappedState.UNWRAPPED:
-                            if self.ops.output_format != 'nc' and self.ops.vector_wrap:
+                            if self.ops.output_format in constants.VECTOR_OUTPUT_FORMATS and self.ops.vector_wrap:
                                 ocgis_lh('wrapping output geometries', self._subset_log, alias=alias, ugid=subset_ugid,
                                          level=logging.DEBUG)
                                 # deepcopy the spatial dimension before wrapping as wrapping will modify the spatial
