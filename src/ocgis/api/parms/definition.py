@@ -1157,7 +1157,25 @@ class SpatialOperation(base.StringOptionParameter):
             ret = 'Geometries touching AND overlapping returned.'
         else:
             ret = 'A full geometric intersection occurred. Where geometries overlapped, a new geometry was created.'
-        return (ret)
+        return ret
+
+
+class SpatialWrapping(base.StringOptionParameter):
+    name = 'spatial_wrapping'
+    default = None
+    valid = ('clip', 'intersects')
+
+    @classmethod
+    def iter_possible(cls):
+        for v in cls.valid:
+            yield (v)
+
+    def _get_meta_(self):
+        if self.value == 'intersects':
+            ret = 'Geometries touching AND overlapping returned.'
+        else:
+            ret = 'A full geometric intersection occurred. Where geometries overlapped, a new geometry was created.'
+        return ret
 
 
 class TimeRange(base.IterableParameter, base.AbstractParameter):

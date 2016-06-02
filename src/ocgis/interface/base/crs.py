@@ -533,11 +533,11 @@ class CFWGS84(WGS84, CFCoordinateReferenceSystem):
         try:
             r_grid_mapping = meta['variables'][var]['attrs']['grid_mapping']
             if r_grid_mapping == cls.grid_mapping_name:
-                return (cls())
+                return cls()
             else:
-                raise (ProjectionDoesNotMatch)
+                raise ProjectionDoesNotMatch
         except KeyError:
-            raise (ProjectionDoesNotMatch)
+            raise ProjectionDoesNotMatch
 
 
 class CFAlbersEqualArea(CFCoordinateReferenceSystem):
