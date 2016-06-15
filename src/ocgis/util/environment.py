@@ -4,10 +4,6 @@ import sys
 from importlib import import_module
 from warnings import warn
 
-import numpy as np
-
-from ocgis import constants
-from ocgis.util.helpers import get_iter
 
 # HACK!! on some systems, there are issues with loading a parallel ESMF installation if this import occurs in a
 # different location. it is unclear what mechanism causes the import issue. ESMF is not a required package, so a failed
