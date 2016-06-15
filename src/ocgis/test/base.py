@@ -232,15 +232,12 @@ class TestBase(unittest.TestCase):
                         if close:
                             self.assertNumpyAllClose(var_value, dvar_value)
                         else:
-                            try:
-                                self.assertNumpyAll(var_value, dvar_value, check_arr_dtype=check_types)
-                            except AssertionError:
-                                self.assertTrue(np.isnan(var_value))
-                                self.assertTrue(np.isnan(dvar_value))
-                except AssertionError:
-                    cmp = var_value == dvar_value
-                    if cmp.shape == (1,) and cmp.data[0] == True:
-                        pass
+                            self.assertNumpyAll(var_value, dvar_value, check_arr_dtype=check_types)
+                except (AssertionError, AttributeError):
+                    # Zero-length netCDF variables should not be tested for value equality. Values are meaningless and
+                    # only the attributes should be tested for equality.
+                    if len(dvar.dimensions) == 0:
+                        self.assertEqual(len(var.dimensions), 0)
                     else:
                         raise
 
