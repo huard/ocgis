@@ -168,7 +168,8 @@ class AbstractTestNewInterface(TestBase):
 
     def get_polygonarray(self):
         grid = self.get_polygon_array_grid()
-        poly = get_geometry_variable(get_polygon_geometry_array, grid)
+        poly = get_geometry_variable(get_polygon_geometry_array, grid, name='the_polygons',
+                                     dimensions=[d.name for d in grid.dimensions])
         return poly
 
     def get_polygon_array_grid(self, with_bounds=True):

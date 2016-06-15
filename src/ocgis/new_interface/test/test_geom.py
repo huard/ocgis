@@ -133,7 +133,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_getitem(self):
         gridxy = self.get_gridxy()
-        pa = get_geometry_variable(get_point_geometry_array, gridxy)
+        pa = get_geometry_variable(get_point_geometry_array, gridxy, name='point_array', dimensions=['x', 'y'])
         self.assertEqual(pa.shape, (4, 3))
         self.assertEqual(pa.ndim, 2)
         self.assertIsNotNone(pa._value)
@@ -173,7 +173,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         x = Variable(value=[1, 2, 3, 4, 5], name='x', dimensions=['x'])
         y = Variable(value=[10, 20, 30, 40, 50], name='y', dimensions=['y'])
         grid = GridXY(x=x, y=y)
-        pa = get_geometry_variable(get_point_geometry_array, grid)
+        pa = get_geometry_variable(get_point_geometry_array, grid, name='points', dimensions=['y', 'x'])
         polygon = box(2.5, 15, 4.5, 45)
         sub, slc = pa.get_intersects(polygon, return_slice=True)
         self.assertEqual(sub.shape, (3, 2))
@@ -229,7 +229,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         x = self.get_variable_x()
         y = self.get_variable_y()
         grid = GridXY(x=x, y=y)
-        pa = get_geometry_variable(get_point_geometry_array, grid, crs=WGS84())
+        pa = get_geometry_variable(get_point_geometry_array, grid, crs=WGS84(), name='points', dimensions=['y', 'x'])
         poly = wkt.loads(
             'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
         actual_mask = np.array([[True, True, False, True], [True, False, True, True], [True, True, False, True]])
@@ -326,7 +326,7 @@ class TestGeometryVariablePolygons(AbstractTestNewInterface):
         col = Variable(value=[4, 5], name='col', dimensions='x')
         col.set_extrapolated_bounds('col_bounds', 'x')
         grid = GridXY(y=row, x=col)
-        poly = get_geometry_variable(get_polygon_geometry_array, grid, name='geom')
+        poly = get_geometry_variable(get_polygon_geometry_array, grid, name='geom', dimensions=['row', 'col'])
         self.assertEqual(poly.name, 'geom')
         self.assertEqual(poly.geom_type, 'Polygon')
 
