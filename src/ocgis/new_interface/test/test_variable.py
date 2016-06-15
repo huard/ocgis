@@ -167,10 +167,10 @@ class TestVariable(AbstractTestNewInterface):
             desired = ds.variables['foo'][:]
         for idx in np.arange(v.shape[0]):
             self.assertNumpyAll(np.array(v.value[idx]), desired[idx])
-        v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'))
+        v_actual = SourcedVariable(request_dataset=RequestDataset(uri=path, variable='foo'), name='foo')
 
         actual = v[1].masked_value[0]
-        desired = np.ma.array(value[1], dtype=np.float32, mask=True)
+        desired = np.array(value[1], dtype=np.float32)
         self.assertNumpyAll(desired, actual)
 
         for idx in range(v.shape[0]):
@@ -554,16 +554,17 @@ class TestVariable(AbstractTestNewInterface):
         new_mask = var.get_mask()
         new_mask[1] = True
         var.set_mask(new_mask)
-        self.assertIsNotNone(var.fill_value)
+        self.assertIsNone(var.fill_value)
         var.attrs['axis'] = 'not_an_ally'
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             var.write(ds)
+        # self.ncdump(path)
         with self.nc_scope(path) as ds:
             ncvar = ds.variables[var.name]
             self.assertEqual(ncvar.units, 'kelvin')
             self.assertEqual(ncvar.dtype, var.dtype)
-            self.assertEqual(ncvar[:].fill_value, var.fill_value)
+            self.assertTrue(ncvar[:].mask[1])
             self.assertEqual(ncvar.axis, 'not_an_ally')
 
         # Test writing an unlimited dimension.
@@ -677,20 +678,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write(ds)
 
-    @attr('data')
-    def test_combo_with_data(self):
-        # Test units are left on bounds if we are conforming.
-        rd = self.get_request_dataset(conform_units_to={'lat_bnds': 'celsius', 'lat': 'celsius'})
-        bounds = SourcedVariable(name='lat_bnds', request_dataset=rd, units='K')
-        bv = SourcedVariable(name='lat', request_dataset=rd, units='K', bounds=bounds)
-        self.assertIsNone(bv._value)
-        self.assertIsNone(bv.bounds._value)
-        self.assertEqual(bv.bounds.units, 'K')
-        assert bv.value is not None
-        assert bv.bounds.value is not None
-        self.assertEqual(bv.units, 'celsius')
-        self.assertEqual(bv.bounds.units, 'celsius')
-
     def tet_combo_add_offset_and_scale_factor(self):
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
@@ -723,17 +710,6 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.units, 'K')
         self.assertLess(sv.value.mean(), 200)
         self.assertEqual(sv.units, 'celsius')
-
-        # Try with a bounded variable.
-        # tdk: test with a group index on conform_units_to - remove group_index?
-        rd = self.get_request_dataset(conform_units_to={'lat': 'K'})
-        bounds = SourcedVariable('lat_bnds', request_dataset=rd, units='celsius')
-        sv = SourcedVariable('lat', request_dataset=rd, bounds=bounds, units='celsius')
-        self.assertIsNone(sv._value)
-        self.assertGreater(sv.value.mean(), 250)
-        self.assertEqual(sv.units, 'K')
-        self.assertEqual(sv.bounds.units, 'K')
-        self.assertGreater(sv.bounds.value.mean(), 250)
 
     def test_getitem(self):
         sv = self.get_sourcedvariable()

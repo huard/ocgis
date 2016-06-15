@@ -468,6 +468,7 @@ def get_geometry_variable(func, grid, **kwargs):
         value = func(grid, value)
     kwargs['value'] = value
     kwargs['crs'] = grid.crs
+    kwargs['parent'] = grid.parent
     return GeometryVariable(**kwargs)
 
 
@@ -659,9 +660,11 @@ def get_coordinate_boolean_array(grid_target, keep_touches, max_target, min_targ
 
 
 def grid_set_geometry_variable_on_parent(func, grid, name, alloc_only=False):
-    ret = get_geometry_variable(func, grid, name=name, attrs={'axis': 'geom'}, alloc_only=alloc_only)
-    ret.create_dimensions(names=[d.name for d in grid.dimensions])
-    grid.parent.add_variable(ret)
+    dimensions = [d.name for d in grid.dimensions]
+    ret = get_geometry_variable(func, grid, name=name, attrs={'axis': 'geom'}, alloc_only=alloc_only,
+                                dimensions=dimensions)
+    # ret.create_dimensions(names=[d.name for d in grid.dimensions])
+    # grid.parent.add_variable(ret)
     return ret
 
 

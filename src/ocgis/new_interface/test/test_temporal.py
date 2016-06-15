@@ -272,14 +272,14 @@ class TestTemporalVariable(AbstractTestTemporal):
     @attr('data', 'cfunits')
     def test_cfunits_conform_data(self):
 
-        def _get_temporal_variable_(conform_units_to=None):
-            rd = self.get_request_dataset(conform_units_to=conform_units_to)
+        def _get_temporal_variable_(t_conform_units_to=None):
+            rd = self.get_request_dataset(t_conform_units_to=t_conform_units_to)
             bounds = TemporalVariable(name='time_bnds', request_dataset=rd)
             tv = TemporalVariable(name='time', request_dataset=rd, bounds=bounds)
             return tv
 
         target = get_units_object('days since 1949-1-1', calendar='365_day')
-        temporal = _get_temporal_variable_(conform_units_to={'time': target})
+        temporal = _get_temporal_variable_(t_conform_units_to=target)
         temporal_orig = _get_temporal_variable_()
         self.assertTrue(get_are_units_equivalent((target, temporal.cfunits, temporal_orig.cfunits)))
         self.assertEqual(temporal.calendar, '365_day')

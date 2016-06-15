@@ -141,7 +141,7 @@ class RequestDataset(object):
 
         self._level_range = None
         self._time_range = None
-        self._time_range = None
+        self._time_region = None
         self._time_subset_func = None
         self._dimension_map = deepcopy(dimension_map)
         self._metadata = deepcopy(metadata)
@@ -273,7 +273,7 @@ class RequestDataset(object):
             validate_unit_equivalence(get_tuple(self.units), value)
 
             m = self.metadata['variables']
-            for v, u in zip(self.variable, value):
+            for v, u in zip(get_tuple(self.variable), value):
                 m[v]['conform_units_to'] = u
 
     @property
@@ -646,6 +646,8 @@ def get_driver(driver):
     try:
         if not isinstance(driver, basestring):
             driver = driver.key.lower()
+        else:
+            driver = driver.lower()
         klass = RequestDataset._Drivers[driver]
     except KeyError:
         exc = RequestValidationError('driver', 'Driver not found: {0}'.format(driver))

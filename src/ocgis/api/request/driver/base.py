@@ -102,10 +102,14 @@ class AbstractDriver(object):
         """
 
     def allocate_variable_value(self, variable):
+        """Set the variable value from source data conforming units in the process."""
+
         value = self.get_variable_value(variable)
         variable._set_value_(value)
-        # Conform the units if requested.
-        conform_units_to = self.rd.metadata['variables'][variable.name].get('conform_units_to')
+        # Conform the units if requested. Need to check if this variable is inside a group to find the appropriate
+        # metadata.
+        meta = get_variable_metadata_from_request_dataset(self, variable)
+        conform_units_to = meta.get('conform_units_to')
         if conform_units_to is not None:
             variable.cfunits_conform(conform_units_to)
 
@@ -239,3 +243,23 @@ class AbstractDriver(object):
     @abc.abstractmethod
     def write_variable_collection(self, *args, **kwargs):
         """Write a variable collection to file(s)."""
+
+
+def get_variable_metadata_from_request_dataset(driver, variable):
+    to_check = variable.parent
+    current_meta = driver.rd.metadata['groups']
+    ctr = 0
+    while to_check is not None:
+        try:
+            current_meta = current_meta[to_check.name]
+        except KeyError:
+            to_check = None
+        else:
+            to_check = to_check.parent
+            ctr += 1
+    if ctr > 0:
+        meta = current_meta
+    else:
+        meta = driver.rd.metadata
+
+    return meta['variables'][variable.name]

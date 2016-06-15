@@ -5,7 +5,6 @@ import fiona
 import numpy as np
 from nose.plugins.skip import SkipTest
 from numpy.ma import MaskedArray
-from numpy.testing.utils import assert_equal
 from shapely import wkt
 from shapely.geometry import Point, box, MultiPoint, LineString, MultiPolygon
 from shapely.geometry.multilinestring import MultiLineString
@@ -44,7 +43,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(gvar.ndim, 1)
 
         # Test passing a "crs".
-        gvar = self.get_geometryvariable(crs=WGS84())
+        gvar = self.get_geometryvariable(crs=WGS84(), name='my_geom', dimensions='ngeom')
         self.assertEqual(gvar.crs, WGS84())
 
         # Test using lines.
@@ -282,7 +281,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertEqual(u.value[0], actual)
 
     def test_update_crs(self):
-        pa = self.get_geometryvariable(crs=WGS84())
+        pa = self.get_geometryvariable(crs=WGS84(), name='g', dimensions='gg')
         to_crs = CoordinateReferenceSystem(epsg=2136)
         pa.update_crs(to_crs)
         self.assertEqual(pa.crs, to_crs)
@@ -299,7 +298,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
 
     def test_write_fiona(self):
-        pa = self.get_geometryvariable(crs=WGS84())
+        pa = self.get_geometryvariable(crs=WGS84(), name='g', dimensions='gg')
         path = self.get_temporary_file_path('foo.shp')
         pa.write_fiona(path)
         with fiona.open(path, 'r') as records:
