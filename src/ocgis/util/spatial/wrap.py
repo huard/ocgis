@@ -316,3 +316,20 @@ class GeometryWrapper(AbstractWrapper):
         coords = np.array(polygon.exterior.coords)
         coords[:, 0] = coords[:, 0] + 360
         return Polygon(coords)
+
+
+def apply_wrapping_index_map(imap, to_remap):
+    """
+    Using the indices map ``imap`` returned from :meth:`~ocgis.util.spatial.wrap.CoordinateArrayWrapper.wrap` or
+    :meth:`~ocgis.util.spatial.wrap.CoordinateArrayWrapper.unwrap`, remap the array ``to_remap`` in-place.
+
+    :param imap: The input integer indices array.
+    :type imap: :class:`~numpy.core.multiarray.ndarray`
+    :param to_remap: The input array with same dimension as ``imap``. The array will be reordered in-place.
+    :type to_remap: :class:`~numpy.core.multiarray.ndarray`
+     ``1``.
+    """
+
+    imap = imap.reshape(-1)
+    to_remap = to_remap.reshape(-1)
+    to_remap[:] = to_remap[imap]

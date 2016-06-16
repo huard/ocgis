@@ -8,7 +8,7 @@ from shapely.geometry import Point, MultiPoint, MultiPolygon, Polygon
 
 from ocgis.test.base import TestBase
 from ocgis.util.helpers import write_geom_dict, get_iter
-from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
+from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper, apply_wrapping_index_map
 
 
 class TestCoordinateWrapper(TestBase):
@@ -43,6 +43,14 @@ class TestCoordinateWrapper(TestBase):
 
             if k.return_imap:
                 self.assertGreater(imap.sum(), 0)
+
+    def test_apply_wrapping_index_map(self):
+        imap = np.array([[1, 0], [3, 2]])
+        to_remap = np.array([[1, 2], [3, 4]])
+        desired = np.array([[2, 1], [4, 3]])
+
+        apply_wrapping_index_map(imap, to_remap)
+        self.assertNumpyAll(to_remap, desired)
 
     def test_wrap(self):
         # Test with one-dimensional coordinates.
