@@ -1,5 +1,6 @@
 import os
 import tempfile
+from copy import deepcopy
 
 import numpy as np
 from shapely import wkt
@@ -12,17 +13,22 @@ from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 class TestCoordinateWrapper(TestBase):
     def run_wrap(self, arr, desired_not_reordered, desired_reordered):
-        kwds = {'reorder': ['__default__', True]}
+        kwds = {'reorder': [True, False], 'inplace': [True, False]}
         for k in self.iter_product_keywords(kwds):
-            if k.reorder == '__default__':
-                w = CoordinateArrayWrapper()
+            arr_copy = deepcopy(arr)
+            w = CoordinateArrayWrapper(**k._asdict())
+            actual = w.wrap(arr_copy)
+            if k.reorder:
+                desired = desired_reordered
             else:
-                w = CoordinateArrayWrapper(reorder=k.reorder)
-            actual = w.wrap(arr)
-            if k.reorder == '__default__':
-                self.assertNumpyAll(actual, desired_not_reordered)
+                desired = desired_not_reordered
+            self.assertNumpyAll(actual, desired)
+
+            may_share = np.may_share_memory(arr_copy, actual)
+            if k.inplace:
+                self.assertTrue(may_share)
             else:
-                self.assertNumpyAll(actual, desired_reordered)
+                self.assertFalse(may_share)
 
     def test_wrap(self):
         # Test with one-dimensional coordinates.

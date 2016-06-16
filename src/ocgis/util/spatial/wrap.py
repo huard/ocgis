@@ -63,17 +63,25 @@ class CoordinateArrayWrapper(AbstractWrapper):
         """
 
         original_ndim = arr.ndim
-        ret = np.atleast_2d(arr.copy())
+
+        if not self.inplace:
+            arr = arr.copy()
+
+        ret = np.atleast_2d(arr)
         select = ret > 180.
         ret[select] -= 360.
 
         if self.reorder:
-            xpp = np.empty_like(ret)
+            if self.inplace:
+                xpp = ret
+            else:
+                xpp = np.empty_like(ret)
 
             for ii in range(xpp.shape[0]):
+                row_copy = ret[ii, :].copy()
                 select_sum = select[ii, :].sum()
-                xpp[ii, 0:select_sum] = ret[ii, select[ii, :]]
-                xpp[ii, select_sum:] = ret[ii, np.invert(select[ii, :])]
+                xpp[ii, 0:select_sum] = row_copy[select[ii, :]]
+                xpp[ii, select_sum:] = row_copy[np.invert(select[ii, :])]
 
             if original_ndim == 1:
                 ret = xpp.reshape(-1)
