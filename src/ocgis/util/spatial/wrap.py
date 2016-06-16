@@ -40,17 +40,16 @@ class CoordinateArrayWrapper(AbstractWrapper):
         """
         .. note:: Accepts all parameters to :class:`~ocgis.util.spatial.wrap.AbstractWrapper`.
 
-        :keyword bool reorder: (``=False``) If ``True``, reorder the array such that values increase from left to right.
-         If ``False``, do not reorder the array.
+        Additional arguments:
+
         :keyword bool inplace: (``=True``) If ``True``, modify the array in-place. Otherwise, return a deepcopy of the
          array.
         """
 
-        self.reorder = kwargs.pop('reorder', False)
         self.inplace = kwargs.pop('inplace', True)
         super(CoordinateArrayWrapper, self).__init__(*args, **kwargs)
 
-    def wrap(self, arr, return_imap=False):
+    def wrap(self, arr, reorder=False, return_imap=False):
         """
         :param arr: The longitude coordinate array to wrap. Array must have spherical coordinates. Only one- or
          two-dimensional arrays are allowed. The array must have coordinates increasing from low to high:
@@ -58,13 +57,15 @@ class CoordinateArrayWrapper(AbstractWrapper):
         >>> arr = np.array([1., 90., 180., 270., 360.])
 
         :type arr: :class:`~numpy.core.multiarray.ndarray`
+        :param bool reorder: (``=False``) If ``True``, reorder the array such that values increase from left to right.
+         If ``False``, do not reorder the array.
         :param bool return_imap: If ``True``, return an array with same dimension as ``arr`` containing the remapped
          indices of the returned array. Only valid if ``reorder`` is ``True``.
         :return: The wrapped array - reordered if ``reorder`` set to ``True``.
         :rtype: :class:`~numpy.core.multiarray.ndarray`
         """
 
-        if not self.reorder and return_imap:
+        if not reorder and return_imap:
             msg = '"return_imap=True" only relevant if "reordered=True"'
             raise ValueError(msg)
 
@@ -77,7 +78,7 @@ class CoordinateArrayWrapper(AbstractWrapper):
         select = ret > 180.
         ret[select] -= 360.
 
-        if self.reorder:
+        if reorder:
             if self.inplace:
                 xpp = ret
             else:
@@ -98,6 +99,8 @@ class CoordinateArrayWrapper(AbstractWrapper):
 
             if original_ndim == 1:
                 ret = xpp.reshape(-1)
+                if return_imap:
+                    imap = imap.reshape(-1)
             else:
                 ret = xpp
         else:
