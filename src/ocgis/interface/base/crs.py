@@ -13,7 +13,7 @@ from ocgis.constants import WrappedState, WrapAction
 from ocgis.exc import SpatialWrappingError, ProjectionCoordinateNotFound, ProjectionDoesNotMatch
 from ocgis.util.environment import osr
 from ocgis.util.helpers import iter_array
-from ocgis.util.spatial.wrap import Wrapper
+from ocgis.util.spatial.wrap import GeometryWrapper
 
 SpatialReference = osr.SpatialReference
 
@@ -189,7 +189,7 @@ class WrappableCoordinateReferenceSystem(object):
 
         if self.get_wrapped_state(spatial) == WrappedState.WRAPPED:
             # unwrap the geometries
-            unwrap = Wrapper().unwrap
+            unwrap = GeometryWrapper().unwrap
             to_wrap = self._get_to_wrap_(spatial)
             for tw in to_wrap:
                 if tw is not None:
@@ -228,7 +228,7 @@ class WrappableCoordinateReferenceSystem(object):
 
         if self.get_wrapped_state(spatial) == WrappedState.UNWRAPPED:
             # wrap the geometries if they are available
-            wrap = Wrapper().wrap
+            wrap = GeometryWrapper().wrap
             to_wrap = self._get_to_wrap_(spatial)
             for tw in to_wrap:
                 if tw is not None:

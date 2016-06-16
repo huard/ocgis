@@ -1,14 +1,47 @@
 import os
 import tempfile
+
+import numpy as np
 from shapely import wkt
 from shapely.geometry import Point, MultiPoint, MultiPolygon, Polygon
+
 from ocgis.test.base import TestBase
 from ocgis.util.helpers import write_geom_dict, get_iter
-from ocgis.util.spatial.wrap import Wrapper
-import numpy as np
+from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 
-class TestWrapper(TestBase):
+class TestCoordinateWrapper(TestBase):
+    def run_wrap(self, arr, desired_not_reordered, desired_reordered):
+        kwds = {'reorder': ['__default__', False]}
+        for k in self.iter_product_keywords(kwds):
+            if k.reorder == '__default__':
+                w = CoordinateArrayWrapper()
+            else:
+                w = CoordinateArrayWrapper(reorder=k.reorder)
+            actual = w.wrap(arr)
+            if k.reorder == '__default__':
+                self.assertNumpyAll(actual, desired_reordered)
+            else:
+                self.assertNumpyAll(actual, desired_not_reordered)
+
+    def test_wrap(self):
+        # Test with one-dimensional coordinates.
+        arr = np.array([1, 90, 180, 270, 359], dtype=float)
+        desired_reordered = np.array([-90., -1., 1., 90., 180.])
+        desired_not_reordered = np.array([1., 90., 180., -90., -1.])
+        self.run_wrap(arr, desired_not_reordered, desired_reordered)
+
+        # Test with two-dimensional coordinates.
+        arr = np.array([[1, 90, 180, 270, 359],
+                        [0.5, 89.5, 179.5, 269.5, 358.5]], dtype=float)
+        desired_reordered = np.array([[-90., -1., 1., 90., 180.],
+                                      [-90.5, -1.5, 0.5, 89.5, 179.5]])
+        desired_not_reordered = np.array([[1., 90., 180., -90., -1.],
+                                          [0.5, 89.5, 179.5, -90.5, -1.5]])
+        self.run_wrap(arr, desired_not_reordered, desired_reordered)
+
+
+class TestGeometryWrapper(TestBase):
 
     @property
     def axis_multipolygon(self):
@@ -81,12 +114,12 @@ class TestWrapper(TestBase):
             write_geom_dict({1: geom}, path=path)
 
     def test_init(self):
-        Wrapper()
+        GeometryWrapper()
 
     def test_unwrap(self):
         """Test different geometry types are appropriately unwrapped."""
 
-        wrapper = Wrapper()
+        wrapper = GeometryWrapper()
         path = tempfile.mkdtemp()
         for desc, geom in self.possible.iteritems():
             unwrapped = wrapper.unwrap(geom)
@@ -112,7 +145,7 @@ class TestWrapper(TestBase):
     def test_wrap(self):
         """Test different geometry types are appropriately wrapped."""
 
-        wrapper = Wrapper()
+        wrapper = GeometryWrapper()
         for desc, geom in self.possible.iteritems():
             unwrapped = wrapper.unwrap(geom)
             wrapped = wrapper.wrap(unwrapped)

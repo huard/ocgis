@@ -1,3 +1,5 @@
+from abc import ABCMeta, abstractmethod
+
 import numpy as np
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multipoint import MultiPoint
@@ -5,23 +7,97 @@ from shapely.geometry.multipolygon import MultiPolygon
 from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
 
+from ocgis.base import AbstractOcgisObject
 from ocgis.util.helpers import make_poly
 
 
-class Wrapper(object):
-    """
-    Wraps and unwraps WGS84 geometry objects.
+class AbstractWrapper(AbstractOcgisObject):
+    """Base class for wrapping objects."""
 
-    :param axis: The longitude value for the center axis.
-    :type axis: float
-    """
+    __metaclass__ = ABCMeta
 
     def __init__(self, axis=0.0):
+        """
+        :param axis: The longitude value for the center axis.
+        :type axis: float
+        """
+
         self.axis = float(axis)
+
+    @abstractmethod
+    def wrap(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def unwrap(self, *args, **kwargs):
+        pass
+
+
+class CoordinateArrayWrapper(AbstractWrapper):
+    """Wrap and unwrap spherical coordinate arrays."""
+
+    def __init__(self, *args, **kwargs):
+        """
+        .. note:: Accepts all parameters to :class:`~ocgis.util.spatial.wrap.AbstractWrapper`.
+
+        :keyword bool reorder: (``=True``) If ``True``, reorder the array such that values increase from left to right.
+         If ``False``, do not reorder the array.
+        """
+
+        self.reorder = kwargs.pop('reorder', True)
+        super(CoordinateArrayWrapper, self).__init__(*args, **kwargs)
+
+    def wrap(self, arr):
+        """
+        :param arr: The longitude coordinate array to wrap. Array must have spherical coordinates. Only one- or
+         two-dimensional arrays are allowed. The array must have coordinates increasing from low to high:
+
+        >>> arr = np.array([1., 90., 180., 270., 360.])
+
+        :type arr: :class:`~numpy.core.multiarray.ndarray`
+        :return: The wrapped array - reordered if ``reorder`` set to ``True``.
+        :rtype: :class:`~numpy.core.multiarray.ndarray`
+        """
+
+        original_ndim = arr.ndim
+        ret = np.atleast_2d(arr.copy())
+        select = ret > 180.
+        ret[select] -= 360.
+
+        if self.reorder:
+            xpp = np.empty_like(ret)
+
+            for ii in range(xpp.shape[0]):
+                select_sum = select[ii, :].sum()
+                xpp[ii, 0:select_sum] = ret[ii, select[ii, :]]
+                xpp[ii, select_sum:] = ret[ii, np.invert(select[ii, :])]
+
+            if original_ndim == 1:
+                ret = xpp.reshape(-1)
+            else:
+                ret = xpp
+        else:
+            if original_ndim == 1:
+                ret = ret.reshape(-1)
+
+        return ret
+
+    def unwrap(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class GeometryWrapper(AbstractWrapper):
+    """
+    Wraps and unwraps geometry objects with a spherical coordinate system.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(GeometryWrapper, self).__init__(*args, **kwargs)
+
         self.right_clip = make_poly((-90, 90), (180, 360))
         self.left_clip = make_poly((-90, 90), (-180, 180))
-        self.clip1 = make_poly((-90, 90), (-180, axis))
-        self.clip2 = make_poly((-90, 90), (axis, 180))
+        self.clip1 = make_poly((-90, 90), (-180, self.axis))
+        self.clip2 = make_poly((-90, 90), (self.axis, 180))
 
     def unwrap(self, geom):
         """
