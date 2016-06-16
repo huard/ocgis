@@ -40,11 +40,14 @@ class CoordinateArrayWrapper(AbstractWrapper):
         """
         .. note:: Accepts all parameters to :class:`~ocgis.util.spatial.wrap.AbstractWrapper`.
 
-        :keyword bool reorder: (``=True``) If ``True``, reorder the array such that values increase from left to right.
+        :keyword bool reorder: (``=False``) If ``True``, reorder the array such that values increase from left to right.
          If ``False``, do not reorder the array.
+        :keyword bool inplace: (``=True``) If ``True``, modify the array in-place. Otherwise, return a deepcopy of the
+         array.
         """
 
-        self.reorder = kwargs.pop('reorder', True)
+        self.reorder = kwargs.pop('reorder', False)
+        self.inplace = kwargs.pop('inplace', True)
         super(CoordinateArrayWrapper, self).__init__(*args, **kwargs)
 
     def wrap(self, arr):

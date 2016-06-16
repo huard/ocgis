@@ -12,7 +12,7 @@ from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 class TestCoordinateWrapper(TestBase):
     def run_wrap(self, arr, desired_not_reordered, desired_reordered):
-        kwds = {'reorder': ['__default__', False]}
+        kwds = {'reorder': ['__default__', True]}
         for k in self.iter_product_keywords(kwds):
             if k.reorder == '__default__':
                 w = CoordinateArrayWrapper()
@@ -20,9 +20,9 @@ class TestCoordinateWrapper(TestBase):
                 w = CoordinateArrayWrapper(reorder=k.reorder)
             actual = w.wrap(arr)
             if k.reorder == '__default__':
-                self.assertNumpyAll(actual, desired_reordered)
-            else:
                 self.assertNumpyAll(actual, desired_not_reordered)
+            else:
+                self.assertNumpyAll(actual, desired_reordered)
 
     def test_wrap(self):
         # Test with one-dimensional coordinates.
