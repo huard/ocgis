@@ -16,9 +16,9 @@ class TestCoordinateWrapper(TestBase):
         kwds = {'reorder': [True, False], 'inplace': [True, False], 'return_imap': [True, False]}
         for k in self.iter_product_keywords(kwds):
             arr_copy = deepcopy(arr)
-            w = CoordinateArrayWrapper(reorder=k.reorder, inplace=k.inplace)
+            w = CoordinateArrayWrapper(inplace=k.inplace)
             try:
-                res = w.wrap(arr_copy, return_imap=k.return_imap)
+                res = w.wrap(arr_copy, return_imap=k.return_imap, reorder=k.reorder)
             except ValueError:
                 self.assertFalse(k.reorder)
                 self.assertTrue(k.return_imap)
@@ -67,6 +67,16 @@ class TestCoordinateWrapper(TestBase):
         desired_not_reordered = np.array([[1., 90., 180., -90., -1.],
                                           [0.5, 89.5, 179.5, -90.5, -1.5]])
         self.run_wrap(arr, desired_not_reordered, desired_reordered)
+
+        # Test wrapping a bounds-like coordinate array.
+        desired = np.array([[-179.5, -178.5], [-178.5, -177.5], [178.5, 179.5], [179.5, -179.5]])
+        bounds = np.array([[178.5, 179.5], [179.5, 180.5], [180.5, 181.5], [181.5, 182.5]])
+        centers = np.array([179., 180., 181., 182.])
+        w = CoordinateArrayWrapper()
+        actual, imap = w.wrap(centers, reorder=True, return_imap=True)
+        actual_bounds = w.wrap(bounds)
+        new_bounds = actual_bounds[imap, :]
+        self.assertNumpyAll(new_bounds, desired)
 
 
 class TestGeometryWrapper(TestBase):
