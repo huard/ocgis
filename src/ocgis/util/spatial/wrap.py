@@ -1,9 +1,9 @@
 import numpy as np
-from shapely.geometry.multipolygon import MultiPolygon
-from shapely.geometry.polygon import Polygon
-from shapely.geometry.point import Point
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multipoint import MultiPoint
+from shapely.geometry.multipolygon import MultiPolygon
+from shapely.geometry.point import Point
+from shapely.geometry.polygon import Polygon
 
 from ocgis.util.helpers import make_poly
 
@@ -35,9 +35,9 @@ class Wrapper(object):
 
         assert type(geom) in [Polygon, MultiPolygon]
 
-        # return the geometry iterator
+        # Return the geometry iterator.
         it = self._get_iter_(geom)
-        # loop through the polygons determining if any coordinates need to be shifted and flag accordingly.
+        # Loop through the polygons determining if any coordinates need to be shifted and flag accordingly.
         adjust = False
         for polygon in it:
             coords = np.array(polygon.exterior.coords)
@@ -45,10 +45,10 @@ class Wrapper(object):
                 adjust = True
                 break
 
-        # wrap the polygon if requested
+        # Wrap the polygon if requested.
         if adjust:
-            # loop through individual polygon components. doing this operation on multipolygons causes unexpected
-            # behavior mostly due to the possibility of invalid geometries
+            # Loop through individual polygon components. doing this operation on multipolygons causes unexpected
+            # behavior mostly due to the possibility of invalid geometries.
             processed_geometries = []
             for to_process in self._get_iter_(geom):
                 try:
@@ -58,14 +58,14 @@ class Wrapper(object):
                     to_process = to_process.buffer(0)
                     assert to_process.is_valid
 
-                # intersection with the two regions
+                # Intersection with the two regions.
                 left = to_process.intersection(self.clip1)
                 right = to_process.intersection(self.clip2)
 
-                # pull out the right side polygons
+                # Pull out the right side polygons.
                 right_polygons = [poly for poly in self._get_iter_(right)]
 
-                # adjust polygons falling the left window
+                # Adjust polygons falling the left window.
                 if isinstance(left, Polygon):
                     left_polygons = [self._unwrap_shift_(left)]
                 else:
@@ -73,7 +73,7 @@ class Wrapper(object):
                     for polygon in left:
                         left_polygons.append(self._unwrap_shift_(polygon))
 
-                # merge polygons into single unit
+                # Merge polygons into single unit.
                 try:
                     processed = MultiPolygon(left_polygons + right_polygons)
                 except TypeError:
@@ -81,23 +81,23 @@ class Wrapper(object):
                     right = filter(lambda x: type(x) != LineString, right_polygons)
                     processed = MultiPolygon(left + right)
 
-                # return a single polygon if the output multigeometry has only one component. otherwise, explode the
-                # multigeometry
+                # Return a single polygon if the output multigeometry has only one component. otherwise, explode the
+                # multigeometry.
                 if len(processed) == 1:
                     processed = [processed[0]]
                 else:
                     processed = [i for i in processed]
 
-                # hold for final adjustment
+                # Hold for final adjustment.
                 processed_geometries += processed
 
-            # convert to a multigeometry if there are more than one output
+            # Convert to a multigeometry if there are more than one output.
             if len(processed_geometries) > 1:
                 ret = MultiPolygon(processed_geometries)
             else:
                 ret = processed_geometries[0]
 
-        ## if polygon does not need adjustment, just return it.
+        # If polygon does not need adjustment, just return it.
         else:
             ret = geom
 
@@ -115,7 +115,7 @@ class Wrapper(object):
                 coords = np.array(geom.exterior.coords)
                 coords[:, 0] = coords[:, 0] - 360
                 ret = Polygon(coords)
-            # likely a MultiPolygon
+            # Likely a MultiPolygon.
             except AttributeError:
                 polygons = np.empty(len(geom), dtype=object)
                 for ii, polygon in enumerate(geom):
@@ -127,12 +127,13 @@ class Wrapper(object):
 
         try:
             bounds = np.array(geom.bounds)
-            # if the polygon column bounds are both greater than 180 degrees
-            # shift the coordinates of the entire polygon
+            # If the polygon column bounds are both greater than 180 degrees shift the coordinates of the entire
+            # polygon.
             if np.all([bounds[0] > 180, bounds[2] > 180]):
                 new_geom = _shift_(geom)
-            # if a polygon crosses the 180 axis, then the polygon will need to be split with intersection and recombined.
-            elif bounds[1] <= 180 and bounds[2] > 180:
+            # If a polygon crosses the 180 axis, then the polygon will need to be split with intersection and
+            # recombined.
+            elif bounds[1] <= 180 < bounds[2]:
                 left = [poly for poly in self._get_iter_(geom.intersection(self.left_clip))]
                 right = [poly for poly in self._get_iter_(_shift_(geom.intersection(self.right_clip)))]
                 try:
@@ -141,17 +142,17 @@ class Wrapper(object):
                     left = filter(lambda x: type(x) != LineString, left)
                     right = filter(lambda x: type(x) != LineString, right)
                     new_geom = MultiPolygon(left + right)
-            # otherwise, the polygon coordinates are not affected by wrapping and the geometry may be passed through.
+            # Otherwise, the polygon coordinates are not affected by wrapping and the geometry may be passed through.
             else:
                 new_geom = geom
-        # likely a point type object
+        # Likely a point type object.
         except (AttributeError, TypeError):
             try:
                 if geom.x > 180:
                     new_geom = Point(geom.x - 360, geom.y)
                 else:
                     new_geom = geom
-            # likely a MultiPoint
+            # Likely a MultiPoint.
             except AttributeError:
                 points = [None] * len(geom)
                 for ii, point in enumerate(geom):
