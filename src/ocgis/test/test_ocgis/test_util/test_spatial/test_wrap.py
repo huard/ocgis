@@ -13,11 +13,22 @@ from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 class TestCoordinateWrapper(TestBase):
     def run_wrap(self, arr, desired_not_reordered, desired_reordered):
-        kwds = {'reorder': [True, False], 'inplace': [True, False]}
+        kwds = {'reorder': [True, False], 'inplace': [True, False], 'return_imap': [True, False]}
         for k in self.iter_product_keywords(kwds):
             arr_copy = deepcopy(arr)
-            w = CoordinateArrayWrapper(**k._asdict())
-            actual = w.wrap(arr_copy)
+            w = CoordinateArrayWrapper(reorder=k.reorder, inplace=k.inplace)
+            try:
+                res = w.wrap(arr_copy, return_imap=k.return_imap)
+            except ValueError:
+                self.assertFalse(k.reorder)
+                self.assertTrue(k.return_imap)
+                continue
+
+            if k.return_imap:
+                actual, imap = res
+            else:
+                actual = res
+
             if k.reorder:
                 desired = desired_reordered
             else:
@@ -29,6 +40,9 @@ class TestCoordinateWrapper(TestBase):
                 self.assertTrue(may_share)
             else:
                 self.assertFalse(may_share)
+
+            if k.return_imap:
+                self.assertGreater(imap.sum(), 0)
 
     def test_wrap(self):
         # Test with one-dimensional coordinates.

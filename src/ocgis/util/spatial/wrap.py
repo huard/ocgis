@@ -50,7 +50,7 @@ class CoordinateArrayWrapper(AbstractWrapper):
         self.inplace = kwargs.pop('inplace', True)
         super(CoordinateArrayWrapper, self).__init__(*args, **kwargs)
 
-    def wrap(self, arr):
+    def wrap(self, arr, return_imap=False):
         """
         :param arr: The longitude coordinate array to wrap. Array must have spherical coordinates. Only one- or
          two-dimensional arrays are allowed. The array must have coordinates increasing from low to high:
@@ -58,9 +58,15 @@ class CoordinateArrayWrapper(AbstractWrapper):
         >>> arr = np.array([1., 90., 180., 270., 360.])
 
         :type arr: :class:`~numpy.core.multiarray.ndarray`
+        :param bool return_imap: If ``True``, return an array with same dimension as ``arr`` containing the remapped
+         indices of the returned array. Only valid if ``reorder`` is ``True``.
         :return: The wrapped array - reordered if ``reorder`` set to ``True``.
         :rtype: :class:`~numpy.core.multiarray.ndarray`
         """
+
+        if not self.reorder and return_imap:
+            msg = '"return_imap=True" only relevant if "reordered=True"'
+            raise ValueError(msg)
 
         original_ndim = arr.ndim
 
@@ -77,11 +83,18 @@ class CoordinateArrayWrapper(AbstractWrapper):
             else:
                 xpp = np.empty_like(ret)
 
+            if return_imap:
+                imap = np.arange(xpp.reshape(-1).shape[0]).reshape(*xpp.shape)
+
             for ii in range(xpp.shape[0]):
                 row_copy = ret[ii, :].copy()
                 select_sum = select[ii, :].sum()
                 xpp[ii, 0:select_sum] = row_copy[select[ii, :]]
                 xpp[ii, select_sum:] = row_copy[np.invert(select[ii, :])]
+                if return_imap:
+                    row_imap_copy = imap[ii, :].copy()
+                    imap[ii, 0:select_sum] = row_imap_copy[select[ii, :]]
+                    imap[ii, select_sum:] = row_imap_copy[np.invert(select[ii, :])]
 
             if original_ndim == 1:
                 ret = xpp.reshape(-1)
@@ -91,7 +104,10 @@ class CoordinateArrayWrapper(AbstractWrapper):
             if original_ndim == 1:
                 ret = ret.reshape(-1)
 
-        return ret
+        if return_imap:
+            return ret, imap
+        else:
+            return ret
 
     def unwrap(self, *args, **kwargs):
         raise NotImplementedError
