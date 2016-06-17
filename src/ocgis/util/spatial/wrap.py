@@ -50,6 +50,41 @@ class CoordinateArrayWrapper(AbstractWrapper):
         self.inplace = kwargs.pop('inplace', True)
         super(CoordinateArrayWrapper, self).__init__(*args, **kwargs)
 
+    def reorder(self, arr, wrap_select=None):
+        """
+        Reorder ``arr`` in-place with increasing longitude values from index ``0`` to maximum index. Return the indices
+        used to remap ``arr``.
+
+        :param arr: The longitude coordinate array to reorder. Array must have spherical coordinates. Only
+         two-dimensional arrays are allowed.
+        :type arr: :class:`~numpy.core.multiarray.ndarray`
+        :param wrap_select: Boolean array used to perform wrapping of ``arr``. This is computed internally in
+         :meth:`~ocgis.util.spatial.wrap.CoordinateArrayWrapper#wrap`.
+        :type wrap_select: :class:`~numpy.core.multiarray.ndarray`
+        :return: Return an array with same dimension as ``arr`` containing the remapped indices of the returned array.
+        :rtype: :class:`~numpy.core.multiarray.ndarray`
+        """
+
+        if arr.ndim != 2:
+            raise ValueError('"arr" must be two-dimensional.')
+
+        if wrap_select is None:
+            wrap_select = arr < self.center_axis
+
+        imap = np.arange(arr.reshape(-1).shape[0]).reshape(*arr.shape)
+
+        for ii in range(arr.shape[0]):
+            row_copy = arr[ii, :].copy()
+            select_sum = wrap_select[ii, :].sum()
+            arr[ii, 0:select_sum] = row_copy[wrap_select[ii, :]]
+            arr[ii, select_sum:] = row_copy[np.invert(wrap_select[ii, :])]
+
+            row_imap_copy = imap[ii, :].copy()
+            imap[ii, 0:select_sum] = row_imap_copy[wrap_select[ii, :]]
+            imap[ii, select_sum:] = row_imap_copy[np.invert(wrap_select[ii, :])]
+
+        return imap
+
     def wrap(self, arr, reorder=False, return_imap=False):
         """
         :param arr: The longitude coordinate array to wrap. Array must have spherical coordinates. Only one- or
