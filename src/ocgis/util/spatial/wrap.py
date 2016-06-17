@@ -16,13 +16,14 @@ class AbstractWrapper(AbstractOcgisObject):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, axis=0.0):
+    def __init__(self, center_axis=0.0, wrap_axis=180.0):
         """
-        :param axis: The longitude value for the center axis.
-        :type axis: float
+        :param float center_axis: The longitude value for the center axis.
+        :param float wrap_axis: The longitude value for the wrap axis.
         """
 
-        self.axis = float(axis)
+        self.center_axis = float(center_axis)
+        self.wrap_axis = float(wrap_axis)
 
     @abstractmethod
     def wrap(self, *args, **kwargs):
@@ -75,7 +76,7 @@ class CoordinateArrayWrapper(AbstractWrapper):
             arr = arr.copy()
 
         ret = np.atleast_2d(arr)
-        select = ret > 180.
+        select = ret > self.wrap_axis
         ret[select] -= 360.
 
         if reorder:
@@ -124,10 +125,10 @@ class GeometryWrapper(AbstractWrapper):
     def __init__(self, *args, **kwargs):
         super(GeometryWrapper, self).__init__(*args, **kwargs)
 
-        self.right_clip = make_poly((-90, 90), (180, 360))
-        self.left_clip = make_poly((-90, 90), (-180, 180))
-        self.clip1 = make_poly((-90, 90), (-180, self.axis))
-        self.clip2 = make_poly((-90, 90), (self.axis, 180))
+        self.right_clip = make_poly((-90, 90), (self.wrap_axis, 360))
+        self.left_clip = make_poly((-90, 90), (-self.wrap_axis, self.wrap_axis))
+        self.clip1 = make_poly((-90, 90), (-self.wrap_axis, self.center_axis))
+        self.clip2 = make_poly((-90, 90), (self.center_axis, self.wrap_axis))
 
     def unwrap(self, geom):
         """
@@ -147,7 +148,7 @@ class GeometryWrapper(AbstractWrapper):
         adjust = False
         for polygon in it:
             coords = np.array(polygon.exterior.coords)
-            if np.any(coords[:, 0] < self.axis):
+            if np.any(coords[:, 0] < self.center_axis):
                 adjust = True
                 break
 
@@ -235,11 +236,11 @@ class GeometryWrapper(AbstractWrapper):
             bounds = np.array(geom.bounds)
             # If the polygon column bounds are both greater than 180 degrees shift the coordinates of the entire
             # polygon.
-            if np.all([bounds[0] > 180, bounds[2] > 180]):
+            if np.all([bounds[0] > self.wrap_axis, bounds[2] > self.wrap_axis]):
                 new_geom = _shift_(geom)
             # If a polygon crosses the 180 axis, then the polygon will need to be split with intersection and
             # recombined.
-            elif bounds[1] <= 180 < bounds[2]:
+            elif bounds[1] <= self.wrap_axis < bounds[2]:
                 left = [poly for poly in self._get_iter_(geom.intersection(self.left_clip))]
                 right = [poly for poly in self._get_iter_(_shift_(geom.intersection(self.right_clip)))]
                 try:
@@ -295,14 +296,14 @@ class GeometryWrapper(AbstractWrapper):
         if isinstance(geom, MultiPoint):
             pts = []
             for pt in geom:
-                if pt.x < self.axis:
+                if pt.x < self.center_axis:
                     n = Point(pt.x + 360, pt.y)
                 else:
                     n = pt
                 pts.append(n)
             ret = MultiPoint(pts)
         else:
-            if geom.x < self.axis:
+            if geom.x < self.center_axis:
                 ret = Point(geom.x + 360, geom.y)
             else:
                 ret = geom
