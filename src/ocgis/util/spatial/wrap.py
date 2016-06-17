@@ -330,7 +330,6 @@ def apply_wrapping_index_map(imap, to_remap):
     :type imap: :class:`~numpy.core.multiarray.ndarray`
     :param to_remap: The input array with same dimension as ``imap``. The array will be reordered in-place.
     :type to_remap: :class:`~numpy.core.multiarray.ndarray`
-     ``1``.
     """
 
     imap = imap.reshape(-1)
