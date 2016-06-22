@@ -591,10 +591,13 @@ class TestOcgOperations(TestBase):
     @attr('data')
     def test_keyword_spatial_reorder(self):
         rd = self.test_data.get_rd('cancm4_tas')
+        original_value = rd.get()[:, 0, :, :, :].variables['tas'].value
         ops = OcgOperations(dataset=rd, snippet=True, spatial_reorder=True, spatial_wrapping='wrap')
         ret = ops.execute()
         field = ret[1]['tas']
         self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
+        with self.assertRaises(AssertionError):
+            self.assertNumpyAll(field.variables['tas'].value, original_value)
         self.fail()
 
     @attr('data')

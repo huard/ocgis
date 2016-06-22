@@ -17,6 +17,7 @@ from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimensi
 from ocgis.interface.base.field import Field
 from ocgis.util.helpers import get_default_or_apply
 from ocgis.util.logging_ocgis import ocgis_lh, ProgressOcgOperations
+from ocgis.util.spatial.wrap import CoordinateArrayWrapper
 
 
 class OperationsEngine(object):
@@ -627,6 +628,25 @@ class OperationsEngine(object):
 
             # use the field's alias if it is provided. otherwise, let it be automatically assigned
             name = alias if sfield is None else None
+
+            # Reorder the arrays if the coordinate system is wrappable and reordering is requested.
+            if self.ops.spatial_reorder and isinstance(sfield.crs, WrappableCoordinateReferenceSystem):
+                grid = sfield.spatial.grid
+                if grid.col is None:
+                    raise NotImplementedError
+                else:
+                    col = grid.col
+                w = CoordinateArrayWrapper()
+                imap = w.reorder(col.value.reshape(1, -1))
+                imap = imap.reshape(-1)
+                if col.bounds is not None:
+                    col.bounds[:] = col.bounds[imap, :]
+                grid._value = None
+                grid._corners = None
+                sfield.spatial._geom = None
+
+                for variable in field.variables.values():
+                    variable.value[:] = variable.value[:, :, :, :, imap]
 
             # add the created field to the output collection with the selection geometry.
             coll.add_field(sfield, ugeom=subset_sdim, name=name)
