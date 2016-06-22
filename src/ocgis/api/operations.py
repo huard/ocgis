@@ -2,7 +2,7 @@ from ocgis import env
 from ocgis.api.interpreter import OcgInterpreter
 from ocgis.api.parms.base import AbstractParameter
 from ocgis.api.parms.definition import *
-from ocgis.api.subset import SubsetOperation
+from ocgis.api.subset import OperationsEngine
 from ocgis.conv.base import get_converter
 from ocgis.conv.meta import MetaOCGISConverter
 from ocgis.interface.base.crs import CFRotatedPole, WGS84
@@ -260,7 +260,7 @@ class OcgOperations(object):
             return ret
 
         ops_size = deepcopy(self)
-        subset = SubsetOperation(ops_size, request_base_size_only=True)
+        subset = OperationsEngine(ops_size, request_base_size_only=True)
         ret = dict(variables={})
         for coll in subset:
             for row in coll.get_iter_melted():

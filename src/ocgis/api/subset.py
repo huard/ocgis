@@ -19,7 +19,7 @@ from ocgis.util.helpers import get_default_or_apply
 from ocgis.util.logging_ocgis import ocgis_lh, ProgressOcgOperations
 
 
-class SubsetOperation(object):
+class OperationsEngine(object):
     """
     :param :class:~`ocgis.OcgOperations` ops:
     :param bool request_base_size_only: If ``True``, return field objects following
@@ -638,7 +638,7 @@ def update_wrapping(obj, field_object):
     """
     Update the wrapped state of the incoming field object. This only affects fields with wrappable coordinate systems.
 
-    :param obj: :class:`ocgis.api.subset.SubsetOperation`
+    :param obj: :class:`ocgis.api.subset.OperationsEngine`
     :param field_object: :class:`ocgis.Field`
     """
     if obj.ops.spatial_wrapping is not None:
