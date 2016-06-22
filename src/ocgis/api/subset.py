@@ -631,30 +631,49 @@ class OperationsEngine(object):
 
             # Reorder the arrays if the coordinate system is wrappable and reordering is requested.
             if self.ops.spatial_reorder and isinstance(sfield.crs, WrappableCoordinateReferenceSystem):
-                if WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial) != WrappedState.WRAPPED:
-                    exc = ValueError('Reordering may only be performed on wrapped coordinates.')
-                    ocgis_lh(exc=exc, logger=self._subset_log)
-                grid = sfield.spatial.grid
-                if grid.col is None:
-                    raise NotImplementedError
-                else:
-                    col = grid.col
-                w = CoordinateArrayWrapper()
-                imap = w.reorder(col.value.reshape(1, -1))
-                imap = imap.reshape(-1)
-                if col.bounds is not None:
-                    col.bounds[:] = col.bounds[imap, :]
-                grid._value = None
-                grid._corners = None
-                sfield.spatial._geom = None
-
-                for variable in field.variables.values():
-                    variable.value[:] = variable.value[:, :, :, :, imap]
-
-            # add the created field to the output collection with the selection geometry.
+                self._update_longitude_order_(
+                    sfield)  # add the created field to the output collection with the selection geometry.
             coll.add_field(sfield, ugeom=subset_sdim, name=name)
 
             yield coll
+
+    def _update_longitude_order_(self, sfield):
+        """
+        :param sfield: The field object to reorder.
+        :type sfield: :class:`ocgis.Field`
+        """
+
+        # Reordering only applies when the data is wrapped. Unwrapped reordering is not supported.
+        if WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial) != WrappedState.WRAPPED:
+            exc = ValueError('Reordering may only be performed on wrapped coordinates.')
+            ocgis_lh(exc=exc, logger=self._subset_log)
+
+        grid = sfield.spatial.grid
+        # Case without a one-dimensional grid representation.
+        if grid.col is None:
+            w = CoordinateArrayWrapper()
+            # Reference the column coordinates from the grid coordinates array.
+            imap = w.reorder(grid.value[1])
+            # Only the first row of remap coordinates is used for the reorder.
+            imap = imap[0, :].flatten()
+        # Case for one-dimensional vector coordinates.
+        else:
+            col = grid.col
+            w = CoordinateArrayWrapper()
+            # Reorder expects a two-dimensional coordinate array.
+            imap = w.reorder(col.value.reshape(1, -1))
+            # Reorder also returns a two-dimensional array. Flatten this for indexing into the variable array.
+            imap = imap.flatten()
+            # Reorder the bounds as well if they are present.
+            if col.bounds is not None:
+                col.bounds[:] = col.bounds[imap, :]
+
+        grid._value = None
+        grid._corners = None
+        sfield.spatial._geom = None
+
+        for variable in sfield.variables.values():
+            variable.value[:] = variable.value[:, :, :, :, imap]
 
 
 def update_wrapping(obj, field_object):

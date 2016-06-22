@@ -8,7 +8,7 @@ from ocgis.conv.meta import MetaOCGISConverter
 from ocgis.interface.base.crs import CFRotatedPole, WGS84
 
 
-# tdk: doc spatial_reorder
+# tdk: doc spatial_reorder - state that only the first row of longitude coordinates are used, corners removed
 class OcgOperations(object):
     """
     Entry point for all OCGIS operations.

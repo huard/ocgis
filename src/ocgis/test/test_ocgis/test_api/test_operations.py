@@ -593,6 +593,7 @@ class TestOcgOperations(TestBase):
         rd = self.test_data.get_rd('cancm4_tas')
         field_2d = rd.get()[0, 0, 0, :, :]
         field_2d.spatial.grid.value
+        field_2d.spatial.grid.corners
         field_2d.variables['tas'].value
         field_2d.spatial.grid.row = None
         field_2d.spatial.grid.col = None
@@ -608,8 +609,6 @@ class TestOcgOperations(TestBase):
             self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
             with self.assertRaises(AssertionError):
                 self.assertNumpyAll(field.variables['tas'].value, original_value)
-
-        self.fail()
 
     @attr('data')
     def test_keyword_time_range(self):
