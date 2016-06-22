@@ -591,13 +591,24 @@ class TestOcgOperations(TestBase):
     @attr('data')
     def test_keyword_spatial_reorder(self):
         rd = self.test_data.get_rd('cancm4_tas')
-        original_value = rd.get()[:, 0, :, :, :].variables['tas'].value
-        ops = OcgOperations(dataset=rd, snippet=True, spatial_reorder=True, spatial_wrapping='wrap')
-        ret = ops.execute()
-        field = ret[1]['tas']
-        self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
-        with self.assertRaises(AssertionError):
-            self.assertNumpyAll(field.variables['tas'].value, original_value)
+        field_2d = rd.get()[0, 0, 0, :, :]
+        field_2d.spatial.grid.value
+        field_2d.variables['tas'].value
+        field_2d.spatial.grid.row = None
+        field_2d.spatial.grid.col = None
+        self.assertIsNone(field_2d.spatial.grid.col)
+        kwds = {'dataset': [rd, field_2d]}
+
+        for k in self.iter_product_keywords(kwds):
+            print k
+            original_value = rd.get()[:, 0, :, :, :].variables['tas'].value
+            ops = OcgOperations(dataset=k.dataset, snippet=True, spatial_reorder=True, spatial_wrapping='wrap')
+            ret = ops.execute()
+            field = ret[1]['tas']
+            self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
+            with self.assertRaises(AssertionError):
+                self.assertNumpyAll(field.variables['tas'].value, original_value)
+
         self.fail()
 
     @attr('data')

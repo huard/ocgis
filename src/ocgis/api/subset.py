@@ -631,6 +631,9 @@ class OperationsEngine(object):
 
             # Reorder the arrays if the coordinate system is wrappable and reordering is requested.
             if self.ops.spatial_reorder and isinstance(sfield.crs, WrappableCoordinateReferenceSystem):
+                if WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial) != WrappedState.WRAPPED:
+                    exc = ValueError('Reordering may only be performed on wrapped coordinates.')
+                    ocgis_lh(exc=exc, logger=self._subset_log)
                 grid = sfield.spatial.grid
                 if grid.col is None:
                     raise NotImplementedError
