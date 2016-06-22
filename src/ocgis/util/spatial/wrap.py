@@ -115,33 +115,12 @@ class CoordinateArrayWrapper(AbstractWrapper):
         ret[select] -= 360.
 
         if reorder:
-            if self.inplace:
-                xpp = ret
-            else:
-                xpp = np.empty_like(ret)
+            imap = self.reorder(ret, wrap_select=select)
 
+        if original_ndim == 1:
+            ret = ret.reshape(-1)
             if return_imap:
-                imap = np.arange(xpp.reshape(-1).shape[0]).reshape(*xpp.shape)
-
-            for ii in range(xpp.shape[0]):
-                row_copy = ret[ii, :].copy()
-                select_sum = select[ii, :].sum()
-                xpp[ii, 0:select_sum] = row_copy[select[ii, :]]
-                xpp[ii, select_sum:] = row_copy[np.invert(select[ii, :])]
-                if return_imap:
-                    row_imap_copy = imap[ii, :].copy()
-                    imap[ii, 0:select_sum] = row_imap_copy[select[ii, :]]
-                    imap[ii, select_sum:] = row_imap_copy[np.invert(select[ii, :])]
-
-            if original_ndim == 1:
-                ret = xpp.reshape(-1)
-                if return_imap:
-                    imap = imap.reshape(-1)
-            else:
-                ret = xpp
-        else:
-            if original_ndim == 1:
-                ret = ret.reshape(-1)
+                imap = imap.reshape(-1)
 
         if return_imap:
             return ret, imap
