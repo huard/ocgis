@@ -59,7 +59,7 @@ class CoordinateArrayWrapper(AbstractWrapper):
          two-dimensional arrays are allowed.
         :type arr: :class:`~numpy.core.multiarray.ndarray`
         :param wrap_select: Boolean array used to perform wrapping of ``arr``. This is computed internally in
-         :meth:`~ocgis.util.spatial.wrap.CoordinateArrayWrapper#wrap`.
+         :meth:`~ocgis.util.spatial.wrap.CoordinateArrayWrapper.wrap`.
         :type wrap_select: :class:`~numpy.core.multiarray.ndarray`
         :return: Return an array with same dimension as ``arr`` containing the remapped indices of the returned array.
         :rtype: :class:`~numpy.core.multiarray.ndarray`
