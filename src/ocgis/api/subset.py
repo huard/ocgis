@@ -275,7 +275,7 @@ class OperationsEngine(object):
         else:
             itr = [None] if self.ops.geom is None else self.ops.geom
         for coll in self._process_geometries_(itr, field, headers, value_keys, alias):
-            yield (coll)
+            yield coll
 
     def _get_initialized_collection_(self, field, headers, value_keys):
         """
