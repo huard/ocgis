@@ -1161,6 +1161,13 @@ class SpatialOperation(base.StringOptionParameter):
         return ret
 
 
+class SpatialReorder(base.BooleanParameter):
+    name = 'spatial_reorder'
+    default = False
+    meta_true = 'Reorder data and coordinate arrays to have ascending longitudinal coordinates.'
+    meta_false = 'Do not reorder data and coordinate arrays to have ascending longitudinal coordinates.'
+
+
 class SpatialWrapping(base.StringOptionParameter):
     name = 'spatial_wrapping'
     default = None

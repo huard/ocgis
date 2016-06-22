@@ -589,6 +589,15 @@ class TestOcgOperations(TestBase):
         self.assertEqual(field.shape, (1, 365, 1, 18, 143))
 
     @attr('data')
+    def test_keyword_spatial_reorder(self):
+        rd = self.test_data.get_rd('cancm4_tas')
+        ops = OcgOperations(dataset=rd, snippet=True, spatial_reorder=True, spatial_wrapping='wrap')
+        ret = ops.execute()
+        field = ret[1]['tas']
+        self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
+        self.fail()
+
+    @attr('data')
     def test_keyword_time_range(self):
         rd = self.test_data.get_rd('cancm4_tas')
         rd2 = self.test_data.get_rd('cancm4_tas')

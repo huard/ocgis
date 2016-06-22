@@ -8,6 +8,7 @@ from ocgis.conv.meta import MetaOCGISConverter
 from ocgis.interface.base.crs import CFRotatedPole, WGS84
 
 
+# tdk: doc spatial_reorder
 class OcgOperations(object):
     """
     Entry point for all OCGIS operations.
@@ -121,7 +122,8 @@ class OcgOperations(object):
                  search_radius_mult=2.0, output_crs=None, interpolate_spatial_bounds=False, add_auxiliary_files=True,
                  optimizations=None, callback=None, time_range=None, time_region=None, time_subset_func=None,
                  level_range=None, conform_units_to=None, select_nearest=False, regrid_destination=None,
-                 regrid_options=None, melted=False, output_format_options=None, spatial_wrapping=None):
+                 regrid_options=None, melted=False, output_format_options=None, spatial_wrapping=None,
+                 spatial_reorder=False):
 
         # Tells "__setattr__" to not perform global validation until all values are initially set.
         self._is_init = True
@@ -169,6 +171,7 @@ class OcgOperations(object):
         self.melted = Melted(init_value=env.MELTED or melted, dataset=self._get_object_('dataset'),
                              output_format=self._get_object_('output_format'))
         self.spatial_wrapping = SpatialWrapping(spatial_wrapping)
+        self.spatial_reorder = SpatialReorder(spatial_reorder)
 
         # These values are left in to perhaps be added back in at a later date.
         self.output_grouping = None
