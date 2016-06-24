@@ -370,7 +370,7 @@ class OperationsEngine(object):
         :raises: AssertionError, ExtentError
         """
 
-        assert (subset_sdim is not None)
+        assert subset_sdim is not None
 
         subset_geom = subset_sdim.single.geom
 
@@ -631,8 +631,9 @@ class OperationsEngine(object):
 
             # Reorder the arrays if the coordinate system is wrappable and reordering is requested.
             if self.ops.spatial_reorder and isinstance(sfield.crs, WrappableCoordinateReferenceSystem):
-                self._update_longitude_order_(
-                    sfield)  # add the created field to the output collection with the selection geometry.
+                self._update_longitude_order_(sfield)
+
+            # add the created field to the output collection with the selection geometry.
             coll.add_field(sfield, ugeom=subset_sdim, name=name)
 
             yield coll
@@ -643,10 +644,13 @@ class OperationsEngine(object):
         :type sfield: :class:`ocgis.Field`
         """
 
-        # Reordering only applies when the data is wrapped. Unwrapped reordering is not supported.
-        if WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial) != WrappedState.WRAPPED:
-            exc = ValueError('Reordering may only be performed on wrapped coordinates.')
-            ocgis_lh(exc=exc, logger=self._subset_log)
+        # Reordering only applies when the data is wrapped. Unwrapped reordering is not supported. Raise a warning and
+        # exit the method.
+        wrapped_state = WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial)
+        if wrapped_state != WrappedState.WRAPPED:
+            msg = 'Reordering may only be performed on wrapped coordinates. Wrapped state is: {}'.format(wrapped_state)
+            ocgis_lh(msg=msg, logger=self._subset_log, level=logging.WARN)
+            return
 
         grid = sfield.spatial.grid
         # Case without a one-dimensional grid representation.
@@ -667,8 +671,8 @@ class OperationsEngine(object):
             # Reorder the bounds as well if they are present.
             if col.bounds is not None:
                 col.bounds[:] = col.bounds[imap, :]
+            grid._value = None
 
-        grid._value = None
         grid._corners = None
         sfield.spatial._geom = None
 

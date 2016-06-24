@@ -591,6 +591,7 @@ class TestOcgOperations(TestBase):
     @attr('data')
     def test_keyword_spatial_reorder(self):
         rd = self.test_data.get_rd('cancm4_tas')
+
         field_2d = rd.get()[0, 0, 0, :, :]
         field_2d.spatial.grid.value
         field_2d.spatial.grid.corners
@@ -598,15 +599,30 @@ class TestOcgOperations(TestBase):
         field_2d.spatial.grid.row = None
         field_2d.spatial.grid.col = None
         self.assertIsNone(field_2d.spatial.grid.col)
-        kwds = {'dataset': [rd, field_2d]}
 
-        for k in self.iter_product_keywords(kwds):
-            print k
+        kwds = {'dataset': [rd, field_2d], 'geom': [[-20, -20, 20, 20]]}
+
+        for ctr, k in enumerate(self.iter_product_keywords(kwds)):
+            # if ctr != 2: continue
+            print ctr, k
             original_value = rd.get()[:, 0, :, :, :].variables['tas'].value
-            ops = OcgOperations(dataset=k.dataset, snippet=True, spatial_reorder=True, spatial_wrapping='wrap')
+            ops = OcgOperations(dataset=k.dataset, snippet=True, spatial_reorder=True, geom=k.geom)
             ret = ops.execute()
             field = ret[1]['tas']
-            self.assertLess(field.spatial.grid.value[1][:, 0].mean(), 0)
+            col_value = field.spatial.grid.value[1]
+            print field.spatial.grid.col.value
+            print field.spatial.grid.row.value
+            print 'col_value: ', col_value
+            actual_longitude = col_value[:, 0].mean()
+            print 'actual longitude: ', actual_longitude
+            if k.geom is None:
+                self.assertLess(actual_longitude, -170)
+            else:
+                # Test the subset is applied with reordering.
+                self.assertGreater(actual_longitude, -30)
+                self.assertLess(actual_longitude, 0)
+
+            # Test the value arrays are not the same following a reorder.
             with self.assertRaises(AssertionError):
                 self.assertNumpyAll(field.variables['tas'].value, original_value)
 
