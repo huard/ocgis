@@ -600,28 +600,24 @@ class TestOcgOperations(TestBase):
         field_2d.spatial.grid.col = None
         self.assertIsNone(field_2d.spatial.grid.col)
 
-        kwds = {'dataset': [rd, field_2d], 'geom': [[-20, -20, 20, 20]]}
+        kwds = {'dataset': [rd, field_2d], 'geom': [None, [-20, -20, 20, 20]]}
 
         for ctr, k in enumerate(self.iter_product_keywords(kwds)):
-            # if ctr != 2: continue
-            print ctr, k
+            # if ctr != 1: continue
+            # print ctr, k
             original_value = rd.get()[:, 0, :, :, :].variables['tas'].value
-            ops = OcgOperations(dataset=k.dataset, snippet=True, spatial_reorder=True, geom=k.geom)
+            ops = OcgOperations(dataset=k.dataset, snippet=True, geom=k.geom, spatial_wrapping='wrap',
+                                spatial_reorder=True)
             ret = ops.execute()
             field = ret[1]['tas']
             col_value = field.spatial.grid.value[1]
-            print field.spatial.grid.col.value
-            print field.spatial.grid.row.value
-            print 'col_value: ', col_value
             actual_longitude = col_value[:, 0].mean()
-            print 'actual longitude: ', actual_longitude
             if k.geom is None:
                 self.assertLess(actual_longitude, -170)
             else:
                 # Test the subset is applied with reordering.
                 self.assertGreater(actual_longitude, -30)
                 self.assertLess(actual_longitude, 0)
-
             # Test the value arrays are not the same following a reorder.
             with self.assertRaises(AssertionError):
                 self.assertNumpyAll(field.variables['tas'].value, original_value)

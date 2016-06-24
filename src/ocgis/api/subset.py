@@ -230,7 +230,12 @@ class OperationsEngine(object):
                             ocgis_lh(msg=msg, logger=self._subset_log, level=logging.WARNING)
 
                     # Wrap or unwrap the data if the coordinate system permits.
-                    update_wrapping(self, field_object)
+                    _update_wrapping_(self, field_object)
+
+                    # Ensure coordinate are ordered in ascending order if requested. Note this will remove
+                    # bounds/corners.
+                    if self.ops.spatial_reorder:
+                        _update_longitude_order_(self, field_object)
 
                     field[ii] = field_object
 
@@ -629,58 +634,13 @@ class OperationsEngine(object):
             # use the field's alias if it is provided. otherwise, let it be automatically assigned
             name = alias if sfield is None else None
 
-            # Reorder the arrays if the coordinate system is wrappable and reordering is requested.
-            if self.ops.spatial_reorder and isinstance(sfield.crs, WrappableCoordinateReferenceSystem):
-                self._update_longitude_order_(sfield)
-
             # add the created field to the output collection with the selection geometry.
             coll.add_field(sfield, ugeom=subset_sdim, name=name)
 
             yield coll
 
-    def _update_longitude_order_(self, sfield):
-        """
-        :param sfield: The field object to reorder.
-        :type sfield: :class:`ocgis.Field`
-        """
 
-        # Reordering only applies when the data is wrapped. Unwrapped reordering is not supported. Raise a warning and
-        # exit the method.
-        wrapped_state = WrappableCoordinateReferenceSystem.get_wrapped_state(sfield.spatial)
-        if wrapped_state != WrappedState.WRAPPED:
-            msg = 'Reordering may only be performed on wrapped coordinates. Wrapped state is: {}'.format(wrapped_state)
-            ocgis_lh(msg=msg, logger=self._subset_log, level=logging.WARN)
-            return
-
-        grid = sfield.spatial.grid
-        # Case without a one-dimensional grid representation.
-        if grid.col is None:
-            w = CoordinateArrayWrapper()
-            # Reference the column coordinates from the grid coordinates array.
-            imap = w.reorder(grid.value[1])
-            # Only the first row of remap coordinates is used for the reorder.
-            imap = imap[0, :].flatten()
-        # Case for one-dimensional vector coordinates.
-        else:
-            col = grid.col
-            w = CoordinateArrayWrapper()
-            # Reorder expects a two-dimensional coordinate array.
-            imap = w.reorder(col.value.reshape(1, -1))
-            # Reorder also returns a two-dimensional array. Flatten this for indexing into the variable array.
-            imap = imap.flatten()
-            # Reorder the bounds as well if they are present.
-            if col.bounds is not None:
-                col.bounds[:] = col.bounds[imap, :]
-            grid._value = None
-
-        grid._corners = None
-        sfield.spatial._geom = None
-
-        for variable in sfield.variables.values():
-            variable.value[:] = variable.value[:, :, :, :, imap]
-
-
-def update_wrapping(obj, field_object):
+def _update_wrapping_(obj, field_object):
     """
     Update the wrapped state of the incoming field object. This only affects fields with wrappable coordinate systems.
 
@@ -695,3 +655,65 @@ def update_wrapping(obj, field_object):
                     field_object.spatial.wrap()
                 else:
                     field_object.spatial.unwrap()
+
+
+def _update_longitude_order_(obj, field):
+    """
+    :param obj: The operations interpreter object.
+    :type obj: :class:`ocgis.api.subset.OperationsEngine`
+    :param field: The field object to reorder.
+    :type field: :class:`ocgis.Field`
+    """
+
+    # Reordering only applies when the data is wrapped. Unwrapped reordering is not supported. Raise a warning and
+    # exit the method.
+    wrapped_state = WrappableCoordinateReferenceSystem.get_wrapped_state(field.spatial)
+    if wrapped_state != WrappedState.WRAPPED:
+        msg = 'Reordering may only be performed on wrapped coordinates. Wrapped state is: {}'.format(wrapped_state)
+        ocgis_lh(msg=msg, logger=obj._subset_log, level=logging.WARN)
+        return
+
+    grid = field.spatial.grid
+    # Case without a one-dimensional grid representation.
+    if grid.col is None:
+        w = CoordinateArrayWrapper()
+        # Reference the column coordinates from the grid coordinates array.
+        imap = w.reorder(grid.value[1])
+        # Only the first row of remap coordinates is used for the reorder.
+        imap = imap[0, :].flatten()
+        # Rearrange the source indices on the grid if they are present.
+        if hasattr(grid, '_src_idx') and grid._src_idx is not None:
+            grid._src_idx['col'][:] = grid._src_idx['col'][:, imap]
+        # Remove the reference to any source dataset.
+        grid._request_dataset = None
+    # Case for one-dimensional vector coordinates.
+    else:
+        col = grid.col
+        w = CoordinateArrayWrapper()
+        # Reorder expects a two-dimensional coordinate array.
+        imap = w.reorder(col.value.reshape(1, -1))
+        # Reorder also returns a two-dimensional array. Flatten this for indexing into the variable array.
+        imap = imap.flatten()
+        # Reorder source indices to make sure they are appropriately loaded from file!
+        if hasattr(col, '_src_idx') and col._src_idx is not None:
+            col._src_idx[:] = col._src_idx[imap]
+        # Remove any bounds for the reorder. Also unlink the source data to make sure we don't load again from source.
+        if col.bounds is not None:
+            col._request_dataset = None
+            col.bounds = None
+            grid.row.bounds = None
+            grid.row._request_dataset = None
+        # Force the grid to reload from the updated coordinates.
+        grid._value = None
+
+    # No corners. We are moving to a point abstraction.
+    grid._corners = None
+    # Force geometries to reload as the underlying coordinates may have changed.
+    field.spatial._geom = None
+
+    # Reorder any variable values.
+    for variable in field.variables.values():
+        value = variable._value
+        # Do not load data from source. The source indices should be reordered.
+        if value is not None:
+            value[:] = value[:, :, :, :, imap]
