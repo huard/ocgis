@@ -116,6 +116,15 @@ class TestOcgField(AbstractTestNewInterface):
         field = OcgField(variables=[crs])
         self.assertEqual(len(field.dimensions), 0)
 
+    def test_get_by_tag(self):
+        v1 = Variable(name='tas')
+        v2 = Variable(name='tasmax')
+        v3 = Variable(name='tasmin')
+        tags = {'avg': ['tas'], 'other': ['tasmax', 'tasmin']}
+        field = OcgField(variables=[v1, v2, v3], tags=tags)
+        t = field.get_by_tag('other')
+        self.assertAsSetEqual([ii.name for ii in t], tags['other'])
+
     def test_time(self):
         units = [None, 'days since 2012-1-1']
         calendar = [None, '365_day']

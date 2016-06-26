@@ -26,6 +26,7 @@ class OcgField(VariableCollection):
 
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
         self.format_time = kwargs.pop('format_time', True)
+        self.tags = kwargs.pop('tags', None)
 
         VariableCollection.__init__(self, *args, **kwargs)
 
@@ -109,6 +110,16 @@ class OcgField(VariableCollection):
         ret = cls(*args, **kwargs)
         for v in vc.values():
             ret.add_variable(v, force=True)
+        return ret
+
+    def get_by_tag(self, tag):
+        """
+        :param str tag: The tag to retrieve. The tag map is defined by :attr:`ocgis.new_interface.field.Field.tags`
+        :return: Tuple of variable objects that have the ``tag``.
+        :rtype: tuple
+        """
+        names = self.tags[tag]
+        ret = tuple([self[n] for n in names])
         return ret
 
     def write(self, *args, **kwargs):
