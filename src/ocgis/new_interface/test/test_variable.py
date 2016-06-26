@@ -678,7 +678,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write(ds)
 
-    def tet_system_add_offset_and_scale_factor(self):
+    def test_system_add_offset_and_scale_factor(self):
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('four', 4)
@@ -736,7 +736,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
             self.assertIsNone(d.__src_idx__)
         self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
-    def test_get_value_from_source_(self):
+    def test_get_value(self):
         sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]
         self.assertEqual(sub.shape, (6, 3, 3))
@@ -746,6 +746,13 @@ class TestSourcedVariable(AbstractTestNewInterface):
             actual = var[5:11, 3:6, 5:8]
 
         self.assertNumpyAll(sub.value, actual)
+
+        # Test value may be set to None and value is not reloaded.
+        sv = self.get_sourcedvariable()
+        self.assertIsNone(sv._value)
+        self.assertIsNotNone(sv.value)
+        sv.value = None
+        self.assertIsNone(sv.value)
 
     def test_value(self):
         sv = self.get_sourcedvariable()

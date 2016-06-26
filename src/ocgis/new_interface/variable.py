@@ -683,6 +683,9 @@ class Variable(AbstractContainer, Attributes):
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):
+        # Flag to indicate if value has been loaded from sourced. This allows the value to be set to None and not have a
+        # reload from source.
+        self._has_initialized_value = False
         self.protected = kwargs.pop('protected', False)
         self._request_dataset = kwargs.pop('request_dataset', None)
         kwargs['attrs'] = kwargs.get('attrs') or OrderedDict()
@@ -695,12 +698,19 @@ class SourcedVariable(Variable):
             self.bounds = bounds
 
     def _get_value_(self):
-        if self._value is None:
+        if self._value is None and not self._has_initialized_value:
             self._request_dataset.driver.initialize_variable_value(self)
             ret = self._value
+            self._has_initialized_value = True
         else:
             ret = super(SourcedVariable, self)._get_value_()
         return ret
+
+    def _set_value_(self, value):
+        # Allow value to be set to None. This will remove dimensions.
+        if self._has_initialized_value and value is None:
+            self._dimensions = None
+        super(SourcedVariable, self)._set_value_(value)
 
 
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
