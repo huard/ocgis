@@ -114,6 +114,10 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         var.attrs['proj4'] = self.proj4
         return var
 
+    def load(self, *args, **kwargs):
+        """Compatibility with variable."""
+        pass
+
     def write_to_rootgrp(self, rootgrp, with_proj4=True):
         """
         Write the coordinate system to an open netCDF file.

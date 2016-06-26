@@ -754,6 +754,12 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv.value = None
         self.assertIsNone(sv.value)
 
+    def test_load(self):
+        sv = self.get_sourcedvariable()
+        self.assertIsNone(sv._value)
+        sv.load(eager=True)
+        self.assertIsNotNone(sv._value)
+
     def test_value(self):
         sv = self.get_sourcedvariable()
         sub = sv[5:11, 3:6, 5:8]

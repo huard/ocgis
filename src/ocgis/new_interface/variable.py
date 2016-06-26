@@ -697,6 +697,18 @@ class SourcedVariable(Variable):
         if bounds is not None:
             self.bounds = bounds
 
+    def load(self, eager=False):
+        """Load all variable data from source.
+
+        :param bool eager: If ``False``, only load this variable's data form source. If ``True``, load all data from
+         source including any variables on its parent object.
+        """
+
+        self._get_value_()
+        if eager and self.parent is not None:
+            for var in self.parent.values():
+                var.load()
+
     def _get_value_(self):
         if self._value is None and not self._has_initialized_value:
             self._request_dataset.driver.initialize_variable_value(self)
