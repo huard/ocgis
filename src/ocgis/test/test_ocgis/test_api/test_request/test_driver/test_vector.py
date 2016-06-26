@@ -55,6 +55,18 @@ class TestDriverVector(TestBase):
         self.assertEqual(rd.get().crs, Spherical())
         self.assertEqual(read.crs, Spherical())
 
+    def test_system_conform_units(self):
+        """Test conforming units on data read from shapefile."""
+
+        path = self.get_temporary_file_path('temps.shp')
+        gvar = GeometryVariable(value=[Point(1, 2), Point(3, 4)], dimensions='g', name='geom')
+        var = Variable(name='temp', value=[10., 20.], dimensions='g')
+        vc = VariableCollection(variables=[gvar, var])
+        vc.write(path, driver=DriverVector)
+
+        field = RequestDataset(path, units='celsius', variable='temp', conform_units_to='fahrenheit').get()
+        self.assertNumpyAllClose(field['temp'].value, np.array([50., 68.]))
+
     def test_system_with_time_data(self):
         """Test writing data with a time dimension."""
 
