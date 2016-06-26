@@ -20,7 +20,7 @@ class TestOcgField(AbstractTestNewInterface):
         f = self.get_ocgfield()
         self.assertIsInstance(f, OcgField)
 
-    def test_combo_properties(self):
+    def test_system_properties(self):
         """Test field properties."""
 
         time = TemporalVariable(value=[20, 30, 40], dimensions=['the_time'], dtype=float, name='time')
@@ -87,11 +87,11 @@ class TestOcgField(AbstractTestNewInterface):
         # spatial_sub.write_netcdf(path)
         # self.ncdump(path)
 
-    def test_combo_grid_mapping(self):
+    def test_system_grid_mapping(self):
         # tdk: RESUME: determine way to identify "dimensionsed" variable. this should probably occur using the request dataset (i.e. required dimensions)
         raise self.ToTest('test grid_mapping_name applied to dimensioned variables')
 
-    def test_combo_crs_and_grid_abstraction(self):
+    def test_system_crs_and_grid_abstraction(self):
         f = OcgField(grid_abstraction='point')
         grid = self.get_gridxy(with_xy_bounds=True)
         f.add_variable(grid.x)

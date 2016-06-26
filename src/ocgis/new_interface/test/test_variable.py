@@ -178,7 +178,7 @@ class TestVariable(AbstractTestNewInterface):
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
 
-    def test_combo_parents_on_bounds_variable(self):
+    def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)
         parent = VariableCollection(variables=extra)
         bounds = Variable(value=[[1, 2], [3, 4]], name='the_bounds', parent=parent, dimensions=['a', 'b'])
@@ -678,7 +678,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         with self.nc_scope(path, 'w') as ds:
             suby.write(ds)
 
-    def tet_combo_add_offset_and_scale_factor(self):
+    def tet_system_add_offset_and_scale_factor(self):
         path = self.get_temporary_file_path('foo.nc')
         with self.nc_scope(path, 'w') as ds:
             ds.createDimension('four', 4)
@@ -805,7 +805,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertEqual(vc.attrs, {'foo': 'bar'})
 
     @attr('data')
-    def test_combo_cf_netcdf(self):
+    def test_system_cf_netcdf(self):
         rd = self.get_request_dataset()
         vc = VariableCollection.read_netcdf(rd.uri)
         for v in vc.values():
@@ -818,7 +818,7 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertIsNone(v._value)
             self.assertIsNotNone(v.value)
 
-    def test_combo_nested(self):
+    def test_system_nested(self):
         # Test with nested collections.
         vc = self.get_variablecollection()
         nvc = self.get_variablecollection(name='nest')
@@ -832,7 +832,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)
 
-    def test_combo_as_variable_parent(self):
+    def test_system_as_variable_parent(self):
         # Test slicing variables.
         slc1 = {'x': slice(1, 2), 'y': slice(None)}
         slc2 = [slice(None), slice(1, 2)]

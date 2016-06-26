@@ -62,7 +62,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
             self.assertFalse(gvar2.get_mask().any())
 
     @attr('slow', 'mpi-4')
-    def test_combo_read_and_spatial_operations(self):
+    def test_system_read_and_spatial_operations(self):
         """Test various spatial operations with multiple geometries and a grid."""
         # tdk: support writing string variables to netCDf
         # tdk: determine how to link unique geometry identifiers to group names

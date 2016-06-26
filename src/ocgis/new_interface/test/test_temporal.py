@@ -213,7 +213,7 @@ class TestTemporalVariable(AbstractTestTemporal):
         td = TemporalVariable(value=num, calendar='360_day', units='days since 1900-01-01')
         self.assertNumpyAll(np.ma.array(vec), td.value_datetime)
 
-    def test_combo_bounds_datetime_and_bounds_numtime(self):
+    def test_system_bounds_datetime_and_bounds_numtime(self):
         value_datetime = np.array([dt(2000, 1, 15), dt(2000, 2, 15)])
         bounds_datetime = np.array([[dt(2000, 1, 1), dt(2000, 2, 1)],
                                     [dt(2000, 2, 1), dt(2000, 3, 1)]])
