@@ -682,7 +682,6 @@ class Variable(AbstractContainer, Attributes):
 
 
 class SourcedVariable(Variable):
-    # tdk: handle add_offset and scale_factor
     def __init__(self, *args, **kwargs):
         self.protected = kwargs.pop('protected', False)
         self._request_dataset = kwargs.pop('request_dataset', None)
