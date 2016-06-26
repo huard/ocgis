@@ -696,7 +696,7 @@ class SourcedVariable(Variable):
 
     def _get_value_(self):
         if self._value is None:
-            self._request_dataset.driver.allocate_variable_value(self)
+            self._request_dataset.driver.initialize_variable_value(self)
             ret = self._value
         else:
             ret = super(SourcedVariable, self)._get_value_()
@@ -961,5 +961,4 @@ def set_attribute_property(variable, name, value):
 def allocate_from_source(variable):
     request_dataset = variable._request_dataset
     if request_dataset is not None:
-        request_dataset.driver.allocate_variable_without_value(variable)
-
+        request_dataset.driver.allocate_variable_value(variable)

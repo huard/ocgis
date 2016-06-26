@@ -24,7 +24,7 @@ class DriverNetcdf(AbstractDriver):
     key = 'netcdf'
     output_formats = 'all'
 
-    def allocate_variable_without_value(self, variable):
+    def allocate_variable_value(self, variable):
         allocate_variable_using_metadata(variable, self.rd.metadata)
 
     def get_dump_report(self):

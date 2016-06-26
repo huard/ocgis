@@ -25,7 +25,7 @@ class DriverVector(AbstractDriver):
     output_formats = [constants.OUTPUT_FORMAT_NUMPY, constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH,
                       constants.OUTPUT_FORMAT_SHAPEFILE]
 
-    def allocate_variable_value(self, variable):
+    def initialize_variable_value(self, variable):
         value = self.get_variable_value(variable)
         for k, v in value.items():
             variable.parent[k]._set_value_(v)
@@ -115,7 +115,7 @@ class DriverVector(AbstractDriver):
         # tdk: test on vector and netcdf
         raise NotImplementedError
 
-    def allocate_variable_without_value(self, variable):
+    def allocate_variable_value(self, variable):
         m = self.rd.metadata
         if isinstance(variable, GeometryVariable):
             mv = m[constants.NAME_GEOMETRY_DIMENSION]

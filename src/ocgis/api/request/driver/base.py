@@ -101,7 +101,7 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
-    def allocate_variable_value(self, variable):
+    def initialize_variable_value(self, variable):
         """Set the variable value from source data conforming units in the process."""
 
         value = self.get_variable_value(variable)
@@ -113,7 +113,7 @@ class AbstractDriver(object):
         if conform_units_to is not None:
             variable.cfunits_conform(conform_units_to)
 
-    def allocate_variable_without_value(self, variable):
+    def allocate_variable_value(self, variable):
         raise NotImplementedError
 
     @abc.abstractmethod
