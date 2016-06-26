@@ -638,6 +638,12 @@ class Variable(AbstractContainer, Attributes):
 
             yield idx, yld
 
+    def load(self, *args, **kwargs):
+        """
+        Allows variables to be fake-loaded in the case of mixed pure variables and sourced variables. Actual
+        implementations is in :class:`ocgis.new_interface.variable.SourcedVariable`
+        """
+
     def _get_iter_value_(self):
         return self.masked_value
 
@@ -704,10 +710,12 @@ class SourcedVariable(Variable):
          source including any variables on its parent object.
         """
 
-        self._get_value_()
-        if eager and self.parent is not None:
-            for var in self.parent.values():
-                var.load()
+        # Only load the value if it has not been initialized and it is None.
+        if not self._has_initialized_value:
+            self._get_value_()
+            if eager and self.parent is not None:
+                for var in self.parent.values():
+                    var.load()
 
     def _get_value_(self):
         if self._value is None and not self._has_initialized_value:
@@ -813,6 +821,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             pass
 
         variable.parent = self
+
+    def load(self):
+        """Load all variables from source."""
+
+        for v in self.values():
+            v.load()
 
     def set_mask(self, variable, exclude=None):
         self.log.debug('set_mask on VariableCollection {}'.format(variable.name))

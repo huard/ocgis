@@ -1,4 +1,5 @@
 import os
+from unittest import SkipTest
 
 import fiona
 import numpy as np
@@ -8,7 +9,7 @@ from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector, get_fiona_crs, get_fiona_schema
-from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
+from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem, Spherical
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.temporal import TemporalVariable
@@ -41,8 +42,7 @@ class TestDriverVector(TestBase):
         self.assertAsSetEqual(actual, DriverVector.output_formats)
 
     @attr('data')
-    def test_combo_cf_data(self):
-        # tdk: RESUME: assert coordinate systems are equal (i.e. they should both be spherical)
+    def test_system_cf_data(self):
         rd = self.test_data.get_rd('cancm4_tas')
         path = self.get_temporary_file_path('grid.shp')
         field = rd.get()[{'time': slice(3, 6), 'lat': slice(10, 20), 'lon': slice(21, 27)}]
@@ -50,10 +50,12 @@ class TestDriverVector(TestBase):
         field.write(path, driver=DriverVector, variable_names=variable_names)
         read = RequestDataset(path).get()
         self.assertEqual(len(read.dimensions.values()[0]), 3 * 10 * 6)
-        self.assertEqual(read.keys(), 'ocgis_polygon')
-        self.fail()
+        desired_keys = [u'time', u'lat', u'lon', u'tas', 'ocgis_geom', 'ocgis_coordinate_system']
+        self.assertEqual(read.keys(), desired_keys)
+        self.assertEqual(rd.get().crs, Spherical())
+        self.assertEqual(read.crs, Spherical())
 
-    def test_combo_with_time_data(self):
+    def test_system_with_time_data(self):
         """Test writing data with a time dimension."""
 
         path = self.get_temporary_file_path('what.shp')
@@ -114,6 +116,7 @@ class TestDriverVector(TestBase):
                 self.assertIsNone(v._value)
 
     def test_inspect(self):
+        raise SkipTest('inspect needs to be reorganized')
         driver = self.get_driver()
         with self.print_scope() as ps:
             driver.inspect()

@@ -72,7 +72,7 @@ class DriverVector(AbstractDriver):
 
         from ocgis import CoordinateReferenceSystem
 
-        meta = self.rd.source_metadata
+        meta = self.rd.metadata
         try:
             ds = self.open()
             n = len(ds)
@@ -352,9 +352,8 @@ def iter_field_slices_for_records(vc_like, dimension_names, variable_names):
     for tp in to_pop:
         target.pop(tp)
 
-    # tdk: RESUME: there should be a high-level method to load all values from source
-    for v in target.values():
-        assert v.value is not None
+    # Load all values from source.
+    target.load()
 
     iterators = [range(len(d)) for d in dimensions]
     for indices in itertools.product(*iterators):
