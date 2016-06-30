@@ -99,14 +99,6 @@ class Dimension(AbstractInterfaceObject):
             ret = False
         return ret
 
-    # tdk: remove this method and associated tests
-    def attach_variable(self, variable):
-        if not self.is_unlimited:
-            assert len(self) == variable.shape[0]
-        assert variable.ndim == 1
-        self._variable = variable.copy()
-        self._variable.dimensions = None
-
 
 class SourcedDimension(Dimension):
     _default_dtype = np.int32
