@@ -1,3 +1,4 @@
+import datetime
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -5,16 +6,34 @@ import numpy as np
 
 from ocgis import constants
 from ocgis.interface.base.crs import CoordinateReferenceSystem
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable
+from ocgis.util.helpers import reduce_multiply
 
 
 class TestOcgField(AbstractTestNewInterface):
     def get_ocgfield(self, *args, **kwargs):
         return OcgField(*args, **kwargs)
+
+    def get_ocgfield_example(self):
+        dtime = Dimension(name='time')
+        t = TemporalVariable(value=[1, 2, 3, 4], name='time', dimensions=dtime)
+        lon = Variable(value=[30., 40., 50., 60.], name='longitude', dimensions='lon')
+        lat = Variable(value=[-10., -20., -30., -40., -50.], name='latitude', dimensions='lat')
+        tas_shape = [t.shape[0], lat.shape[0], lon.shape[0]]
+        tas = Variable(value=np.arange(reduce_multiply(tas_shape)).reshape(*tas_shape),
+                       dimensions=('time', 'lat', 'lon'), name='tas')
+        time_related = Variable(value=[7, 8, 9, 10], name='time_related', dimensions=dtime)
+        garbage1 = Variable(value=[66, 67, 68], dimensions='three', name='garbage1')
+        dmap = {'time': {'variable': t.name},
+                'x': {'variable': lon.name},
+                'y': {'variable': lat.name}}
+        field = OcgField(variables=[t, lon, lat, tas, garbage1, time_related], dimension_map=dmap)
+        return field
 
     def test_init(self):
         f = self.get_ocgfield()
@@ -108,8 +127,18 @@ class TestOcgField(AbstractTestNewInterface):
         self.assertEqual(spatial_sub.shapes, desired)
 
         # path = self.get_temporary_file_path('foo.nc')
-        # spatial_sub.write_netcdf(path)
+        # spatial_sub.write_netcdf(psath)
         # self.ncdump(path)
+
+    def test_system_subsetting(self):
+        """Test subsetting operations."""
+
+        field = self.get_ocgfield_example()
+        field.grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
+        sub = field.time.get_between(datetime.datetime(1, 1, 2, 12, 0),
+                                     datetime.datetime(1, 1, 4, 12, 0)).parent
+        sub = sub.grid.get_intersects([35, -45, 55, -15]).parent
+        self.assertTrue(sub.grid.is_vectorized)
 
     def test_dimensions(self):
         crs = CoordinateReferenceSystem(epsg=2136)

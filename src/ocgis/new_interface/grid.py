@@ -22,11 +22,12 @@ _NAMES_2D = ['ocgis_yc', 'ocgis_xc']
 class GridXY(AbstractSpatialContainer):
     ndim = 2
 
-    def __init__(self, x, y, abstraction='auto', crs=None, parent=None):
+    def __init__(self, x, y, abstraction='auto', crs=None, is_vectorized='auto', parent=None):
         if x.dimensions is None or y.dimensions is None:
             raise ValueError('Grid variables must have dimensions.')
 
         self._abstraction = None
+        self._is_vectorized = None
 
         self.abstraction = abstraction
 
@@ -48,10 +49,7 @@ class GridXY(AbstractSpatialContainer):
 
         super(GridXY, self).__init__(crs=crs, parent=parent)
 
-        if self._archetype.ndim == 1:
-            self.is_vectorized = True
-        else:
-            self.is_vectorized = False
+        self.is_vectorized = is_vectorized
 
     def __getitem__(self, slc):
         """
@@ -117,6 +115,24 @@ class GridXY(AbstractSpatialContainer):
             return self.has_allocated_polygon
         else:
             raise NotImplementedError(self.abstraction)
+
+    @property
+    def is_vectorized(self):
+        return self._is_vectorized
+
+    @is_vectorized.setter
+    def is_vectorized(self, value):
+        # Select vectorization state from the dimension count on the x/y coordinate variables.
+        if value == 'auto':
+            if self._archetype.ndim == 1:
+                value = True
+            else:
+                value = False
+        self._is_vectorized = value
+        # Also update the parent if it is field-like to ensure this state passes between grid instances.
+        if self.parent is not None:
+            if hasattr(self.parent, 'grid_is_vectorized'):
+                self.parent.grid_is_vectorized = value
 
     @property
     def dimensions(self):

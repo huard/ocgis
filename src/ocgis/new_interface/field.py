@@ -25,6 +25,7 @@ class OcgField(VariableCollection):
         self.dimension_map = get_merged_dimension_map(dimension_map)
 
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
+        self.grid_is_vectorized = kwargs.pop('grid_is_vectorized', 'auto')
         self.format_time = kwargs.pop('format_time', True)
         self.tags = kwargs.pop('tags', None)
 
@@ -82,7 +83,8 @@ class OcgField(VariableCollection):
         if x is None or y is None:
             ret = None
         else:
-            ret = GridXY(self.x, self.y, parent=self, crs=self.crs, abstraction=self.grid_abstraction)
+            ret = GridXY(self.x, self.y, parent=self, crs=self.crs, abstraction=self.grid_abstraction,
+                         is_vectorized=self.grid_is_vectorized)
         return ret
 
     @property
@@ -90,8 +92,8 @@ class OcgField(VariableCollection):
         ret = get_field_property(self, 'geom')
         if ret is not None:
             crs = self.crs
-            # Overload the geometry coordinate system if set on the field. Otherwise, this will (obviously) use the
-            # coordinate system on the geometry variable.
+            # Overload the geometry coordinate system if set on the field. Otherwise, this will use the coordinate
+            # system on the geometry variable.
             if crs is not None:
                 ret.crs = crs
         else:

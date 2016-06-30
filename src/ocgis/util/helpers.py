@@ -781,6 +781,13 @@ def project_shapely_geometry(geom, from_sr, to_sr):
     return ret
 
 
+def reduce_multiply(sequence):
+    ret = 1.
+    for s in sequence:
+        ret *= s
+    return ret
+
+
 def set_name_attributes(name_mapping):
     """
     Set the name attributes on the keys of ``name_mapping``.
