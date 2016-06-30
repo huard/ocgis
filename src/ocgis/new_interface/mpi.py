@@ -56,6 +56,28 @@ def dgather(elements):
     return grow
 
 
+def get_rank_bounds(nelements, nproc=None, pet=None):
+    nproc = nproc or MPI_SIZE
+    pet = pet or MPI_RANK
+    esplit = int(np.ceil(float(nelements) / float(nproc)))
+
+    if pet == 0:
+        lbound = 0
+    else:
+        lbound = pet * esplit
+    ubound = lbound + esplit
+
+    if ubound >= nelements:
+        ubound = nelements
+
+    if lbound > ubound:
+        ret = None
+    else:
+        ret = [lbound, ubound]
+
+    return ret
+
+
 def ogather(elements):
     ret = np.array(elements, dtype=object)
     return ret

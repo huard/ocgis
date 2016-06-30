@@ -1,8 +1,8 @@
 import numpy as np
-from numpy.testing.utils import assert_array_equal
 
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.test.base import attr
 
 
 class TestDimension(AbstractTestNewInterface):
@@ -49,6 +49,12 @@ class TestSourcedDimension(AbstractTestNewInterface):
         dim = self.get()
         self.assertNumpyAll(dim._src_idx, np.arange(0, 10, dtype=SourcedDimension._default_dtype))
         self.assertEqual(dim._src_idx.shape[0], 10)
+
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    def test_init_mpi(self):
+        value = [1, 2, 3, 4, 5]
+        dim = SourcedDimension('the_d', len(value), src_idx=value)
+        self.assertEqual(len(dim), 5)
 
     def test_copy(self):
         sd = self.get()
