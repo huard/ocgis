@@ -16,11 +16,6 @@ class AbstractInterfaceObject(object):
         """Return a shallow copy of self."""
         return copy(self)
 
-        # tdk: enable this as an abstract method
-        # @abstractmethod
-        # def write(self, *args, **kwargs):
-        #     """Write the object to file."""
-
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):
     ret = {}
