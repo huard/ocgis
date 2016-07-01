@@ -1,15 +1,17 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.mpi import OcgMpi, MPI_SIZE
 from ocgis.util.helpers import get_formatted_slice
 
 
 class Dimension(AbstractInterfaceObject):
-    def __init__(self, name, length=None, length_current=None, parent=None):
+    def __init__(self, name, length=None, length_current=None, dist=False):
         self._variable = None
         self._name = name
         self.length = length
         self.length_current = length_current
+        self.dist = dist
 
         super(Dimension, self).__init__()
 
@@ -88,6 +90,15 @@ class Dimension(AbstractInterfaceObject):
         return msg
 
     @property
+    def mpi(self):
+        if MPI_SIZE > 0 and self.dist:
+            # tdk: cache this object?
+            ret = OcgMpi(len(self))
+        else:
+            ret = None
+        return ret
+
+    @property
     def name(self):
         return self._name
 
@@ -104,11 +115,15 @@ class SourcedDimension(Dimension):
     _default_dtype = np.int32
 
     def __init__(self, *args, **kwargs):
-        self.__src_idx__ = None
-
-        self._src_idx = kwargs.pop('src_idx', None)
+        src_idx = kwargs.pop('src_idx', None)
 
         super(SourcedDimension, self).__init__(*args, **kwargs)
+
+        if self.dist and self.mpi.bounds_local is None:
+            self.__src_idx__ = None
+        else:
+            self.__src_idx__ = 'auto'
+        self._src_idx = src_idx
 
     def __eq__(self, other):
         try:
@@ -135,7 +150,13 @@ class SourcedDimension(Dimension):
     @property
     def _src_idx(self):
         if self.__src_idx__ is None:
-            self.__src_idx__ = np.arange(0, len(self), dtype=self._default_dtype)
+            if self.dist:
+                bounds = self.mpi.bounds_local
+            else:
+                bounds = (0, len(self))
+            if bounds is not None:
+                lower, upper = bounds
+                self.__src_idx__ = np.arange(lower, upper, dtype=self._default_dtype)
         return self.__src_idx__
 
     @_src_idx.setter
@@ -143,4 +164,11 @@ class SourcedDimension(Dimension):
         if value is not None:
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
+            if self.dist:
+                bounds = self.mpi.bounds_local
+                if bounds is None:
+                    value = None
+                else:
+                    lower, upper = bounds
+                    value = value[lower:upper]
         self.__src_idx__ = value

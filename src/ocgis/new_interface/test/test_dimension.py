@@ -1,6 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.test.base import attr
 
@@ -52,9 +53,22 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_init_mpi(self):
-        value = [1, 2, 3, 4, 5]
-        dim = SourcedDimension('the_d', len(value), src_idx=value)
+        kwds = {'length': [0, 5, None], 'dist': [True, False]}
+
+        value = [10, 20, 30, 40, 50]
+        dim = SourcedDimension('the_d', len(value), src_idx=value, dist=True)
+        self.assertEqual(dim.mpi.bounds_global, [0, 5])
         self.assertEqual(len(dim), 5)
+        if MPI_SIZE == 1:
+            self.assertEqual(dim.mpi.bounds_local, [0, 5])
+        elif MPI_SIZE == 5:
+            bounds = dim.mpi.bounds_local
+            self.assertEqual(bounds[1] - bounds[0], 1)
+        elif MPI_SIZE == 8:
+            if MPI_RANK > 4:
+                self.assertIsNone(dim._src_idx)
+            else:
+                self.assertEqual(len(dim._src_idx), 1)
 
     def test_copy(self):
         sd = self.get()

@@ -2,6 +2,7 @@ import itertools
 
 import numpy as np
 
+from ocgis.base import AbstractOcgisObject
 from ocgis.util.helpers import get_optimal_slice_from_array
 
 try:
@@ -40,6 +41,35 @@ MPI_SIZE = MPI_COMM.Get_size()
 MPI_RANK = MPI_COMM.Get_rank()
 
 
+class OcgMpi(AbstractOcgisObject):
+    def __init__(self, nelements=None):
+        self._bounds_global = None
+        self._bounds_local = None
+
+        self.nelements = nelements
+        self.rank = MPI_COMM.Get_rank()
+        self.size = MPI_COMM.Get_size()
+        self.comm = MPI_COMM
+
+    @property
+    def bounds_global(self):
+        if self.nelements is not None:
+            if self._bounds_global is None:
+                self._bounds_global = [0, self.nelements]
+        return self._bounds_global
+
+    @property
+    def bounds_local(self):
+        if self.nelements is not None:
+            if self._bounds_local is None:
+                self._bounds_local = self.get_rank_bounds()
+        return self._bounds_local
+
+    def get_rank_bounds(self, nelements=None):
+        nelements = nelements or self.nelements
+        return get_rank_bounds(nelements, nproc=self.size, pet=self.rank)
+
+
 def create_slices(length, size):
     # tdk: optimize: remove np.arange
     r = np.arange(length)
@@ -70,7 +100,7 @@ def get_rank_bounds(nelements, nproc=None, pet=None):
     if ubound >= nelements:
         ubound = nelements
 
-    if lbound > ubound:
+    if lbound >= ubound:
         ret = None
     else:
         ret = [lbound, ubound]

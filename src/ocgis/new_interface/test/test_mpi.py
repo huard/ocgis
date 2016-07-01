@@ -88,6 +88,10 @@ class Test(AbstractTestNewInterface):
         res = get_rank_bounds(4, nproc=1000, pet=900)
         self.assertIsNone(res)
 
+        # Test on the edge.
+        ret = get_rank_bounds(5, nproc=8, pet=5)
+        self.assertIsNone(ret)
+
     # tdk: move to test_helpers
     def test_get_local_to_global_slices(self):
         slices_global = (slice(2, 4, None), slice(0, 2, None))
