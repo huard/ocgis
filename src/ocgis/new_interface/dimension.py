@@ -117,6 +117,9 @@ class SourcedDimension(Dimension):
     def __init__(self, *args, **kwargs):
         src_idx = kwargs.pop('src_idx', None)
 
+        if src_idx is not None:
+            kwargs['length_current'] = len(src_idx)
+
         super(SourcedDimension, self).__init__(*args, **kwargs)
 
         if self.dist and self.mpi.bounds_local is None:

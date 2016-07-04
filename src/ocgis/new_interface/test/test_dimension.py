@@ -53,22 +53,41 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_init_mpi(self):
-        kwds = {'length': [0, 5, None], 'dist': [True, False]}
-
         value = [10, 20, 30, 40, 50]
-        dim = SourcedDimension('the_d', len(value), src_idx=value, dist=True)
-        self.assertEqual(dim.mpi.bounds_global, [0, 5])
-        self.assertEqual(len(dim), 5)
-        if MPI_SIZE == 1:
-            self.assertEqual(dim.mpi.bounds_local, [0, 5])
-        elif MPI_SIZE == 5:
-            bounds = dim.mpi.bounds_local
-            self.assertEqual(bounds[1] - bounds[0], 1)
-        elif MPI_SIZE == 8:
-            if MPI_RANK > 4:
-                self.assertIsNone(dim._src_idx)
+        for dist in [True, False]:
+            dim = SourcedDimension('the_d', len(value), src_idx=value, dist=dist)
+            self.assertEqual(len(dim), 5)
+            if dist:
+                self.assertEqual(dim.mpi.bounds_global, [0, 5])
+                if MPI_SIZE == 1:
+                    self.assertEqual(dim.mpi.bounds_local, [0, 5])
+                elif MPI_SIZE == 5:
+                    bounds = dim.mpi.bounds_local
+                    self.assertEqual(bounds[1] - bounds[0], 1)
+                elif MPI_SIZE == 8:
+                    if MPI_RANK > 4:
+                        self.assertIsNone(dim._src_idx)
+                    else:
+                        self.assertEqual(len(dim._src_idx), 1)
             else:
-                self.assertEqual(len(dim._src_idx), 1)
+                self.assertIsNone(dim.mpi)
+
+        # Test with zero length.
+        dim = SourcedDimension('zero', length=0, dist=True)
+        self.assertEqual(len(dim), 0)
+        self.assertIsNone(dim._src_idx)
+
+        # Test unlimited dimension.
+        dim = SourcedDimension('unlimited', length=None, dist=True, src_idx=[3, 4, 5, 6])
+        if MPI_SIZE == 2:
+            if MPI_RANK == 0:
+                self.assertEqual(dim._src_idx.tolist(), [3, 4])
+            elif MPI_RANK == 1:
+                self.assertEqual(dim._src_idx.tolist(), [5, 6])
+            else:
+                self.assertIsNone(dim._src_idx)
+        elif MPI_SIZE == 1:
+            self.assertIsNotNone(dim._src_idx)
 
     def test_copy(self):
         sd = self.get()
