@@ -79,6 +79,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
         # Test unlimited dimension.
         dim = SourcedDimension('unlimited', length=None, dist=True, src_idx=[3, 4, 5, 6])
+        self.assertEqual(len(dim), 4)
         if MPI_SIZE == 2:
             if MPI_RANK == 0:
                 self.assertEqual(dim._src_idx.tolist(), [3, 4])
