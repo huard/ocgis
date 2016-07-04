@@ -73,9 +73,10 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertIsNone(dim.mpi)
 
         # Test with zero length.
-        dim = SourcedDimension('zero', length=0, dist=True)
-        self.assertEqual(len(dim), 0)
-        self.assertIsNone(dim._src_idx)
+        for length in [0, None]:
+            dim = SourcedDimension('zero', length=length, dist=True)
+            self.assertEqual(len(dim), 0)
+            self.assertIsNone(dim._src_idx)
 
         # Test unlimited dimension.
         dim = SourcedDimension('unlimited', length=None, dist=True, src_idx=[3, 4, 5, 6])
