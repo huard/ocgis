@@ -115,6 +115,19 @@ class TestSourcedDimension(AbstractTestNewInterface):
         rhs._src_idx
         self.assertEqual(lhs, rhs)
 
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    def test_gather(self):
+        s = SourcedDimension('first_dist', length=5, dist=True)
+        self.assertIsNone(s.__src_idx__)
+        actual = s.gather(root=1)
+        if MPI_RANK == 1 or MPI_SIZE == 1:
+            self.assertEqual(actual, s)
+            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
+            self.log.debug(actual._src_idx)
+            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
+        else:
+            self.assertIsNone(actual)
+
     def test_getitem(self):
         dim = self.get()
 

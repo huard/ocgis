@@ -110,6 +110,16 @@ class Dimension(AbstractInterfaceObject):
             ret = False
         return ret
 
+    def gather(self, root=0):
+        if self.mpi.size == 1:
+            ret = self
+        else:
+            if self.mpi.rank == root:
+                ret = self
+            else:
+                ret = None
+        return ret
+
 
 class SourcedDimension(Dimension):
     _default_dtype = np.int32
@@ -143,6 +153,25 @@ class SourcedDimension(Dimension):
                     if v != other.__dict__[k]:
                         ret = False
                         break
+        return ret
+
+    def gather(self, root=0):
+        ret = self
+        if self.mpi.size != 1:
+            bounds = self.mpi.comm.gather(self.mpi.bounds_local, root=root)
+            src_indexes = self.mpi.comm.gather(self._src_idx, root=root)
+            if self.mpi.rank == root:
+                lower, upper = self.mpi.bounds_global
+                src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
+                for idx in range(self.mpi.size):
+                    lower, upper = bounds[idx]
+                    src_idx[lower:upper] = src_indexes[idx]
+                # This dimension is no longer distributed. Setting this to False will allow the local bounds to load
+                # correctly.
+                ret.dist = False
+                ret._src_idx = src_idx
+            else:
+                ret = None
         return ret
 
     def __getitem__(self, slc):
