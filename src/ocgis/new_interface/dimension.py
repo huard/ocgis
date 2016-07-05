@@ -7,7 +7,6 @@ from ocgis.util.helpers import get_formatted_slice
 
 class Dimension(AbstractInterfaceObject):
     def __init__(self, name, length=None, length_current=None, dist=False):
-        self._variable = None
         self._mpi = None
         self._name = name
 
@@ -34,10 +33,6 @@ class Dimension(AbstractInterfaceObject):
         slc = get_formatted_slice(slc, 1)
         slc = slc[0]
         ret = self.copy()
-
-        if ret._variable is not None:
-            assert ret._variable.dimensions is None
-            ret._variable = ret._variable[slc]
 
         try:
             length = len(slc)
@@ -127,6 +122,7 @@ class Dimension(AbstractInterfaceObject):
                 ret = self
             else:
                 ret = None
+        ret.dist = False
         return ret
 
 
@@ -161,30 +157,6 @@ class SourcedDimension(Dimension):
                         break
         return ret
 
-    def gather(self, root=0):
-        ret = self
-        if self.mpi.size != 1:
-            bounds = self.mpi.comm.gather(self.mpi.bounds_local, root=root)
-            src_indexes = self.mpi.comm.gather(self._src_idx, root=root)
-            if self.mpi.rank == root:
-                lower, upper = self.mpi.bounds_global
-                src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
-                for idx in range(self.mpi.size):
-                    try:
-                        lower, upper = bounds[idx]
-                    except TypeError:
-                        if bounds[idx] is not None:
-                            raise
-                    else:
-                        src_idx[lower:upper] = src_indexes[idx]
-                # This dimension is no longer distributed. Setting this to False will allow the local bounds to load
-                # correctly.
-                ret.dist = False
-                ret._src_idx = src_idx
-            else:
-                ret = None
-        return ret
-
     def __getitem__(self, slc):
         ret = super(SourcedDimension, self).__getitem__(slc)
         ret._src_idx = self._src_idx.__getitem__(slc)
@@ -212,3 +184,29 @@ class SourcedDimension(Dimension):
                     lower, upper = bounds
                     value = value[lower:upper]
         self.__src_idx__ = value
+
+    def gather(self, root=0):
+        ret = self
+        if self.mpi.size != 1:
+            bounds = self.mpi.comm.gather(self.mpi.bounds_local, root=root)
+            src_indexes = self.mpi.comm.gather(self._src_idx, root=root)
+            if self.mpi.rank == root:
+                lower, upper = self.mpi.bounds_global
+                src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
+                for idx in range(self.mpi.size):
+                    try:
+                        lower, upper = bounds[idx]
+                    except TypeError:
+                        if bounds[idx] is not None:
+                            raise
+                    else:
+                        src_idx[lower:upper] = src_indexes[idx]
+                # This dimension is no longer distributed. Setting this to False will allow the local bounds to load
+                # correctly.
+                ret.dist = False
+                ret._src_idx = src_idx
+            else:
+                ret = None
+        else:
+            ret.dist = False
+        return ret

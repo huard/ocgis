@@ -124,6 +124,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
         self.assertIsNone(s.__src_idx__)
         actual = s.gather(root=1)
         if MPI_RANK == 1 or MPI_SIZE == 1:
+            self.assertFalse(actual.dist)
             self.assertEqual(actual, s)
             self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
             self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
