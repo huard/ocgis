@@ -117,7 +117,6 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_gather(self):
-        # tdk: RESUME: finish test and test in test-current - try more procs, etc.
         s = SourcedDimension('first_dist', length=5, dist=True)
         self.assertIsNone(s.__src_idx__)
         actual = s.gather(root=1)
