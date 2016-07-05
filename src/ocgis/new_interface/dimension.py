@@ -125,6 +125,11 @@ class Dimension(AbstractInterfaceObject):
         ret.dist = False
         return ret
 
+    def scatter(self):
+        self.dist = True
+        self._mpi = None
+        return self
+
 
 class SourcedDimension(Dimension):
     _default_dtype = np.int32
@@ -141,20 +146,19 @@ class SourcedDimension(Dimension):
         self._src_idx = src_idx
 
     def __eq__(self, other):
-        try:
-            ret = super(SourcedDimension, self).__eq__(other)
-        except ValueError:
-            # Likely the source index is loaded which requires using a numpy comparison.
-            ret = True
-            for k, v in self.__dict__.iteritems():
-                if k == '__src_idx__':
-                    if not np.all(v == other.__dict__[k]):
-                        ret = False
-                        break
-                else:
-                    if v != other.__dict__[k]:
-                        ret = False
-                        break
+        ret = True
+        skip = ('__src_idx__', '_mpi')
+        for k, v in self.__dict__.items():
+            if k in skip:
+                continue
+            else:
+                if v != other.__dict__[k]:
+                    ret = False
+                    break
+        if ret:
+            if self.__src_idx__ is not None or other.__src_idx__ is not None:
+                if not np.all(self._src_idx == other.__src_idx__):
+                    ret = False
         return ret
 
     def __getitem__(self, slc):
@@ -209,4 +213,10 @@ class SourcedDimension(Dimension):
                 ret = None
         else:
             ret.dist = False
+        return ret
+
+    def scatter(self):
+        ret = super(SourcedDimension, self).scatter()
+        # Reset the source index forcing a subset by local bounds if applicable for the rank.
+        ret._src_idx = ret._src_idx
         return ret

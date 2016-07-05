@@ -41,13 +41,13 @@ class TestDimension(AbstractTestNewInterface):
 
 
 class TestSourcedDimension(AbstractTestNewInterface):
-    def get(self, **kwargs):
+    def get_sourced_dimension(self, **kwargs):
         name = kwargs.pop('name', 'foo')
         kwargs['length'] = kwargs.get('length', 10)
         return SourcedDimension(name, **kwargs)
 
     def test_init(self):
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         self.assertNumpyAll(dim._src_idx, np.arange(0, 10, dtype=SourcedDimension._default_dtype))
         self.assertEqual(dim._src_idx.shape[0], 10)
 
@@ -95,7 +95,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
             SourcedDimension('ua', dist=True)
 
     def test_copy(self):
-        sd = self.get()
+        sd = self.get_sourced_dimension()
         self.assertIsNotNone(sd._src_idx)
         sd2 = sd.copy()
         self.assertTrue(np.may_share_memory(sd._src_idx, sd2._src_idx))
@@ -107,8 +107,8 @@ class TestSourcedDimension(AbstractTestNewInterface):
         self.assertTrue(np.may_share_memory(sd3._src_idx, sd._src_idx))
 
     def test_eq(self):
-        lhs = self.get()
-        rhs = self.get()
+        lhs = self.get_sourced_dimension()
+        rhs = self.get_sourced_dimension()
         self.assertEqual(lhs, rhs)
         self.assertIsNone(lhs.__src_idx__)
         self.assertIsNone(rhs.__src_idx__)
@@ -132,7 +132,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
             self.assertIsNone(actual)
 
     def test_getitem(self):
-        dim = self.get()
+        dim = self.get_sourced_dimension()
 
         sub = dim[4]
         self.assertEqual(sub.length, 1)
@@ -153,22 +153,34 @@ class TestSourcedDimension(AbstractTestNewInterface):
         sub = dim[:]
         self.assertEqual(len(sub), len(dim))
 
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         sub = dim[2:]
         self.assertEqual(len(sub), 8)
 
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         sub = dim[3:-1]
         np.testing.assert_equal(sub._src_idx, [3, 4, 5, 6, 7, 8])
 
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         sub = dim[-3:]
         self.assertEqual(sub._src_idx.shape[0], sub.length)
 
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         sub = dim[-7:-3]
         self.assertEqual(sub._src_idx.shape[0], sub.length)
 
-        dim = self.get()
+        dim = self.get_sourced_dimension()
         sub = dim[:-3]
         self.assertEqual(sub._src_idx.shape[0], sub.length)
+
+    @attr('mpi-2')
+    def test_scatter(self):
+        d = SourcedDimension('scatter', 6, dist=False)
+        self.assertEqual(len(d._src_idx), 6)
+        ds = d.scatter()
+        if MPI_SIZE == 2:
+            self.log.debug(ds.mpi.bounds_local)
+            self.log.debug(ds._src_idx)
+            llb, lub = ds.mpi.bounds_local
+            self.assertEqual(lub - llb, 3)
+            self.assertEqual(len(ds._src_idx), 3)
