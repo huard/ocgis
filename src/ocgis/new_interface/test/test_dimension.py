@@ -57,11 +57,11 @@ class TestSourcedDimension(AbstractTestNewInterface):
         for dist in [True, False]:
             dim = SourcedDimension('the_d', len(value), src_idx=value, dist=dist)
             self.assertEqual(len(dim), 5)
+            self.assertEqual(dim.mpi.bounds_global, (0, 5))
+            if MPI_SIZE == 1:
+                self.assertEqual(dim.mpi.bounds_local, (0, 5))
             if dist:
-                self.assertEqual(dim.mpi.bounds_global, [0, 5])
-                if MPI_SIZE == 1:
-                    self.assertEqual(dim.mpi.bounds_local, [0, 5])
-                elif MPI_SIZE == 5:
+                if MPI_SIZE == 5:
                     bounds = dim.mpi.bounds_local
                     self.assertEqual(bounds[1] - bounds[0], 1)
                 elif MPI_SIZE == 8:
@@ -70,7 +70,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
                     else:
                         self.assertEqual(len(dim._src_idx), 1)
             else:
-                self.assertIsNone(dim.mpi)
+                self.assertEqual(dim.mpi.bounds_local, dim.mpi.bounds_global)
 
         # Test with zero length.
         for length in [0, None]:

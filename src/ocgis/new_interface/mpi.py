@@ -42,28 +42,61 @@ MPI_RANK = MPI_COMM.Get_rank()
 
 
 class OcgMpi(AbstractOcgisObject):
-    def __init__(self, nelements=None):
-        self._bounds_global = None
-        self._bounds_local = None
+    def __init__(self, nelements=None, dimensions=None, size=None):
+        # Require element count or dimensions.
+        assert nelements is not None or dimensions is not None
 
+        # Object works off element counts or dimensions exclusively. Passing both is not an option.
+        if dimensions is not None:
+            assert nelements is None
+            if not isinstance(dimensions, (list, tuple)):
+                dimensions = [dimensions]
+            if size is None:
+                lengths = [None] * len(dimensions)
+                for idx, dim in enumerate(dimensions):
+                    if dim.dist:
+                        gl, gu = dim.mpi.bounds_global
+                        lengths[idx] = gu - gl
+                min_length = min([l for l in lengths if l is not None])
+                if min_length < MPI_SIZE:
+                    size = min_length
+                    for d in dimensions:
+                        if d.dist:
+                            d.mpi.size = size
+        if nelements is not None:
+            assert dimensions is None
+
+        self.dimensions = dimensions
         self.nelements = nelements
-        self.rank = MPI_COMM.Get_rank()
-        self.size = MPI_COMM.Get_size()
+        self.rank = MPI_RANK
+        self.size = size or MPI_SIZE
         self.comm = MPI_COMM
 
     @property
     def bounds_global(self):
         if self.nelements is not None:
-            if self._bounds_global is None:
-                self._bounds_global = [0, self.nelements]
-        return self._bounds_global
+            ret = (0, self.nelements)
+        else:
+            ret = tuple([d.mpi.bounds_global for d in self.dimensions])
+        return ret
 
     @property
     def bounds_local(self):
-        if self.nelements is not None:
-            if self._bounds_local is None:
-                self._bounds_local = self.get_rank_bounds()
-        return self._bounds_local
+        if self.size == 1:
+            ret = self.bounds_global
+        else:
+            if self.nelements is not None:
+                ret = self.get_rank_bounds()
+            else:
+                bl = [None] * len(self.dimensions)
+                for idx, dim in enumerate(self.dimensions):
+                    if dim.dist:
+                        fill = dim.mpi.bounds_local
+                    else:
+                        fill = dim.mpi.bounds_global
+                    bl[idx] = fill
+                ret = tuple(bl)
+        return ret
 
     def get_rank_bounds(self, nelements=None):
         nelements = nelements or self.nelements
@@ -103,7 +136,7 @@ def get_rank_bounds(nelements, nproc=None, pet=None):
     if lbound >= ubound:
         ret = None
     else:
-        ret = [lbound, ubound]
+        ret = (lbound, ubound)
 
     return ret
 

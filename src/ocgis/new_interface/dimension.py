@@ -1,14 +1,16 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import OcgMpi, MPI_SIZE
+from ocgis.new_interface.mpi import OcgMpi
 from ocgis.util.helpers import get_formatted_slice
 
 
 class Dimension(AbstractInterfaceObject):
     def __init__(self, name, length=None, length_current=None, dist=False):
         self._variable = None
+        self._mpi = None
         self._name = name
+
         self.length = length
         self.length_current = length_current
         self.dist = dist
@@ -91,12 +93,13 @@ class Dimension(AbstractInterfaceObject):
 
     @property
     def mpi(self):
-        if MPI_SIZE > 0 and self.dist:
-            # tdk: cache this object?
-            ret = OcgMpi(len(self))
-        else:
-            ret = None
-        return ret
+        if self._mpi is None:
+            if self.dist:
+                size = None
+            else:
+                size = 1
+            self._mpi = OcgMpi(nelements=len(self), size=size)
+        return self._mpi
 
     @property
     def name(self):
@@ -125,6 +128,7 @@ class SourcedDimension(Dimension):
     _default_dtype = np.int32
 
     def __init__(self, *args, **kwargs):
+        self.__src_idx__ = None
         src_idx = kwargs.pop('src_idx', None)
 
         if src_idx is not None:
@@ -132,10 +136,6 @@ class SourcedDimension(Dimension):
 
         super(SourcedDimension, self).__init__(*args, **kwargs)
 
-        if self.dist and self.mpi.bounds_local is None:
-            self.__src_idx__ = None
-        else:
-            self.__src_idx__ = 'auto'
         self._src_idx = src_idx
 
     def __eq__(self, other):
@@ -186,11 +186,8 @@ class SourcedDimension(Dimension):
 
     @property
     def _src_idx(self):
-        if self.__src_idx__ is None:
-            if self.dist:
-                bounds = self.mpi.bounds_local
-            else:
-                bounds = (0, len(self))
+        if self.__src_idx__ is None and len(self) > 0:
+            bounds = self.mpi.bounds_local
             if bounds is not None:
                 lower, upper = bounds
                 self.__src_idx__ = np.arange(lower, upper, dtype=self._default_dtype)

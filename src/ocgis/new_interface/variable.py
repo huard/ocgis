@@ -15,7 +15,7 @@ from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import create_nd_slices
+from ocgis.new_interface.mpi import create_nd_slices, OcgMpi
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
@@ -98,7 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None):
+                 units='auto', parent=None, bounds=None, dist=False):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -112,6 +112,7 @@ class Variable(AbstractContainer, Attributes):
         else:
             self._bounds_name = None
 
+        self.dist = dist
         self.dtype = dtype
 
         AbstractContainer.__init__(self, name, parent=parent)
@@ -369,6 +370,15 @@ class Variable(AbstractContainer, Attributes):
         else:
             dtype = self.dtype
         ret = np.ma.array(self.value, mask=self.get_mask(), dtype=dtype, fill_value=self.fill_value)
+        return ret
+
+    @property
+    def mpi(self):
+        if self.dist:
+            # tdk: cache this object?
+            ret = OcgMpi(dimensions=self.dimensions)
+        else:
+            ret = None
         return ret
 
     def _get_value_(self):
