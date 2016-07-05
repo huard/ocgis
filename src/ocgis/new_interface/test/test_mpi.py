@@ -107,7 +107,6 @@ class TestOcgMpi(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_bounds(self):
         """Test global and local bounds passing dimensions to the OCGIS MPI interface."""
-        # tdk: test with more procs than dimension length
         # Test passing dimensions to calculated local bounds.
         d1 = Dimension('d1', length=5, dist=True)
         d2 = Dimension('d2', length=10, dist=False)

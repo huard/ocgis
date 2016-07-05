@@ -17,6 +17,12 @@ class Dimension(AbstractInterfaceObject):
 
         super(Dimension, self).__init__()
 
+        # If this dimension is distributed, some form of length is required.
+        if self.dist:
+            if self.length is None and self.length_current is None:
+                msg = 'Distributed dimensions required "length" or "length_current".'
+                raise ValueError(msg)
+
     def __eq__(self, other):
         if other.__dict__ == self.__dict__:
             ret = True

@@ -53,14 +53,14 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_init_mpi(self):
-        value = [10, 20, 30, 40, 50]
-        for dist in [True, False]:
-            dim = SourcedDimension('the_d', len(value), src_idx=value, dist=dist)
+        kwds = {'dist': [True, False], 'src_idx': [None, [10, 20, 30, 40, 50]]}
+        for k in self.iter_product_keywords(kwds):
+            dim = SourcedDimension('the_d', 5, src_idx=k.src_idx, dist=k.dist)
             self.assertEqual(len(dim), 5)
             self.assertEqual(dim.mpi.bounds_global, (0, 5))
             if MPI_SIZE == 1:
                 self.assertEqual(dim.mpi.bounds_local, (0, 5))
-            if dist:
+            if k.dist:
                 if MPI_SIZE == 5:
                     bounds = dim.mpi.bounds_local
                     self.assertEqual(bounds[1] - bounds[0], 1)
@@ -73,10 +73,9 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertEqual(dim.mpi.bounds_local, dim.mpi.bounds_global)
 
         # Test with zero length.
-        for length in [0, None]:
-            dim = SourcedDimension('zero', length=length, dist=True)
-            self.assertEqual(len(dim), 0)
-            self.assertIsNone(dim._src_idx)
+        dim = SourcedDimension('zero', length=0, dist=True)
+        self.assertEqual(len(dim), 0)
+        self.assertIsNone(dim._src_idx)
 
         # Test unlimited dimension.
         dim = SourcedDimension('unlimited', length=None, dist=True, src_idx=[3, 4, 5, 6])
@@ -90,6 +89,10 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertIsNone(dim._src_idx)
         elif MPI_SIZE == 1:
             self.assertIsNotNone(dim._src_idx)
+
+        # Test some length designation is needed for an unlimited dimension in the distributed case.
+        with self.assertRaises(ValueError):
+            SourcedDimension('ua', dist=True)
 
     def test_copy(self):
         sd = self.get()
