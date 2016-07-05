@@ -164,8 +164,13 @@ class SourcedDimension(Dimension):
                 lower, upper = self.mpi.bounds_global
                 src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
                 for idx in range(self.mpi.size):
-                    lower, upper = bounds[idx]
-                    src_idx[lower:upper] = src_indexes[idx]
+                    try:
+                        lower, upper = bounds[idx]
+                    except TypeError:
+                        if bounds[idx] is not None:
+                            raise
+                    else:
+                        src_idx[lower:upper] = src_indexes[idx]
                 # This dimension is no longer distributed. Setting this to False will allow the local bounds to load
                 # correctly.
                 ret.dist = False
