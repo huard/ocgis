@@ -119,6 +119,40 @@ def dgather(elements):
     return grow
 
 
+def get_global_to_local_slice(start_stop, bounds_local):
+    """
+    :param start_stop: Two-element, integer sequence for the start and stop global indices.
+    :type start_stop: tuple
+    :param bounds_local: Two-element, integer sequence describing the local bounds.
+    :type bounds_local: tuple
+    :return: Two-element integer sequence mapping the global to the local slice. If the local bounds are outside the
+     global slice, ``None`` will be returned.
+    :rtype: tuple or None
+    """
+    start, stop = start_stop
+    lower, upper = bounds_local
+
+    new_start = start
+    if start >= upper:
+        new_start = None
+    else:
+        if new_start < lower:
+            new_start = lower
+
+    if stop <= lower:
+        new_stop = None
+    elif upper < stop:
+        new_stop = upper
+    else:
+        new_stop = stop
+
+    if new_start is None or new_stop is None:
+        ret = None
+    else:
+        ret = (new_start - lower, new_stop - lower)
+    return ret
+
+
 def get_rank_bounds(nelements, nproc=None, pet=None):
     nproc = nproc or MPI_SIZE
     pet = pet or MPI_RANK

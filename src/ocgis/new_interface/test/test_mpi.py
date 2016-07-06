@@ -6,7 +6,7 @@ from mpi4py.MPI import COMM_NULL
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
-    get_optimal_splits, get_rank_bounds, OcgMpi, MPI_RANK
+    get_optimal_splits, get_rank_bounds, OcgMpi, MPI_RANK, get_global_to_local_slice
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.test.base import attr
@@ -94,13 +94,50 @@ class Test(AbstractTestNewInterface):
         ret = get_rank_bounds(5, nproc=8, pet=5)
         self.assertIsNone(ret)
 
-    # tdk: move to test_helpers
     def test_get_local_to_global_slices(self):
+        # tdk: consider removing this function
         slices_global = (slice(2, 4, None), slice(0, 2, None))
         slices_local = (slice(0, 1, None), slice(0, 2, None))
 
         lm = get_local_to_global_slices(slices_global, slices_local)
         self.assertEqual(lm, (slice(2, 3, None), slice(0, 2, None)))
+
+    def test_get_global_to_local_slice(self):
+        start_stop = (1, 4)
+        bounds_local = (0, 3)
+        desired = (1, 3)
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
+
+        start_stop = (1, 4)
+        bounds_local = (3, 5)
+        desired = (0, 1)
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
+
+        start_stop = (1, 4)
+        bounds_local = (4, 8)
+        desired = None
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
+
+        start_stop = (3, 4)
+        bounds_local = (3, 4)
+        desired = (0, 1)
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
+
+        start_stop = (10, 20)
+        bounds_local = (8, 10)
+        desired = None
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
+
+        start_stop = (10, 20)
+        bounds_local = (12, 15)
+        desired = (0, 3)
+        actual = get_global_to_local_slice(start_stop, bounds_local)
+        self.assertEqual(actual, desired)
 
 
 class TestOcgMpi(AbstractTestNewInterface):

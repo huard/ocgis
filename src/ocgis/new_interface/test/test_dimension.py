@@ -173,6 +173,22 @@ class TestSourcedDimension(AbstractTestNewInterface):
         sub = dim[:-3]
         self.assertEqual(sub._src_idx.shape[0], sub.length)
 
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    def test_getitem_mpi(self):
+        # tdk: test slicing with an integer
+        # tdk: test slicing with bool
+        # tdk: test slicing with integer array
+        # tdk: test slicing with None
+        sd = SourcedDimension('yui', 5, src_idx=[10, 20, 30, 40, 50], dist=True)
+        sub = sd[1:4]
+        if MPI_SIZE == 2:
+            if MPI_RANK == 0:
+                self.assertEqual(sub._src_idx.tolist(), [20, 30])
+            else:
+                self.assertEqual(sub._src_idx.tolist(), [40])
+        elif MPI_SIZE > 2:
+            raise NotImplementedError
+
     @attr('mpi-2')
     def test_scatter(self):
         d = SourcedDimension('scatter', 6, dist=False)

@@ -1,7 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import OcgMpi
+from ocgis.new_interface.mpi import OcgMpi, get_global_to_local_slice
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -29,11 +29,7 @@ class Dimension(AbstractInterfaceObject):
             ret = False
         return ret
 
-    def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, 1)
-        slc = slc[0]
-        ret = self.copy()
-
+    def __getitem_main__(self, ret, slc):
         try:
             length = len(slc)
         except TypeError:
@@ -74,6 +70,21 @@ class Dimension(AbstractInterfaceObject):
                 # This is using negative indexing. Subtract from the current length.
                 length = length + self.length
             ret.length = length
+
+    def __getitem__(self, slc):
+        slc = get_formatted_slice(slc, 1)[0]
+        self.log.debug('slc before: {}'.format(slc))
+        # If this is a distributed dimension, remap the slice accounting for local bounds.
+        if self.dist:
+            self.log.debug('self.mpi.bounds_local: {}'.format(self.mpi.bounds_local))
+            remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
+            self.log.debug('remapped: {}'.format(remapped))
+            slc = slice(*remapped)
+        self.log.debug('slc after: {}'.format(slc))
+        ret = self.copy()
+
+        self.__getitem_main__(ret, slc)
+
         return ret
 
     def __len__(self):
@@ -161,10 +172,11 @@ class SourcedDimension(Dimension):
                     ret = False
         return ret
 
-    def __getitem__(self, slc):
-        ret = super(SourcedDimension, self).__getitem__(slc)
-        ret._src_idx = self._src_idx.__getitem__(slc)
-        return ret
+    def __getitem_main__(self, ret, slc):
+        super(SourcedDimension, self).__getitem_main__(ret, slc)
+        self.log.debug('SourceDimension.__getitem_main__.slc: {}'.format(slc))
+        self.log.debug('sliced src_idx: {}'.format(self._src_idx.__getitem__(slc)))
+        ret.__src_idx__ = self._src_idx.__getitem__(slc)
 
     @property
     def _src_idx(self):
