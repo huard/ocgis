@@ -30,57 +30,65 @@ class Dimension(AbstractInterfaceObject):
         return ret
 
     def __getitem_main__(self, ret, slc):
-        try:
-            length = len(slc)
-        except TypeError:
-            # Likely a slice object.
+        # This occurs when local bounds are not present for a rank.
+        if slc is None:
+            ret.length = 0
+            ret.length_current = 0
+        else:
             try:
-                length = slc.stop - slc.start
+                length = len(slc)
             except TypeError:
-                # Likely a NoneType slice.
-                if slc.start is None:
-                    if slc.stop > 0:
-                        length = len(self)
+                # Likely a slice object.
+                try:
+                    length = slc.stop - slc.start
+                except TypeError:
+                    # Likely a NoneType slice.
+                    if slc.start is None:
+                        if slc.stop > 0:
+                            length = len(self)
+                        elif slc.stop is None:
+                            length = len(self)
+                        else:
+                            length = len(self) + slc.stop
                     elif slc.stop is None:
-                        length = len(self)
+                        if slc.start > 0:
+                            length = len(self) - slc.start
+                        else:
+                            length = abs(slc.start)
                     else:
-                        length = len(self) + slc.stop
-                elif slc.stop is None:
-                    if slc.start > 0:
-                        length = len(self) - slc.start
-                    else:
-                        length = abs(slc.start)
-                else:
-                    raise
-        else:
-            try:
-                # Check for boolean slices.
-                if slc.dtype == bool:
-                    length = slc.sum()
-            except AttributeError:
-                # Likely a list/tuple.
-                pass
-        if self.length is None:
-            if length < 0:
-                # This is using negative indexing. Subtract from the current length.
-                length = length + self.length_current
-            ret.length_current = length
-        else:
-            if length < 0:
-                # This is using negative indexing. Subtract from the current length.
-                length = length + self.length
-            ret.length = length
+                        raise
+            else:
+                try:
+                    # Check for boolean slices.
+                    if slc.dtype == bool:
+                        length = slc.sum()
+                except AttributeError:
+                    # Likely a list/tuple.
+                    pass
+            if self.length is None:
+                if length < 0:
+                    # This is using negative indexing. Subtract from the current length.
+                    length = length + self.length_current
+                ret.length_current = length
+            else:
+                if length < 0:
+                    # This is using negative indexing. Subtract from the current length.
+                    length = length + self.length
+                ret.length = length
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)[0]
-        self.log.debug('slc before: {}'.format(slc))
         # If this is a distributed dimension, remap the slice accounting for local bounds.
         if self.dist:
-            self.log.debug('self.mpi.bounds_local: {}'.format(self.mpi.bounds_local))
-            remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
-            self.log.debug('remapped: {}'.format(remapped))
-            slc = slice(*remapped)
-        self.log.debug('slc after: {}'.format(slc))
+            if self.mpi.bounds_local is None:
+                slc = None
+            else:
+                remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
+                # If the remapped slice is None, the dimension on this rank is empty.
+                if remapped is None:
+                    slc = None
+                else:
+                    slc = slice(*remapped)
         ret = self.copy()
 
         self.__getitem_main__(ret, slc)
@@ -174,9 +182,11 @@ class SourcedDimension(Dimension):
 
     def __getitem_main__(self, ret, slc):
         super(SourcedDimension, self).__getitem_main__(ret, slc)
-        self.log.debug('SourceDimension.__getitem_main__.slc: {}'.format(slc))
-        self.log.debug('sliced src_idx: {}'.format(self._src_idx.__getitem__(slc)))
-        ret.__src_idx__ = self._src_idx.__getitem__(slc)
+        # This can happen with no overlapping local and global bounds.
+        if slc is None:
+            ret.__src_idx__ = None
+        else:
+            ret.__src_idx__ = self._src_idx.__getitem__(slc)
 
     @property
     def _src_idx(self):
