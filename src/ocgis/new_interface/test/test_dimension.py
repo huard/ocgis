@@ -11,29 +11,30 @@ class TestDimension(AbstractTestNewInterface):
     def test_init(self):
         dim = Dimension('foo')
         self.assertEqual(dim.name, 'foo')
-        self.assertIsNone(dim.length)
+        self.assertIsNone(dim.size)
 
-        dim = Dimension('foo', length=23)
-        self.assertEqual(dim.length, 23)
+        dim = Dimension('foo', size=23)
+        self.assertEqual(dim.size, 23)
 
     def test_getitem(self):
-        dim = Dimension('foo', length=50)
+        dim = Dimension('foo', size=50)
         sub = dim[30:40]
         self.assertEqual(len(sub), 10)
 
-        dim = Dimension('foo', length=None)
+        dim = Dimension('foo', size=None)
         sub = dim[400:500]
         self.assertEqual(len(sub), 100)
 
         # Test with negative indexing.
-        dim = Dimension(name='geom', length=2)
+        dim = Dimension(name='geom', size=2)
         slc = slice(0, -1, None)
-        self.assertEqual(dim[slc], Dimension('geom', length=1))
+        self.assertEqual(dim[slc], Dimension('geom', size=1))
 
-        dim = Dimension(name='geom', length=5)
+        dim = Dimension(name='geom', size=5)
         slc = slice(1, -2, None)
-        a = np.arange(5)
-        self.assertEqual(dim[slc], Dimension('geom', length=a[slc].shape[0]))
+        actual = dim[slc]
+        desired = Dimension('geom', size=2, src_idx=[1, 2])
+        self.assertEqual(actual, desired)
 
     def test_len(self):
         dim = Dimension('foo')
@@ -41,9 +42,10 @@ class TestDimension(AbstractTestNewInterface):
 
 
 class TestSourcedDimension(AbstractTestNewInterface):
+    # tdk: merge with TestDimension as SourceDimension no longer exists
     def get_sourced_dimension(self, **kwargs):
         name = kwargs.pop('name', 'foo')
-        kwargs['length'] = kwargs.get('length', 10)
+        kwargs['size'] = kwargs.get('size', 10)
         return SourcedDimension(name, **kwargs)
 
     def test_init(self):
@@ -73,12 +75,12 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertEqual(dim.mpi.bounds_local, dim.mpi.bounds_global)
 
         # Test with zero length.
-        dim = SourcedDimension('zero', length=0, dist=True)
+        dim = SourcedDimension('zero', size=0, dist=True)
         self.assertEqual(len(dim), 0)
         self.assertIsNone(dim._src_idx)
 
         # Test unlimited dimension.
-        dim = SourcedDimension('unlimited', length=None, dist=True, src_idx=[3, 4, 5, 6])
+        dim = SourcedDimension('unlimited', size=None, dist=True, src_idx=[3, 4, 5, 6])
         self.assertEqual(len(dim), 4)
         if MPI_SIZE == 2:
             if MPI_RANK == 0:
@@ -110,17 +112,10 @@ class TestSourcedDimension(AbstractTestNewInterface):
         lhs = self.get_sourced_dimension()
         rhs = self.get_sourced_dimension()
         self.assertEqual(lhs, rhs)
-        self.assertIsNone(lhs.__src_idx__)
-        self.assertIsNone(rhs.__src_idx__)
-
-        # Test when source index is loaded.
-        lhs._src_idx
-        rhs._src_idx
-        self.assertEqual(lhs, rhs)
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_gather(self):
-        s = SourcedDimension('first_dist', length=5, dist=True)
+        s = SourcedDimension('first_dist', size=5, dist=True)
         self.assertIsNone(s.__src_idx__)
         actual = s.gather(root=1)
         if MPI_RANK == 1 or MPI_SIZE == 1:
@@ -135,19 +130,19 @@ class TestSourcedDimension(AbstractTestNewInterface):
         dim = self.get_sourced_dimension()
 
         sub = dim[4]
-        self.assertEqual(sub.length, 1)
+        self.assertEqual(sub.size, 1)
 
         sub = dim[4:5]
-        self.assertEqual(sub.length, 1)
+        self.assertEqual(sub.size, 1)
 
         sub = dim[4:6]
-        self.assertEqual(sub.length, 2)
+        self.assertEqual(sub.size, 2)
 
         sub = dim[[4, 5, 6]]
-        self.assertEqual(sub.length, 3)
+        self.assertEqual(sub.size, 3)
 
         sub = dim[[2, 4, 6]]
-        self.assertEqual(sub.length, 3)
+        self.assertEqual(sub.size, 3)
         self.assertNumpyAll(sub._src_idx, dim._src_idx[[2, 4, 6]])
 
         sub = dim[:]
@@ -163,15 +158,15 @@ class TestSourcedDimension(AbstractTestNewInterface):
 
         dim = self.get_sourced_dimension()
         sub = dim[-3:]
-        self.assertEqual(sub._src_idx.shape[0], sub.length)
+        self.assertEqual(sub._src_idx.shape[0], sub.size)
 
         dim = self.get_sourced_dimension()
         sub = dim[-7:-3]
-        self.assertEqual(sub._src_idx.shape[0], sub.length)
+        self.assertEqual(sub._src_idx.shape[0], sub.size)
 
         dim = self.get_sourced_dimension()
         sub = dim[:-3]
-        self.assertEqual(sub._src_idx.shape[0], sub.length)
+        self.assertEqual(sub._src_idx.shape[0], sub.size)
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_getitem_mpi(self):
