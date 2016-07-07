@@ -18,6 +18,8 @@ class Dimension(AbstractInterfaceObject):
         self._size_current = size_current
         self._src_idx = src_idx
 
+        # Adjust object for the distributed case. ----------------------------------------------------------------------
+
         if dist:
             # A size definition is required.
             if self.size is None and self.size_current is None:
@@ -26,7 +28,10 @@ class Dimension(AbstractInterfaceObject):
             mpi_size = None
         else:
             mpi_size = 1
+
+        # Always configure the MPI interface.
         self.mpi = OcgMpi(nelements=len(self), size=mpi_size)
+
         if dist:
             # Adjust the source index and sizes for the distributed case.
             bounds_local = self.mpi.bounds_local
@@ -68,18 +73,15 @@ class Dimension(AbstractInterfaceObject):
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)[0]
         # If this is a distributed dimension, remap the slice accounting for local bounds.
-        if self.dist:
-            if self.mpi.bounds_local is None:
+        if self.mpi.bounds_local is None:
+            slc = None
+        else:
+            remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
+            # If the remapped slice is None, the dimension on this rank is empty.
+            if remapped is None:
                 slc = None
             else:
-                self.log.debug('self.mpi.bounds_local {}'.format(self.mpi.bounds_local))
-                remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
-                self.log.debug('remapped {}'.format(remapped))
-                # If the remapped slice is None, the dimension on this rank is empty.
-                if remapped is None:
-                    slc = None
-                else:
-                    slc = slice(*remapped)
+                slc = slice(*remapped)
 
         # If there is no local slice (local and global bounds do not overlap), return None for the object.
         ret = self.copy()
