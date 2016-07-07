@@ -12,7 +12,7 @@ from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
-from ocgis.new_interface.dimension import SourcedDimension, Dimension
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list, iter_array
 from ocgis.util.logging_ocgis import ocgis_lh

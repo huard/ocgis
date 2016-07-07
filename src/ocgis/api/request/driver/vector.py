@@ -13,7 +13,6 @@ from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 
 # tdk: clean-up
-from ocgis.new_interface.dimension import SourcedDimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh

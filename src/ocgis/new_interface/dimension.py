@@ -228,7 +228,3 @@ class Dimension(AbstractInterfaceObject):
                 # This is using negative indexing. Subtract from the current length.
                 length = length + self.size
             ret._size = length
-
-
-class SourcedDimension(Dimension):
-    pass
