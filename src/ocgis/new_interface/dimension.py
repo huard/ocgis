@@ -13,6 +13,7 @@ class Dimension(AbstractInterfaceObject):
         self.length = length
         self.length_current = length_current
         self.dist = dist
+        self.active = True
 
         super(Dimension, self).__init__()
 
@@ -30,51 +31,46 @@ class Dimension(AbstractInterfaceObject):
         return ret
 
     def __getitem_main__(self, ret, slc):
-        # This occurs when local bounds are not present for a rank.
-        if slc is None:
-            ret.length = 0
-            ret.length_current = 0
+        try:
+            length = len(slc)
+        except TypeError:
+            # Likely a slice object.
+            try:
+                length = slc.stop - slc.start
+            except TypeError:
+                # Likely a NoneType slice.
+                if slc.start is None:
+                    if slc.stop > 0:
+                        length = len(self)
+                    elif slc.stop is None:
+                        length = len(self)
+                    else:
+                        length = len(self) + slc.stop
+                elif slc.stop is None:
+                    if slc.start > 0:
+                        length = len(self) - slc.start
+                    else:
+                        length = abs(slc.start)
+                else:
+                    raise
         else:
             try:
-                length = len(slc)
-            except TypeError:
-                # Likely a slice object.
-                try:
-                    length = slc.stop - slc.start
-                except TypeError:
-                    # Likely a NoneType slice.
-                    if slc.start is None:
-                        if slc.stop > 0:
-                            length = len(self)
-                        elif slc.stop is None:
-                            length = len(self)
-                        else:
-                            length = len(self) + slc.stop
-                    elif slc.stop is None:
-                        if slc.start > 0:
-                            length = len(self) - slc.start
-                        else:
-                            length = abs(slc.start)
-                    else:
-                        raise
-            else:
-                try:
-                    # Check for boolean slices.
-                    if slc.dtype == bool:
-                        length = slc.sum()
-                except AttributeError:
-                    # Likely a list/tuple.
-                    pass
-            if self.length is None:
-                if length < 0:
-                    # This is using negative indexing. Subtract from the current length.
-                    length = length + self.length_current
-                ret.length_current = length
-            else:
-                if length < 0:
-                    # This is using negative indexing. Subtract from the current length.
-                    length = length + self.length
-                ret.length = length
+                # Check for boolean slices.
+                if slc.dtype == bool:
+                    length = slc.sum()
+            except AttributeError:
+                # Likely a list/tuple.
+                pass
+        if self.length is None:
+            if length < 0:
+                # This is using negative indexing. Subtract from the current length.
+                length = length + self.length_current
+            ret.length_current = length
+        else:
+            if length < 0:
+                # This is using negative indexing. Subtract from the current length.
+                length = length + self.length
+            ret.length = length
 
     def __getitem__(self, slc):
         slc = get_formatted_slice(slc, 1)[0]
@@ -89,9 +85,13 @@ class Dimension(AbstractInterfaceObject):
                     slc = None
                 else:
                     slc = slice(*remapped)
-        ret = self.copy()
 
-        self.__getitem_main__(ret, slc)
+        # If there is no local slice (local and global bounds do not overlap), return None for the object.
+        ret = self.copy()
+        if slc is None:
+            ret.active = False
+        else:
+            self.__getitem_main__(ret, slc)
 
         return ret
 
@@ -180,13 +180,13 @@ class SourcedDimension(Dimension):
                     ret = False
         return ret
 
-    def __getitem_main__(self, ret, slc):
-        super(SourcedDimension, self).__getitem_main__(ret, slc)
-        # This can happen with no overlapping local and global bounds.
-        if slc is None:
-            ret.__src_idx__ = None
-        else:
+    def __getitem__(self, slc):
+        ret = super(SourcedDimension, self).__getitem__(slc)
+        if ret.active:
             ret.__src_idx__ = self._src_idx.__getitem__(slc)
+        else:
+            ret.__src_idx__ = None
+        return ret
 
     @property
     def _src_idx(self):

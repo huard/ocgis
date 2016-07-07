@@ -188,16 +188,20 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertEqual(sub._src_idx.tolist(), [40])
         elif MPI_SIZE == 5:
             if MPI_RANK in [0, 4]:
-                self.assertEqual(len(sub), 0)
-                self.assertIsNone(sub._src_idx)
+                self.assertIsNone(sub)
             else:
                 self.assertNumpyAll(sd._src_idx, sub._src_idx)
         elif MPI_SIZE == 8:
             if MPI_RANK in [0, 4, 5, 6, 7]:
-                self.assertEqual(len(sub), 0)
-                self.assertIsNone(sub._src_idx)
+                self.assertIsNone(sub)
             else:
                 self.assertNumpyAll(sd._src_idx, sub._src_idx)
+        gathered = sd.gather()
+        if MPI_RANK == 0:
+            self.log.debug(gathered._src_idx)
+            self.log.debug(len(gathered))
+        else:
+            self.assertIsNone(gathered)
 
     @attr('mpi-2')
     def test_scatter(self):
@@ -205,8 +209,6 @@ class TestSourcedDimension(AbstractTestNewInterface):
         self.assertEqual(len(d._src_idx), 6)
         ds = d.scatter()
         if MPI_SIZE == 2:
-            self.log.debug(ds.mpi.bounds_local)
-            self.log.debug(ds._src_idx)
             llb, lub = ds.mpi.bounds_local
             self.assertEqual(lub - llb, 3)
             self.assertEqual(len(ds._src_idx), 3)
