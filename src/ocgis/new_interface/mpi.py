@@ -70,7 +70,6 @@ class OcgMpi(AbstractOcgisObject):
         self.nelements = nelements
         self.rank = MPI_RANK
         self.size = size or MPI_SIZE
-        self.comm = MPI_COMM
 
     @property
     def bounds_global(self):

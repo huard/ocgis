@@ -1,7 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.dimension import Dimension, SourcedDimension
-from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.test.base import attr
 
@@ -181,6 +181,7 @@ class TestSourcedDimension(AbstractTestNewInterface):
         # tdk: test slicing with None
         sd = SourcedDimension('yui', 5, src_idx=[10, 20, 30, 40, 50], dist=True)
         sub = sd[1:4]
+        self.log.debug('sub._src_idx {}'.format(sub._src_idx))
         if MPI_SIZE == 2:
             if MPI_RANK == 0:
                 self.assertEqual(sub._src_idx.tolist(), [20, 30])
@@ -196,7 +197,8 @@ class TestSourcedDimension(AbstractTestNewInterface):
                 self.assertIsNone(sub)
             else:
                 self.assertNumpyAll(sd._src_idx, sub._src_idx)
-        gathered = sd.gather()
+        gathered = MPI_COMM.gather(sub)
+        self.log.debug('gathered {}'.format(gathered))
         if MPI_RANK == 0:
             self.log.debug(gathered._src_idx)
             self.log.debug(len(gathered))

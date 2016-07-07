@@ -79,7 +79,9 @@ class Dimension(AbstractInterfaceObject):
             if self.mpi.bounds_local is None:
                 slc = None
             else:
+                self.log.debug('self.mpi.bounds_local {}'.format(self.mpi.bounds_local))
                 remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
+                self.log.debug('remapped {}'.format(remapped))
                 # If the remapped slice is None, the dimension on this rank is empty.
                 if remapped is None:
                     slc = None
@@ -89,7 +91,7 @@ class Dimension(AbstractInterfaceObject):
         # If there is no local slice (local and global bounds do not overlap), return None for the object.
         ret = self.copy()
         if slc is None:
-            ret.active = False
+            ret = None
         else:
             self.__getitem_main__(ret, slc)
 
@@ -182,10 +184,11 @@ class SourcedDimension(Dimension):
 
     def __getitem__(self, slc):
         ret = super(SourcedDimension, self).__getitem__(slc)
-        if ret.active:
+        if slc is not None:
             ret.__src_idx__ = self._src_idx.__getitem__(slc)
         else:
             ret.__src_idx__ = None
+        self.log.debug(ret.__src_idx__)
         return ret
 
     @property
