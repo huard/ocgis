@@ -9,22 +9,43 @@ class Dimension(AbstractInterfaceObject):
     _default_dtype = np.int32
 
     def __init__(self, name, size=None, size_current=None, src_idx=None, dist=False):
-        self._mpi = None
+        super(Dimension, self).__init__()
+
         self._name = name
         self.__src_idx__ = None
 
         self._size = size
         self._size_current = size_current
-        self.dist = dist
         self._src_idx = src_idx
 
-        # If this dimension is distributed, some form of length is required.
-        if self.dist:
+        if dist:
+            # A size definition is required.
             if self.size is None and self.size_current is None:
-                msg = 'Distributed dimensions required "length" or "length_current".'
+                msg = 'Distributed dimensions require a size definition using "size", "size_current", or "src_idx".'
                 raise ValueError(msg)
-
-        super(Dimension, self).__init__()
+            mpi_size = None
+        else:
+            mpi_size = 1
+        self.mpi = OcgMpi(nelements=len(self), size=mpi_size)
+        if dist:
+            # Adjust the source index and sizes for the distributed case.
+            bounds_local = self.mpi.bounds_local
+            if bounds_local is None:
+                if self.is_unlimited:
+                    self._size_current = 0
+                else:
+                    self._size = 0
+                    self._size_current = None
+                self.__src_idx__ = None
+            else:
+                lower, upper = bounds_local
+                if self.is_unlimited:
+                    self._size_current = upper - lower
+                else:
+                    self._size = upper - lower
+                    self._size_current = None
+                if src_idx is not None:
+                    self._src_idx = self._src_idx[lower:upper]
 
     def __eq__(self, other):
         ret = True
@@ -95,16 +116,6 @@ class Dimension(AbstractInterfaceObject):
         return ret
 
     @property
-    def mpi(self):
-        if self._mpi is None:
-            if self.dist:
-                size = None
-            else:
-                size = 1
-            self._mpi = OcgMpi(nelements=len(self), size=size)
-        return self._mpi
-
-    @property
     def name(self):
         return self._name
 
@@ -117,7 +128,7 @@ class Dimension(AbstractInterfaceObject):
         if self._size_current is None:
             if self.size is None:
                 if self.__src_idx__ is None:
-                    ret = 0
+                    ret = None
                 else:
                     ret = len(self.__src_idx__)
             else:
@@ -140,13 +151,6 @@ class Dimension(AbstractInterfaceObject):
         if value is not None:
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
-            if self.dist:
-                bounds = self.mpi.bounds_local
-                if bounds is None:
-                    value = None
-                else:
-                    lower, upper = bounds
-                    value = value[lower:upper]
         self.__src_idx__ = value
 
     def gather(self, root=0, comm=None):

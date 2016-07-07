@@ -30,7 +30,7 @@ class TestDimension(AbstractTestNewInterface):
         kwds = {'dist': [True, False], 'src_idx': [None, [10, 20, 30, 40, 50]]}
         for k in self.iter_product_keywords(kwds):
             dim = Dimension('the_d', 5, src_idx=k.src_idx, dist=k.dist)
-            self.assertEqual(len(dim), 5)
+            self.assertEqual(dim.mpi.size_global, 5)
             self.assertEqual(dim.mpi.bounds_global, (0, 5))
             if MPI_SIZE == 1:
                 self.assertEqual(dim.mpi.bounds_local, (0, 5))
@@ -39,6 +39,7 @@ class TestDimension(AbstractTestNewInterface):
                     bounds = dim.mpi.bounds_local
                     self.assertEqual(bounds[1] - bounds[0], 1)
                 elif MPI_SIZE == 8:
+                    self.log.debug('dim._src_idx {}'.format(dim._src_idx))
                     if MPI_RANK > 4:
                         self.assertIsNone(dim._src_idx)
                     else:
@@ -53,8 +54,9 @@ class TestDimension(AbstractTestNewInterface):
 
         # Test unlimited dimension.
         dim = Dimension('unlimited', size=None, dist=True, src_idx=[3, 4, 5, 6])
-        self.assertEqual(len(dim), 4)
+        self.assertEqual(dim.mpi.size_global, 4)
         if MPI_SIZE == 2:
+            self.assertEqual(len(dim), 2)
             if MPI_RANK == 0:
                 self.assertEqual(dim._src_idx.tolist(), [3, 4])
             elif MPI_RANK == 1:

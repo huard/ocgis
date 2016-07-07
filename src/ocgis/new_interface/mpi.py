@@ -97,6 +97,20 @@ class OcgMpi(AbstractOcgisObject):
                 ret = tuple(bl)
         return ret
 
+    @property
+    def size_global(self):
+        lower, upper = self.bounds_global
+        return upper - lower
+
+    @property
+    def size_local(self):
+        bounds = self.bounds_local
+        if bounds is None:
+            ret = None
+        else:
+            ret = bounds[1] - bounds[0]
+        return ret
+
     def get_rank_bounds(self, nelements=None):
         nelements = nelements or self.nelements
         return get_rank_bounds(nelements, nproc=self.size, pet=self.rank)
