@@ -195,6 +195,11 @@ class TestDimension(AbstractTestNewInterface):
         dim = Dimension('foo')
         self.assertEqual(len(dim), 0)
 
+        # Test source index is used for length.
+        for dist in [False, True]:
+            dim = Dimension('unlimited', size=None, dist=dist, src_idx=[3, 4, 5, 6])
+            self.assertEqual(len(dim), 4)
+
     @attr('mpi-2')
     def test_scatter(self):
         d = Dimension('scatter', 6, dist=False)
