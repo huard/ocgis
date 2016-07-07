@@ -145,9 +145,9 @@ class TestOcgMpi(AbstractTestNewInterface):
     def test_system_bounds(self):
         """Test global and local bounds passing dimensions to the OCGIS MPI interface."""
         # Test passing dimensions to calculated local bounds.
-        d1 = Dimension('d1', length=5, dist=True)
-        d2 = Dimension('d2', length=10, dist=False)
-        d3 = Dimension('d3', length=3, dist=True)
+        d1 = Dimension('d1', size=5, dist=True)
+        d2 = Dimension('d2', size=10, dist=False)
+        d3 = Dimension('d3', size=3, dist=True)
         dimensions = [d1, d2, d3]
         om = OcgMpi(dimensions=dimensions)
 

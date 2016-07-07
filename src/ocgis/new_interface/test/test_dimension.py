@@ -93,7 +93,6 @@ class TestDimension(AbstractTestNewInterface):
         self.assertIsNone(s.__src_idx__)
         actual = s.gather(root=1)
         if MPI_RANK == 1 or MPI_SIZE == 1:
-            self.assertFalse(actual.dist)
             self.assertEqual(actual, s)
             self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
             self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
@@ -106,13 +105,14 @@ class TestDimension(AbstractTestNewInterface):
         self.assertEqual(len(sub), 10)
 
         dim = Dimension('foo', size=None)
-        sub = dim[400:500]
-        self.assertEqual(len(sub), 100)
+        with self.assertRaises(IndexError):
+            dim[400:500]
 
         # Test with negative indexing.
         dim = Dimension(name='geom', size=2)
         slc = slice(0, -1, None)
-        self.assertEqual(dim[slc], Dimension('geom', size=1))
+        actual = dim[slc]
+        self.assertEqual(actual, Dimension('geom', size=1))
 
         dim = Dimension(name='geom', size=5)
         slc = slice(1, -2, None)
@@ -160,30 +160,6 @@ class TestDimension(AbstractTestNewInterface):
         dim = self.get_dimension()
         sub = dim[:-3]
         self.assertEqual(sub._src_idx.shape[0], sub.size)
-
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
-    def test_getitem_mpi(self):
-        # tdk: test slicing with an integer
-        # tdk: test slicing with bool
-        # tdk: test slicing with integer array
-        # tdk: test slicing with None
-        sd = Dimension('yui', 5, src_idx=[10, 20, 30, 40, 50], dist=True)
-        sub = sd[1:4]
-        if MPI_SIZE == 2:
-            if MPI_RANK == 0:
-                self.assertEqual(sub._src_idx.tolist(), [20, 30])
-            else:
-                self.assertEqual(sub._src_idx.tolist(), [40])
-        elif MPI_SIZE == 5:
-            if MPI_RANK in [0, 4]:
-                self.assertIsNone(sub)
-            else:
-                self.assertNumpyAll(sd._src_idx, sub._src_idx)
-        elif MPI_SIZE == 8:
-            if MPI_RANK in [0, 4, 5, 6, 7]:
-                self.assertIsNone(sub)
-            else:
-                self.assertNumpyAll(sd._src_idx, sub._src_idx)
 
     def test_len(self):
         dim = Dimension('foo')

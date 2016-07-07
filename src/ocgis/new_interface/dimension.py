@@ -1,7 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import OcgMpi, get_global_to_local_slice, MPI_COMM
+from ocgis.new_interface.mpi import OcgMpi, MPI_COMM
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -14,6 +14,7 @@ class Dimension(AbstractInterfaceObject):
         self._name = name
         self.__src_idx__ = None
 
+        self.dist = dist
         self._size = size
         self._size_current = size_current
         self._src_idx = src_idx
@@ -54,7 +55,7 @@ class Dimension(AbstractInterfaceObject):
 
     def __eq__(self, other):
         ret = True
-        skip = ('__src_idx__', '_mpi')
+        skip = ('__src_idx__', 'mpi')
         for k, v in self.__dict__.items():
             if k in skip:
                 continue
@@ -71,24 +72,13 @@ class Dimension(AbstractInterfaceObject):
         return ret
 
     def __getitem__(self, slc):
-        slc = get_formatted_slice(slc, 1)[0]
-        # If this is a distributed dimension, remap the slice accounting for local bounds.
-        if self.mpi.bounds_local is None:
-            slc = None
-        else:
-            remapped = get_global_to_local_slice((slc.start, slc.stop), self.mpi.bounds_local)
-            # If the remapped slice is None, the dimension on this rank is empty.
-            if remapped is None:
-                slc = None
-            else:
-                slc = slice(*remapped)
+        # We cannot slice zero length dimensions.
+        if len(self) == 0:
+            raise IndexError('Zero-length dimensions are not slicable.')
 
-        # If there is no local slice (local and global bounds do not overlap), return None for the object.
+        slc = get_formatted_slice(slc, 1)[0]
         ret = self.copy()
-        if slc is None:
-            ret = None
-        else:
-            self.__getitem_main__(ret, slc)
+        self.__getitem_main__(ret, slc)
 
         return ret
 
@@ -165,29 +155,18 @@ class Dimension(AbstractInterfaceObject):
                 lower, upper = self.mpi.bounds_global
                 src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
                 for idx in range(self.mpi.size):
-                    try:
-                        lower, upper = bounds[idx]
-                    except TypeError:
-                        if bounds[idx] is not None:
-                            raise
-                    else:
+                    cbounds = bounds[idx]
+                    if cbounds is not None:
+                        lower, upper = cbounds
                         src_idx[lower:upper] = src_indexes[idx]
-                # This dimension is no longer distributed. Setting this to False will allow the local bounds to load
-                # correctly.
-                ret.dist = False
                 ret._src_idx = src_idx
             else:
                 ret = None
-        else:
-            ret.dist = False
         return ret
 
     def scatter(self):
-        self.dist = True
-        self._mpi = None
-        # Reset the source index forcing a subset by local bounds if applicable for the rank.
-        self._src_idx = self._src_idx
-        return self
+        return self.__class__(self.name, size=self.size, size_current=self.size_current, src_idx=self._src_idx,
+                              dist=True)
 
     def __getitem_main__(self, ret, slc):
         # Source index can be None if the dimension has zero length.
@@ -224,7 +203,7 @@ class Dimension(AbstractInterfaceObject):
             except AttributeError:
                 # Likely a list/tuple.
                 pass
-        if self.size is None:
+        if self.is_unlimited:
             if length < 0:
                 # This is using negative indexing. Subtract from the current length.
                 length = length + self.size_current
