@@ -100,7 +100,12 @@ class Variable(AbstractContainer, Attributes):
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
                  units='auto', parent=None, bounds=None):
         self._is_init = True
+
         Attributes.__init__(self, attrs=attrs)
+
+        # Indicates if the variable is empty. Empty variables occur when a distributed dimension size is less than the
+        # number of processes.
+        self.is_empty = False
 
         self._dimensions = None
         self._value = None
@@ -393,15 +398,18 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     def _get_value_(self):
-        dimensions = self._dimensions
-        if dimensions is None or len(dimensions) == 0:
+        if self.is_empty:
             ret = None
         else:
-            if has_unlimited_dimension(dimensions):
-                msg = 'Value shapes for variables with unlimited dimensions are undetermined.'
-                raise ValueError(msg)
-            elif len(dimensions) > 0:
-                ret = variable_get_zeros(dimensions, self.dtype)
+            dimensions = self._dimensions
+            if dimensions is None or len(dimensions) == 0:
+                ret = None
+            else:
+                if has_unlimited_dimension(dimensions):
+                    msg = 'Value shapes for variables with unlimited dimensions are undetermined.'
+                    raise ValueError(msg)
+                elif len(dimensions) > 0:
+                    ret = variable_get_zeros(dimensions, self.dtype)
         return ret
 
     def _set_value_(self, value):
@@ -441,8 +449,9 @@ class Variable(AbstractContainer, Attributes):
                 # The variable dimensions may not be distributable across the number of procs. We have an empty
                 # variable case.
                 if any([b is None for b in bounds_local]):
-                    value = np.array([], dtype=value.dtype)
+                    value = None
                     self._mask = None
+                    self.is_empty = True
                 else:
                     the_slice = [slice(*b) for b in bounds_local]
                     the_slice = get_formatted_slice(the_slice, len(self.dimensions))
@@ -560,14 +569,17 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     def get_mask(self):
-        ret = self._mask
-        if ret is None:
-            if self.value is not None:
-                ret = np.zeros(self.shape, dtype=bool)
-                fill_value = self.fill_value
-                if fill_value is not None:
-                    is_equal = self.value == fill_value
-                    ret[is_equal] = True
+        if self.is_empty:
+            ret = None
+        else:
+            ret = self._mask
+            if ret is None:
+                if self.value is not None:
+                    ret = np.zeros(self.shape, dtype=bool)
+                    fill_value = self.fill_value
+                    if fill_value is not None:
+                        is_equal = self.value == fill_value
+                        ret[is_equal] = True
         return ret
 
     def set_mask(self, mask, cascade=False):

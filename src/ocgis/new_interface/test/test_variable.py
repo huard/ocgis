@@ -198,10 +198,16 @@ class TestVariable(AbstractTestNewInterface):
             self.assertNumpyAll(var.get_mask(), desired_mask)
         elif MPI_SIZE == 8:
             if MPI_RANK > 4:
-                self.assertNumpyAll(var.value, np.array([], dtype=var.dtype))
-                self.assertNumpyAll(var.get_mask(), np.array([], dtype=bool))
+                self.assertIsNone(var.value)
+                self.assertIsNone(var.get_mask())
             else:
                 self.assertEqual(var.value[0], var_value[MPI_RANK])
+
+        # Test that some basic manipulations.
+        if not var.is_empty:
+            var.value += 5
+            var.set_mask(np.ones(var.shape))
+            self.assertIsNotNone(var[0])
 
     def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)
