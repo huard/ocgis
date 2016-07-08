@@ -181,9 +181,11 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
+        # tdk: test with bounds
 
         dim = Dimension('is_dist', 5, dist=True)
-        var = Variable('has_dist_dim', value=np.arange(5), mask=[False, True, False, True, False], dimensions=dim)
+        var_value = np.arange(5)
+        var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim)
         self.assertEqual(var.mpi.bounds_global, ((0, 5),))
         if MPI_SIZE == 2:
             if MPI_RANK == 0:
@@ -195,7 +197,11 @@ class TestVariable(AbstractTestNewInterface):
             self.assertNumpyAll(var.value, desired_value)
             self.assertNumpyAll(var.get_mask(), desired_mask)
         elif MPI_SIZE == 8:
-            self.fail()
+            if MPI_RANK > 4:
+                self.assertNumpyAll(var.value, np.array([], dtype=var.dtype))
+                self.assertNumpyAll(var.get_mask(), np.array([], dtype=bool))
+            else:
+                self.assertEqual(var.value[0], var_value[MPI_RANK])
 
     def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)

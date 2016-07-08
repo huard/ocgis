@@ -100,7 +100,6 @@ class Variable(AbstractContainer, Attributes):
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
                  units='auto', parent=None, bounds=None):
         self._is_init = True
-
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -438,11 +437,18 @@ class Variable(AbstractContainer, Attributes):
 
             # If there are distributed dimensions, we will need to slice the incoming value.
             if self._is_init and self.has_distributed_dimension and value is not None and self.mpi.size > 1:
-                the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
-                the_slice = get_formatted_slice(the_slice, len(self.dimensions))
-                value = value.__getitem__(the_slice)
-                if self._mask is not None:
-                    self._mask = self._mask.__getitem__(the_slice)
+                bounds_local = [d.mpi.bounds_local for d in self.dimensions]
+                # The variable dimensions may not be distributable across the number of procs. We have an empty
+                # variable case.
+                if any([b is None for b in bounds_local]):
+                    value = np.array([], dtype=value.dtype)
+                    self._mask = None
+                else:
+                    the_slice = [slice(*b) for b in bounds_local]
+                    the_slice = get_formatted_slice(the_slice, len(self.dimensions))
+                    value = value.__getitem__(the_slice)
+                    if self._mask is not None:
+                        self._mask = self._mask.__getitem__(the_slice)
 
         update_unlimited_dimension_length(value, self._dimensions)
 
@@ -569,9 +575,18 @@ class Variable(AbstractContainer, Attributes):
 
         # If there are distributed dimensions, we will need to slice the incoming value.
         if self._is_init and self.has_distributed_dimension and self.mpi.size > 1:
-            the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
-            the_slice = get_formatted_slice(the_slice, len(self.dimensions))
-            mask = mask.__getitem__(the_slice)
+            bounds_local = [d.mpi.bounds_local for d in self.dimensions]
+            # The variable dimensions may not be distributable across the number of procs. We have an empty
+            # variable case.
+            if any([b is None for b in bounds_local]):
+                self._mask = None
+                if self.has_bounds:
+                    self.bounds._mask = None
+                return
+            else:
+                the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
+                the_slice = get_formatted_slice(the_slice, len(self.dimensions))
+                mask = mask.__getitem__(the_slice)
 
         assert mask.shape == self.shape
         self._mask = mask
@@ -588,7 +603,7 @@ class Variable(AbstractContainer, Attributes):
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function
-        assert (lower <= upper)
+        assert lower <= upper
 
         # Determine if data bounds are contiguous (if bounds exists for the data). Bounds must also have more than one
         # row.
@@ -866,7 +881,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             v.load()
 
     def set_mask(self, variable, exclude=None):
-        self.log.debug('set_mask on VariableCollection {}'.format(variable.name))
         names_container = [d.name for d in variable.dimensions]
         for k, v in self.items():
             if exclude is not None and k in exclude:
