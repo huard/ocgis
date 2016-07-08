@@ -116,8 +116,8 @@ class DriverNetcdf(AbstractDriver):
             dimensions = list(dimensions)
             # Convert the unlimited dimension to fixed size if requested.
             for idx, d in enumerate(dimensions):
-                if d.length is None and unlimited_to_fixedsize:
-                    dimensions[idx] = Dimension(d.name, length=var.shape[idx])
+                if d.is_unlimited and unlimited_to_fixedsize:
+                    dimensions[idx] = Dimension(d.name, size=var.shape[idx])
                     break
             # Create the dimensions.
             for dim in dimensions:
@@ -442,7 +442,7 @@ def get_dimensions_from_netcdf(dataset, desired_dimensions):
         else:
             length = dim_length
             length_current = None
-        new_dim = SourcedDimension(dim_name, length=length, length_current=length_current)
+        new_dim = Dimension(dim_name, size=length, size_current=length_current)
         new_dimensions.append(new_dim)
     return new_dimensions
 
@@ -478,7 +478,7 @@ def get_variable_value(variable, dimensions):
 
 def create_dimension_or_pass(dim, dataset):
     if dim.name not in dataset.dimensions:
-        dataset.createDimension(dim.name, dim.length)
+        dataset.createDimension(dim.name, dim.size)
 
 
 def get_crs_variable(metadata, to_search=None):

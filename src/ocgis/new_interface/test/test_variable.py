@@ -8,7 +8,6 @@ from numpy.testing.utils import assert_equal
 from ocgis import RequestDataset
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
-from ocgis.new_interface.base import renamed_dimensions
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
@@ -17,15 +16,6 @@ from ocgis.util.units import get_units_object, get_are_units_equal
 
 
 class TestVariable(AbstractTestNewInterface):
-    def get_variable(self, return_original_data=True):
-        value = [2, 3, 4, 5, 6, 7]
-        time = Dimension('time', length=len(value))
-        var = Variable('time_value', value=value, dimensions=time, units='kelvin')
-        if return_original_data:
-            return time, value, var
-        else:
-            return var
-
     def get_boundedvariable_2d(self):
         value = np.array([[2, 2.5],
                           [1, 1.5],
@@ -34,6 +24,15 @@ class TestVariable(AbstractTestNewInterface):
         bv = Variable(value=value, name='two_dee', dimensions=dims)
         bv.set_extrapolated_bounds('two_dee_bounds', 'corners')
         return bv
+
+    def get_variable(self, return_original_data=True):
+        value = [2, 3, 4, 5, 6, 7]
+        time = Dimension('time', size=len(value))
+        var = Variable('time_value', value=value, dimensions=time, units='kelvin')
+        if return_original_data:
+            return time, value, var
+        else:
+            return var
 
     def test_init(self):
         # Test an empty variable.
@@ -60,7 +59,7 @@ class TestVariable(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             var.dimensions = Dimension('a', None)
         var.dimensions = [Dimension('aa', 10), Dimension('bb')]
-        self.assertEqual(var.dimensions[1].length_current, 11)
+        self.assertEqual(var.dimensions[1].size_current, 11)
         self.assertEqual(var.shape, (10, 11))
 
         # Test a scalar variable.
@@ -189,84 +188,6 @@ class TestVariable(AbstractTestNewInterface):
         # Parents on bounds are not added.
         self.assertEqual(var.parent.keys(), ['remember', 'the_bounds', 'host'])
 
-    def test_get_between(self):
-        bv = Variable('foo', value=[0])
-        with self.assertRaises(EmptySubsetError):
-            bv.get_between(100, 200)
-
-        bv = Variable('foo', value=[100, 200, 300, 400])
-        vdim_between = bv.get_between(100, 200)
-        self.assertEqual(vdim_between.shape[0], 2)
-
-    def test_get_between_bounds(self):
-        value = [0., 5., 10.]
-        bounds = [[-2.5, 2.5], [2.5, 7.5], [7.5, 12.5]]
-
-        # A reversed copy of these bounds are created here.
-        value_reverse = deepcopy(value)
-        value_reverse.reverse()
-        bounds_reverse = deepcopy(bounds)
-        bounds_reverse.reverse()
-        for ii in range(len(bounds)):
-            bounds_reverse[ii].reverse()
-
-        data = {'original': {'value': value, 'bounds': bounds},
-                'reversed': {'value': value_reverse, 'bounds': bounds_reverse}}
-        for key in ['original', 'reversed']:
-            bounds = Variable('hello_bounds', value=data[key]['bounds'], dimensions=['a', 'b'])
-            vdim = Variable('hello', value=data[key]['value'], bounds=bounds, dimensions=['a'])
-
-            vdim_between = vdim.get_between(1, 3)
-            self.assertEqual(len(vdim_between), 2)
-            if key == 'original':
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x04\xc0\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@')
-            else:
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04\xc0')
-            self.assertEqual(vdim.resolution, 5.0)
-
-            # Preference is given to the lower bound in the case of "ties" where the value could be assumed part of the
-            # lower or upper cell.
-            vdim_between = vdim.get_between(2.5, 2.5)
-            self.assertEqual(len(vdim_between), 1)
-            if key == 'original':
-                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[2.5, 7.5]]))
-            else:
-                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[7.5, 2.5]]))
-
-            # If the interval is closed and the subset range falls only on bounds value then the subset will be empty.
-            with self.assertRaises(EmptySubsetError):
-                vdim.get_between(2.5, 2.5, closed=True)
-
-            vdim_between = vdim.get_between(2.5, 7.5)
-            if key == 'original':
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00)@')
-            else:
-                self.assertEqual(vdim_between.bounds.value.tostring(),
-                                 '\x00\x00\x00\x00\x00\x00)@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@')
-
-    def test_get_between_use_bounds(self):
-        value = [3., 5.]
-        bounds = [[2., 4.], [4., 6.]]
-        bounds = Variable('bounds', bounds, dimensions=['a', 'b'])
-        vdim = Variable('foo', value=value, bounds=bounds, dimensions=['a'])
-        ret = vdim.get_between(3, 4.5, use_bounds=False)
-        self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
-        self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
-
-    def test_getitem(self):
-        bv = self.get_boundedvariable()
-        sub = bv[1]
-        self.assertEqual(sub.bounds.shape, (1, 2))
-        self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
-
-        # Test with a boolean array.
-        var = Variable(value=[1, 2, 3, 4, 5])
-        sub = var[[False, True, True, True, False]]
-        self.assertEqual(sub.shape, (3,))
-
     @attr('cfunits')
     def test_cfunits(self):
         var = self.get_variable(return_original_data=False)
@@ -329,33 +250,6 @@ class TestVariable(AbstractTestNewInterface):
         desired = np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False], fill_value=var.fill_value)
         self.assertNumpyAll(var.masked_value, desired)
 
-    def test_units(self):
-        var = Variable()
-        self.assertIsNone(var.units)
-        self.assertNotIn('units', var.attrs)
-        var.units = 'large'
-        self.assertEqual(var.attrs['units'], 'large')
-        self.assertEqual(var.units, 'large')
-        var.units = 'small'
-        self.assertEqual(var.attrs['units'], 'small')
-        self.assertEqual(var.units, 'small')
-        var.units = None
-        self.assertEqual(var.units, None)
-
-        var = Variable(units='haze')
-        self.assertEqual(var.units, 'haze')
-
-        var = Variable()
-        var.units = None
-        self.assertEqual(var.attrs['units'], None)
-
-        # Test units behavior with bounds.
-        bounds = Variable(value=[[5, 6]], dtype=float, name='bnds', dimensions=['t', 'bnds'], units='celsius')
-        var = Variable(name='some', value=[5.5], dimensions='t', bounds=bounds, units='K')
-        self.assertEqual(var.bounds.units, 'K')
-        var.units = None
-        self.assertIsNone(var.bounds.units)
-
     def test_copy(self):
         var = self.get_variable(return_original_data=False)
         var2 = var.copy()
@@ -379,11 +273,20 @@ class TestVariable(AbstractTestNewInterface):
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
         var.create_dimensions()
-        self.assertEqual(var.dimensions[0], Dimension('tas', length=3, ))
+        self.assertEqual(var.dimensions[0], Dimension('tas', size=3, ))
         self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
+
+    def test_get_between(self):
+        bv = Variable('foo', value=[0])
+        with self.assertRaises(EmptySubsetError):
+            bv.get_between(100, 200)
+
+        bv = Variable('foo', value=[100, 200, 300, 400])
+        vdim_between = bv.get_between(100, 200)
+        self.assertEqual(vdim_between.shape[0], 2)
 
     def test_getitem(self):
         var = Variable(value=[1, 2, 3])
@@ -405,13 +308,121 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(sub.masked_value, sub_value)
 
         # Test with a parent.
-        var = Variable(name='a', value=[1,2,3], dimensions=['one'])
+        var = Variable(name='a', value=[1, 2, 3], dimensions=['one'])
         parent = VariableCollection(variables=[var])
-        var2 = Variable(name='b', value=[11,22,33], dimensions=['one'], parent=parent)
+        var2 = Variable(name='b', value=[11, 22, 33], dimensions=['one'], parent=parent)
         self.assertIn('b', var2.parent)
         sub = var2[1]
         self.assertEqual(var2.parent.shapes, OrderedDict([('a', (3,)), ('b', (3,))]))
         self.assertEqual(sub.parent.shapes, OrderedDict([('a', (1,)), ('b', (1,))]))
+
+    def test_get_between_bounds(self):
+        value = [0., 5., 10.]
+        bounds = [[-2.5, 2.5], [2.5, 7.5], [7.5, 12.5]]
+
+        # A reversed copy of these bounds are created here.
+        value_reverse = deepcopy(value)
+        value_reverse.reverse()
+        bounds_reverse = deepcopy(bounds)
+        bounds_reverse.reverse()
+        for ii in range(len(bounds)):
+            bounds_reverse[ii].reverse()
+
+        data = {'original': {'value': value, 'bounds': bounds},
+                'reversed': {'value': value_reverse, 'bounds': bounds_reverse}}
+        for key in ['original', 'reversed']:
+            bounds = Variable('hello_bounds', value=data[key]['bounds'], dimensions=['a', 'b'])
+            vdim = Variable('hello', value=data[key]['value'], bounds=bounds, dimensions=['a'])
+
+            vdim_between = vdim.get_between(1, 3)
+            self.assertEqual(len(vdim_between), 2)
+            if key == 'original':
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x04\xc0\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@')
+            else:
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x04\xc0')
+            self.assertEqual(vdim.resolution, 5.0)
+
+            # Preference is given to the lower bound in the case of "ties" where the value could be assumed part of the
+            # lower or upper cell.
+            vdim_between = vdim.get_between(2.5, 2.5)
+            self.assertEqual(len(vdim_between), 1)
+            if key == 'original':
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[2.5, 7.5]]))
+            else:
+                self.assertNumpyAll(vdim_between.bounds.masked_value, np.ma.array([[7.5, 2.5]]))
+
+            # If the interval is closed and the subset range falls only on bounds value then the subset will be empty.
+            with self.assertRaises(EmptySubsetError):
+                vdim.get_between(2.5, 2.5, closed=True)
+
+            vdim_between = vdim.get_between(2.5, 7.5)
+            if key == 'original':
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00\x04@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00)@')
+            else:
+                self.assertEqual(vdim_between.bounds.value.tostring(),
+                                 '\x00\x00\x00\x00\x00\x00)@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x1e@\x00\x00\x00\x00\x00\x00\x04@')
+
+    def test_get_between_use_bounds(self):
+        value = [3., 5.]
+        bounds = [[2., 4.], [4., 6.]]
+        bounds = Variable('bounds', bounds, dimensions=['a', 'b'])
+        vdim = Variable('foo', value=value, bounds=bounds, dimensions=['a'])
+        ret = vdim.get_between(3, 4.5, use_bounds=False)
+        self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
+        self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
+
+    def test_get_mask(self):
+        var = Variable(value=[1, 2, 3], mask=[False, True, False])
+        assert_equal(var.get_mask(), [False, True, False])
+        value = np.ma.array([1, 2, 3], mask=[False, True, False])
+        var = Variable(value=value)
+        assert_equal(var.get_mask(), [False, True, False])
+
+        var = Variable(value=[1, 2, 3])
+        self.assertIsNotNone(var.get_mask())
+        cpy = var.copy()
+        cpy.set_mask([False, True, False])
+        cpy.value.fill(10)
+        self.assertTrue(np.all(var.value == 10))
+        self.assertFalse(var.get_mask().any())
+
+        var = Variable(value=np.random.rand(2, 3, 4), fill_value=200)
+        var.value[1, 1] = 200
+        self.assertTrue(np.all(var.get_mask()[1, 1]))
+        self.assertEqual(var.get_mask().sum(), 4)
+
+        # Test with bounds.
+        bv = self.get_boundedvariable()
+        bv.set_mask([False, True, False])
+        bounds_mask = bv.bounds.get_mask()
+        self.assertTrue(np.all(bounds_mask[1, :]))
+        self.assertEqual(bounds_mask.sum(), 2)
+
+        # Test with two dimensions.
+        bv = self.get_boundedvariable_2d()
+        self.assertEqual(bv.bounds.ndim, 3)
+        mask = np.array([[False, True],
+                         [False, False],
+                         [True, False]], dtype=bool)
+        bv.set_mask(mask)
+        bounds_mask = bv.bounds.get_mask()
+        for slc in ((0, 1), (2, 0)):
+            self.assertTrue(np.all(bounds_mask[slc]))
+        self.assertEqual(bounds_mask.sum(), 8)
+
+    def test_getitem(self):
+        bv = self.get_boundedvariable()
+        sub = bv[1]
+        self.assertEqual(sub.bounds.shape, (1, 2))
+        self.assertNumpyAll(sub.bounds.value, bv.bounds[1, :].value)
+
+        # Test with a boolean array.
+        var = Variable(value=[1, 2, 3, 4, 5])
+        sub = var[[False, True, True, True, False]]
+        self.assertEqual(sub.shape, (3,))
 
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
@@ -487,54 +498,6 @@ class TestVariable(AbstractTestNewInterface):
         bv[1] = bv2
         self.assertEqual(bv.bounds.value[1, :].tolist(), [500, 700])
 
-    def test_renamed_dimensions(self):
-        d = [Dimension('a', 5), Dimension('b', 6)]
-        desired_after = deepcopy(d)
-        name_mapping = {'time': ['b']}
-        desired = [Dimension('a', 5), Dimension('time', 6)]
-        with renamed_dimensions(d, name_mapping):
-            self.assertEqual(d, desired)
-        self.assertEqual(desired_after, d)
-
-    def test_get_mask(self):
-        var = Variable(value=[1, 2, 3], mask=[False, True, False])
-        assert_equal(var.get_mask(), [False, True, False])
-        value = np.ma.array([1, 2, 3], mask=[False, True, False])
-        var = Variable(value=value)
-        assert_equal(var.get_mask(), [False, True, False])
-
-        var = Variable(value=[1, 2, 3])
-        self.assertIsNotNone(var.get_mask())
-        cpy = var.copy()
-        cpy.set_mask([False, True, False])
-        cpy.value.fill(10)
-        self.assertTrue(np.all(var.value == 10))
-        self.assertFalse(var.get_mask().any())
-
-        var = Variable(value=np.random.rand(2, 3, 4), fill_value=200)
-        var.value[1, 1] = 200
-        self.assertTrue(np.all(var.get_mask()[1, 1]))
-        self.assertEqual(var.get_mask().sum(), 4)
-
-        # Test with bounds.
-        bv = self.get_boundedvariable()
-        bv.set_mask([False, True, False])
-        bounds_mask = bv.bounds.get_mask()
-        self.assertTrue(np.all(bounds_mask[1, :]))
-        self.assertEqual(bounds_mask.sum(), 2)
-
-        # Test with two dimensions.
-        bv = self.get_boundedvariable_2d()
-        self.assertEqual(bv.bounds.ndim, 3)
-        mask = np.array([[False, True],
-                         [False, False],
-                         [True, False]], dtype=bool)
-        bv.set_mask(mask)
-        bounds_mask = bv.bounds.get_mask()
-        for slc in ((0, 1), (2, 0)):
-            self.assertTrue(np.all(bounds_mask[slc]))
-        self.assertEqual(bounds_mask.sum(), 8)
-
     def test_shape(self):
         # Test shape with unlimited dimension.
         dim = Dimension('time')
@@ -546,6 +509,33 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(dim), 3)
         self.assertEqual(len(sub.dimensions[0]), 1)
         self.assertEqual(sub.shape, (1,))
+
+    def test_units(self):
+        var = Variable()
+        self.assertIsNone(var.units)
+        self.assertNotIn('units', var.attrs)
+        var.units = 'large'
+        self.assertEqual(var.attrs['units'], 'large')
+        self.assertEqual(var.units, 'large')
+        var.units = 'small'
+        self.assertEqual(var.attrs['units'], 'small')
+        self.assertEqual(var.units, 'small')
+        var.units = None
+        self.assertEqual(var.units, None)
+
+        var = Variable(units='haze')
+        self.assertEqual(var.units, 'haze')
+
+        var = Variable()
+        var.units = None
+        self.assertEqual(var.attrs['units'], None)
+
+        # Test units behavior with bounds.
+        bounds = Variable(value=[[5, 6]], dtype=float, name='bnds', dimensions=['t', 'bnds'], units='celsius')
+        var = Variable(name='some', value=[5.5], dimensions='t', bounds=bounds, units='K')
+        self.assertEqual(var.bounds.units, 'K')
+        var.units = None
+        self.assertIsNone(var.bounds.units)
 
     def test_write_netcdf(self):
         var = self.get_variable(return_original_data=False)
@@ -716,8 +706,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sub = sv[10:20, 5, 6]
         self.assertEqual(sub.shape, (10, 1, 1))
         self.assertIsNone(sub._value)
-        self.assertIsNone(sub.dimensions[0].length)
-        self.assertEqual(sub.dimensions[0].length_current, 10)
+        self.assertIsNone(sub.dimensions[0].size)
+        self.assertEqual(sub.dimensions[0].size_current, 10)
 
     def test_get_dimensions(self):
         sv = self.get_sourcedvariable()
@@ -729,8 +719,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
         dims = sv.dimensions
-        self.assertIsNone(dims[0].length)
-        self.assertEqual(dims[0].length_current, 3650)
+        self.assertIsNone(dims[0].size)
+        self.assertEqual(dims[0].size_current, 3650)
         self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
         for d in dims:
             self.assertIsNone(d.__src_idx__)
@@ -785,7 +775,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         return vc
 
     def get_variable(self, name='foo'):
-        dim = Dimension('x', length=3)
+        dim = Dimension('x', size=3)
         value = [4, 5, 6]
         return Variable(name=name, dimensions=dim, value=value)
 
@@ -812,7 +802,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = VariableCollection(variables=[var1, var2])
         self.assertEqual(vc.keys(), ['foo', 'wunderbar'])
 
-        self.assertEqual(vc.dimensions, {'x': Dimension(name='x', length=3)})
+        self.assertEqual(vc.dimensions, {'x': Dimension(name='x', size=3)})
 
         vc = self.get_variablecollection()
         self.assertEqual(vc.attrs, {'foo': 'bar'})
@@ -873,7 +863,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         # Test against a real data file.
         rd = self.get_request_dataset()
         rvc = VariableCollection.read_netcdf(rd.uri)
-        self.assertEqual(rvc.dimensions['time'].length_current, 3650)
+        self.assertEqual(rvc.dimensions['time'].size_current, 3650)
         for var in rvc.itervalues():
             self.assertIsNone(var._value)
         path3 = self.get_temporary_file_path('foo3.nc')
@@ -892,7 +882,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         self.assertEqual(v.dimensions[1], desired)
         vc = VariableCollection.read_netcdf(path4)
         actual = vc['hello'].dimensions[1]
-        actual = Dimension(actual.name, actual.length)
+        actual = Dimension(actual.name, actual.size)
         self.assertEqual(actual, desired)
         path5 = self.get_temporary_file_path('foo5.nc')
         with self.nc_scope(path5, 'w') as ds:

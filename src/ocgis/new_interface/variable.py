@@ -485,7 +485,7 @@ class Variable(AbstractContainer, Attributes):
                 msg = "The number of dimension 'names' must equal the number of dimensions (ndim)."
                 raise ValueError(msg)
             for name, shp in izip(names, value.shape):
-                new_dimensions.append(Dimension(name, length=shp))
+                new_dimensions.append(Dimension(name, size=shp))
         self.dimensions = new_dimensions
 
     def reshape(self, *args, **kwargs):
@@ -517,7 +517,7 @@ class Variable(AbstractContainer, Attributes):
             bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
 
         dimensions = list(self.dimensions)
-        dimensions.append(Dimension(name=name_dimension, length=bounds_value.shape[-1]))
+        dimensions.append(Dimension(name=name_dimension, size=bounds_value.shape[-1]))
 
         var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
         self.bounds = var
@@ -889,8 +889,9 @@ def get_shape_from_variable(variable):
 def has_unlimited_dimension(dimensions):
     ret = False
     for d in dimensions:
-        if d.length is None:
+        if d.is_unlimited:
             ret = True
+            break
     return ret
 
 
@@ -907,8 +908,8 @@ def update_unlimited_dimension_length(variable_value, dimensions):
                 msg = "Variable and dimension shapes must be equal."
                 raise ValueError(msg)
             for idx, d in enumerate(dimensions):
-                if d.length is None:
-                    d.length_current = variable_value.shape[idx]
+                if d.size is None:
+                    d._size_current = variable_value.shape[idx]
 
 
 def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
@@ -919,7 +920,7 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
     if len(vshape) != len(dshape):
         ret = False
     else:
-        is_unlimited = [d.length is None for d in dimensions]
+        is_unlimited = [d.is_unlimited for d in dimensions]
         for v, d, iu in zip(vshape, dshape, is_unlimited):
             if iu:
                 to_append = True
