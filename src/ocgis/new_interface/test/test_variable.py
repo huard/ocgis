@@ -183,31 +183,43 @@ class TestVariable(AbstractTestNewInterface):
         """Test variable behavior with distributed dimensions."""
         # tdk: test with bounds
 
-        dim = Dimension('is_dist', 5, dist=True)
-        var_value = np.arange(5)
-        var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim)
-        self.assertEqual(var.mpi.bounds_global, ((0, 5),))
-        if MPI_SIZE == 2:
-            if MPI_RANK == 0:
-                desired_value = np.array([0, 1, 2])
-                desired_mask = np.array([False, True, False])
+        for with_bounds in [False, True]:
+            dim = Dimension('is_dist', 5, dist=True)
+            var_value = np.arange(5, dtype=float)
+            var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim,
+                           dist=True)
+            if with_bounds:
+                if MPI_SIZE > 2:
+                    # Single values on a processor are not supported for bounds extrapolation.
+                    continue
+                var.set_extrapolated_bounds('dist_bounds', 'bounds')
             else:
-                desired_value = np.array([3, 4])
-                desired_mask = np.array([True, False])
-            self.assertNumpyAll(var.value, desired_value)
-            self.assertNumpyAll(var.get_mask(), desired_mask)
-        elif MPI_SIZE == 8:
-            if MPI_RANK > 4:
-                self.assertIsNone(var.value)
-                self.assertIsNone(var.get_mask())
-            else:
-                self.assertEqual(var.value[0], var_value[MPI_RANK])
+                self.assertIsNone(var.bounds)
+            self.assertEqual(var.mpi.bounds_global, ((0, 5),))
+            if MPI_SIZE == 2:
+                if with_bounds:
+                    self.assertEqual(var.bounds.shape, (var.shape[0], 2))
+                if MPI_RANK == 0:
+                    desired_value = np.array([0, 1, 2], dtype=float)
+                    desired_mask = np.array([False, True, False])
+                else:
+                    desired_value = np.array([3, 4], dtype=float)
+                    desired_mask = np.array([True, False])
+                self.assertNumpyAll(var.value, desired_value)
+                self.assertNumpyAll(var.get_mask(), desired_mask)
+            elif MPI_SIZE == 8:
+                if MPI_RANK > 4:
+                    self.assertIsNone(var.value)
+                    self.assertIsNone(var.get_mask())
+                    self.assertIsNone(var.bounds)
+                else:
+                    self.assertEqual(var.value[0], var_value[MPI_RANK])
 
-        # Test that some basic manipulations.
-        if not var.is_empty:
-            var.value += 5
-            var.set_mask(np.ones(var.shape))
-            self.assertIsNotNone(var[0])
+            # Test that some basic manipulations.
+            if not var.is_empty:
+                var.value += 5
+                var.set_mask(np.ones(var.shape))
+                self.assertIsNotNone(var[0])
 
     def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)

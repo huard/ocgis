@@ -98,7 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None):
+                 units='auto', parent=None, bounds=None, dist=False):
         self._is_init = True
 
         Attributes.__init__(self, attrs=attrs)
@@ -112,6 +112,7 @@ class Variable(AbstractContainer, Attributes):
         self._dtype = None
         self._mask = None
 
+        self.dist = dist
         self._fill_value = fill_value
         if bounds is not None:
             self._bounds_name = bounds.name
@@ -444,7 +445,7 @@ class Variable(AbstractContainer, Attributes):
                     value = value.astype(desired_dtype)
 
             # If there are distributed dimensions, we will need to slice the incoming value.
-            if self._is_init and self.has_distributed_dimension and value is not None and self.mpi.size > 1:
+            if self.dist and self._is_init and self.has_distributed_dimension and value is not None and self.mpi.size > 1:
                 bounds_local = [d.mpi.bounds_local for d in self.dimensions]
                 # The variable dimensions may not be distributable across the number of procs. We have an empty
                 # variable case.
@@ -586,7 +587,7 @@ class Variable(AbstractContainer, Attributes):
         mask = np.array(mask, dtype=bool)
 
         # If there are distributed dimensions, we will need to slice the incoming value.
-        if self._is_init and self.has_distributed_dimension and self.mpi.size > 1:
+        if self.dist and self._is_init and self.has_distributed_dimension and self.mpi.size > 1:
             bounds_local = [d.mpi.bounds_local for d in self.dimensions]
             # The variable dimensions may not be distributable across the number of procs. We have an empty
             # variable case.
