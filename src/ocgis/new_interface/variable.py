@@ -98,7 +98,9 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None, dist=False):
+                 units='auto', parent=None, bounds=None):
+        self._is_init = True
+
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -112,7 +114,6 @@ class Variable(AbstractContainer, Attributes):
         else:
             self._bounds_name = None
 
-        self.dist = dist
         self.dtype = dtype
 
         AbstractContainer.__init__(self, name, parent=parent)
@@ -128,6 +129,10 @@ class Variable(AbstractContainer, Attributes):
                 create_dimensions = True
             else:
                 self.dimensions = dimensions
+
+        # Initialize the variable's MPI interface.
+        self.mpi = OcgMpi(dimensions=self.dimensions)
+
         self.value = value
         if create_dimensions:
             self.create_dimensions(names=dimensions)
@@ -141,6 +146,8 @@ class Variable(AbstractContainer, Attributes):
 
         if mask is not None:
             self.set_mask(mask)
+
+        self._is_init = False
 
     def __add_to_collection_finalize__(self, vc):
         """
@@ -308,6 +315,20 @@ class Variable(AbstractContainer, Attributes):
         return self._fill_value
 
     @property
+    def has_distributed_dimension(self):
+        """
+        :return: ``True`` if the variable has a distributed dimension.
+        :rtype: bool
+        """
+
+        ret = False
+        for d in self.dimensions:
+            if d.dist:
+                ret = True
+                break
+        return ret
+
+    @property
     def ndim(self):
         return len(self.shape)
 
@@ -372,15 +393,6 @@ class Variable(AbstractContainer, Attributes):
         ret = np.ma.array(self.value, mask=self.get_mask(), dtype=dtype, fill_value=self.fill_value)
         return ret
 
-    @property
-    def mpi(self):
-        if self.dist:
-            # tdk: cache this object?
-            ret = OcgMpi(dimensions=self.dimensions)
-        else:
-            ret = None
-        return ret
-
     def _get_value_(self):
         dimensions = self._dimensions
         if dimensions is None or len(dimensions) == 0:
@@ -423,6 +435,14 @@ class Variable(AbstractContainer, Attributes):
                     value = value.astype(desired_dtype, copy=False)
                 except TypeError:
                     value = value.astype(desired_dtype)
+
+            # If there are distributed dimensions, we will need to slice the incoming value.
+            if self._is_init and self.has_distributed_dimension and value is not None and self.mpi.size > 1:
+                the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
+                the_slice = get_formatted_slice(the_slice, len(self.dimensions))
+                value = value.__getitem__(the_slice)
+                if self._mask is not None:
+                    self._mask = self._mask.__getitem__(the_slice)
 
         update_unlimited_dimension_length(value, self._dimensions)
 
@@ -546,6 +566,13 @@ class Variable(AbstractContainer, Attributes):
 
     def set_mask(self, mask, cascade=False):
         mask = np.array(mask, dtype=bool)
+
+        # If there are distributed dimensions, we will need to slice the incoming value.
+        if self._is_init and self.has_distributed_dimension and self.mpi.size > 1:
+            the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
+            the_slice = get_formatted_slice(the_slice, len(self.dimensions))
+            mask = mask.__getitem__(the_slice)
+
         assert mask.shape == self.shape
         self._mask = mask
 

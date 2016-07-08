@@ -9,6 +9,7 @@ from ocgis import RequestDataset
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
 from ocgis.test.base import attr
@@ -176,6 +177,25 @@ class TestVariable(AbstractTestNewInterface):
             actual = v_actual[idx].value[0]
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
+
+    @attr('mpi-2', 'mpi-8')
+    def test_system_with_distributed_dimensions(self):
+        """Test variable behavior with distributed dimensions."""
+
+        dim = Dimension('is_dist', 5, dist=True)
+        var = Variable('has_dist_dim', value=np.arange(5), mask=[False, True, False, True, False], dimensions=dim)
+        self.assertEqual(var.mpi.bounds_global, ((0, 5),))
+        if MPI_SIZE == 2:
+            if MPI_RANK == 0:
+                desired_value = np.array([0, 1, 2])
+                desired_mask = np.array([False, True, False])
+            else:
+                desired_value = np.array([3, 4])
+                desired_mask = np.array([True, False])
+            self.assertNumpyAll(var.value, desired_value)
+            self.assertNumpyAll(var.get_mask(), desired_mask)
+        elif MPI_SIZE == 8:
+            self.fail()
 
     def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)
