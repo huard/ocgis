@@ -181,7 +181,6 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
-        # tdk: test with bounds
 
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True)
@@ -220,6 +219,22 @@ class TestVariable(AbstractTestNewInterface):
                 var.value += 5
                 var.set_mask(np.ones(var.shape))
                 self.assertIsNotNone(var[0])
+
+    @attr('mpi-2', 'mpi-8')
+    def test_system_with_distributed_dimensions_ndvariable(self):
+        """Test multi-dimensional variable behavior with distributed dimensions."""
+
+        d1 = Dimension('d1', size=5, dist=True)
+        d2 = Dimension('d2', size=10, dist=False)
+        d3 = Dimension('d3', size=3, dist=True)
+        dimensions = [d1, d2, d3]
+        self.log.debug(dimensions)
+        var = Variable('ndist', dimensions=dimensions, dist=True)
+        self.fail('the first dimension is not distributed correctly')
+        if MPI_RANK > 2:
+            self.assertTrue(var.is_empty)
+        else:
+            self.assertFalse(var.is_empty)
 
     def test_system_parents_on_bounds_variable(self):
         extra = self.get_variable(return_original_data=False)

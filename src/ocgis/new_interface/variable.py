@@ -154,6 +154,11 @@ class Variable(AbstractContainer, Attributes):
 
         self._is_init = False
 
+        # Determine if this is an empty variable. Only applies in the parallel case.
+        if self.dist and self.has_distributed_dimension and self.mpi.size > 1:
+            if any([d.mpi.bounds_local is None for d in self.dimensions]):
+                self.is_empty = True
+
     def __add_to_collection_finalize__(self, vc):
         """
         Finalize adding the variable to the collection.
