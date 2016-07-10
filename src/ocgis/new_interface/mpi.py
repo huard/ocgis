@@ -1,4 +1,5 @@
 import itertools
+from collections import OrderedDict
 
 import numpy as np
 
@@ -42,6 +43,38 @@ MPI_RANK = MPI_COMM.Get_rank()
 
 
 class OcgMpi(AbstractOcgisObject):
+    def __init__(self, comm=None):
+        comm = comm or MPI_COMM
+        self.size = comm.Get_size()
+        self.rank = comm.Get_rank()
+        self.dimensions = OrderedDict()
+
+    def create_dimension(self, *args, **kwargs):
+        from dimension import Dimension
+        group = kwargs.pop('group', 'root')
+        dim = Dimension(*args, **kwargs)
+        if group not in self.dimensions:
+            self.dimensions[group] = OrderedDict()
+        self.dimensions[group][dim.name] = dim
+        dim.bounds_global = (0, len(dim))
+        return dim
+
+    def update_dimension_bounds(self, group='root'):
+        lengths = [len(dim) for dim in self.dimensions[group].values() if dim.dist]
+        if min(lengths) < self.size:
+            the_size = min(lengths)
+        else:
+            the_size = self.size
+        for dim in self.dimensions[group].values():
+            omb = OcgMpiBounds(nelements=len(dim), size=the_size)
+            bounds_local = omb.bounds_local
+            dim.bounds_local = bounds_local
+            if bounds_local is not None and dim._src_idx is not None:
+                start, stop = bounds_local
+                dim._src_idx = dim._src_idx[start:stop]
+
+
+class OcgMpiBounds(AbstractOcgisObject):
     def __init__(self, nelements=None, dimensions=None, size=None):
         # Require element count or dimensions.
         assert nelements is not None or dimensions is not None

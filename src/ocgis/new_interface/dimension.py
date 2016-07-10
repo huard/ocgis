@@ -1,7 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import OcgMpi, MPI_COMM
+from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -13,6 +13,8 @@ class Dimension(AbstractInterfaceObject):
 
         self._name = name
         self.__src_idx__ = None
+        self.bounds_global = None
+        self.bounds_local = None
 
         self.dist = dist
         self._size = size
@@ -24,34 +26,34 @@ class Dimension(AbstractInterfaceObject):
         if dist:
             # A size definition is required.
             if self.size is None and self.size_current is None:
-                msg = 'Distributed dimensions require a size definition using "size", "size_current", or "src_idx".'
+                msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
                 raise ValueError(msg)
-            mpi_size = None
-        else:
-            mpi_size = 1
+                # mpi_size = None
+                # else:
+                #     mpi_size = 1
 
-        # Always configure the MPI interface.
-        self.mpi = OcgMpi(nelements=len(self), size=mpi_size)
-
-        if dist:
-            # Adjust the source index and sizes for the distributed case.
-            bounds_local = self.mpi.bounds_local
-            if bounds_local is None:
-                if self.is_unlimited:
-                    self._size_current = 0
-                else:
-                    self._size = 0
-                    self._size_current = None
-                self.__src_idx__ = None
-            else:
-                lower, upper = bounds_local
-                if self.is_unlimited:
-                    self._size_current = upper - lower
-                else:
-                    self._size = upper - lower
-                    self._size_current = None
-                if src_idx is not None:
-                    self._src_idx = self._src_idx[lower:upper]
+                # # Always configure the MPI interface.
+                # self.mpi = OcgMpi(nelements=len(self), size=mpi_size)
+                #
+                # if dist:
+                #     # Adjust the source index and sizes for the distributed case.
+                #     bounds_local = self.mpi.bounds_local
+                #     if bounds_local is None:
+                #         if self.is_unlimited:
+                #             self._size_current = 0
+                #         else:
+                #             self._size = 0
+                #             self._size_current = None
+                #         self.__src_idx__ = None
+                #     else:
+                #         lower, upper = bounds_local
+                #         if self.is_unlimited:
+                #             self._size_current = upper - lower
+                #         else:
+                #             self._size = upper - lower
+                #             self._size_current = None
+                #         if src_idx is not None:
+                #             self._src_idx = self._src_idx[lower:upper]
 
     def __eq__(self, other):
         ret = True
@@ -118,24 +120,13 @@ class Dimension(AbstractInterfaceObject):
     @property
     def size_current(self):
         if self._size_current is None:
-            if self.size is None:
-                if self.__src_idx__ is None:
-                    ret = None
-                else:
-                    ret = len(self.__src_idx__)
-            else:
-                ret = self.size
+            ret = self.size
         else:
             ret = self._size_current
         return ret
 
     @property
     def _src_idx(self):
-        if self.__src_idx__ is None and len(self) > 0:
-            bounds = self.mpi.bounds_local
-            if bounds is not None:
-                lower, upper = bounds
-                self.__src_idx__ = np.arange(lower, upper, dtype=self._default_dtype)
         return self.__src_idx__
 
     @_src_idx.setter
@@ -146,6 +137,7 @@ class Dimension(AbstractInterfaceObject):
         self.__src_idx__ = value
 
     def gather(self, root=0, comm=None):
+        raise NotImplementedError
         comm = comm or MPI_COMM
         ret = self
         if self.mpi.size != 1:
@@ -165,6 +157,7 @@ class Dimension(AbstractInterfaceObject):
         return ret
 
     def scatter(self):
+        raise NotImplementedError
         return self.__class__(self.name, size=self.size, size_current=self.size_current, src_idx=self._src_idx,
                               dist=True)
 
