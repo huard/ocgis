@@ -20,6 +20,8 @@ class Dimension(AbstractInterfaceObject):
         self.dist = dist
         self._size = size
         self._size_current = size_current
+        if isinstance(src_idx, basestring) and src_idx == 'auto':
+            src_idx = np.arange(len(self), dtype=self._default_dtype)
         self._src_idx = src_idx
 
         # Adjust object for the distributed case. ----------------------------------------------------------------------

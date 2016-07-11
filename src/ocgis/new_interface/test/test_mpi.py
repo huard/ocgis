@@ -168,6 +168,36 @@ class TestOcgMpi(AbstractTestNewInterface):
             else:
                 self.assertTrue(dim.is_empty)
 
+        # Test with multiple dimensions.
+        d1 = Dimension('d1', size=5, dist=True, src_idx='auto')
+        d2 = Dimension('d2', size=10, dist=False)
+        d3 = Dimension('d3', size=3, dist=True)
+        dimensions = [d1, d2, d3]
+        ompi = OcgMpi()
+        for dim in dimensions:
+            ompi.add_dimension(dim)
+        ompi.update_dimension_bounds()
+        bounds_local = ompi.get_bounds_local()
+        if ompi.size <= 2:
+            desired = {(1, 0): ((0, 5), (0, 10), (0, 3)),
+                       (2, 0): ((0, 3), (0, 10), (0, 2)),
+                       (2, 1): ((3, 5), (0, 10), (2, 3))}
+            self.assertEqual(bounds_local, desired[(ompi.size, ompi.rank)])
+        else:
+            if ompi.rank <= 1:
+                self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
+            for dim in dimensions:
+                if ompi.rank > 2:
+                    self.assertTrue(dim.is_empty)
+                else:
+                    self.assertFalse(dim.is_empty)
+
+        # Test adding an existing dimension.
+        ompi = OcgMpi()
+        ompi.create_dimension('one')
+        with self.assertRaises(ValueError):
+            ompi.create_dimension('one')
+
     @attr('mpi-2', 'mpi-8')
     def test_system_bounds(self):
         """Test global and local bounds passing dimensions to the OCGIS MPI interface."""
