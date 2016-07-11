@@ -6,7 +6,7 @@ from mpi4py.MPI import COMM_NULL
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
-    get_optimal_splits, get_rank_bounds, OcgMpi, MPI_RANK, get_global_to_local_slice
+    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.test.base import attr
@@ -197,36 +197,3 @@ class TestOcgMpi(AbstractTestNewInterface):
         ompi.create_dimension('one')
         with self.assertRaises(ValueError):
             ompi.create_dimension('one')
-
-    @attr('mpi-2', 'mpi-8')
-    def test_system_bounds(self):
-        """Test global and local bounds passing dimensions to the OCGIS MPI interface."""
-
-        # Test passing dimensions to calculated local bounds.
-        d1 = Dimension('d1', size=5, dist=True)
-        d2 = Dimension('d2', size=10, dist=False)
-        d3 = Dimension('d3', size=3, dist=True)
-        dimensions = [d1, d2, d3]
-        om = OcgMpi(dimensions=dimensions)
-
-        actual = om.bounds_local
-        desired_bounds_global = ((0, 5), (0, 10), (0, 3))
-        self.assertEqual(om.bounds_global, desired_bounds_global)
-        if MPI_SIZE == 1:
-            desired = desired_bounds_global
-        elif MPI_SIZE == 2:
-            if MPI_RANK == 0:
-                desired = ((0, 3), (0, 10), (0, 2))
-            else:
-                desired = ((3, 5), (0, 10), (2, 3))
-        else:
-            self.assertEqual(actual[1], (0, 10))
-            if MPI_RANK < 3:
-                for bl in actual:
-                    self.assertIsNotNone(bl)
-            else:
-                self.assertIsNone(actual[0])
-                self.assertIsNone(actual[2])
-
-        if MPI_SIZE <= 2:
-            self.assertEqual(actual, desired)

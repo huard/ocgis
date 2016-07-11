@@ -24,40 +24,12 @@ class Dimension(AbstractInterfaceObject):
             src_idx = np.arange(len(self), dtype=self._default_dtype)
         self._src_idx = src_idx
 
-        # Adjust object for the distributed case. ----------------------------------------------------------------------
-
         if dist:
             # A size definition is required.
             if self.size is None and self.size_current is None:
                 msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
                 raise ValueError(msg)
             self._bounds_global = (0, len(self))
-                # mpi_size = None
-                # else:
-                #     mpi_size = 1
-
-                # # Always configure the MPI interface.
-                # self.mpi = OcgMpi(nelements=len(self), size=mpi_size)
-                #
-                # if dist:
-                #     # Adjust the source index and sizes for the distributed case.
-                #     bounds_local = self.mpi.bounds_local
-                #     if bounds_local is None:
-                #         if self.is_unlimited:
-                #             self._size_current = 0
-                #         else:
-                #             self._size = 0
-                #             self._size_current = None
-                #         self.__src_idx__ = None
-                #     else:
-                #         lower, upper = bounds_local
-                #         if self.is_unlimited:
-                #             self._size_current = upper - lower
-                #         else:
-                #             self._size = upper - lower
-                #             self._size_current = None
-                #         if src_idx is not None:
-                #             self._src_idx = self._src_idx[lower:upper]
 
     def __eq__(self, other):
         ret = True
