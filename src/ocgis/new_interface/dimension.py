@@ -13,8 +13,9 @@ class Dimension(AbstractInterfaceObject):
 
         self._name = name
         self.__src_idx__ = None
-        self.bounds_global = None
-        self.bounds_local = None
+        self._bounds_global = None
+        self._bounds_local = None
+        self._is_empty = False
 
         self.dist = dist
         self._size = size
@@ -28,6 +29,7 @@ class Dimension(AbstractInterfaceObject):
             if self.size is None and self.size_current is None:
                 msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
                 raise ValueError(msg)
+            self._bounds_global = (0, len(self))
                 # mpi_size = None
                 # else:
                 #     mpi_size = 1
@@ -80,6 +82,14 @@ class Dimension(AbstractInterfaceObject):
 
         slc = get_formatted_slice(slc, 1)[0]
         ret = self.copy()
+        # If this is an array slice, track the source indices.
+        if isinstance(slc, np.ndarray):
+            if ret._src_idx is None:
+                if self.bounds_local is None:
+                    lower, upper = self.bounds_global
+                else:
+                    lower, upper = self.bounds_local
+                ret._src_idx = np.array(lower, upper, dtype=self._default_dtype)
         self.__getitem_main__(ret, slc)
 
         return ret
@@ -100,6 +110,21 @@ class Dimension(AbstractInterfaceObject):
         msg = "{0}(name='{1}', size={2}, size_current={3})".format(self.__class__.__name__, self.name, self.size,
                                                                    self.size_current)
         return msg
+
+    @property
+    def bounds_global(self):
+        ret = self._bounds_global
+        if ret is None:
+            ret = (0, len(self))
+        return ret
+
+    @property
+    def bounds_local(self):
+        return self._bounds_local
+
+    @property
+    def is_empty(self):
+        return self._is_empty
 
     @property
     def is_unlimited(self):

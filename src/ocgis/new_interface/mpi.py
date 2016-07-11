@@ -49,6 +49,8 @@ class OcgMpi(AbstractOcgisObject):
         self.rank = comm.Get_rank()
         self.dimensions = OrderedDict()
 
+        self.has_updated_dimensions = False
+
     def create_dimension(self, *args, **kwargs):
         from dimension import Dimension
         group = kwargs.pop('group', 'root')
@@ -56,22 +58,38 @@ class OcgMpi(AbstractOcgisObject):
         if group not in self.dimensions:
             self.dimensions[group] = OrderedDict()
         self.dimensions[group][dim.name] = dim
-        dim.bounds_global = (0, len(dim))
         return dim
 
+    def get_dimension(self, name, group='root'):
+        return self.dimensions[group][name]
+
     def update_dimension_bounds(self, group='root'):
+        if self.has_updated_dimensions:
+            raise ValueError('Dimensions already updated.')
+
         lengths = [len(dim) for dim in self.dimensions[group].values() if dim.dist]
         if min(lengths) < self.size:
             the_size = min(lengths)
         else:
             the_size = self.size
         for dim in self.dimensions[group].values():
-            omb = OcgMpiBounds(nelements=len(dim), size=the_size)
-            bounds_local = omb.bounds_local
-            dim.bounds_local = bounds_local
-            if bounds_local is not None and dim._src_idx is not None:
-                start, stop = bounds_local
-                dim._src_idx = dim._src_idx[start:stop]
+            if dim.dist:
+                omb = OcgMpiBounds(nelements=len(dim), size=the_size)
+                bounds_local = omb.bounds_local
+                dim._bounds_local = bounds_local
+                if bounds_local is None:
+                    dim._is_empty = True
+                elif dim._src_idx is not None:
+                    start, stop = bounds_local
+                    dim._src_idx = dim._src_idx[start:stop]
+                    if dim._size is not None:
+                        dim._size = stop - start
+                    dim._size_current = stop - start
+                else:
+                    pass
+            else:
+                dim._bounds_local = dim.bounds_global
+        self.has_updated_dimensions = True
 
 
 class OcgMpiBounds(AbstractOcgisObject):

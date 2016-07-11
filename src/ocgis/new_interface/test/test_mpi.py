@@ -142,6 +142,33 @@ class Test(AbstractTestNewInterface):
 
 class TestOcgMpi(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
+    def test(self):
+        ompi = OcgMpi()
+        src_idx = [2, 3, 4, 5, 6]
+        dim = ompi.create_dimension('foo', size=5, group='subroot', dist=True, src_idx=src_idx)
+        self.assertEqual(dim, ompi.get_dimension(dim.name, group='subroot'))
+        self.assertIsNone(dim.bounds_local)
+        self.assertEqual(dim.bounds_global, (0, 5))
+        ompi.update_dimension_bounds(group='subroot')
+        with self.assertRaises(ValueError):
+            ompi.update_dimension_bounds(group='subroot')
+        if ompi.size == 1:
+            self.assertEqual(dim.bounds_global, dim.bounds_local)
+        elif ompi.size == 2:
+            if ompi.rank == 0:
+                self.assertEqual(dim.bounds_local, (0, 3))
+                self.assertEqual(dim._src_idx.tolist(), [2, 3, 4])
+            elif ompi.rank == 1:
+                self.assertEqual(dim.bounds_local, (3, 5))
+                self.assertEqual(dim._src_idx.tolist(), [5, 6])
+        elif ompi.size == 8:
+            if ompi.rank <= 4:
+                self.assertEqual(len(dim), 1)
+                self.assertEqual(dim._src_idx[0], src_idx[ompi.rank])
+            else:
+                self.assertTrue(dim.is_empty)
+
+    @attr('mpi-2', 'mpi-8')
     def test_system_bounds(self):
         """Test global and local bounds passing dimensions to the OCGIS MPI interface."""
 
