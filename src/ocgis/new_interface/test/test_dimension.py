@@ -88,18 +88,6 @@ class TestDimension(AbstractTestNewInterface):
         rhs = self.get_dimension()
         self.assertEqual(lhs, rhs)
 
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
-    def test_gather(self):
-        s = Dimension('first_dist', size=5, dist=True)
-        self.assertIsNone(s.__src_idx__)
-        actual = s.gather(root=1)
-        if MPI_RANK == 1 or MPI_SIZE == 1:
-            self.assertEqual(actual, s)
-            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
-            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
-        else:
-            self.assertIsNone(actual)
-
     def test_getitem(self):
         dim = Dimension('foo', size=50)
         sub = dim[30:40]

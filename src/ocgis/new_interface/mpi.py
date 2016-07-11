@@ -65,6 +65,44 @@ class OcgMpi(AbstractOcgisObject):
         self.add_dimension(dim, group=group)
         return dim
 
+    def gather_dimension(self, name, group=None, root=0, comm=None):
+        comm = comm or MPI_COMM
+        dim = self.get_dimension(name, group=group)
+        parts = comm.gather(dim, root=root)
+        if self.rank == root:
+            new_size = 0
+            for part in parts:
+                if not part.is_empty:
+                    new_size += len(part)
+                else:
+                    pass
+
+            if dim.size is not None:
+                dim._size = new_size
+            else:
+                pass
+            dim._size_current = new_size
+
+            if dim._src_idx is not None:
+                new_src_idx = np.zeros(new_size, dtype=dim._src_idx.dtype)
+                for part in parts:
+                    if not part.is_empty:
+                        lower, upper = part.bounds_local
+                        new_src_idx[lower:upper] = part._src_idx
+                    else:
+                        pass
+                dim._src_idx = new_src_idx
+            else:
+                pass
+
+            # The global and local bounds are equivalent on this dimension now.
+            dim._bounds_local = dim.bounds_global
+
+            ret = dim
+        else:
+            ret = None
+        return ret
+
     def get_bounds_local(self, group=None):
         ret = [dim.bounds_local for dim in self.get_group(group=group).values()]
         return tuple(ret)

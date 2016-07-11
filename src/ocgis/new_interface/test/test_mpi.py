@@ -197,3 +197,44 @@ class TestOcgMpi(AbstractTestNewInterface):
         ompi.create_dimension('one')
         with self.assertRaises(ValueError):
             ompi.create_dimension('one')
+
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    def test_gather(self):
+        s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
+        self.assertIsNotNone(s._src_idx)
+        ompi = OcgMpi()
+        ompi.add_dimension(s)
+        ompi.update_dimension_bounds()
+        # tdk: test with a different root
+        actual = ompi.gather_dimension(s.name, root=0)
+        if ompi.rank == 0:
+            self.assertEqual(actual.bounds_global, (0, 5))
+            self.assertEqual(actual.bounds_local, (0, 5))
+            self.assertEqual(actual, s)
+            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
+            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
+            self.assertFalse(actual.is_empty)
+            self.assertEqual(actual, ompi.get_dimension(s.name))
+        else:
+            self.assertIsNone(actual)
+
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    def test_gather(self):
+        s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
+
+        self.assertIsNotNone(s._src_idx)
+        ompi = OcgMpi()
+        ompi.add_dimension(s)
+        ompi.update_dimension_bounds()
+        # tdk: test with a different root
+        actual = ompi.gather_dimension(s.name, root=0)
+        if ompi.rank == 0:
+            self.assertEqual(actual.bounds_global, (0, 5))
+            self.assertEqual(actual.bounds_local, (0, 5))
+            self.assertEqual(actual, s)
+            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
+            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
+            self.assertFalse(actual.is_empty)
+            self.assertEqual(actual, ompi.get_dimension(s.name))
+        else:
+            self.assertIsNone(actual)
