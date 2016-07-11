@@ -51,9 +51,13 @@ class OcgMpi(AbstractOcgisObject):
 
         self.has_updated_dimensions = False
 
-    def add_dimension(self, dim, group=None):
+    def add_dimension(self, dim, group=None, force=False):
+        from dimension import Dimension
+        if not isinstance(dim, Dimension):
+            raise ValueError('"dim" must be a "Dimension" object.')
+
         the_group = self._create_or_get_group_(group)
-        if dim.name in the_group:
+        if not force and dim.name in the_group:
             raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
         else:
             the_group[dim.name] = dim
@@ -65,43 +69,20 @@ class OcgMpi(AbstractOcgisObject):
         self.add_dimension(dim, group=group)
         return dim
 
-    def gather_dimension(self, name, group=None, root=0, comm=None):
-        comm = comm or MPI_COMM
-        dim = self.get_dimension(name, group=group)
-        parts = comm.gather(dim, root=root)
+    def gather_dimensions(self, group=None, root=0, comm=None):
+        for dim in self.iter_dimensions(group=group):
+            if dim.dist:
+                dim = self._gather_dimension_(dim.name, group=group, root=root, comm=comm)
+            else:
+                pass
+
+            if self.rank == root:
+                self.add_dimension(dim, group=group, force=True)
+
         if self.rank == root:
-            new_size = 0
-            for part in parts:
-                if not part.is_empty:
-                    new_size += len(part)
-                else:
-                    pass
-
-            if dim.size is not None:
-                dim._size = new_size
-            else:
-                pass
-            dim._size_current = new_size
-
-            if dim._src_idx is not None:
-                new_src_idx = np.zeros(new_size, dtype=dim._src_idx.dtype)
-                for part in parts:
-                    if not part.is_empty:
-                        lower, upper = part.bounds_local
-                        new_src_idx[lower:upper] = part._src_idx
-                    else:
-                        pass
-                dim._src_idx = new_src_idx
-            else:
-                pass
-
-            # The global and local bounds are equivalent on this dimension now.
-            dim._bounds_local = dim.bounds_global
-
-            ret = dim
+            return self.get_group(group=group)
         else:
-            ret = None
-        return ret
+            return None
 
     def get_bounds_local(self, group=None):
         ret = [dim.bounds_local for dim in self.get_group(group=group).values()]
@@ -165,6 +146,44 @@ class OcgMpi(AbstractOcgisObject):
         if group not in self.dimensions:
             self.dimensions[group] = OrderedDict()
         return self.dimensions[group]
+
+    def _gather_dimension_(self, name, group=None, root=0, comm=None):
+        comm = comm or MPI_COMM
+        dim = self.get_dimension(name, group=group)
+        parts = comm.gather(dim, root=root)
+        if self.rank == root:
+            new_size = 0
+            for part in parts:
+                if not part.is_empty:
+                    new_size += len(part)
+                else:
+                    pass
+
+            if dim.size is not None:
+                dim._size = new_size
+            else:
+                pass
+            dim._size_current = new_size
+
+            if dim._src_idx is not None:
+                new_src_idx = np.zeros(new_size, dtype=dim._src_idx.dtype)
+                for part in parts:
+                    if not part.is_empty:
+                        lower, upper = part.bounds_local
+                        new_src_idx[lower:upper] = part._src_idx
+                    else:
+                        pass
+                dim._src_idx = new_src_idx
+            else:
+                pass
+
+            # Dimension is no longer distributed and should not have local bounds.
+            dim._bounds_local = None
+
+            ret = dim
+        else:
+            ret = None
+        return ret
 
 
 class MpiBoundsCalculator(AbstractOcgisObject):

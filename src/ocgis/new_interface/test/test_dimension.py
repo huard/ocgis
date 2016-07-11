@@ -1,9 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.test.base import attr
 
 
 class TestDimension(AbstractTestNewInterface):
@@ -17,6 +15,9 @@ class TestDimension(AbstractTestNewInterface):
         dim = Dimension('foo')
         self.assertEqual(dim.name, 'foo')
         self.assertIsNone(dim.size)
+        self.assertIsNone(dim.size_current)
+        self.assertTrue(dim.is_unlimited)
+        self.assertEqual(len(dim), 0)
 
         dim = Dimension('foo', size=23)
         self.assertEqual(dim.size, 23)
@@ -26,50 +27,18 @@ class TestDimension(AbstractTestNewInterface):
         self.assertNumpyAll(dim._src_idx, src_idx)
         self.assertEqual(dim._src_idx.shape[0], 10)
 
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
-    def test_init_mpi(self):
-        kwds = {'dist': [True, False], 'src_idx': [None, [10, 20, 30, 40, 50]]}
-        for k in self.iter_product_keywords(kwds):
-            dim = Dimension('the_d', 5, src_idx=k.src_idx, dist=k.dist)
-            self.assertEqual(dim.mpi.size_global, 5)
-            self.assertEqual(dim.mpi.bounds_global, (0, 5))
-            if MPI_SIZE == 1:
-                self.assertEqual(dim.mpi.bounds_local, (0, 5))
-            if k.dist:
-                if MPI_SIZE == 5:
-                    bounds = dim.mpi.bounds_local
-                    self.assertEqual(bounds[1] - bounds[0], 1)
-                elif MPI_SIZE == 8:
-                    self.log.debug('dim._src_idx {}'.format(dim._src_idx))
-                    if MPI_RANK > 4:
-                        self.assertIsNone(dim._src_idx)
-                    else:
-                        self.assertEqual(len(dim._src_idx), 1)
-            else:
-                self.assertEqual(dim.mpi.bounds_local, dim.mpi.bounds_global)
+        # Test distributed dimensions require and size definition.
+        with self.assertRaises(ValueError):
+            Dimension('foo', dist=True)
 
-        # Test with zero length.
-        dim = Dimension('zero', size=0, dist=True)
-        self.assertEqual(len(dim), 0)
-        self.assertIsNone(dim._src_idx)
-
-        # Test unlimited dimension.
-        dim = Dimension('unlimited', size=None, dist=True, src_idx=[3, 4, 5, 6])
-        self.assertEqual(dim.mpi.size_global, 4)
-        if MPI_SIZE == 2:
-            self.assertEqual(len(dim), 2)
-            if MPI_RANK == 0:
-                self.assertEqual(dim._src_idx.tolist(), [3, 4])
-            elif MPI_RANK == 1:
-                self.assertEqual(dim._src_idx.tolist(), [5, 6])
+        # Test without size defintion and a source index.
+        for src_idx in ['auto', 'ato', [0, 1, 2]]:
+            try:
+                dim = Dimension('foo', src_idx=src_idx)
+            except ValueError:
+                self.assertNotEqual(src_idx, 'auto')
             else:
                 self.assertIsNone(dim._src_idx)
-        elif MPI_SIZE == 1:
-            self.assertIsNotNone(dim._src_idx)
-
-        # Test some length designation is needed for an unlimited dimension in the distributed case.
-        with self.assertRaises(ValueError):
-            Dimension('ua', dist=True)
 
     def test_copy(self):
         sd = self.get_dimension(src_idx=np.arange(10))
@@ -158,12 +127,21 @@ class TestDimension(AbstractTestNewInterface):
         dim = Dimension('unlimited', size=None, size_current=4)
         self.assertEqual(len(dim), 4)
 
-    @attr('mpi-2')
-    def test_scatter(self):
-        d = Dimension('scatter', 6, dist=False)
-        self.assertEqual(len(d._src_idx), 6)
-        ds = d.scatter()
-        if MPI_SIZE == 2:
-            llb, lub = ds.mpi.bounds_local
-            self.assertEqual(lub - llb, 3)
-            self.assertEqual(len(ds._src_idx), 3)
+    def test_set_size(self):
+        dim = self.get_dimension(src_idx='auto')
+        kwds = {'size': [None, 0, 1, 3], 'src_idx': [None, 'auto', np.arange(3)]}
+        for k in self.iter_product_keywords(kwds):
+            try:
+                dim.set_size(k.size, src_idx=k.src_idx)
+            except ValueError:
+                self.assertTrue(k.size != 3)
+                self.assertIsInstance(k.src_idx, np.ndarray)
+                continue
+            if k.size is None:
+                self.assertTrue(dim.is_unlimited)
+            else:
+                self.assertEqual(len(dim), k.size)
+            if k.src_idx is None:
+                self.assertIsNone(dim._src_idx)
+            elif isinstance(k.src_idx, basestring) and k.src_idx == 'auto' and k.size is not None:
+                self.assertIsNotNone(dim._src_idx)

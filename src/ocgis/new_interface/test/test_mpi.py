@@ -1,4 +1,5 @@
 import itertools
+from copy import deepcopy
 from unittest import SkipTest
 
 import numpy as np
@@ -199,42 +200,27 @@ class TestOcgMpi(AbstractTestNewInterface):
             ompi.create_dimension('one')
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
-    def test_gather(self):
+    def test_gather_dimensions(self):
         s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
-        self.assertIsNotNone(s._src_idx)
         ompi = OcgMpi()
         ompi.add_dimension(s)
-        ompi.update_dimension_bounds()
-        # tdk: test with a different root
-        actual = ompi.gather_dimension(s.name, root=0)
-        if ompi.rank == 0:
-            self.assertEqual(actual.bounds_global, (0, 5))
-            self.assertEqual(actual.bounds_local, (0, 5))
-            self.assertEqual(actual, s)
-            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
-            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
-            self.assertFalse(actual.is_empty)
-            self.assertEqual(actual, ompi.get_dimension(s.name))
-        else:
-            self.assertIsNone(actual)
+        ompi.create_dimension('not_dist', size=8, dist=False)
+        ompi.create_dimension('another_dist', size=6, dist=True)
+        ompi.create_dimension('another_not_dist', size=100, dist=False)
+        desired = deepcopy(ompi.get_group())
 
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
-    def test_gather(self):
-        s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
+        ompi.update_dimension_bounds()
 
         self.assertIsNotNone(s._src_idx)
-        ompi = OcgMpi()
-        ompi.add_dimension(s)
-        ompi.update_dimension_bounds()
         # tdk: test with a different root
-        actual = ompi.gather_dimension(s.name, root=0)
+        actual = ompi.gather_dimensions(root=0)
         if ompi.rank == 0:
-            self.assertEqual(actual.bounds_global, (0, 5))
-            self.assertEqual(actual.bounds_local, (0, 5))
-            self.assertEqual(actual, s)
-            self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
-            self.assertEqual(actual._src_idx.sum(), np.arange(5).sum())
-            self.assertFalse(actual.is_empty)
-            self.assertEqual(actual, ompi.get_dimension(s.name))
+            for actual_dim, desired_dim in zip(actual.values(), desired.values()):
+                self.log.debug(actual_dim.__dict__)
+                self.log.debug(desired_dim.__dict__)
+                self.assertEqual(actual_dim, desired_dim)
+                self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
+                self.assertFalse(actual_dim.is_empty)
+                self.assertEqual(actual_dim, ompi.get_dimension(actual_dim.name))
         else:
             self.assertIsNone(actual)

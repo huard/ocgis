@@ -9,6 +9,12 @@ class Dimension(AbstractInterfaceObject):
     _default_dtype = np.int32
 
     def __init__(self, name, size=None, size_current=None, src_idx=None, dist=False):
+        if isinstance(src_idx, basestring):
+            if src_idx != 'auto' and size is None and size_current is None:
+                raise ValueError('Unsized dimensions should not have source indices.')
+            if src_idx != 'auto':
+                raise ValueError('"src_idx" not recognized: {}'.format(src_idx))
+
         super(Dimension, self).__init__()
 
         self._name = name
@@ -16,20 +22,11 @@ class Dimension(AbstractInterfaceObject):
         self._bounds_global = None
         self._bounds_local = None
         self._is_empty = False
-
-        self.dist = dist
         self._size = size
         self._size_current = size_current
-        if isinstance(src_idx, basestring) and src_idx == 'auto':
-            src_idx = np.arange(len(self), dtype=self._default_dtype)
-        self._src_idx = src_idx
+        self.dist = dist
 
-        if dist:
-            # A size definition is required.
-            if self.size is None and self.size_current is None:
-                msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
-                raise ValueError(msg)
-            self._bounds_global = (0, len(self))
+        self.set_size(self.size or self.size_current, src_idx=src_idx)
 
     def __eq__(self, other):
         ret = True
@@ -133,7 +130,34 @@ class Dimension(AbstractInterfaceObject):
         if value is not None:
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
+            if len(value) != len(self):
+                raise ValueError('Source index length must equal the dimension length.')
         self.__src_idx__ = value
+
+    def set_size(self, value, src_idx=None):
+        if value is not None:
+            if isinstance(src_idx, basestring) and src_idx == 'auto':
+                src_idx = np.arange(value, dtype=self._default_dtype)
+        elif value is None:
+            src_idx = None
+        else:
+            pass
+
+        self._bounds_global = None
+        self._bounds_local = None
+        self._size_current = value
+        if not self.is_unlimited:
+            self._size = value
+        self._src_idx = src_idx
+
+        if self.dist:
+            # A size definition is required.
+            if self.size is None and self.size_current is None:
+                msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
+                raise ValueError(msg)
+            # The global bounds need to be tracked explicitly in the distributed case. Otherwise, global dimension
+            # information is lost.
+            self._bounds_global = (0, len(self))
 
     def gather(self, root=0, comm=None):
         raise NotImplementedError
@@ -161,10 +185,7 @@ class Dimension(AbstractInterfaceObject):
                               dist=True)
 
     def __getitem_main__(self, ret, slc):
-        # Source index can be None if the dimension has zero length.
-        if ret._src_idx is not None:
-            ret._src_idx = ret._src_idx.__getitem__(slc)
-
+        length_self = len(self)
         try:
             length = len(slc)
         except TypeError:
@@ -175,14 +196,14 @@ class Dimension(AbstractInterfaceObject):
                 # Likely a NoneType slice.
                 if slc.start is None:
                     if slc.stop > 0:
-                        length = len(self)
+                        length = length_self
                     elif slc.stop is None:
-                        length = len(self)
+                        length = length_self
                     else:
-                        length = len(self) + slc.stop
+                        length = length_self + slc.stop
                 elif slc.stop is None:
                     if slc.start > 0:
-                        length = len(self) - slc.start
+                        length = length_self - slc.start
                     else:
                         length = abs(slc.start)
                 else:
@@ -195,13 +216,15 @@ class Dimension(AbstractInterfaceObject):
             except AttributeError:
                 # Likely a list/tuple.
                 pass
-        if self.is_unlimited:
-            if length < 0:
-                # This is using negative indexing. Subtract from the current length.
-                length = length + self.size_current
-            ret._size_current = length
+
+        if length < 0:
+            # This is using negative indexing. Subtract from the current length.
+            length += length_self
+
+        # Source index can be None if the dimension has zero length.
+        if ret._src_idx is not None:
+            src_idx = ret._src_idx.__getitem__(slc)
         else:
-            if length < 0:
-                # This is using negative indexing. Subtract from the current length.
-                length = length + self.size
-            ret._size = length
+            src_idx = None
+
+        ret.set_size(length, src_idx=src_idx)
