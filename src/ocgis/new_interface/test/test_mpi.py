@@ -232,10 +232,15 @@ class TestOcgMpi(AbstractTestNewInterface):
 
         ompi.update_dimension_bounds()
         self.assertIsNotNone(s._src_idx)
-        # tdk: test with a different root
-        actual = ompi.gather_dimensions(root=0)
 
-        if ompi.rank == 0:
+        if MPI_SIZE == 1:
+            root = 0
+        else:
+            root = 1
+
+        actual = ompi.gather_dimensions(root=root)
+
+        if ompi.rank == root:
             for actual_dim, desired_dim in zip(actual.values(), desired.values()):
                 try:
                     self.assertEqual(actual_dim, desired_dim)

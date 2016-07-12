@@ -225,11 +225,7 @@ class MpiBoundsCalculator(AbstractOcgisObject):
 
     def get_rank_bounds(self, length=None):
         length = length or self.nelements
-        try:
-            grb = get_rank_bounds(length, size=self.size, rank=self.rank)
-        except:
-            from ocgis_logging import log
-            log.exception('{} {} {}'.format(length, self.size, self.rank))
+        grb = get_rank_bounds(length, size=self.size, rank=self.rank)
         return grb
 
 
