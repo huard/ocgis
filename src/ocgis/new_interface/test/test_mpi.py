@@ -162,6 +162,17 @@ class Test(AbstractTestNewInterface):
 
 
 class TestOcgMpi(AbstractTestNewInterface):
+    def get_ocgmpi_01(self):
+        s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
+        ompi = OcgMpi()
+        ompi.add_dimension(s)
+        ompi.create_dimension('not_dist', size=8, dist=False)
+        ompi.create_dimension('another_dist', size=6, dist=True)
+        ompi.create_dimension('another_not_dist', size=100, dist=False)
+        ompi.create_dimension('coordinate_reference_system', size=0)
+        self.assertIsNotNone(s._src_idx)
+        return ompi
+
     @attr('mpi-2', 'mpi-8')
     def test(self):
         ompi = OcgMpi()
@@ -221,17 +232,10 @@ class TestOcgMpi(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_gather_dimensions(self):
-        s = Dimension('first_dist', size=5, dist=True, src_idx='auto')
-        ompi = OcgMpi()
-        ompi.add_dimension(s)
-        ompi.create_dimension('not_dist', size=8, dist=False)
-        ompi.create_dimension('another_dist', size=6, dist=True)
-        ompi.create_dimension('another_not_dist', size=100, dist=False)
-        ompi.create_dimension('coordinate_reference_system', size=0)
+        ompi = self.get_ocgmpi_01()
         desired = deepcopy(ompi.get_group())
 
         ompi.update_dimension_bounds()
-        self.assertIsNotNone(s._src_idx)
 
         if MPI_SIZE == 1:
             root = 0
