@@ -70,10 +70,18 @@ class Test(AbstractTestNewInterface):
                 bounds = get_rank_bounds(len(arr), nproc=nproc, pet=pet)
                 if bounds is None:
                     self.assertTrue(pet >= (nproc - len(arr)))
+                    self.assertTrue(len(arr) < nproc)
                 else:
                     actual += arr[bounds[0]:bounds[1]].sum()
 
-            assert np.isclose(actual, desired)
+            try:
+                assert np.isclose(actual, desired)
+            except AssertionError:
+                self.log.debug('   args: {}, {}, {}'.format(len(arr), nproc, pet))
+                self.log.debug(' bounds: {}'.format(bounds))
+                self.log.debug(' actual: {}'.format(actual))
+                self.log.debug('desired: {}'.format(desired))
+                raise
 
         lengths = [1, 2, 3, 4, 100, 333, 1333, 10001]
         nproc = [1, 2, 3, 4, 1000, 1333]
@@ -85,7 +93,7 @@ class Test(AbstractTestNewInterface):
 
         # Test with Nones.
         res = get_rank_bounds(10)
-        self.assertEqual(res, [0, 10])
+        self.assertEqual(res, (0, 10))
 
         # Test outside the number of elements.
         res = get_rank_bounds(4, nproc=1000, pet=900)
@@ -94,6 +102,9 @@ class Test(AbstractTestNewInterface):
         # Test on the edge.
         ret = get_rank_bounds(5, nproc=8, pet=5)
         self.assertIsNone(ret)
+
+        # Test with more elements than procs.
+        _run_(np.arange(6), 5)
 
     def test_get_local_to_global_slices(self):
         # tdk: consider removing this function
@@ -207,19 +218,24 @@ class TestOcgMpi(AbstractTestNewInterface):
         ompi.create_dimension('not_dist', size=8, dist=False)
         ompi.create_dimension('another_dist', size=6, dist=True)
         ompi.create_dimension('another_not_dist', size=100, dist=False)
+        ompi.create_dimension('coordinate_reference_system', size=0)
         desired = deepcopy(ompi.get_group())
 
         ompi.update_dimension_bounds()
-
+        # self.log.debug(ompi.get_dimension(s.name).bounds_local)
+        # self.log.debug(ompi.get_dimension(s.name)._src_idx)
         self.assertIsNotNone(s._src_idx)
         # tdk: test with a different root
         actual = ompi.gather_dimensions(root=0)
+
         if ompi.rank == 0:
             for actual_dim, desired_dim in zip(actual.values(), desired.values()):
-                self.log.debug(actual_dim.__dict__)
-                self.log.debug(desired_dim.__dict__)
-                self.assertEqual(actual_dim, desired_dim)
-                self.assertTrue(np.may_share_memory(actual._src_idx, s._src_idx))
+                try:
+                    self.assertEqual(actual_dim, desired_dim)
+                except:
+                    self.log.debug(actual_dim.__dict__)
+                    self.log.debug(desired_dim.__dict__)
+                    raise
                 self.assertFalse(actual_dim.is_empty)
                 self.assertEqual(actual_dim, ompi.get_dimension(actual_dim.name))
         else:

@@ -72,9 +72,15 @@ class OcgMpi(AbstractOcgisObject):
     def gather_dimensions(self, group=None, root=0, comm=None):
         for dim in self.iter_dimensions(group=group):
             if dim.dist:
+                # if dim.name == 'first_dist':
+                #     from ocgis_logging import log
+                #     log.debug('first_dist before gather {}'.format(dim.__dict__))
                 dim = self._gather_dimension_(dim.name, group=group, root=root, comm=comm)
+                # if self.rank == root and dim.name == 'first_dist':
+                #     from ocgis_logging import log
+                #     log.debug('first_dist {}'.format(dim.__dict__))
             else:
-                pass
+                dim._bounds_local = None
 
             if self.rank == root:
                 self.add_dimension(dim, group=group, force=True)
@@ -117,17 +123,22 @@ class OcgMpi(AbstractOcgisObject):
             if dim.dist:
                 omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
                 bounds_local = omb.bounds_local
-                dim._bounds_local = bounds_local
+                from ocgis_logging import log
+                log.debug('bounds_local for {}: {}'.format(dim.name, bounds_local))
                 if bounds_local is None:
                     dim._is_empty = True
-                elif dim._src_idx is not None:
-                    start, stop = bounds_local
-                    dim._src_idx = dim._src_idx[start:stop]
-                    if dim._size is not None:
-                        dim._size = stop - start
-                    dim._size_current = stop - start
                 else:
-                    pass
+                    start, stop = bounds_local
+                    if dim._src_idx is None:
+                        src_idx = None
+                    else:
+                        src_idx = dim._src_idx[start:stop]
+                    dim.set_size(stop - start, src_idx=src_idx)
+                from ocgis_logging import log
+                if dim.name == 'another_dist':
+                    log.debug('another_dist {}'.format(bounds_local))
+                    log.debug('the_size {}'.format(the_size))
+                dim._bounds_local = bounds_local
             # Local and global bounds are equivalent for undistributed dimensions.
             else:
                 dim._bounds_local = dim.bounds_global
@@ -154,6 +165,9 @@ class OcgMpi(AbstractOcgisObject):
         if self.rank == root:
             new_size = 0
             for part in parts:
+                if name == 'first_dist':
+                    from ocgis_logging import log
+                    log.debug('part {} {}'.format(part.is_empty, part._src_idx))
                 if not part.is_empty:
                     new_size += len(part)
                 else:
@@ -179,6 +193,12 @@ class OcgMpi(AbstractOcgisObject):
 
             # Dimension is no longer distributed and should not have local bounds.
             dim._bounds_local = None
+
+            # If this is a distributed dimension, set the source indices explicitly.
+            if dim.dist:
+                dim._bounds_global = (0, len(dim))
+            else:
+                pass
 
             ret = dim
         else:
@@ -220,7 +240,10 @@ class MpiBoundsCalculator(AbstractOcgisObject):
 
     def get_rank_bounds(self, nelements=None):
         nelements = nelements or self.nelements
-        return get_rank_bounds(nelements, nproc=self.size, pet=self.rank)
+        from ocgis_logging import log
+        grb = get_rank_bounds(nelements, nproc=self.size, pet=self.rank)
+        log.debug('nelements: {}, self.size: {}, self.rank: {}, grb: {}'.format(nelements, self.size, self.rank, grb))
+        return grb
 
 
 def create_slices(length, size):
@@ -273,24 +296,45 @@ def get_global_to_local_slice(start_stop, bounds_local):
     return ret
 
 
-def get_rank_bounds(nelements, nproc=None, pet=None):
+def get_rank_bounds(nelements, nproc=None, pet=None, esplit=None):
     nproc = nproc or MPI_SIZE
     pet = pet or MPI_RANK
-    esplit = int(np.ceil(float(nelements) / float(nproc)))
-
-    if pet == 0:
-        lbound = 0
+    if nelements > nproc and esplit is None:
+        nelements = int(nelements)
+        nproc = int(nproc)
+        esplit, remainder = divmod(nelements, nproc)
+        if remainder > 0:
+            ret = get_rank_bounds(nelements - remainder, nproc=nproc, pet=pet)
+            if pet + 1 <= remainder:
+                ret = (ret[0] + pet, ret[1] + pet + 1)
+            else:
+                ret = (ret[0] + remainder, ret[1] + remainder)
+        elif remainder == 0:
+            ret = get_rank_bounds(nelements, nproc=nproc, pet=pet, esplit=esplit)
     else:
-        lbound = pet * esplit
-    ubound = lbound + esplit
+        if esplit is None:
+            if nelements < nproc:
+                esplit = int(np.ceil(float(nelements) / float(nproc)))
+            elif nelements == nproc:
+                esplit = 1
+            else:
+                raise NotImplementedError
+        else:
+            esplit = int(esplit)
 
-    if ubound >= nelements:
-        ubound = nelements
+        if pet == 0:
+            lbound = 0
+        else:
+            lbound = pet * esplit
+        ubound = lbound + esplit
 
-    if lbound >= ubound:
-        ret = None
-    else:
-        ret = (lbound, ubound)
+        if ubound >= nelements:
+            ubound = nelements
+
+        if lbound >= ubound:
+            ret = None
+        else:
+            ret = (lbound, ubound)
 
     return ret
 

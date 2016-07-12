@@ -1,7 +1,6 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -158,31 +157,6 @@ class Dimension(AbstractInterfaceObject):
             # The global bounds need to be tracked explicitly in the distributed case. Otherwise, global dimension
             # information is lost.
             self._bounds_global = (0, len(self))
-
-    def gather(self, root=0, comm=None):
-        raise NotImplementedError
-        comm = comm or MPI_COMM
-        ret = self
-        if self.mpi.size != 1:
-            bounds = comm.gather(self.mpi.bounds_local, root=root)
-            src_indexes = comm.gather(self._src_idx, root=root)
-            if self.mpi.rank == root:
-                lower, upper = self.mpi.bounds_global
-                src_idx = np.zeros((upper - lower,), dtype=self._default_dtype)
-                for idx in range(self.mpi.size):
-                    cbounds = bounds[idx]
-                    if cbounds is not None:
-                        lower, upper = cbounds
-                        src_idx[lower:upper] = src_indexes[idx]
-                ret._src_idx = src_idx
-            else:
-                ret = None
-        return ret
-
-    def scatter(self):
-        raise NotImplementedError
-        return self.__class__(self.name, size=self.size, size_current=self.size_current, src_idx=self._src_idx,
-                              dist=True)
 
     def __getitem_main__(self, ret, slc):
         length_self = len(self)
