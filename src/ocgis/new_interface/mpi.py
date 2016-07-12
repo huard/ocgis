@@ -72,13 +72,7 @@ class OcgMpi(AbstractOcgisObject):
     def gather_dimensions(self, group=None, root=0, comm=None):
         for dim in self.iter_dimensions(group=group):
             if dim.dist:
-                # if dim.name == 'first_dist':
-                #     from ocgis_logging import log
-                #     log.debug('first_dist before gather {}'.format(dim.__dict__))
                 dim = self._gather_dimension_(dim.name, group=group, root=root, comm=comm)
-                # if self.rank == root and dim.name == 'first_dist':
-                #     from ocgis_logging import log
-                #     log.debug('first_dist {}'.format(dim.__dict__))
             else:
                 dim._bounds_local = None
 
@@ -123,8 +117,6 @@ class OcgMpi(AbstractOcgisObject):
             if dim.dist:
                 omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
                 bounds_local = omb.bounds_local
-                from ocgis_logging import log
-                log.debug('bounds_local for {}: {}'.format(dim.name, bounds_local))
                 if bounds_local is None:
                     dim._is_empty = True
                 else:
@@ -134,10 +126,6 @@ class OcgMpi(AbstractOcgisObject):
                     else:
                         src_idx = dim._src_idx[start:stop]
                     dim.set_size(stop - start, src_idx=src_idx)
-                from ocgis_logging import log
-                if dim.name == 'another_dist':
-                    log.debug('another_dist {}'.format(bounds_local))
-                    log.debug('the_size {}'.format(the_size))
                 dim._bounds_local = bounds_local
             # Local and global bounds are equivalent for undistributed dimensions.
             else:
@@ -165,9 +153,6 @@ class OcgMpi(AbstractOcgisObject):
         if self.rank == root:
             new_size = 0
             for part in parts:
-                if name == 'first_dist':
-                    from ocgis_logging import log
-                    log.debug('part {} {}'.format(part.is_empty, part._src_idx))
                 if not part.is_empty:
                     new_size += len(part)
                 else:
@@ -238,11 +223,13 @@ class MpiBoundsCalculator(AbstractOcgisObject):
             ret = bounds[1] - bounds[0]
         return ret
 
-    def get_rank_bounds(self, nelements=None):
-        nelements = nelements or self.nelements
-        from ocgis_logging import log
-        grb = get_rank_bounds(nelements, size=self.size, rank=self.rank)
-        log.debug('nelements: {}, self.size: {}, self.rank: {}, grb: {}'.format(nelements, self.size, self.rank, grb))
+    def get_rank_bounds(self, length=None):
+        length = length or self.nelements
+        try:
+            grb = get_rank_bounds(length, size=self.size, rank=self.rank)
+        except:
+            from ocgis_logging import log
+            log.exception('{} {} {}'.format(length, self.size, self.rank))
         return grb
 
 
@@ -317,6 +304,11 @@ def get_rank_bounds(length, size=None, rank=None, esplit=None):
     # Set defaults for the rank and size.
     size = size or MPI_SIZE
     rank = rank or MPI_RANK
+
+    # This is the edge case for ranks outside the size. Possible with an overloaded size not related to the MPI
+    # environment.
+    if rank >= size:
+        return
 
     # Case with more length than size. Do not take this route of a default split is provided.
     if length > size and esplit is None:

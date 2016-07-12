@@ -66,30 +66,35 @@ class Test(AbstractTestNewInterface):
             desired = arr.sum()
 
             actual = 0
-            for pet in range(nproc):
-                bounds = get_rank_bounds(len(arr), size=nproc, rank=pet)
+            length = len(arr)
+            for pet in range(nproc + 3):
+                bounds = get_rank_bounds(length, size=nproc, rank=pet)
                 if bounds is None:
-                    self.assertTrue(pet >= (nproc - len(arr)))
-                    self.assertTrue(len(arr) < nproc)
+                    try:
+                        self.assertTrue(pet >= (nproc - length) or (nproc > length and pet >= length))
+                        self.assertTrue(length < nproc or pet >= nproc)
+                    except AssertionError:
+                        self.log.debug('   args: {}, {}, {}'.format(length, nproc, pet))
+                        self.log.debug(' bounds: {}'.format(bounds))
+                        raise
                 else:
                     actual += arr[bounds[0]:bounds[1]].sum()
 
             try:
                 assert np.isclose(actual, desired)
             except AssertionError:
-                self.log.debug('   args: {}, {}, {}'.format(len(arr), nproc, pet))
+                self.log.debug('   args: {}, {}, {}'.format(length, nproc, pet))
                 self.log.debug(' bounds: {}'.format(bounds))
                 self.log.debug(' actual: {}'.format(actual))
                 self.log.debug('desired: {}'.format(desired))
                 raise
 
-        lengths = [1, 2, 3, 4, 100, 333, 1333, 10001]
-        nproc = [1, 2, 3, 4, 1000, 1333]
+        lengths = [1, 2, 3, 4, 5, 6, 8, 100, 333, 1333, 10001]
+        nproc = [1, 2, 3, 4, 5, 6, 8, 1000, 1333]
 
         for l, n in itertools.product(lengths, nproc):
-            if l >= n:
-                arr = np.random.rand(l) * 100.0
-                _run_(arr, n)
+            arr = np.random.rand(l) * 100.0
+            _run_(arr, n)
 
         # Test with Nones.
         res = get_rank_bounds(10)
@@ -105,6 +110,10 @@ class Test(AbstractTestNewInterface):
 
         # Test with more elements than procs.
         _run_(np.arange(6), 5)
+
+        # Test with rank higher than size.
+        res = get_rank_bounds(6, size=5, rank=6)
+        self.assertIsNone(res)
 
     def test_get_local_to_global_slices(self):
         # tdk: consider removing this function
@@ -222,8 +231,6 @@ class TestOcgMpi(AbstractTestNewInterface):
         desired = deepcopy(ompi.get_group())
 
         ompi.update_dimension_bounds()
-        # self.log.debug(ompi.get_dimension(s.name).bounds_local)
-        # self.log.debug(ompi.get_dimension(s.name)._src_idx)
         self.assertIsNotNone(s._src_idx)
         # tdk: test with a different root
         actual = ompi.gather_dimensions(root=0)
