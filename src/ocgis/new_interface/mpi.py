@@ -241,7 +241,7 @@ class MpiBoundsCalculator(AbstractOcgisObject):
     def get_rank_bounds(self, nelements=None):
         nelements = nelements or self.nelements
         from ocgis_logging import log
-        grb = get_rank_bounds(nelements, nproc=self.size, pet=self.rank)
+        grb = get_rank_bounds(nelements, size=self.size, rank=self.rank)
         log.debug('nelements: {}, self.size: {}, self.rank: {}, grb: {}'.format(nelements, self.size, self.rank, grb))
         return grb
 
@@ -296,42 +296,70 @@ def get_global_to_local_slice(start_stop, bounds_local):
     return ret
 
 
-def get_rank_bounds(nelements, nproc=None, pet=None, esplit=None):
-    nproc = nproc or MPI_SIZE
-    pet = pet or MPI_RANK
-    if nelements > nproc and esplit is None:
-        nelements = int(nelements)
-        nproc = int(nproc)
-        esplit, remainder = divmod(nelements, nproc)
+def get_rank_bounds(length, size=None, rank=None, esplit=None):
+    """
+    :param int length: Length of the vector containing the bounds.
+    :param size: Processor count. If ``None`` use MPI size.
+    :param rank: The process's rank. If ``None`` use the MPI rank.
+    :param esplit: The split size. If ``None``, compute this internally.
+    :return: A tuple of lower and upper bounds using Python slicing rules. Returns ``None`` if no bounds are available
+     for the rank. Also returns ``None`` in the case of zero length.
+    :rtype: tuple or None
+
+    >>> get_rank_bounds(5, size=4, rank=2, esplit=None)
+    (3, 4)
+    """
+
+    # This is the edge case for zero-length.
+    if length == 0:
+        return
+
+    # Set defaults for the rank and size.
+    size = size or MPI_SIZE
+    rank = rank or MPI_RANK
+
+    # Case with more length than size. Do not take this route of a default split is provided.
+    if length > size and esplit is None:
+        length = int(length)
+        size = int(size)
+        esplit, remainder = divmod(length, size)
+
         if remainder > 0:
-            ret = get_rank_bounds(nelements - remainder, nproc=nproc, pet=pet)
-            if pet + 1 <= remainder:
-                ret = (ret[0] + pet, ret[1] + pet + 1)
+            # Find the rank bounds with no remainder.
+            ret = get_rank_bounds(length - remainder, size=size, rank=rank)
+            # Adjust the returned slices accounting for the remainder.
+            if rank + 1 <= remainder:
+                ret = (ret[0] + rank, ret[1] + rank + 1)
             else:
                 ret = (ret[0] + remainder, ret[1] + remainder)
         elif remainder == 0:
-            ret = get_rank_bounds(nelements, nproc=nproc, pet=pet, esplit=esplit)
+            # Provide the default split to compute the bounds and avoid the recursion.
+            ret = get_rank_bounds(length, size=size, rank=rank, esplit=esplit)
+        else:
+            raise NotImplementedError
+    # Case with equal length and size or more size than length.
     else:
         if esplit is None:
-            if nelements < nproc:
-                esplit = int(np.ceil(float(nelements) / float(nproc)))
-            elif nelements == nproc:
+            if length < size:
+                esplit = int(np.ceil(float(length) / float(size)))
+            elif length == size:
                 esplit = 1
             else:
                 raise NotImplementedError
         else:
             esplit = int(esplit)
 
-        if pet == 0:
+        if rank == 0:
             lbound = 0
         else:
-            lbound = pet * esplit
+            lbound = rank * esplit
         ubound = lbound + esplit
 
-        if ubound >= nelements:
-            ubound = nelements
+        if ubound >= length:
+            ubound = length
 
         if lbound >= ubound:
+            # The lower bound is outside the vector length
             ret = None
         else:
             ret = (lbound, ubound)

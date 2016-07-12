@@ -67,7 +67,7 @@ class Test(AbstractTestNewInterface):
 
             actual = 0
             for pet in range(nproc):
-                bounds = get_rank_bounds(len(arr), nproc=nproc, pet=pet)
+                bounds = get_rank_bounds(len(arr), size=nproc, rank=pet)
                 if bounds is None:
                     self.assertTrue(pet >= (nproc - len(arr)))
                     self.assertTrue(len(arr) < nproc)
@@ -96,11 +96,11 @@ class Test(AbstractTestNewInterface):
         self.assertEqual(res, (0, 10))
 
         # Test outside the number of elements.
-        res = get_rank_bounds(4, nproc=1000, pet=900)
+        res = get_rank_bounds(4, size=1000, rank=900)
         self.assertIsNone(res)
 
         # Test on the edge.
-        ret = get_rank_bounds(5, nproc=8, pet=5)
+        ret = get_rank_bounds(5, size=8, rank=5)
         self.assertIsNone(ret)
 
         # Test with more elements than procs.
