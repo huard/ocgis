@@ -52,14 +52,13 @@ class Dimension(AbstractInterfaceObject):
 
         slc = get_formatted_slice(slc, 1)[0]
         ret = self.copy()
-        # If this is an array slice, track the source indices.
-        if isinstance(slc, np.ndarray):
-            if ret._src_idx is None:
-                if self.bounds_local is None:
-                    lower, upper = self.bounds_global
-                else:
-                    lower, upper = self.bounds_local
-                ret._src_idx = np.array(lower, upper, dtype=self._default_dtype)
+        # Track source indices following a slice.
+        if ret._src_idx is None:
+            if self.bounds_local is None:
+                lower, upper = self.bounds_global
+            else:
+                lower, upper = self.bounds_local
+            ret._src_idx = np.arange(lower, upper, dtype=Dimension._default_dtype)
         self.__getitem_main__(ret, slc)
 
         return ret

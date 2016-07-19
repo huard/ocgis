@@ -469,7 +469,18 @@ def get_value_from_request_dataset(variable):
 
 def get_variable_value(variable, dimensions):
     if dimensions is not None and len(dimensions) > 0:
-        slc = get_formatted_slice([d._src_idx for d in dimensions], len(dimensions))
+        to_format = [None] * len(dimensions)
+        for idx in range(len(dimensions)):
+            current_dimension = dimensions[idx]
+            if current_dimension._src_idx is None:
+                if current_dimension.bounds_local is None:
+                    to_insert = slice(*current_dimension.bounds_global)
+                else:
+                    to_insert = slice(*current_dimension.bounds_local)
+            else:
+                to_insert = current_dimension._src_idx
+            to_format[idx] = to_insert
+        slc = get_formatted_slice(to_format, len(dimensions))
     else:
         slc = slice(None)
     ret = variable.__getitem__(slc)

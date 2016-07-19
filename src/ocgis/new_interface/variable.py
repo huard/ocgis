@@ -15,7 +15,7 @@ from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import create_nd_slices, OcgMpi
+from ocgis.new_interface.mpi import create_nd_slices
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
@@ -134,9 +134,6 @@ class Variable(AbstractContainer, Attributes):
                 create_dimensions = True
             else:
                 self.dimensions = dimensions
-
-        # Initialize the variable's MPI interface.
-        self.mpi = OcgMpi(dimensions=self.dimensions)
 
         self.value = value
         if create_dimensions:
