@@ -98,9 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None, dist=False):
-        self._is_init = True
-
+                 units='auto', parent=None, bounds=None):
         Attributes.__init__(self, attrs=attrs)
 
         # Indicates if the variable is empty. Empty variables occur when a distributed dimension size is less than the
@@ -112,7 +110,6 @@ class Variable(AbstractContainer, Attributes):
         self._dtype = None
         self._mask = None
 
-        self.dist = dist
         self._fill_value = fill_value
         if bounds is not None:
             self._bounds_name = bounds.name
@@ -148,13 +145,6 @@ class Variable(AbstractContainer, Attributes):
 
         if mask is not None:
             self.set_mask(mask)
-
-        self._is_init = False
-
-        # Determine if this is an empty variable. Only applies in the parallel case.
-        if self.dist and self.has_distributed_dimension and self.mpi.size > 1:
-            if any([d.mpi.bounds_local is None for d in self.dimensions]):
-                self.is_empty = True
 
     def __add_to_collection_finalize__(self, vc):
         """
@@ -446,22 +436,6 @@ class Variable(AbstractContainer, Attributes):
                 except TypeError:
                     value = value.astype(desired_dtype)
 
-            # If there are distributed dimensions, we will need to slice the incoming value.
-            if self.dist and self._is_init and self.has_distributed_dimension and value is not None and self.mpi.size > 1:
-                bounds_local = [d.mpi.bounds_local for d in self.dimensions]
-                # The variable dimensions may not be distributable across the number of procs. We have an empty
-                # variable case.
-                if any([b is None for b in bounds_local]):
-                    value = None
-                    self._mask = None
-                    self.is_empty = True
-                else:
-                    the_slice = [slice(*b) for b in bounds_local]
-                    the_slice = get_formatted_slice(the_slice, len(self.dimensions))
-                    value = value.__getitem__(the_slice)
-                    if self._mask is not None:
-                        self._mask = self._mask.__getitem__(the_slice)
-
         update_unlimited_dimension_length(value, self._dimensions)
 
         self._value = value
@@ -523,7 +497,8 @@ class Variable(AbstractContainer, Attributes):
                 msg = "The number of dimension 'names' must equal the number of dimensions (ndim)."
                 raise ValueError(msg)
             for name, shp in izip(names, value.shape):
-                new_dimensions.append(Dimension(name, size=shp))
+                new_dimension = Dimension(name, size=shp)
+                new_dimensions.append(new_dimension)
         self.dimensions = new_dimensions
 
     def reshape(self, *args, **kwargs):
@@ -587,21 +562,6 @@ class Variable(AbstractContainer, Attributes):
 
     def set_mask(self, mask, cascade=False):
         mask = np.array(mask, dtype=bool)
-
-        # If there are distributed dimensions, we will need to slice the incoming value.
-        if self.dist and self._is_init and self.has_distributed_dimension and self.mpi.size > 1:
-            bounds_local = [d.mpi.bounds_local for d in self.dimensions]
-            # The variable dimensions may not be distributable across the number of procs. We have an empty
-            # variable case.
-            if any([b is None for b in bounds_local]):
-                self._mask = None
-                if self.has_bounds:
-                    self.bounds._mask = None
-                return
-            else:
-                the_slice = [slice(*dim.mpi.bounds_local) for dim in self.dimensions]
-                the_slice = get_formatted_slice(the_slice, len(self.dimensions))
-                mask = mask.__getitem__(the_slice)
 
         assert mask.shape == self.shape
         self._mask = mask

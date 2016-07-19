@@ -474,7 +474,7 @@ def get_variable_value(variable, dimensions):
             current_dimension = dimensions[idx]
             if current_dimension._src_idx is None:
                 if current_dimension.bounds_local is None:
-                    to_insert = slice(*current_dimension.bounds_global)
+                    to_insert = slice(0, len(current_dimension))
                 else:
                     to_insert = slice(*current_dimension.bounds_local)
             else:

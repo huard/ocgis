@@ -18,7 +18,6 @@ class Dimension(AbstractInterfaceObject):
 
         self._name = name
         self.__src_idx__ = None
-        self._bounds_global = None
         self._bounds_local = None
         self._is_empty = False
         self._size = size
@@ -56,7 +55,7 @@ class Dimension(AbstractInterfaceObject):
         # Track source indices following a slice.
         if ret._src_idx is None:
             if self.bounds_local is None:
-                lower, upper = self.bounds_global
+                lower, upper = 0, len(self)
             else:
                 lower, upper = self.bounds_local
             ret._src_idx = np.arange(lower, upper, dtype=Dimension._default_dtype)
@@ -85,10 +84,13 @@ class Dimension(AbstractInterfaceObject):
 
     @property
     def bounds_global(self):
-        ret = self._bounds_global
-        if ret is None:
-            ret = (0, len(self))
-        return ret
+        # tdk: remove
+        raise NotImplementedError
+
+    @property
+    def _bounds_global(self):
+        # tdk: remove
+        raise NotImplementedError
 
     @property
     def bounds_local(self):
@@ -144,7 +146,6 @@ class Dimension(AbstractInterfaceObject):
         else:
             pass
 
-        self._bounds_global = None
         self._bounds_local = None
         self._size_current = value
         if not self.is_unlimited:
@@ -156,9 +157,6 @@ class Dimension(AbstractInterfaceObject):
             if self.size is None and self.size_current is None:
                 msg = 'Distributed dimensions require a size definition using "size" or "size_current".'
                 raise ValueError(msg)
-            # The global bounds need to be tracked explicitly in the distributed case. Otherwise, global dimension
-            # information is lost.
-            self._bounds_global = (0, len(self))
 
     def __getitem_main__(self, ret, slc):
         length_self = len(self)

@@ -180,13 +180,11 @@ class TestOcgMpi(AbstractTestNewInterface):
         dim = ompi.create_dimension('foo', size=5, group='subroot', dist=True, src_idx=src_idx)
         self.assertEqual(dim, ompi.get_dimension(dim.name, group='subroot'))
         self.assertIsNone(dim.bounds_local)
-        self.assertEqual(dim.bounds_global, (0, 5))
         ompi.update_dimension_bounds(group='subroot')
         with self.assertRaises(ValueError):
             ompi.update_dimension_bounds(group='subroot')
-        if ompi.size == 1:
-            self.assertEqual(dim.bounds_global, dim.bounds_local)
-        elif ompi.size == 2:
+
+        if ompi.size == 2:
             if ompi.rank == 0:
                 self.assertEqual(dim.bounds_local, (0, 3))
                 self.assertEqual(dim._src_idx.tolist(), [2, 3, 4])

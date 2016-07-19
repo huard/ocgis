@@ -9,7 +9,7 @@ from ocgis import RequestDataset
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
 from ocgis.test.base import attr
@@ -184,9 +184,12 @@ class TestVariable(AbstractTestNewInterface):
 
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True)
+            ompi = OcgMpi()
+            ompi.add_dimension(dim)
+            ompi.update_dimension_bounds()
             var_value = np.arange(5, dtype=float)
-            var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim,
-                           dist=True)
+            var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim)
+
             if with_bounds:
                 if MPI_SIZE > 2:
                     # Single values on a processor are not supported for bounds extrapolation.
@@ -194,7 +197,6 @@ class TestVariable(AbstractTestNewInterface):
                 var.set_extrapolated_bounds('dist_bounds', 'bounds')
             else:
                 self.assertIsNone(var.bounds)
-            self.assertEqual(var.mpi.bounds_global, ((0, 5),))
             if MPI_SIZE == 2:
                 if with_bounds:
                     self.assertEqual(var.bounds.shape, (var.shape[0], 2))

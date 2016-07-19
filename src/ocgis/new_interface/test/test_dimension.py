@@ -70,7 +70,7 @@ class TestDimension(AbstractTestNewInterface):
         dim = Dimension(name='geom', size=2)
         slc = slice(0, -1, None)
         actual = dim[slc]
-        self.assertEqual(actual, Dimension('geom', size=1))
+        self.assertEqual(actual, Dimension('geom', size=1, src_idx='auto'))
 
         dim = Dimension(name='geom', size=5, src_idx=np.arange(5))
         slc = slice(1, -2, None)

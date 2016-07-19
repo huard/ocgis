@@ -129,7 +129,8 @@ class OcgMpi(AbstractOcgisObject):
                 dim._bounds_local = bounds_local
             # Local and global bounds are equivalent for undistributed dimensions.
             else:
-                dim._bounds_local = dim.bounds_global
+                if len(dim) > 0:
+                    dim._bounds_local = (0, len(dim))
 
         # If there are any empty dimensions on the rank, than all dimensions are empty.
         is_empty = [dim.is_empty for dim in dimensions]
@@ -178,12 +179,6 @@ class OcgMpi(AbstractOcgisObject):
 
             # Dimension is no longer distributed and should not have local bounds.
             dim._bounds_local = None
-
-            # If this is a distributed dimension, set the source indices explicitly.
-            if dim.dist:
-                dim._bounds_global = (0, len(dim))
-            else:
-                pass
 
             ret = dim
         else:
