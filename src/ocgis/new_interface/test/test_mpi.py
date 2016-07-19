@@ -259,6 +259,7 @@ class TestOcgMpi(AbstractTestNewInterface):
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_scatter_dimensions(self):
+        # tdk: RESUME: implement dimension scattering. the gather return may need to be modified.
         ompi = self.get_ocgmpi_01()
         ompi.update_dimension_bounds()
         gathered = ompi.gather_dimensions(root=0)
