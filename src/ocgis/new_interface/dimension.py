@@ -52,6 +52,7 @@ class Dimension(AbstractInterfaceObject):
 
         slc = get_formatted_slice(slc, 1)[0]
         ret = self.copy()
+
         # Track source indices following a slice.
         if ret._src_idx is None:
             if self.bounds_local is None:
@@ -59,6 +60,8 @@ class Dimension(AbstractInterfaceObject):
             else:
                 lower, upper = self.bounds_local
             ret._src_idx = np.arange(lower, upper, dtype=Dimension._default_dtype)
+
+        # Slicing work is done here.
         self.__getitem_main__(ret, slc)
 
         return ret
