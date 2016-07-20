@@ -352,3 +352,7 @@ class DimensionsRequiredError(OcgException):
             message = "Variables with dimension count greater than 0 (ndim > 0) require dimensions. Initialize the " \
                       "variable with dimensions or call 'create_dimensions' before size inquiries (i.e. ndim, shape)."
         super(DimensionsRequiredError, self).__init__(message=message)
+
+
+class OcgMpiError(OcgException):
+    """Raised for MPI-related exceptions."""

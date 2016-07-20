@@ -4,6 +4,7 @@ from collections import OrderedDict
 import numpy as np
 
 from ocgis.base import AbstractOcgisObject
+from ocgis.exc import OcgMpiError
 from ocgis.util.helpers import get_optimal_slice_from_array
 
 try:
@@ -44,9 +45,9 @@ MPI_RANK = MPI_COMM.Get_rank()
 
 class OcgMpi(AbstractOcgisObject):
     def __init__(self, comm=None):
-        comm = comm or MPI_COMM
-        self.size = comm.Get_size()
-        self.rank = comm.Get_rank()
+        self.comm = comm or MPI_COMM
+        self.size = self.comm.Get_size()
+        self.rank = self.comm.Get_rank()
         self.dimensions = OrderedDict()
 
         self.has_updated_dimensions = False
@@ -69,10 +70,10 @@ class OcgMpi(AbstractOcgisObject):
         self.add_dimension(dim, group=group)
         return dim
 
-    def gather_dimensions(self, group=None, root=0, comm=None):
+    def gather_dimensions(self, group=None, root=0):
         for dim in self.iter_dimensions(group=group):
             if dim.dist:
-                dim = self._gather_dimension_(dim.name, group=group, root=root, comm=comm)
+                dim = self._gather_dimension_(dim.name, group=group, root=root)
             else:
                 dim._bounds_local = None
 
@@ -97,6 +98,44 @@ class OcgMpi(AbstractOcgisObject):
     def iter_dimensions(self, group=None):
         for dim in self.get_group(group=group).values():
             yield dim
+
+    def scatter_variable(self, variable, root=0):
+        # tdk: test a variable with no dimensions
+        # Only updated dimensions are allowed for scatters.
+        assert self.has_updated_dimensions
+
+        # Scattering only allowed for variables with distributed dimensions.
+        if not variable.has_distributed_dimension:
+            raise OcgMpiError('Only variables with distributed dimensions can be scattered.')
+
+        # Gather dimension bound slices to use for subsetting the values/masks.
+        bounds_local = [d.bounds_local for d in variable.dimensions]
+        the_slice = [slice(b[0], b[1]) for b in bounds_local]
+        slices = self.comm.gather(the_slice, root=root)
+
+        # Distribute the values and masks if the variable has distributed dimensions.
+        if self.rank == root:
+            # Only slice the data value if it is available. If it is not, assume the dimension source indicies will
+            # take care of the value distribution.
+            if variable._value is not None:
+                values = [variable.value.__getitem__(s) for s in slices]
+            else:
+                values = [None] * len(slices)
+
+            if variable._mask is not None:
+                masks = [variable.get_mask().__getitem__(s) for s in slices]
+            else:
+                masks = [None] * len(slices)
+        else:
+            values, masks = None, None
+
+        local_value = self.comm.scatter(values, root=root)
+        local_mask = self.comm.scatter(masks, root=root)
+
+        variable.value = local_value
+        variable.set_mask(local_mask)
+
+        return variable
 
     def update_dimension_bounds(self, group=None):
         if self.has_updated_dimensions:
@@ -147,10 +186,9 @@ class OcgMpi(AbstractOcgisObject):
             self.dimensions[group] = OrderedDict()
         return self.dimensions[group]
 
-    def _gather_dimension_(self, name, group=None, root=0, comm=None):
-        comm = comm or MPI_COMM
+    def _gather_dimension_(self, name, group=None, root=0):
         dim = self.get_dimension(name, group=group)
-        parts = comm.gather(dim, root=root)
+        parts = self.comm.gather(dim, root=root)
         if self.rank == root:
             new_size = 0
             for part in parts:

@@ -9,7 +9,7 @@ from ocgis import RequestDataset
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi, MPI_COMM
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
 from ocgis.test.base import attr
@@ -178,6 +178,37 @@ class TestVariable(AbstractTestNewInterface):
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
 
+    @attr('mpi-2', 'mpi-8', 'data')
+    def test_system_with_distributed_dimensions_from_file(self):
+        """Test a distributed read from file."""
+
+        # tdk: RESUME: test is failing on 8 processors. variables on empty ranks should have is_empty=True
+        if MPI_RANK == 0:
+            path = self.get_temporary_file_path('dist.nc')
+            value = np.arange(5 * 3) * 10 + 1
+            value = value.reshape(5, 3)
+            var = Variable('has_dist_dim', value=value, dimensions=['major', 'minor'])
+            with self.nc_scope(path, 'w') as ds:
+                var.write(ds)
+        else:
+            path = None
+        path = MPI_COMM.bcast(path)
+
+        ompi = OcgMpi()
+        major = ompi.create_dimension('major', size=5, dist=True)
+        minor = ompi.create_dimension('minor', size=3, dist=False)
+        rd = RequestDataset(uri=path)
+        fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
+        ompi.update_dimension_bounds()
+
+        if MPI_SIZE <= 5:
+            self.assertIsNotNone(fvar.value)
+            self.assertEqual(fvar.shape[1], 3)
+        else:
+            self.assertTrue(fvar.is_empty)
+
+        MPI_COMM.Barrier()
+
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
@@ -187,8 +218,14 @@ class TestVariable(AbstractTestNewInterface):
             ompi = OcgMpi()
             ompi.add_dimension(dim)
             ompi.update_dimension_bounds()
-            var_value = np.arange(5, dtype=float)
-            var = Variable('has_dist_dim', value=var_value, mask=[False, True, False, True, False], dimensions=dim)
+            if ompi.rank == 0:
+                var_value = np.arange(5, dtype=float)
+                mask = [False, True, False, True, False]
+                var = Variable('has_dist_dim', value=var_value, mask=mask, dimensions=dim)
+            else:
+                var = None
+
+            var = ompi.scatter_variable(var)
 
             if with_bounds:
                 if MPI_SIZE > 2:
@@ -197,6 +234,7 @@ class TestVariable(AbstractTestNewInterface):
                 var.set_extrapolated_bounds('dist_bounds', 'bounds')
             else:
                 self.assertIsNone(var.bounds)
+
             if MPI_SIZE == 2:
                 if with_bounds:
                     self.assertEqual(var.bounds.shape, (var.shape[0], 2))
@@ -216,7 +254,7 @@ class TestVariable(AbstractTestNewInterface):
                 else:
                     self.assertEqual(var.value[0], var_value[MPI_RANK])
 
-            # Test that some basic manipulations.
+            # Test some basic manipulations.
             if not var.is_empty:
                 var.value += 5
                 var.set_mask(np.ones(var.shape))
