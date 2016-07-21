@@ -2,7 +2,7 @@ import functools
 import sys
 from logging import DEBUG
 
-from logbook import Logger, StreamHandler, FileHandler
+from logbook import Logger, StreamHandler
 
 from ocgis.new_interface.mpi import MPI_RANK
 
@@ -10,13 +10,13 @@ sh = StreamHandler(sys.stdout, bubble=True)
 sh.format_string += ' (rank={})'.format(MPI_RANK)
 # sh.push_application()
 
-fh = FileHandler('/home/benkoziol/htmp/ocgis-rank-{}.log'.format(MPI_RANK), bubble=True, mode='w')
-fh.format_string += ' (rank={})'.format(MPI_RANK)
+# fh = FileHandler('/home/benkoziol/htmp/ocgis-rank-{}.log'.format(MPI_RANK), bubble=True, mode='w')
+# fh.format_string += ' (rank={})'.format(MPI_RANK)
 # fh.push_application()
 
 log = Logger('ocgis', level=DEBUG)
 
-log.handlers.append(fh)
+# log.handlers.append(fh)
 log.handlers.append(sh)
 
 
