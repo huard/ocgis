@@ -194,18 +194,40 @@ class TestVariable(AbstractTestNewInterface):
             path = None
         path = MPI_COMM.bcast(path)
 
-        ompi = OcgMpi()
-        major = ompi.create_dimension('major', size=5, dist=True)
-        minor = ompi.create_dimension('minor', size=3, dist=False)
-        rd = RequestDataset(uri=path)
-        fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
-        ompi.update_dimension_bounds()
+        use_metadata = [False, True]
 
-        if MPI_SIZE <= 5:
-            self.assertIsNotNone(fvar.value)
-            self.assertEqual(fvar.shape[1], 3)
-        else:
-            self.assertTrue(fvar.is_empty)
+        for u in use_metadata:
+            self.log.debug(('use_metadata', u))
+            if u:
+                mpi = OcgMpi()
+            else:
+                mpi = None
+
+            rd = RequestDataset(uri=path, mpi=mpi)
+            if u:
+                metadata = rd.metadata
+                metadata['dimensions']['major']['dist'] = True
+                fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd)
+                self.assertEqual(len(rd.mpi.dimensions), 2)
+            else:
+                ompi = OcgMpi()
+                major = ompi.create_dimension('major', size=5, dist=True)
+                minor = ompi.create_dimension('minor', size=3, dist=False)
+                fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
+                ompi.update_dimension_bounds()
+                self.assertEqual(len(rd.mpi.dimensions), 0)
+
+            self.assertTrue(fvar.dimensions[0].dist)
+            self.assertFalse(fvar.dimensions[1].dist)
+
+            if MPI_SIZE <= 5:
+                self.assertIsNotNone(fvar.value)
+                self.assertEqual(fvar.shape[1], 3)
+                if MPI_SIZE == 2:
+                    self.log.debug(fvar.shape)
+                    self.assertLessEqual(fvar.shape[0], 3)
+            else:
+                self.assertTrue(fvar.is_empty)
 
         MPI_COMM.Barrier()
 

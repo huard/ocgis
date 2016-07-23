@@ -442,7 +442,7 @@ def get_dimensions_from_netcdf(dataset, desired_dimensions):
         else:
             length = dim_length
             length_current = None
-        new_dim = Dimension(dim_name, size=length, size_current=length_current)
+        new_dim = Dimension(dim_name, size=length, size_current=length_current, dist=dim.get('dist', False))
         new_dimensions.append(new_dim)
     return new_dimensions
 
