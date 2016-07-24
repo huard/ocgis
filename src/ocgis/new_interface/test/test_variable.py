@@ -183,7 +183,6 @@ class TestVariable(AbstractTestNewInterface):
         """Test a distributed read from file."""
 
         # tdk: RESUME: test is failing on 8 processors. variables on empty ranks should have is_empty=True
-        # tdk: RESUME: continue working on getting distributed dimensions through the request dataset
         if MPI_RANK == 0:
             path = self.get_temporary_file_path('dist.nc')
             value = np.arange(5 * 3) * 10 + 1
@@ -198,7 +197,6 @@ class TestVariable(AbstractTestNewInterface):
         use_metadata = [False, True]
 
         for u in use_metadata:
-            self.log.debug(('use_metadata', u))
             if u:
                 mpi = OcgMpi()
             else:
@@ -209,7 +207,7 @@ class TestVariable(AbstractTestNewInterface):
                 metadata = rd.metadata
                 metadata['dimensions']['major']['dist'] = True
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd)
-                self.assertEqual(len(rd.mpi.dimensions), 2)
+                self.assertEqual(len(rd.mpi.get_group()), 2)
             else:
                 ompi = OcgMpi()
                 major = ompi.create_dimension('major', size=5, dist=True)
@@ -225,8 +223,9 @@ class TestVariable(AbstractTestNewInterface):
                 self.assertIsNotNone(fvar.value)
                 self.assertEqual(fvar.shape[1], 3)
                 if MPI_SIZE == 2:
-                    self.log.debug(fvar.shape)
                     self.assertLessEqual(fvar.shape[0], 3)
+                elif MPI_SIZE == 5:
+                    self.assertEqual(fvar.shape[0], 1)
             else:
                 self.assertTrue(fvar.is_empty)
 

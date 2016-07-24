@@ -1024,4 +1024,4 @@ def set_attribute_property(variable, name, value):
 def allocate_from_source(variable):
     request_dataset = variable._request_dataset
     if request_dataset is not None:
-        request_dataset.driver.allocate_variable_value(variable)
+        request_dataset.driver.init_variable_from_source(variable)

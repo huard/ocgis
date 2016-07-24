@@ -114,7 +114,7 @@ class DriverVector(AbstractDriver):
         # tdk: test on vector and netcdf
         raise NotImplementedError
 
-    def allocate_variable_value(self, variable):
+    def init_variable_from_source(self, variable):
         m = self.rd.metadata
         if isinstance(variable, GeometryVariable):
             mv = m[constants.NAME_GEOMETRY_DIMENSION]

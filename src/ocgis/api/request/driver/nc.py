@@ -24,8 +24,12 @@ class DriverNetcdf(AbstractDriver):
     key = 'netcdf'
     output_formats = 'all'
 
-    def allocate_variable_value(self, variable):
-        allocate_variable_using_metadata(variable, self.rd.metadata)
+    def init_variable_from_source(self, variable):
+        if variable._dimensions is None:
+            desired_dimensions = self.rd.metadata['dimensions']
+            new_dimensions = [self.dimensions[d] for d in desired_dimensions]
+            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+        init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
 
     def get_dump_report(self):
         lines = get_dump_report_for_group(self.metadata)
@@ -184,6 +188,16 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
+    def _get_dimensions_main_(self):
+        dimensions = get_dimensions_from_netcdf_metadata(self.rd.metadata, self.rd.metadata['dimensions'].keys())
+        ret = OrderedDict()
+        for dim in dimensions:
+            ret[dim.name] = dim
+        return ret
+
+    def _close_(self, obj):
+        obj.close()
+
     def _open_(self, group_indexing=None, mode='r'):
         uri = self.rd.uri
         if isinstance(uri, basestring):
@@ -196,9 +210,6 @@ class DriverNetcdf(AbstractDriver):
                 ret = ret.groups[group_name]
 
         return ret
-
-    def _close_(self, obj):
-        obj.close()
 
 
 class DriverNetcdfCF(DriverNetcdf):
@@ -389,7 +400,7 @@ def format_attribute_for_dump_report(attr_value):
     return ret
 
 
-def allocate_variable_using_metadata(variable, metadata):
+def init_variable_using_metadata_for_netcdf(variable, metadata):
     source = metadata
     if variable.parent is not None:
         if variable.parent.parent is not None:
@@ -398,11 +409,6 @@ def allocate_variable_using_metadata(variable, metadata):
     desired_name = variable.name or variable._request_dataset.variable
 
     var = source['variables'][desired_name]
-
-    if variable._dimensions is None:
-        desired_dimensions = var['dimensions']
-        new_dimensions = get_dimensions_from_netcdf(source, desired_dimensions)
-        super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
 
     if variable._dtype is None:
         var_dtype = var['dtype']
@@ -431,10 +437,10 @@ def allocate_variable_using_metadata(variable, metadata):
     variable._allocated = True
 
 
-def get_dimensions_from_netcdf(dataset, desired_dimensions):
+def get_dimensions_from_netcdf_metadata(metadata, desired_dimensions):
     new_dimensions = []
     for dim_name in desired_dimensions:
-        dim = dataset['dimensions'][dim_name]
+        dim = metadata['dimensions'][dim_name]
         dim_length = dim['len']
         if dim['isunlimited']:
             length = None

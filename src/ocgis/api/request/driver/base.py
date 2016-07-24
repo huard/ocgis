@@ -22,6 +22,7 @@ class AbstractDriver(object):
         self.rd = rd
         self._metadata = None
         self._dimension_map = None
+        self._dimensions = None
         self._crs = None
 
     def __eq__(self, other):
@@ -35,6 +36,12 @@ class AbstractDriver(object):
         if self._crs is None:
             self._crs = self.get_crs() or self._default_crs
         return self._crs
+
+    @property
+    def dimensions(self):
+        if self._dimensions is None:
+            self._dimensions = self.get_dimensions()
+        return self._dimensions
 
     @property
     def dimension_map(self):
@@ -94,7 +101,6 @@ class AbstractDriver(object):
         """:rtype: tuple(str, ...)"""
         return None
 
-    @abc.abstractmethod
     def get_dimensions(self):
         """
         :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object. This
@@ -105,6 +111,7 @@ class AbstractDriver(object):
         dimensions = self._get_dimensions_main_()
         for dim in dimensions.values():
             self.rd.mpi.add_dimension(dim)
+        self.rd.mpi.update_dimension_bounds()
         return self.rd.mpi.get_group()
 
     @abc.abstractmethod
@@ -126,7 +133,7 @@ class AbstractDriver(object):
         if conform_units_to is not None:
             variable.cfunits_conform(conform_units_to)
 
-    def allocate_variable_value(self, variable):
+    def init_variable_from_source(self, variable):
         raise NotImplementedError
 
     @abc.abstractmethod
