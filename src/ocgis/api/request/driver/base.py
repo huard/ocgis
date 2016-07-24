@@ -95,6 +95,19 @@ class AbstractDriver(object):
         return None
 
     @abc.abstractmethod
+    def get_dimensions(self):
+        """
+        :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object. This
+         method accounts for any MPI distribution.
+        :rtype: dict
+        """
+
+        dimensions = self._get_dimensions_main_()
+        for dim in dimensions.values():
+            self.rd.mpi.add_dimension(dim)
+        return self.rd.mpi.get_group()
+
+    @abc.abstractmethod
     def get_dump_report(self):
         """
         :returns: A sequence of strings containing the metadata dump from the source request dataset.
@@ -243,6 +256,13 @@ class AbstractDriver(object):
     @abc.abstractmethod
     def write_variable_collection(self, *args, **kwargs):
         """Write a variable collection to file(s)."""
+
+    @abc.abstractmethod
+    def _get_dimensions_main_(self):
+        """
+        :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object.
+        :rtype: dict
+        """
 
 
 def get_variable_metadata_from_request_dataset(driver, variable):

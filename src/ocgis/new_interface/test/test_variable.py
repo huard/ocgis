@@ -183,6 +183,7 @@ class TestVariable(AbstractTestNewInterface):
         """Test a distributed read from file."""
 
         # tdk: RESUME: test is failing on 8 processors. variables on empty ranks should have is_empty=True
+        # tdk: RESUME: continue working on getting distributed dimensions through the request dataset
         if MPI_RANK == 0:
             path = self.get_temporary_file_path('dist.nc')
             value = np.arange(5 * 3) * 10 + 1
