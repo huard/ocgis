@@ -24,13 +24,6 @@ class DriverNetcdf(AbstractDriver):
     key = 'netcdf'
     output_formats = 'all'
 
-    def init_variable_from_source(self, variable):
-        if variable._dimensions is None:
-            desired_dimensions = self.rd.metadata['dimensions']
-            new_dimensions = [self.dimensions[d] for d in desired_dimensions]
-            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
-        init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
-
     def get_dump_report(self):
         lines = get_dump_report_for_group(self.metadata)
         lines.insert(0, 'netcdf {')
@@ -188,6 +181,9 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
+    def _close_(self, obj):
+        obj.close()
+
     def _get_dimensions_main_(self):
         dimensions = get_dimensions_from_netcdf_metadata(self.rd.metadata, self.rd.metadata['dimensions'].keys())
         ret = OrderedDict()
@@ -195,8 +191,8 @@ class DriverNetcdf(AbstractDriver):
             ret[dim.name] = dim
         return ret
 
-    def _close_(self, obj):
-        obj.close()
+    def _init_variable_from_source_main_(self, variable):
+        init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
 
     def _open_(self, group_indexing=None, mode='r'):
         uri = self.rd.uri
@@ -434,8 +430,6 @@ def init_variable_using_metadata_for_netcdf(variable, metadata):
         if k not in variable_attrs:
             variable_attrs[k] = deepcopy(v)
 
-    variable._allocated = True
-
 
 def get_dimensions_from_netcdf_metadata(metadata, desired_dimensions):
     new_dimensions = []
@@ -448,7 +442,7 @@ def get_dimensions_from_netcdf_metadata(metadata, desired_dimensions):
         else:
             length = dim_length
             length_current = None
-        new_dim = Dimension(dim_name, size=length, size_current=length_current, dist=dim.get('dist', False))
+        new_dim = Dimension(dim_name, size=length, size_current=length_current)
         new_dimensions.append(new_dim)
     return new_dimensions
 

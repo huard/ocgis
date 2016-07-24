@@ -54,11 +54,7 @@ class Dimension(AbstractInterfaceObject):
 
         # Track source indices following a slice.
         if ret._src_idx is None:
-            if self.bounds_local is None:
-                lower, upper = 0, len(self)
-            else:
-                lower, upper = self.bounds_local
-            ret._src_idx = np.arange(lower, upper, dtype=Dimension._default_dtype)
+            ret._src_idx = self._get_src_idx_()
 
         # Slicing work is done here.
         self.__getitem_main__(ret, slc)
@@ -202,3 +198,14 @@ class Dimension(AbstractInterfaceObject):
             src_idx = None
 
         ret.set_size(length, src_idx=src_idx)
+
+    def _get_src_idx_(self):
+        if len(self) == 0:
+            ret = None
+        else:
+            if self.bounds_local is None:
+                ret = np.arange(len(self), dtype=self._default_dtype)
+            else:
+                lower, upper = self.bounds_local
+                ret = np.arange(lower, upper, dtype=self._default_dtype)
+        return ret

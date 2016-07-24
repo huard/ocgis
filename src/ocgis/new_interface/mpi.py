@@ -145,10 +145,14 @@ class OcgMpi(AbstractOcgisObject):
         lengths = [len(dim) for dim in dimensions if dim.dist]
 
         # Choose the size of the distribution group. There needs to be at least one element per rank.
-        if min(lengths) < self.size:
-            the_size = min(lengths)
+        the_size = self.size
+        if len(lengths) != 0:
+            if min(lengths) < self.size:
+                the_size = min(lengths)
+            else:
+                pass
         else:
-            the_size = self.size
+            pass
 
         # Update the local bounds for the dimension.
         for dim in dimensions:

@@ -6,10 +6,12 @@ from numpy.core.multiarray import ndarray
 from numpy.testing.utils import assert_equal
 
 from ocgis import RequestDataset
+from ocgis import constants
+from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi, MPI_COMM
+from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
 from ocgis.test.base import attr
@@ -178,11 +180,12 @@ class TestVariable(AbstractTestNewInterface):
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
 
-    @attr('mpi-2', 'mpi-8', 'data')
-    def test_system_with_distributed_dimensions_from_file(self):
+    @attr('mpi-2', 'mpi-8')
+    def test_system_with_distributed_dimensions_from_file_netcdf(self):
         """Test a distributed read from file."""
 
         # tdk: RESUME: test is failing on 8 processors. variables on empty ranks should have is_empty=True
+        # tdk: test that values are unique when gathered
         if MPI_RANK == 0:
             path = self.get_temporary_file_path('dist.nc')
             value = np.arange(5 * 3) * 10 + 1
@@ -228,6 +231,54 @@ class TestVariable(AbstractTestNewInterface):
                     self.assertEqual(fvar.shape[0], 1)
             else:
                 self.assertTrue(fvar.is_empty)
+
+        MPI_COMM.Barrier()
+
+    @attr('mpi-2', 'mpi-8')
+    def test_system_with_distributed_dimensions_from_file_shapefile(self):
+        """Test a distributed read from file."""
+
+        path = self.path_state_boundaries
+
+        # These are the desired values.
+        rd_desired = RequestDataset(uri=path, driver=DriverVector)
+        metadata = rd_desired.metadata
+        metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = False
+        var_desired = SourcedVariable(name='STATE_NAME', request_dataset=rd_desired)
+        value_desired = var_desired.value.tolist()
+
+        use_metadata = [False, True]
+
+        for u in use_metadata:
+            if u:
+                mpi = OcgMpi()
+            else:
+                mpi = None
+
+            rd = RequestDataset(uri=path, mpi=mpi, driver=DriverVector)
+            if u:
+                metadata = rd.metadata
+                metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = True
+                fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd)
+                self.assertEqual(len(rd.mpi.get_group()), 1)
+            else:
+                ompi = OcgMpi()
+                geom_dimension = ompi.create_dimension(constants.NAME_GEOMETRY_DIMENSION, size=51, dist=True)
+                fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd, dimensions=[geom_dimension])
+                ompi.update_dimension_bounds()
+                self.assertEqual(len(rd.mpi.dimensions), 0)
+
+            self.assertTrue(fvar.dimensions[0].dist)
+            self.assertIsNotNone(fvar.value)
+            if MPI_SIZE > 1:
+                self.assertLessEqual(fvar.shape[0], 26)
+
+            values = MPI_COMM.gather(fvar.value)
+            if MPI_RANK == 0:
+                values = hgather(values)
+                self.assertEqual(values.tolist(), value_desired)
+            else:
+                self.assertIsNone(values)
 
         MPI_COMM.Barrier()
 

@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.variable import SourcedVariable
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
@@ -109,6 +110,15 @@ class AbstractDriver(object):
         """
 
         dimensions = self._get_dimensions_main_()
+
+        # Update the distributed state of the dimension.
+        dimensions_metadata = self.rd.metadata['dimensions']
+        for dim in dimensions.values():
+            if dimensions_metadata[dim.name].get('dist', False):
+                dim.dist = True
+            else:
+                dim.dist = False
+
         for dim in dimensions.values():
             self.rd.mpi.add_dimension(dim)
         self.rd.mpi.update_dimension_bounds()
@@ -132,9 +142,6 @@ class AbstractDriver(object):
         conform_units_to = meta.get('conform_units_to')
         if conform_units_to is not None:
             variable.cfunits_conform(conform_units_to)
-
-    def init_variable_from_source(self, variable):
-        raise NotImplementedError
 
     @abc.abstractmethod
     def get_variable_value(self, variable):
@@ -215,6 +222,14 @@ class AbstractDriver(object):
         :rtype: dict
         """
 
+    def init_variable_from_source(self, variable):
+        if variable._dimensions is None:
+            desired_dimensions = self.rd.metadata['dimensions']
+            new_dimensions = [self.dimensions[d] for d in desired_dimensions]
+            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+        self._init_variable_from_source_main_(variable)
+        variable._allocated = True
+
     def inspect(self):
         """
         Inspect the request dataset printing information to stdout.
@@ -270,6 +285,10 @@ class AbstractDriver(object):
         :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object.
         :rtype: dict
         """
+
+    @abc.abstractmethod
+    def _init_variable_from_source_main_(self, variable):
+        """Initialize everything but dimensions on the target variable."""
 
 
 def get_variable_metadata_from_request_dataset(driver, variable):

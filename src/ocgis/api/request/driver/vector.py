@@ -13,6 +13,7 @@ from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 
 # tdk: clean-up
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -26,11 +27,20 @@ class DriverVector(AbstractDriver):
 
     def initialize_variable_value(self, variable):
         value = self.get_variable_value(variable)
-        for k, v in value.items():
-            variable.parent[k]._set_value_(v)
+
+        if variable.parent is None:
+            variable._set_value_(value.values()[0])
+        else:
+            for k, v in value.items():
+                variable.parent[k]._set_value_(v)
+
         # Conform the units if requested.
         for k in value.keys():
-            v = variable.parent[k]
+            if variable.parent is None:
+                v = variable
+            else:
+                v = variable.parent[k]
+
             try:
                 conform_units_to = self.rd.metadata['variables'][v.name].get('conform_units_to')
             except KeyError:
@@ -114,18 +124,12 @@ class DriverVector(AbstractDriver):
         # tdk: test on vector and netcdf
         raise NotImplementedError
 
-    def init_variable_from_source(self, variable):
+    def _init_variable_from_source_main_(self, variable):
         m = self.rd.metadata
         if isinstance(variable, GeometryVariable):
             mv = m[constants.NAME_GEOMETRY_DIMENSION]
         else:
             mv = m['variables'][variable.name]
-
-        if variable._dimensions is None:
-            desired_dimension = mv['dimensions'][0]
-            desired_dimension = m['dimensions'][desired_dimension]
-            new_dimension = SourcedDimension(name=desired_dimension['name'], length=desired_dimension['length'])
-            super(SourcedVariable, variable)._set_dimensions_(new_dimension)
 
         if variable._dtype is None:
             variable.dtype = mv['dtype']
@@ -134,8 +138,6 @@ class DriverVector(AbstractDriver):
         for k, v in mv['attributes'].items():
             if k not in variable_attrs:
                 variable_attrs[k] = deepcopy(v)
-
-        variable._allocated = True
 
     def _open_(self, slc=None):
         from ocgis import GeomCabinetIterator
@@ -152,19 +154,31 @@ class DriverVector(AbstractDriver):
         return parent
 
     def get_variable_value(self, variable):
-        # For vector formats based on loading via iteration, it makes sense to load all values with a single pass.
-        if variable.parent is None:
-            raise NotImplementedError
+        # Iteration is always based on source indices. Generate them if they are not available on the variable.
+        iteration_dimension = variable.dimensions[0]
+        if iteration_dimension._src_idx is None:
+            src_idx = iteration_dimension._get_src_idx_()
         else:
+            src_idx = iteration_dimension._src_idx
+
+        # For vector formats based on loading via iteration, it makes sense to load all values with a single pass.
+        g = self.open(slc=src_idx)
+        try:
             ret = {}
-            for v in variable.parent.values():
-                if not isinstance(v, CoordinateReferenceSystem):
-                    ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
-            g = self.open(slc=variable.dimensions[0]._src_idx)
-            for idx, row in enumerate(g):
-                for v in self.get_dimensioned_variables():
-                    ret[v][idx] = row['properties'][v]
-                ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+            if variable.parent is None:
+                ret[variable.name] = np.zeros(variable.shape, dtype=variable.dtype)
+                for idx, row in enumerate(g):
+                    ret[variable.name][idx] = row['properties'][variable.name]
+            else:
+                ret = {}
+                for v in variable.parent.values():
+                    if not isinstance(v, CoordinateReferenceSystem):
+                        ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
+                    for idx, row in enumerate(g):
+                        for v in self.get_dimensioned_variables():
+                            ret[v][idx] = row['properties'][v]
+                        ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+        finally:
             self.close(g)
         return ret
 
@@ -255,6 +269,12 @@ class DriverVector(AbstractDriver):
         finally:
             if should_close:
                 sink.close()
+
+    def _get_dimensions_main_(self):
+        mv = self.rd.metadata
+        desired_dimension = mv['dimensions'].values()[0]
+        new_dimension = Dimension(name=desired_dimension['name'], size=desired_dimension['length'])
+        return {new_dimension.name: new_dimension}
 
 
 def get_dtype_from_fiona_type(ftype):
