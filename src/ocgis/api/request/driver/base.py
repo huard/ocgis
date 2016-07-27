@@ -223,11 +223,14 @@ class AbstractDriver(object):
         """
 
     def init_variable_from_source(self, variable):
+        # Create the dimensions if they are not present.
         if variable._dimensions is None:
             desired_dimensions = self.rd.metadata['dimensions']
             new_dimensions = [self.dimensions[d] for d in desired_dimensions]
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+        # Call the subclass variable initialization routine.
         self._init_variable_from_source_main_(variable)
+        # The variable is now allocated.
         variable._allocated = True
 
     def inspect(self):

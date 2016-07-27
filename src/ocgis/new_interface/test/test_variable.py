@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -13,7 +14,7 @@ from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError,
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, allocate_from_source
+from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, init_from_source
 from ocgis.test.base import attr
 from ocgis.util.units import get_units_object, get_are_units_equal
 
@@ -180,22 +181,24 @@ class TestVariable(AbstractTestNewInterface):
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
 
-    @attr('mpi-2', 'mpi-8')
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_system_with_distributed_dimensions_from_file_netcdf(self):
         """Test a distributed read from file."""
 
-        # tdk: RESUME: test is failing on 8 processors. variables on empty ranks should have is_empty=True
-        # tdk: test that values are unique when gathered
         if MPI_RANK == 0:
             path = self.get_temporary_file_path('dist.nc')
             value = np.arange(5 * 3) * 10 + 1
+            desired_sum = value.sum()
             value = value.reshape(5, 3)
             var = Variable('has_dist_dim', value=value, dimensions=['major', 'minor'])
             with self.nc_scope(path, 'w') as ds:
                 var.write(ds)
         else:
             path = None
-        path = MPI_COMM.bcast(path)
+
+        MPI_COMM.Barrier()
+        path = MPI_COMM.bcast(path, root=0)
+        self.assertTrue(os.path.exists(path))
 
         use_metadata = [False, True]
 
@@ -221,8 +224,8 @@ class TestVariable(AbstractTestNewInterface):
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertFalse(fvar.dimensions[1].dist)
-
-            if MPI_SIZE <= 5:
+            if MPI_RANK <= 4:
+                self.assertFalse(fvar.is_empty)
                 self.assertIsNotNone(fvar.value)
                 self.assertEqual(fvar.shape[1], 3)
                 if MPI_SIZE == 2:
@@ -231,6 +234,15 @@ class TestVariable(AbstractTestNewInterface):
                     self.assertEqual(fvar.shape[0], 1)
             else:
                 self.assertTrue(fvar.is_empty)
+
+            values = MPI_COMM.gather(fvar.value, root=0)
+            if MPI_RANK == 0:
+                values = [v for v in values if v is not None]
+                values = [v.flatten() for v in values]
+                values = hgather(values)
+                self.assertEqual(values.sum(), desired_sum)
+            else:
+                self.assertIsNone(values)
 
         MPI_COMM.Barrier()
 
@@ -885,9 +897,9 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get_sourcedvariable()
         self.assertTrue(len(sv.dimensions), 3)
 
-    def test_allocate_from_source_(self):
+    def test_init_from_source_(self):
         sv = self.get_sourcedvariable()
-        allocate_from_source(sv)
+        init_from_source(sv)
         self.assertEqual(sv.dtype, np.float32)
         self.assertEqual(sv.fill_value, np.float32(1e20))
         dims = sv.dimensions

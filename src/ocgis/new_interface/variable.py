@@ -101,10 +101,6 @@ class Variable(AbstractContainer, Attributes):
                  units='auto', parent=None, bounds=None):
         Attributes.__init__(self, attrs=attrs)
 
-        # Indicates if the variable is empty. Empty variables occur when a distributed dimension size is less than the
-        # number of processes.
-        self.is_empty = False
-
         self._dimensions = None
         self._value = None
         self._dtype = None
@@ -326,6 +322,16 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     @property
+    def is_empty(self):
+        ret = False
+        if self.has_distributed_dimension:
+            for dim in self.dimensions:
+                if dim.bounds_local is None:
+                    ret = True
+                    break
+        return ret
+
+    @property
     def ndim(self):
         return len(self.shape)
 
@@ -373,8 +379,11 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def value(self):
-        if self._value is None:
-            self._value = self._get_value_()
+        if self.is_empty:
+            return
+        else:
+            if self._value is None:
+                self._value = self._get_value_()
         return self._value
 
     @value.setter
@@ -725,7 +734,7 @@ class SourcedVariable(Variable):
         bounds = kwargs.pop('bounds', None)
         super(SourcedVariable, self).__init__(*args, **kwargs)
 
-        allocate_from_source(self)
+        init_from_source(self)
 
         if bounds is not None:
             self.bounds = bounds
@@ -1021,7 +1030,7 @@ def set_attribute_property(variable, name, value):
     variable.attrs[name] = value
 
 
-def allocate_from_source(variable):
+def init_from_source(variable):
     request_dataset = variable._request_dataset
     if request_dataset is not None:
         request_dataset.driver.init_variable_from_source(variable)
