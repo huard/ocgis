@@ -315,10 +315,12 @@ class Variable(AbstractContainer, Attributes):
         """
 
         ret = False
-        for d in self.dimensions:
-            if d.dist:
-                ret = True
-                break
+        dimensions = self.dimensions
+        if dimensions is not None:
+            for d in dimensions:
+                if d.dist:
+                    ret = True
+                    break
         return ret
 
     @property

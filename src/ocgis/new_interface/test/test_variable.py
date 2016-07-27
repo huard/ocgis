@@ -1006,6 +1006,7 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertIsNotNone(v.value)
 
     def test_system_nested(self):
+        # tdk: RESUME: figure out how to handle nested datasets through request dataset
         # Test with nested collections.
         vc = self.get_variablecollection()
         nvc = self.get_variablecollection(name='nest')
