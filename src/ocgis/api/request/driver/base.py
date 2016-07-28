@@ -110,7 +110,7 @@ class AbstractDriver(object):
          distribution.
         :rtype: dict
         """
-        
+
         def _find_dimension_(ddict, the_group, to_find_name):
             target = ddict[the_group]
             to_search = {dim.name: dim for dim in target}
@@ -131,7 +131,7 @@ class AbstractDriver(object):
         for group_name, group_dims in dimensions.items():
             for dim in group_dims:
                 self.rd.mpi.add_dimension(dim, group=group_name)
-        for group_name in self.dimensions.keys():
+        for group_name in dimensions.keys():
             self.rd.mpi.update_dimension_bounds(group=group_name)
         return self.rd.mpi.dimensions
 

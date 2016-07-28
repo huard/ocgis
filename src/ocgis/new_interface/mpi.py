@@ -50,7 +50,7 @@ class OcgMpi(AbstractOcgisObject):
         self.rank = self.comm.Get_rank()
         self.dimensions = OrderedDict()
 
-        self.has_updated_dimensions = False
+        self.has_updated_dimensions = {}
 
     def add_dimension(self, dim, group=None, force=False):
         from dimension import Dimension
@@ -138,7 +138,7 @@ class OcgMpi(AbstractOcgisObject):
         return variable
 
     def update_dimension_bounds(self, group=None):
-        if self.has_updated_dimensions:
+        if self.has_updated_dimensions[group]:
             raise ValueError('Dimensions already updated.')
 
         dimensions = tuple(self.iter_dimensions(group=group))
@@ -183,11 +183,12 @@ class OcgMpi(AbstractOcgisObject):
         else:
             pass
 
-        self.has_updated_dimensions = True
+        self.has_updated_dimensions[group] = True
 
     def _create_or_get_group_(self, group):
         if group not in self.dimensions:
             self.dimensions[group] = OrderedDict()
+            self.has_updated_dimensions[group] = False
         return self.dimensions[group]
 
     def _gather_dimension_(self, name, group=None, root=0):
