@@ -1,5 +1,6 @@
 import abc
 import json
+from collections import OrderedDict
 from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
@@ -104,25 +105,35 @@ class AbstractDriver(object):
 
     def get_dimensions(self):
         """
-        :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object. This
-         method accounts for any MPI distribution.
+        :return: A dimension object dictionary. The key is the dimension group. The value is a sequence of dimensions.
+         If the dimensions are for the "root" group, the key should be ``None``. This method accounts for any MPI
+         distribution.
         :rtype: dict
         """
+        
+        def _find_dimension_(ddict, the_group, to_find_name):
+            target = ddict[the_group]
+            to_search = {dim.name: dim for dim in target}
+            return to_search[to_find_name]
 
         dimensions = self._get_dimensions_main_()
 
         # Update the distributed state of the dimension.
-        dimensions_metadata = self.rd.metadata['dimensions']
-        for dim in dimensions.values():
-            if dimensions_metadata[dim.name].get('dist', False):
-                dim.dist = True
-            else:
-                dim.dist = False
+        for group_name, group_meta in iter_metadata_by_groups(self.rd.metadata):
+            dimensions_metadata = group_meta['dimensions']
+            for dim_name, dim_meta in dimensions_metadata.items():
+                target_dimension = _find_dimension_(dimensions, group_name, dim_name)
+                if dim_meta.get('dist', False):
+                    target_dimension.dist = True
+                else:
+                    target_dimension.dist = False
 
-        for dim in dimensions.values():
-            self.rd.mpi.add_dimension(dim)
-        self.rd.mpi.update_dimension_bounds()
-        return self.rd.mpi.get_group()
+        for group_name, group_dims in dimensions.items():
+            for dim in group_dims:
+                self.rd.mpi.add_dimension(dim, group=group_name)
+        for group_name in self.dimensions.keys():
+            self.rd.mpi.update_dimension_bounds(group=group_name)
+        return self.rd.mpi.dimensions
 
     @abc.abstractmethod
     def get_dump_report(self):
@@ -313,3 +324,12 @@ def get_variable_metadata_from_request_dataset(driver, variable):
         meta = driver.rd.metadata
 
     return meta['variables'][variable.name]
+
+
+def iter_metadata_by_groups(metadata):
+    groups = OrderedDict()
+    groups[None] = metadata
+    for k, v in metadata['groups'].items():
+        groups[k] = v
+    for k, v in groups.items():
+        yield k, v
