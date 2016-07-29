@@ -18,6 +18,7 @@ class TestDimension(AbstractTestNewInterface):
         self.assertIsNone(dim.size_current)
         self.assertTrue(dim.is_unlimited)
         self.assertEqual(len(dim), 0)
+        self.assertEqual(dim.bounds_local, 'auto')
 
         dim = Dimension('foo', size=23)
         self.assertEqual(dim.size, 23)
@@ -31,7 +32,7 @@ class TestDimension(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             Dimension('foo', dist=True)
 
-        # Test without size defintion and a source index.
+        # Test without size definition and a source index.
         for src_idx in ['auto', 'ato', [0, 1, 2]]:
             try:
                 dim = Dimension('foo', src_idx=src_idx)
@@ -39,6 +40,11 @@ class TestDimension(AbstractTestNewInterface):
                 self.assertNotEqual(src_idx, 'auto')
             else:
                 self.assertIsNone(dim._src_idx)
+
+    def test_bounds_local(self):
+        dim = Dimension('a', 5)
+        dim.bounds_local = [0, 2]
+        self.assertEqual(dim.bounds_local, (0, 2))
 
     def test_copy(self):
         sd = self.get_dimension(src_idx=np.arange(10))

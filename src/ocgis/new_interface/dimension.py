@@ -18,8 +18,7 @@ class Dimension(AbstractInterfaceObject):
 
         self._name = name
         self.__src_idx__ = None
-        self._bounds_local = None
-        self._is_empty = False
+        self._bounds_local = 'auto'
         self._size = size
         self._size_current = size_current
         self.dist = dist
@@ -92,9 +91,20 @@ class Dimension(AbstractInterfaceObject):
     def bounds_local(self):
         return self._bounds_local
 
+    @bounds_local.setter
+    def bounds_local(self, value):
+        if value is not None:
+            value = tuple(value)
+            assert len(value) == 2
+        self._bounds_local = value
+
     @property
     def is_empty(self):
-        return self._is_empty
+        if self.bounds_local is None:
+            ret = True
+        else:
+            ret = False
+        return ret
 
     @property
     def is_unlimited(self):
@@ -142,7 +152,7 @@ class Dimension(AbstractInterfaceObject):
         else:
             pass
 
-        self._bounds_local = None
+        self._bounds_local = 'auto'
         self._size_current = value
         if not self.is_unlimited:
             self._size = value
@@ -203,7 +213,7 @@ class Dimension(AbstractInterfaceObject):
         if len(self) == 0:
             ret = None
         else:
-            if self.bounds_local is None:
+            if self.bounds_local is None or self.bounds_local == 'auto':
                 ret = np.arange(len(self), dtype=self._default_dtype)
             else:
                 lower, upper = self.bounds_local
