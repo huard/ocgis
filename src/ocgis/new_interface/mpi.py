@@ -1,10 +1,11 @@
 import itertools
-from collections import OrderedDict
+from copy import deepcopy
 
 import numpy as np
 
 from ocgis.base import AbstractOcgisObject
 from ocgis.exc import OcgMpiError
+from ocgis.util.addict import Dict
 from ocgis.util.helpers import get_optimal_slice_from_array
 
 try:
@@ -46,11 +47,11 @@ MPI_RANK = MPI_COMM.Get_rank()
 class OcgMpi(AbstractOcgisObject):
     def __init__(self, comm=None):
         self.comm = comm or MPI_COMM
+
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
-        self.dimensions = OrderedDict()
-
-        self.has_updated_dimensions = {}
+        self.dimensions = Dict()
+        self.has_updated_dimensions = False
 
     def add_dimension(self, dim, group=None, force=False):
         from dimension import Dimension
@@ -58,10 +59,10 @@ class OcgMpi(AbstractOcgisObject):
             raise ValueError('"dim" must be a "Dimension" object.')
 
         the_group = self._create_or_get_group_(group)
-        if not force and dim.name in the_group:
+        if not force and any([dim.name == d.name for d in the_group.dimensions]):
             raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
         else:
-            the_group[dim.name] = dim
+            the_group.dimensions.append(dim)
 
     def create_dimension(self, *args, **kwargs):
         from dimension import Dimension
@@ -71,14 +72,21 @@ class OcgMpi(AbstractOcgisObject):
         return dim
 
     def gather_dimensions(self, group=None, root=0):
-        for dim in self.iter_dimensions(group=group):
+        target_group = self.get_group(group=group)
+        new_dimensions = [None] * len(target_group.dimensions)
+        for idx, dim in enumerate(target_group.dimensions):
             if dim.dist:
                 dim = self._gather_dimension_(dim.name, group=group, root=root)
             else:
-                dim._bounds_local = None
+                pass
+            new_dimensions[idx] = dim
 
-            if self.rank == root:
-                self.add_dimension(dim, group=group, force=True)
+        if self.rank == root:
+            target_group.dimensions = []
+            for dim in new_dimensions:
+                self.add_dimension(dim, group=group)
+        else:
+            pass
 
         if self.rank == root:
             return self.get_group(group=group)
@@ -86,18 +94,29 @@ class OcgMpi(AbstractOcgisObject):
             return None
 
     def get_bounds_local(self, group=None):
-        ret = [dim.bounds_local for dim in self.get_group(group=group).values()]
+        the_group = self.get_group(group=group)
+        ret = [dim.bounds_local for dim in the_group.dimensions]
         return tuple(ret)
 
     def get_dimension(self, name, group=None):
-        return self.get_group(group=group)[name]
+        group = self.get_group(group=group)
+        ret = None
+        for d in group.dimensions:
+            if d.name == name:
+                ret = d
+                break
+        if ret is None:
+            raise ValueError('Dimension not found: {}'.format(name))
+        return ret
 
     def get_group(self, group=None):
-        return self.dimensions[group]
+        return self._create_or_get_group_(group)
 
-    def iter_dimensions(self, group=None):
-        for dim in self.get_group(group=group).values():
-            yield dim
+    def iter_groups(self):
+        for k, v in self.dimensions.items():
+            yield v
+            for kg, vg in v.groups.items():
+                yield vg
 
     def scatter_variable(self, variable, root=0):
         # tdk: test a variable with no dimensions
@@ -137,59 +156,69 @@ class OcgMpi(AbstractOcgisObject):
 
         return variable
 
-    def update_dimension_bounds(self, group=None):
-        if self.has_updated_dimensions[group]:
+    def update_dimension_bounds(self):
+        if self.has_updated_dimensions:
             raise ValueError('Dimensions already updated.')
 
-        dimensions = tuple(self.iter_dimensions(group=group))
-        lengths = [len(dim) for dim in dimensions if dim.dist]
+        for group in self.iter_groups():
+            dimensions = tuple(group.dimensions)
+            lengths = [len(dim) for dim in dimensions if dim.dist]
 
-        # Choose the size of the distribution group. There needs to be at least one element per rank.
-        the_size = self.size
-        if len(lengths) != 0:
-            if min(lengths) < self.size:
-                the_size = min(lengths)
+            # Choose the size of the distribution group. There needs to be at least one element per rank.
+            the_size = self.size
+            if len(lengths) != 0:
+                if min(lengths) < self.size:
+                    the_size = min(lengths)
+                else:
+                    pass
             else:
                 pass
-        else:
-            pass
 
-        # Update the local bounds for the dimension.
-        for dim in dimensions:
-            # For distributed bounds, the local and global bounds will be different.
-            if dim.dist:
-                omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
-                bounds_local = omb.bounds_local
-                if bounds_local is None:
-                    dim._is_empty = True
-                else:
-                    start, stop = bounds_local
-                    if dim._src_idx is None:
-                        src_idx = None
-                    else:
-                        src_idx = dim._src_idx[start:stop]
-                    dim.set_size(stop - start, src_idx=src_idx)
-                dim._bounds_local = bounds_local
-            # Local and global bounds are equivalent for undistributed dimensions.
-            else:
-                if len(dim) > 0:
-                    dim._bounds_local = (0, len(dim))
-
-        # If there are any empty dimensions on the rank, than all dimensions are empty.
-        is_empty = [dim.is_empty for dim in dimensions]
-        if any(is_empty):
+            # Update the local bounds for the dimension.
             for dim in dimensions:
-                dim._is_empty = True
-        else:
-            pass
+                # For distributed bounds, the local and global bounds will be different.
+                if dim.dist:
+                    omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
+                    bounds_local = omb.bounds_local
+                    if bounds_local is not None:
+                        start, stop = bounds_local
+                        if dim._src_idx is None:
+                            src_idx = None
+                        else:
+                            src_idx = dim._src_idx[start:stop]
+                        dim.set_size(stop - start, src_idx=src_idx)
+                    dim.bounds_local = bounds_local
+                # Local and global bounds are equivalent for undistributed dimensions.
+                else:
+                    pass
 
-        self.has_updated_dimensions[group] = True
+            # If there are any empty dimensions on the rank, than all dimensions are empty.
+            is_empty = [dim.is_empty for dim in dimensions]
+            if any(is_empty):
+                for dim in dimensions:
+                    dim._is_empty = True
+            else:
+                pass
+
+        self.has_updated_dimensions = True
 
     def _create_or_get_group_(self, group):
-        if group not in self.dimensions:
-            self.dimensions[group] = OrderedDict()
-            self.has_updated_dimensions[group] = False
-        return self.dimensions[group]
+        group = deepcopy(group)
+        if group is None or isinstance(group, basestring):
+            group = [group]
+        if group[0] is not None:
+            group.insert(0, None)
+        curr = self.dimensions
+        for ctr, g in enumerate(group):
+            if ctr > 0:
+                curr = curr.groups
+            curr = curr[g]
+        if len(curr) == 0:
+            curr.update({'groups': Dict(), 'dimensions': []})
+        else:
+            if 'dimensions' not in curr:
+                curr.dimensions = []
+        return curr
 
     def _gather_dimension_(self, name, group=None, root=0):
         dim = self.get_dimension(name, group=group)
@@ -202,6 +231,7 @@ class OcgMpi(AbstractOcgisObject):
                 else:
                     pass
 
+            # Only update the size if it is set.
             if dim.size is not None:
                 dim._size = new_size
             else:
@@ -221,7 +251,7 @@ class OcgMpi(AbstractOcgisObject):
                 pass
 
             # Dimension is no longer distributed and should not have local bounds.
-            dim._bounds_local = None
+            dim._bounds_local = 'auto'
 
             ret = dim
         else:

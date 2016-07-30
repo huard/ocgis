@@ -179,10 +179,10 @@ class TestOcgMpi(AbstractTestNewInterface):
         src_idx = [2, 3, 4, 5, 6]
         dim = ompi.create_dimension('foo', size=5, group='subroot', dist=True, src_idx=src_idx)
         self.assertEqual(dim, ompi.get_dimension(dim.name, group='subroot'))
-        self.assertIsNone(dim.bounds_local)
-        ompi.update_dimension_bounds(group='subroot')
+        self.assertEqual(dim.bounds_local, 'auto')
+        ompi.update_dimension_bounds()
         with self.assertRaises(ValueError):
-            ompi.update_dimension_bounds(group='subroot')
+            ompi.update_dimension_bounds()
 
         if ompi.size == 2:
             if ompi.rank == 0:
@@ -228,6 +228,26 @@ class TestOcgMpi(AbstractTestNewInterface):
         with self.assertRaises(ValueError):
             ompi.create_dimension('one')
 
+    def test_create_or_get_group(self):
+        ocmpi = OcgMpi()
+        _ = ocmpi._create_or_get_group_(['moon', 'base'])
+        _ = ocmpi._create_or_get_group_(None)
+        _ = ocmpi._create_or_get_group_('flower')
+        ocmpi.create_dimension('foo', group=['moon', 'base'])
+        ocmpi.create_dimension('end_of_days')
+        ocmpi.create_dimension('start_of_days')
+
+        actual = ocmpi.get_dimension('foo', ['moon', 'base'])
+        desired = Dimension('foo')
+        self.assertEqual(actual, desired)
+
+        desired = {None: {'dimensions': [Dimension(name='end_of_days', size=None, size_current=None),
+                                         Dimension(name='start_of_days', size=None, size_current=None)],
+                          'groups': {'flower': {'dimensions': [], 'groups': {}}, 'moon': {'groups': {
+                              'base': {'dimensions': [Dimension(name='foo', size=None, size_current=None)],
+                                       'groups': {}}}}}}}
+        self.assertEqual(ocmpi.dimensions, desired)
+
     @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_gather_dimensions(self):
         ompi = self.get_ocgmpi_01()
@@ -243,7 +263,7 @@ class TestOcgMpi(AbstractTestNewInterface):
         actual = ompi.gather_dimensions(root=root)
 
         if ompi.rank == root:
-            for actual_dim, desired_dim in zip(actual.values(), desired.values()):
+            for actual_dim, desired_dim in zip(actual.dimensions, desired.dimensions):
                 try:
                     self.assertEqual(actual_dim, desired_dim)
                 except:
