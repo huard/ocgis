@@ -51,35 +51,9 @@ class TestDriverNetcdf(TestBase):
                 if k.dim_count == 2:
                     ds.createDimension('two', 2)
 
-        def _get_nested_(ddict, keyseq):
-            curr = ddict
-            for key in keyseq:
-                try:
-                    curr = curr['groups'][key]
-                except KeyError:
-                    if key is None:
-                        curr = curr[None]
-                    else:
-                        raise
-            return curr
-
-        def _iter_all_group_keys_(ddict, entry=None):
-            if entry is None:
-                entry = [None]
-            yield entry
-            curr = _get_nested_(ddict, entry)
-            for keyseq in _iter_group_keys_(ddict, entry):
-                for keyseq2 in _iter_all_group_keys_(ddict, keyseq):
-                    yield keyseq2
-
-        def _iter_group_keys_(ddict, keyseq):
-            for key in _get_nested_(ddict, keyseq)['groups']:
-                yld = deepcopy(keyseq)
-                yld.append(key)
-                yield yld
-
         kwds = dict(dim_count=[0, 1, 2], nested=[False, True])
         for k in self.iter_product_keywords(kwds):
+            if k.dim_count != 2 or not k.nested: continue
             print k
             path = self.get_temporary_file_path('{}.nc'.format(k.dim_count))
             with self.nc_scope(path, 'w') as ds:
@@ -95,7 +69,7 @@ class TestDriverNetcdf(TestBase):
             rd = RequestDataset(uri=path)
             driver = DriverNetcdf(rd)
             actual = driver.get_dimensions()
-            # print actual
+            print actual
             if k.dim_count == 2 and k.nested:
                 two_dimensions = [Dimension(name='one', size=1, size_current=1),
                                   Dimension(name='two', size=2, size_current=2)]
@@ -107,11 +81,6 @@ class TestDriverNetcdf(TestBase):
                 nest1['groups']['nest2']['groups']['nest1']['dimensions'].append(Dimension('outlier', 4))
                 desired = {None: {'dimensions': two_dimensions,
                                   'groups': {u'nest1': nest1}}}
-                gidx = []
-                for keyseq in _iter_all_group_keys_(desired):
-                    print keyseq
-
-                    # print desired
         self.fail()
 
     def test_open(self):

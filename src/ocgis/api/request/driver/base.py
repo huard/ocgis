@@ -1,6 +1,5 @@
 import abc
 import json
-from collections import OrderedDict
 from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
@@ -111,7 +110,10 @@ class AbstractDriver(object):
         :rtype: dict
         """
 
-        for group_name, group_meta in iter_metadata_by_groups(self.rd.metadata):
+        # Convert metadata into a grouping consistent with the MPI dimensions.
+        target_metdata = {None: self.rd.metadata}
+        for group_name in iter_all_group_keys(target_metdata):
+            group_meta = get_group(target_metdata, group_name)
             dimensions = self._get_dimensions_main_(group_meta)
             for dimension_name, dimension_meta in group_meta['dimensions'].items():
                 target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
@@ -303,6 +305,19 @@ def find_dimension_in_sequence(dimension_name, dimensions):
     return ret
 
 
+def get_group(ddict, keyseq):
+    curr = ddict
+    for key in keyseq:
+        try:
+            curr = curr['groups'][key]
+        except KeyError:
+            if key is None:
+                curr = curr[None]
+            else:
+                raise
+    return curr
+
+
 def get_variable_metadata_from_request_dataset(driver, variable):
     to_check = variable.parent
     current_meta = driver.rd.metadata['groups']
@@ -323,10 +338,17 @@ def get_variable_metadata_from_request_dataset(driver, variable):
     return meta['variables'][variable.name]
 
 
-def iter_metadata_by_groups(metadata):
-    groups = OrderedDict()
-    groups[None] = metadata
-    for k, v in metadata['groups'].items():
-        groups[k] = v
-    for k, v in groups.items():
-        yield k, v
+def iter_all_group_keys(ddict, entry=None):
+    if entry is None:
+        entry = [None]
+    yield entry
+    for keyseq in iter_group_keys(ddict, entry):
+        for keyseq2 in iter_all_group_keys(ddict, keyseq):
+            yield keyseq2
+
+
+def iter_group_keys(ddict, keyseq):
+    for key in get_group(ddict, keyseq).get('groups', {}):
+        yld = deepcopy(keyseq)
+        yld.append(key)
+        yield yld
