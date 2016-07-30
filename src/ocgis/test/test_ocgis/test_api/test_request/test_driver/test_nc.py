@@ -24,6 +24,7 @@ from ocgis.interface.base.dimension.spatial import SpatialGeometryPolygonDimensi
     SpatialDimension
 from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
@@ -41,6 +42,77 @@ class TestDriverNetcdf(TestBase):
         self.assertIsInstance(rd.driver, DriverNetcdf)
         field = rd.get()
         self.assertEqual(len(field), 0)
+
+    def test_get_dimensions(self):
+
+        def _create_dimensions_(ds, k):
+            if k.dim_count > 0:
+                ds.createDimension('one', 1)
+                if k.dim_count == 2:
+                    ds.createDimension('two', 2)
+
+        def _get_nested_(ddict, keyseq):
+            curr = ddict
+            for key in keyseq:
+                try:
+                    curr = curr['groups'][key]
+                except KeyError:
+                    if key is None:
+                        curr = curr[None]
+                    else:
+                        raise
+            return curr
+
+        def _iter_all_group_keys_(ddict, entry=None):
+            if entry is None:
+                entry = [None]
+            yield entry
+            curr = _get_nested_(ddict, entry)
+            for keyseq in _iter_group_keys_(ddict, entry):
+                for keyseq2 in _iter_all_group_keys_(ddict, keyseq):
+                    yield keyseq2
+
+        def _iter_group_keys_(ddict, keyseq):
+            for key in _get_nested_(ddict, keyseq)['groups']:
+                yld = deepcopy(keyseq)
+                yld.append(key)
+                yield yld
+
+        kwds = dict(dim_count=[0, 1, 2], nested=[False, True])
+        for k in self.iter_product_keywords(kwds):
+            print k
+            path = self.get_temporary_file_path('{}.nc'.format(k.dim_count))
+            with self.nc_scope(path, 'w') as ds:
+                _create_dimensions_(ds, k)
+                if k.nested:
+                    group1 = ds.createGroup('nest1')
+                    _create_dimensions_(group1, k)
+                    group2 = group1.createGroup('nest2')
+                    _create_dimensions_(group2, k)
+                    group3 = group2.createGroup('nest1')
+                    _create_dimensions_(group3, k)
+                    group3.createDimension('outlier', 4)
+            rd = RequestDataset(uri=path)
+            driver = DriverNetcdf(rd)
+            actual = driver.get_dimensions()
+            # print actual
+            if k.dim_count == 2 and k.nested:
+                two_dimensions = [Dimension(name='one', size=1, size_current=1),
+                                  Dimension(name='two', size=2, size_current=2)]
+                nest1 = {'dimensions': two_dimensions, 'groups': {}}
+                template = deepcopy(nest1)
+                nest1['groups']['nest2'] = deepcopy(template)
+                nest1['groups']['nest2']['groups']['nest1'] = deepcopy(template)
+                nest1['groups']['nest2']['groups']['nest3'] = deepcopy(template)
+                nest1['groups']['nest2']['groups']['nest1']['dimensions'].append(Dimension('outlier', 4))
+                desired = {None: {'dimensions': two_dimensions,
+                                  'groups': {u'nest1': nest1}}}
+                gidx = []
+                for keyseq in _iter_all_group_keys_(desired):
+                    print keyseq
+
+                    # print desired
+        self.fail()
 
     def test_open(self):
         # Test with a multi-file dataset.

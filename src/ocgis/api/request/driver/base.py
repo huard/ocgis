@@ -111,28 +111,13 @@ class AbstractDriver(object):
         :rtype: dict
         """
 
-        def _find_dimension_(ddict, the_group, to_find_name):
-            target = ddict[the_group]
-            to_search = {dim.name: dim for dim in target}
-            return to_search[to_find_name]
-
-        dimensions = self._get_dimensions_main_()
-
-        # Update the distributed state of the dimension.
         for group_name, group_meta in iter_metadata_by_groups(self.rd.metadata):
-            dimensions_metadata = group_meta['dimensions']
-            for dim_name, dim_meta in dimensions_metadata.items():
-                target_dimension = _find_dimension_(dimensions, group_name, dim_name)
-                if dim_meta.get('dist', False):
-                    target_dimension.dist = True
-                else:
-                    target_dimension.dist = False
-
-        for group_name, group_dims in dimensions.items():
-            for dim in group_dims:
-                self.rd.mpi.add_dimension(dim, group=group_name)
-        for group_name in dimensions.keys():
-            self.rd.mpi.update_dimension_bounds(group=group_name)
+            dimensions = self._get_dimensions_main_(group_meta)
+            for dimension_name, dimension_meta in group_meta['dimensions'].items():
+                target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
+                target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist')
+                self.rd.mpi.add_dimension(target_dimension, group=group_name)
+        self.rd.mpi.update_dimension_bounds()
         return self.rd.mpi.dimensions
 
     @abc.abstractmethod
@@ -295,15 +280,27 @@ class AbstractDriver(object):
         """Write a variable collection to file(s)."""
 
     @abc.abstractmethod
-    def _get_dimensions_main_(self):
+    def _get_dimensions_main_(self, group_metadata):
         """
-        :return: A dimension object dictionary. The key is the dimension name. The value is the dimension object.
-        :rtype: dict
+        :param dict group_metadata: Metadata dictionary for the target group.
+        :return: A sequence of dimension objects.
+        :rtype: sequence
         """
 
     @abc.abstractmethod
     def _init_variable_from_source_main_(self, variable):
         """Initialize everything but dimensions on the target variable."""
+
+
+def find_dimension_in_sequence(dimension_name, dimensions):
+    ret = None
+    for dim in dimensions:
+        if dimension_name == dim.name:
+            ret = dim
+            break
+    if ret is None:
+        raise ValueError('Dimension not found: {}'.format(dimension_name))
+    return ret
 
 
 def get_variable_metadata_from_request_dataset(driver, variable):

@@ -8,7 +8,7 @@ import numpy as np
 from netCDF4._netCDF4 import VLType
 
 from ocgis import env
-from ocgis.api.request.driver.base import AbstractDriver, iter_metadata_by_groups
+from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -184,12 +184,8 @@ class DriverNetcdf(AbstractDriver):
     def _close_(self, obj):
         obj.close()
 
-    def _get_dimensions_main_(self):
-        ret = OrderedDict()
-        for group_name, group_metadata in iter_metadata_by_groups(self.rd.metadata):
-            ret[group_name] = tuple(get_dimensions_from_netcdf_metadata(group_metadata,
-                                                                        group_metadata['dimensions'].keys()))
-        return ret
+    def _get_dimensions_main_(self, group_metadata):
+        return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
 
     def _init_variable_from_source_main_(self, variable):
         init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
