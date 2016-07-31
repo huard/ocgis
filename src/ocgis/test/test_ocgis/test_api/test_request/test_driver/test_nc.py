@@ -15,7 +15,7 @@ import ocgis
 from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
-from ocgis.api.request.driver.base import iter_all_group_keys
+from ocgis.api.request.driver.base import iter_all_group_keys, get_group
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError, \
     NoDimensionedVariablesFound
@@ -72,6 +72,19 @@ class TestDriverNetcdf(TestBase):
 
             actual = driver.get_dimensions()
 
+            # All dimensions are not distributed.
+            for keyseq in iter_all_group_keys(actual):
+                group = get_group(actual, keyseq)
+                for dim in group['dimensions']:
+                    self.assertFalse(dim.dist)
+
+            if k.dim_count == 0 and k.nested:
+                desired = {None: {'dimensions': [], 'groups': {u'nest1': {'dimensions': [], 'groups': {
+                    u'nest2': {'dimensions': [], 'groups': {
+                        u'nest1': {'dimensions': [Dimension(name='outlier', size=4, size_current=4)],
+                                   'groups': {}}}}}}}}}
+                self.assertEqual(actual, desired)
+
             if k.dim_count == 2 and k.nested:
                 self.assertIsNotNone(driver.metadata['groups']['nest1']['groups']['nest2'])
                 two_dimensions = [Dimension(name='one', size=1, size_current=1),
@@ -83,10 +96,9 @@ class TestDriverNetcdf(TestBase):
                 nest1['groups']['nest2']['groups']['nest3'] = deepcopy(template)
                 nest1['groups']['nest2']['groups']['nest1']['dimensions'].append(Dimension('outlier', 4))
                 desired = {None: {'dimensions': two_dimensions, 'groups': {u'nest1': nest1}}}
-                groups_actual = list(iter_all_group_keys(dict(actual)))
+                groups_actual = list(iter_all_group_keys((actual)))
                 groups_desired = list(iter_all_group_keys(desired))
                 self.assertEqual(groups_actual, groups_desired)
-        self.fail()
 
     def test_open(self):
         # Test with a multi-file dataset.

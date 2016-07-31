@@ -202,21 +202,25 @@ class OcgMpi(AbstractOcgisObject):
         self.has_updated_dimensions = True
 
     def _create_or_get_group_(self, group):
+        # The group sequence may be modified.
         group = deepcopy(group)
+        # Allow None and single string group selection.
         if group is None or isinstance(group, basestring):
             group = [group]
+        # Always start with None, the root group, when searching for data groups.
         if group[0] is not None:
             group.insert(0, None)
-        curr = self.dimensions
+
+        ret = self.dimensions
         for ctr, g in enumerate(group):
+            # No group nesting for the first iteration.
             if ctr > 0:
-                curr = dict_get_or_create(curr, 'groups', {})
-            curr = dict_get_or_create(curr, g, {})
-        if len(curr) == 0:
-            curr.update({'groups': {}, 'dimensions': []})
-        else:
-            dict_get_or_create(curr, 'dimensions', [])
-        return curr
+                ret = ret['groups']
+            # This is the default fill for the group.
+            if g not in ret:
+                ret[g] = {'groups': {}, 'dimensions': []}
+            ret = ret[g]
+        return ret
 
     def _gather_dimension_(self, name, group=None, root=0):
         dim = self.get_dimension(name, group=group)

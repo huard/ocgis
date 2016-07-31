@@ -117,7 +117,7 @@ class AbstractDriver(object):
             dimensions = self._get_dimensions_main_(group_meta)
             for dimension_name, dimension_meta in group_meta['dimensions'].items():
                 target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
-                target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist')
+                target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist', False)
                 self.rd.mpi.add_dimension(target_dimension, group=group_name)
         self.rd.mpi.update_dimension_bounds()
         return self.rd.mpi.dimensions
