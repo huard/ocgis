@@ -263,7 +263,7 @@ class TestOcgMpi(AbstractTestNewInterface):
         actual = ompi.gather_dimensions(root=root)
 
         if ompi.rank == root:
-            for actual_dim, desired_dim in zip(actual.dimensions, desired.dimensions):
+            for actual_dim, desired_dim in zip(actual['dimensions'], desired['dimensions']):
                 try:
                     self.assertEqual(actual_dim, desired_dim)
                 except:

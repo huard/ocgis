@@ -5,7 +5,6 @@ import numpy as np
 
 from ocgis.base import AbstractOcgisObject
 from ocgis.exc import OcgMpiError
-from ocgis.util.addict import Dict
 from ocgis.util.helpers import get_optimal_slice_from_array
 
 try:
@@ -50,7 +49,7 @@ class OcgMpi(AbstractOcgisObject):
 
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
-        self.dimensions = Dict()
+        self.dimensions = {None: {'dimensions': [], 'groups': {}}}
         self.has_updated_dimensions = False
 
     def add_dimension(self, dim, group=None, force=False):
@@ -59,10 +58,10 @@ class OcgMpi(AbstractOcgisObject):
             raise ValueError('"dim" must be a "Dimension" object.')
 
         the_group = self._create_or_get_group_(group)
-        if not force and any([dim.name == d.name for d in the_group.dimensions]):
+        if not force and any([dim.name == d.name for d in the_group['dimensions']]):
             raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
         else:
-            the_group.dimensions.append(dim)
+            the_group['dimensions'].append(dim)
 
     def create_dimension(self, *args, **kwargs):
         from dimension import Dimension
@@ -73,8 +72,8 @@ class OcgMpi(AbstractOcgisObject):
 
     def gather_dimensions(self, group=None, root=0):
         target_group = self.get_group(group=group)
-        new_dimensions = [None] * len(target_group.dimensions)
-        for idx, dim in enumerate(target_group.dimensions):
+        new_dimensions = [None] * len(target_group['dimensions'])
+        for idx, dim in enumerate(target_group['dimensions']):
             if dim.dist:
                 dim = self._gather_dimension_(dim.name, group=group, root=root)
             else:
@@ -82,7 +81,7 @@ class OcgMpi(AbstractOcgisObject):
             new_dimensions[idx] = dim
 
         if self.rank == root:
-            target_group.dimensions = []
+            target_group['dimensions'] = []
             for dim in new_dimensions:
                 self.add_dimension(dim, group=group)
         else:
@@ -95,13 +94,13 @@ class OcgMpi(AbstractOcgisObject):
 
     def get_bounds_local(self, group=None):
         the_group = self.get_group(group=group)
-        ret = [dim.bounds_local for dim in the_group.dimensions]
+        ret = [dim.bounds_local for dim in the_group['dimensions']]
         return tuple(ret)
 
     def get_dimension(self, name, group=None):
         group = self.get_group(group=group)
         ret = None
-        for d in group.dimensions:
+        for d in group['dimensions']:
             if d.name == name:
                 ret = d
                 break
@@ -113,10 +112,10 @@ class OcgMpi(AbstractOcgisObject):
         return self._create_or_get_group_(group)
 
     def iter_groups(self):
-        for k, v in self.dimensions.items():
-            yield v
-            for kg, vg in v.groups.items():
-                yield vg
+        from ocgis.api.request.driver.base import iter_all_group_keys, get_group
+        for group_key in iter_all_group_keys(self.dimensions):
+            group_data = get_group(self.dimensions, group_key)
+            yield group_key, group_data
 
     def scatter_variable(self, variable, root=0):
         # tdk: test a variable with no dimensions
@@ -160,8 +159,8 @@ class OcgMpi(AbstractOcgisObject):
         if self.has_updated_dimensions:
             raise ValueError('Dimensions already updated.')
 
-        for group in self.iter_groups():
-            dimensions = tuple(group.dimensions)
+        for _, group_data in self.iter_groups():
+            dimensions = tuple(group_data['dimensions'])
             lengths = [len(dim) for dim in dimensions if dim.dist]
 
             # Choose the size of the distribution group. There needs to be at least one element per rank.
@@ -211,13 +210,12 @@ class OcgMpi(AbstractOcgisObject):
         curr = self.dimensions
         for ctr, g in enumerate(group):
             if ctr > 0:
-                curr = curr.groups
-            curr = curr[g]
+                curr = dict_get_or_create(curr, 'groups', {})
+            curr = dict_get_or_create(curr, g, {})
         if len(curr) == 0:
-            curr.update({'groups': Dict(), 'dimensions': []})
+            curr.update({'groups': {}, 'dimensions': []})
         else:
-            if 'dimensions' not in curr:
-                curr.dimensions = []
+            dict_get_or_create(curr, 'dimensions', [])
         return curr
 
     def _gather_dimension_(self, name, group=None, root=0):
@@ -344,6 +342,14 @@ def get_global_to_local_slice(start_stop, bounds_local):
         ret = None
     else:
         ret = (new_start - lower, new_stop - lower)
+    return ret
+
+
+def dict_get_or_create(ddict, key, default):
+    try:
+        ret = ddict[key]
+    except KeyError:
+        ret = ddict[key] = default
     return ret
 
 
