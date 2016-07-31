@@ -269,14 +269,15 @@ class DriverNetcdfCF(DriverNetcdf):
         return dvars
 
 
-def parse_metadata(rootgrp):
-    fill = OrderedDict()
-    fill['groups'] = OrderedDict()
+def parse_metadata(rootgrp, fill=None):
+    if fill is None:
+        fill = OrderedDict()
+    if 'groups' not in fill:
+        fill['groups'] = OrderedDict()
     update_group_metadata(rootgrp, fill)
     for group in rootgrp.groups.values():
-        fill['groups'][group.name] = OrderedDict()
-        fill_group = fill['groups'][group.name]
-        update_group_metadata(group, fill_group)
+        new_fill = fill['groups'][group.name] = OrderedDict()
+        parse_metadata(group, fill=new_fill)
     return fill
 
 

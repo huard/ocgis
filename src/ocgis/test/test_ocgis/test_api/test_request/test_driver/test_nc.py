@@ -15,6 +15,7 @@ import ocgis
 from ocgis import GeomCabinet
 from ocgis import RequestDataset
 from ocgis import env
+from ocgis.api.request.driver.base import iter_all_group_keys
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError, \
     NoDimensionedVariablesFound
@@ -53,8 +54,6 @@ class TestDriverNetcdf(TestBase):
 
         kwds = dict(dim_count=[0, 1, 2], nested=[False, True])
         for k in self.iter_product_keywords(kwds):
-            if k.dim_count != 2 or not k.nested: continue
-            print k
             path = self.get_temporary_file_path('{}.nc'.format(k.dim_count))
             with self.nc_scope(path, 'w') as ds:
                 _create_dimensions_(ds, k)
@@ -65,12 +64,16 @@ class TestDriverNetcdf(TestBase):
                     _create_dimensions_(group2, k)
                     group3 = group2.createGroup('nest1')
                     _create_dimensions_(group3, k)
+                    group3a = group2.createGroup('nest3')
+                    _create_dimensions_(group3a, k)
                     group3.createDimension('outlier', 4)
             rd = RequestDataset(uri=path)
             driver = DriverNetcdf(rd)
+
             actual = driver.get_dimensions()
-            print actual
+
             if k.dim_count == 2 and k.nested:
+                self.assertIsNotNone(driver.metadata['groups']['nest1']['groups']['nest2'])
                 two_dimensions = [Dimension(name='one', size=1, size_current=1),
                                   Dimension(name='two', size=2, size_current=2)]
                 nest1 = {'dimensions': two_dimensions, 'groups': {}}
@@ -79,8 +82,10 @@ class TestDriverNetcdf(TestBase):
                 nest1['groups']['nest2']['groups']['nest1'] = deepcopy(template)
                 nest1['groups']['nest2']['groups']['nest3'] = deepcopy(template)
                 nest1['groups']['nest2']['groups']['nest1']['dimensions'].append(Dimension('outlier', 4))
-                desired = {None: {'dimensions': two_dimensions,
-                                  'groups': {u'nest1': nest1}}}
+                desired = {None: {'dimensions': two_dimensions, 'groups': {u'nest1': nest1}}}
+                groups_actual = list(iter_all_group_keys(dict(actual)))
+                groups_desired = list(iter_all_group_keys(desired))
+                self.assertEqual(groups_actual, groups_desired)
         self.fail()
 
     def test_open(self):

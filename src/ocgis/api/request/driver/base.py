@@ -308,13 +308,10 @@ def find_dimension_in_sequence(dimension_name, dimensions):
 def get_group(ddict, keyseq):
     curr = ddict
     for key in keyseq:
-        try:
+        if key is None:
+            curr = curr[None]
+        else:
             curr = curr['groups'][key]
-        except KeyError:
-            if key is None:
-                curr = curr[None]
-            else:
-                raise
     return curr
 
 
