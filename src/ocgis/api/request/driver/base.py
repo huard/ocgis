@@ -310,6 +310,16 @@ def find_dimension_in_sequence(dimension_name, dimensions):
 
 
 def get_group(ddict, keyseq):
+    keyseq = deepcopy(keyseq)
+
+    if keyseq is None:
+        keyseq = [None]
+    elif isinstance(keyseq, basestring):
+        keyseq = [keyseq]
+
+    if keyseq[0] is not None:
+        keyseq.insert(0, None)
+
     curr = ddict
     for key in keyseq:
         if key is None:
