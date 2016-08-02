@@ -272,13 +272,13 @@ class TestVariable(AbstractTestNewInterface):
                 metadata = rd.metadata
                 metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = True
                 fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd)
-                self.assertEqual(len(rd.mpi.get_group()), 1)
+                self.assertEqual(len(rd.mpi.get_group()['dimensions']), 1)
             else:
                 ompi = OcgMpi()
                 geom_dimension = ompi.create_dimension(constants.NAME_GEOMETRY_DIMENSION, size=51, dist=True)
                 fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd, dimensions=[geom_dimension])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.mpi.dimensions), 0)
+                self.assertEqual(len(rd.mpi.dimensions[None]['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertIsNotNone(fvar.value)
@@ -297,7 +297,7 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
-
+        # tdk: RESUME: test is failing in parallel
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True)
             ompi = OcgMpi()
