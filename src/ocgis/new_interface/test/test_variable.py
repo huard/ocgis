@@ -146,6 +146,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.attrs['bounds'], bounds.name)
 
     def test_init_object_array(self):
+        # tdk: RESUME: test is failing
         value = [[1, 3, 5],
                  [7, 9],
                  [11]]

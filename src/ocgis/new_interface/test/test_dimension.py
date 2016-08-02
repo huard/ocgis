@@ -18,7 +18,7 @@ class TestDimension(AbstractTestNewInterface):
         self.assertIsNone(dim.size_current)
         self.assertTrue(dim.is_unlimited)
         self.assertEqual(len(dim), 0)
-        self.assertEqual(dim.bounds_local, 'auto')
+        self.assertEqual(dim.bounds_local, (0, len(dim)))
 
         dim = Dimension('foo', size=23)
         self.assertEqual(dim.size, 23)
