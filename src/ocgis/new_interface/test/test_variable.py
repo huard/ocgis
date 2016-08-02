@@ -220,7 +220,7 @@ class TestVariable(AbstractTestNewInterface):
                 minor = ompi.create_dimension('minor', size=3, dist=False)
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.mpi.dimensions), 0)
+                self.assertEqual(len(rd.mpi.get_group()['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertFalse(fvar.dimensions[1].dist)
@@ -345,7 +345,7 @@ class TestVariable(AbstractTestNewInterface):
                 var.set_mask(np.ones(var.shape))
                 self.assertIsNotNone(var[0])
 
-    @attr('mpi-2', 'mpi-8')
+    @attr('mpi-2', 'mpi-5', 'mpi-8')
     def test_system_with_distributed_dimensions_ndvariable(self):
         """Test multi-dimensional variable behavior with distributed dimensions."""
 
@@ -353,9 +353,13 @@ class TestVariable(AbstractTestNewInterface):
         d2 = Dimension('d2', size=10, dist=False)
         d3 = Dimension('d3', size=3, dist=True)
         dimensions = [d1, d2, d3]
-        self.log.debug(dimensions)
-        var = Variable('ndist', dimensions=dimensions, dist=True)
-        self.fail('the first dimension is not distributed correctly')
+        ompi = OcgMpi()
+        for d in dimensions:
+            ompi.add_dimension(d)
+        ompi.update_dimension_bounds()
+
+        var = Variable('ndist', dimensions=dimensions)
+
         if MPI_RANK > 2:
             self.assertTrue(var.is_empty)
         else:

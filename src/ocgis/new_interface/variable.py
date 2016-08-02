@@ -344,7 +344,7 @@ class Variable(AbstractContainer, Attributes):
         ret = False
         if self.has_distributed_dimension:
             for dim in self.dimensions:
-                if dim.bounds_local is None:
+                if dim.is_empty:
                     ret = True
                     break
         return ret
