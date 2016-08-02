@@ -129,18 +129,6 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
-    def initialize_variable_value(self, variable):
-        """Set the variable value from source data conforming units in the process."""
-
-        value = self.get_variable_value(variable)
-        variable._set_value_(value)
-        # Conform the units if requested. Need to check if this variable is inside a group to find the appropriate
-        # metadata.
-        meta = get_variable_metadata_from_request_dataset(self, variable)
-        conform_units_to = meta.get('conform_units_to')
-        if conform_units_to is not None:
-            variable.cfunits_conform(conform_units_to)
-
     @abc.abstractmethod
     def get_variable_value(self, variable):
         """Get value for the variable."""
@@ -169,6 +157,10 @@ class AbstractDriver(object):
         """
         :rtype: :class:`ocgis.new_interface.variable.VariableCollection`
         """
+
+    def get_variable_metadata(self, variable_object):
+        variable_metadata = get_variable_metadata_from_request_dataset(self, variable_object)
+        return variable_metadata
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
@@ -221,9 +213,10 @@ class AbstractDriver(object):
         """
 
     def init_variable_from_source(self, variable):
+        variable_metadata = self.get_variable_metadata(variable)
+
         # Create the dimensions if they are not present.
         if variable._dimensions is None:
-            variable_metadata = get_variable_metadata_from_request_dataset(self, variable)
             desired_dimensions = variable_metadata['dimensions']
             new_dimensions = []
             for d in desired_dimensions:
@@ -231,10 +224,23 @@ class AbstractDriver(object):
                 to_append = find_dimension_in_sequence(d, dimension_group)
                 new_dimensions.append(to_append)
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+
         # Call the subclass variable initialization routine.
-        self._init_variable_from_source_main_(variable)
+        self._init_variable_from_source_main_(variable, variable_metadata)
         # The variable is now allocated.
         variable._allocated = True
+
+    def initialize_variable_value(self, variable):
+        """Set the variable value from source data conforming units in the process."""
+
+        value = self.get_variable_value(variable)
+        variable._set_value_(value)
+        # Conform the units if requested. Need to check if this variable is inside a group to find the appropriate
+        # metadata.
+        meta = get_variable_metadata_from_request_dataset(self, variable)
+        conform_units_to = meta.get('conform_units_to')
+        if conform_units_to is not None:
+            variable.cfunits_conform(conform_units_to)
 
     def inspect(self):
         """
@@ -294,7 +300,7 @@ class AbstractDriver(object):
         """
 
     @abc.abstractmethod
-    def _init_variable_from_source_main_(self, variable):
+    def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         """Initialize everything but dimensions on the target variable."""
 
 

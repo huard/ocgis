@@ -10,6 +10,7 @@ from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector, get_fiona_crs, get_fiona_schema
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem, Spherical
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.temporal import TemporalVariable
@@ -95,6 +96,12 @@ class TestDriverVector(TestBase):
         target = driver.get_dimensioned_variables()
         self.assertEqual(target, [u'UGID', u'STATE_FIPS', u'ID', u'STATE_NAME', u'STATE_ABBR'])
 
+    def test_get_dimensions(self):
+        driver = self.get_driver()
+        actual = driver.get_dimensions()
+        desired = {None: {'dimensions': [Dimension(name='ocgis_geom', size=51, size_current=51)], 'groups': {}}}
+        self.assertEqual(actual, desired)
+
     def test_get_dump_report(self):
         driver = self.get_driver()
         lines = driver.get_dump_report()
@@ -124,7 +131,7 @@ class TestDriverVector(TestBase):
         self.assertEqual(len(vc), 7)
         for v in vc.values():
             if not isinstance(v, CoordinateReferenceSystem):
-                self.assertEqual(v.dimensions[0]._src_idx.shape[0], 51)
+                self.assertEqual(len(v.dimensions[0]), 51)
                 self.assertIsNone(v._value)
 
     def test_inspect(self):
@@ -138,6 +145,7 @@ class TestDriverVector(TestBase):
         driver = self.get_driver()
         m = driver.metadata
         self.assertIsInstance(m, dict)
+        self.assertIsInstance(m['groups'], dict)
         self.assertTrue(len(m) > 2)
         self.assertIn('variables', m)
 

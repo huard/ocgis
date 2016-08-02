@@ -187,7 +187,7 @@ class DriverNetcdf(AbstractDriver):
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
 
-    def _init_variable_from_source_main_(self, variable):
+    def _init_variable_from_source_main_(self, variable, variable_object):
         init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
 
     def _open_(self, group_indexing=None, mode='r'):

@@ -108,10 +108,15 @@ class DriverVector(AbstractDriver):
             m['dimensions'] = {constants.NAME_GEOMETRY_DIMENSION: {'length': len(data),
                                                                    'name': constants.NAME_GEOMETRY_DIMENSION}}
             m['variables'] = OrderedDict()
+
+            # Groups are not currently supported in vector formats but metadata expects groups.
+            m['groups'] = OrderedDict()
+
             for p, d in m['schema']['properties'].items():
                 d = get_dtype_from_fiona_type(d)
                 m['variables'][p] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,), 'dtype': d, 'name': p,
                                      'attributes': OrderedDict()}
+
             m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
                                                     'dtype': object,
                                                     'name': constants.NAME_GEOMETRY_DIMENSION,
@@ -123,21 +128,6 @@ class DriverVector(AbstractDriver):
     def get_source_metadata_as_json(self):
         # tdk: test on vector and netcdf
         raise NotImplementedError
-
-    def _init_variable_from_source_main_(self, variable):
-        m = self.rd.metadata
-        if isinstance(variable, GeometryVariable):
-            mv = m[constants.NAME_GEOMETRY_DIMENSION]
-        else:
-            mv = m['variables'][variable.name]
-
-        if variable._dtype is None:
-            variable.dtype = mv['dtype']
-
-        variable_attrs = variable._attrs
-        for k, v in mv['attributes'].items():
-            if k not in variable_attrs:
-                variable_attrs[k] = deepcopy(v)
 
     def _open_(self, slc=None):
         from ocgis import GeomCabinetIterator
@@ -152,6 +142,14 @@ class DriverVector(AbstractDriver):
         if crs is not None:
             parent.add_variable(self.get_crs())
         return parent
+
+    def get_variable_metadata(self, variable_object):
+        if isinstance(variable_object, GeometryVariable):
+            # Geometry variables are located in a different metadata section.
+            ret = self.metadata[variable_object.name]
+        else:
+            ret = super(DriverVector, self).get_variable_metadata(variable_object)
+        return ret
 
     def get_variable_value(self, variable):
         # Iteration is always based on source indices. Generate them if they are not available on the variable.
@@ -171,13 +169,15 @@ class DriverVector(AbstractDriver):
                     ret[variable.name][idx] = row['properties'][variable.name]
             else:
                 ret = {}
+                # Initialize the variable data as zero arrays.
                 for v in variable.parent.values():
                     if not isinstance(v, CoordinateReferenceSystem):
                         ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
-                    for idx, row in enumerate(g):
-                        for v in self.get_dimensioned_variables():
-                            ret[v][idx] = row['properties'][v]
-                        ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+                # Fill those arrays.
+                for idx, row in enumerate(g):
+                    for dv in self.get_dimensioned_variables():
+                        ret[dv][idx] = row['properties'][dv]
+                    ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
         finally:
             self.close(g)
         return ret
@@ -270,11 +270,19 @@ class DriverVector(AbstractDriver):
             if should_close:
                 sink.close()
 
-    def _get_dimensions_main_(self):
-        mv = self.rd.metadata
-        desired_dimension = mv['dimensions'].values()[0]
+    def _get_dimensions_main_(self, group_meta):
+        desired_dimension = group_meta['dimensions'].values()[0]
         new_dimension = Dimension(name=desired_dimension['name'], size=desired_dimension['length'])
-        return {new_dimension.name: new_dimension}
+        return [new_dimension]
+
+    def _init_variable_from_source_main_(self, variable_object, variable_metadata):
+        if variable_object._dtype is None:
+            variable_object.dtype = variable_metadata['dtype']
+
+        variable_attrs = variable_object._attrs
+        for k, v in variable_metadata['attributes'].items():
+            if k not in variable_attrs:
+                variable_attrs[k] = deepcopy(v)
 
 
 def get_dtype_from_fiona_type(ftype):
