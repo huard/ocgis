@@ -608,6 +608,17 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[[False, True, True, True, False]]
         self.assertEqual(sub.shape, (3,))
 
+    def test_group(self):
+        var = Variable()
+        self.assertIsNone(var.group)
+
+        vc1 = VariableCollection(name='one')
+        vc2 = VariableCollection(name='two', parent=vc1)
+        vc3 = VariableCollection(name='three', parent=vc2)
+        var = Variable(name='lonely')
+        vc3.add_variable(var)
+        self.assertEqual(var.group, ['one', 'two', 'three'])
+
     def test_iter(self):
         var = self.get_variable(return_original_data=False)
 
@@ -1006,7 +1017,6 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertIsNotNone(v.value)
 
     def test_system_nested(self):
-        # tdk: RESUME: figure out how to handle nested datasets through request dataset
         # Test with nested collections.
         vc = self.get_variablecollection()
         nvc = self.get_variablecollection(name='nest')

@@ -179,7 +179,8 @@ class TestOcgMpi(AbstractTestNewInterface):
         src_idx = [2, 3, 4, 5, 6]
         dim = ompi.create_dimension('foo', size=5, group='subroot', dist=True, src_idx=src_idx)
         self.assertEqual(dim, ompi.get_dimension(dim.name, group='subroot'))
-        self.assertEqual(dim.bounds_local, 'auto')
+        self.assertEqual(dim.bounds_local, (0, len(dim)))
+        self.assertFalse(dim.is_empty)
         ompi.update_dimension_bounds()
         with self.assertRaises(ValueError):
             ompi.update_dimension_bounds()
@@ -209,15 +210,15 @@ class TestOcgMpi(AbstractTestNewInterface):
         ompi.update_dimension_bounds()
         bounds_local = ompi.get_bounds_local()
         if ompi.size <= 2:
-            desired = {(1, 0): ((0, 5), 'auto', (0, 3)),
-                       (2, 0): ((0, 3), 'auto', (0, 2)),
-                       (2, 1): ((3, 5), 'auto', (2, 3))}
+            desired = {(1, 0): ((0, 5), (0, 10), (0, 3)),
+                       (2, 0): ((0, 3), (0, 10), (0, 2)),
+                       (2, 1): ((3, 5), (0, 10), (2, 3))}
             self.assertEqual(bounds_local, desired[(ompi.size, ompi.rank)])
         else:
             if ompi.rank <= 1:
                 self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
             for dim in dimensions:
-                if ompi.rank > 2 and dim.dist:
+                if ompi.rank > 2:
                     self.assertTrue(dim.is_empty)
                 else:
                     self.assertFalse(dim.is_empty)
@@ -243,7 +244,7 @@ class TestOcgMpi(AbstractTestNewInterface):
 
         desired = {None: {'dimensions': [Dimension(name='end_of_days', size=None, size_current=None),
                                          Dimension(name='start_of_days', size=None, size_current=None)],
-                          'groups': {'flower': {'dimensions': [], 'groups': {}}, 'moon': {'groups': {
+                          'groups': {'flower': {'dimensions': [], 'groups': {}}, 'moon': {'dimensions': [], 'groups': {
                               'base': {'dimensions': [Dimension(name='foo', size=None, size_current=None)],
                                        'groups': {}}}}}}}
         self.assertEqual(ocmpi.dimensions, desired)

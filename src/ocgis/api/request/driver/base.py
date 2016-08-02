@@ -225,7 +225,11 @@ class AbstractDriver(object):
         if variable._dimensions is None:
             variable_metadata = get_variable_metadata_from_request_dataset(self, variable)
             desired_dimensions = variable_metadata['dimensions']
-            new_dimensions = [self.dimensions[d] for d in desired_dimensions]
+            new_dimensions = []
+            for d in desired_dimensions:
+                dimension_group = get_group(self.dimensions, variable.group)['dimensions']
+                to_append = find_dimension_in_sequence(d, dimension_group)
+                new_dimensions.append(to_append)
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
         # Call the subclass variable initialization routine.
         self._init_variable_from_source_main_(variable)

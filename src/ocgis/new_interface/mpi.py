@@ -98,9 +98,9 @@ class OcgMpi(AbstractOcgisObject):
         return tuple(ret)
 
     def get_dimension(self, name, group=None):
-        group = self.get_group(group=group)
+        group_data = self.get_group(group=group)
         ret = None
-        for d in group['dimensions']:
+        for d in group_data['dimensions']:
             if d.name == name:
                 ret = d
                 break
@@ -186,16 +186,19 @@ class OcgMpi(AbstractOcgisObject):
                         else:
                             src_idx = dim._src_idx[start:stop]
                         dim.set_size(stop - start, src_idx=src_idx)
+                    else:
+                        # If there are no local bounds, the dimension is empty.
+                        dim.is_empty = True
                     dim.bounds_local = bounds_local
-                # Local and global bounds are equivalent for undistributed dimensions.
                 else:
+                    # The dimension is not distributed. Local bounds don't need to be set.
                     pass
 
             # If there are any empty dimensions on the rank, than all dimensions are empty.
             is_empty = [dim.is_empty for dim in dimensions]
             if any(is_empty):
                 for dim in dimensions:
-                    dim._is_empty = True
+                    dim.is_empty = True
             else:
                 pass
 
@@ -253,7 +256,9 @@ class OcgMpi(AbstractOcgisObject):
                 pass
 
             # Dimension is no longer distributed and should not have local bounds.
-            dim._bounds_local = 'auto'
+            dim._bounds_local = None
+            # Dimension is no longer empty as its component parts have been gathered across ranks.
+            dim.is_empty = False
 
             ret = dim
         else:

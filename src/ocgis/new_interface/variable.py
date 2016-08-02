@@ -308,6 +308,22 @@ class Variable(AbstractContainer, Attributes):
         return self._fill_value
 
     @property
+    def group(self):
+        if self.parent is None:
+            ret = None
+        else:
+            curr = self.parent
+            ret = [curr.name]
+            while True:
+                if curr.parent is None:
+                    break
+                else:
+                    curr = curr.parent
+                    ret.append(curr.name)
+            ret.reverse()
+        return ret
+
+    @property
     def has_distributed_dimension(self):
         """
         :return: ``True`` if the variable has a distributed dimension.
