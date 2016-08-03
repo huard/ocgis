@@ -4,7 +4,6 @@ from copy import deepcopy
 import numpy as np
 
 from ocgis.base import AbstractOcgisObject
-from ocgis.exc import OcgMpiError
 from ocgis.util.helpers import get_optimal_slice_from_array
 
 try:
@@ -122,38 +121,28 @@ class OcgMpi(AbstractOcgisObject):
         # Only updated dimensions are allowed for scatters.
         assert self.has_updated_dimensions
 
-        # Scattering only allowed for variables with distributed dimensions.
-        if not variable.has_distributed_dimension:
-            raise OcgMpiError('Only variables with distributed dimensions can be scattered.')
+        if self.rank == root:
+            group = variable.group
+        else:
+            group = None
+
+        group = self.comm.bcast(group, root=root)
 
         # Gather dimension bound slices to use for subsetting the values/masks.
-        bounds_local = [d.bounds_local for d in variable.dimensions]
+        dimensions = self.get_group(group=group)['dimensions']
+        bounds_local = [d.bounds_local for d in dimensions]
         the_slice = [slice(b[0], b[1]) for b in bounds_local]
         slices = self.comm.gather(the_slice, root=root)
 
         # Distribute the values and masks if the variable has distributed dimensions.
         if self.rank == root:
-            # Only slice the data value if it is available. If it is not, assume the dimension source indicies will
-            # take care of the value distribution.
-            if variable._value is not None:
-                values = [variable.value.__getitem__(s) for s in slices]
-            else:
-                values = [None] * len(slices)
-
-            if variable._mask is not None:
-                masks = [variable.get_mask().__getitem__(s) for s in slices]
-            else:
-                masks = [None] * len(slices)
+            variables_to_scatter = [variable[s] for s in slices]
         else:
-            values, masks = None, None
+            variables_to_scatter = None
 
-        local_value = self.comm.scatter(values, root=root)
-        local_mask = self.comm.scatter(masks, root=root)
+        scattered_variable = self.comm.scatter(variables_to_scatter, root=root)
 
-        variable.value = local_value
-        variable.set_mask(local_mask)
-
-        return variable
+        return scattered_variable
 
     def update_dimension_bounds(self):
         if self.has_updated_dimensions:
