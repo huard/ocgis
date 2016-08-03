@@ -297,7 +297,7 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
-        # tdk: RESUME: test is failing in parallel - need a method to indicate if a variable is distributed
+        # tdk: RESUME: test is failing in parallel - need to use new dist keyword when creating the variable
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True)
             ompi = OcgMpi()
@@ -313,9 +313,6 @@ class TestVariable(AbstractTestNewInterface):
             var = ompi.scatter_variable(var)
 
             if with_bounds:
-                if MPI_SIZE > 2:
-                    # Single values on a processor are not supported for bounds extrapolation.
-                    continue
                 var.set_extrapolated_bounds('dist_bounds', 'bounds')
             else:
                 self.assertIsNone(var.bounds)
@@ -708,6 +705,40 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(len(dim), 3)
         self.assertEqual(len(sub.dimensions[0]), 1)
         self.assertEqual(sub.shape, (1,))
+
+    @attr('mpi')
+    def test_shape_mpi(self):
+        """Test shape with distributed dimensions."""
+
+        kwds = dict(dist=[False, True], value=[np.random.rand(5, 3), None])
+
+        ompi = OcgMpi()
+        is_dist = ompi.create_dimension('is_dist', 5, dist=True)
+        not_dist = ompi.create_dimension('not_dist', 3, dist=False)
+        ompi.update_dimension_bounds()
+
+        for k in self.iter_product_keywords(kwds):
+            try:
+                var = Variable('tester', value=k.value, dimensions=[is_dist, not_dist], dist=k.dist)
+            except ValueError:
+                # The local dimension bounds do not match the assigned value.
+                self.assertTrue(k.dist)
+                self.assertIsNotNone(k.value)
+            else:
+                self.assertEqual(var.dist, k.dist)
+                if k.dist and MPI_SIZE > 1:
+                    self.assertNotEqual(var.shape, (5, 3))
+                else:
+                    self.assertEqual(var.shape, (5, 3))
+
+                if var.is_empty:
+                    self.assertIsNone(var.value)
+                else:
+                    if k.value is None:
+                        # Zeroes are created when there is no value.
+                        self.assertNumpyAll(var.value, np.zeros(var.shape))
+                    else:
+                        self.assertNumpyAll(var.value, k.value)
 
     def test_units(self):
         var = Variable()

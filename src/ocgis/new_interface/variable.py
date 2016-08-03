@@ -98,7 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None):
+                 units='auto', parent=None, bounds=None, dist=False):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -106,13 +106,14 @@ class Variable(AbstractContainer, Attributes):
         self._dtype = None
         self._mask = None
 
+        self.dist = dist
+        self.dtype = dtype
+
         self._fill_value = fill_value
         if bounds is not None:
             self._bounds_name = bounds.name
         else:
             self._bounds_name = None
-
-        self.dtype = dtype
 
         AbstractContainer.__init__(self, name, parent=parent)
 
@@ -286,7 +287,7 @@ class Variable(AbstractContainer, Attributes):
         if dimensions is not None:
             dimensions = tuple(get_iter(dimensions, dtype=Dimension))
         self._dimensions = dimensions
-        update_unlimited_dimension_length(self._value, dimensions)
+        update_unlimited_dimension_length(self._value, dimensions, self.dist)
 
     @property
     def extent(self):
@@ -342,7 +343,7 @@ class Variable(AbstractContainer, Attributes):
     @property
     def is_empty(self):
         ret = False
-        if self.has_distributed_dimension:
+        if self.dist and self.has_distributed_dimension:
             for dim in self.dimensions:
                 if dim.is_empty:
                     ret = True
@@ -429,7 +430,7 @@ class Variable(AbstractContainer, Attributes):
                     msg = 'Value shapes for variables with unlimited dimensions are undetermined.'
                     raise ValueError(msg)
                 elif len(dimensions) > 0:
-                    ret = variable_get_zeros(dimensions, self.dtype)
+                    ret = variable_get_zeros(dimensions, self.dtype, self.dist)
         return ret
 
     def _set_value_(self, value):
@@ -463,7 +464,7 @@ class Variable(AbstractContainer, Attributes):
                 except TypeError:
                     value = value.astype(desired_dtype)
 
-        update_unlimited_dimension_length(value, self._dimensions)
+        update_unlimited_dimension_length(value, self._dimensions, self.dist)
 
         self._value = value
 
@@ -912,20 +913,29 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         driver.write_variable_collection(*args, **kwargs)
 
 
-def get_dimension_lengths(dimensions):
-    return tuple([len(d) for d in dimensions])
+def get_dimension_lengths(dimensions, variable_is_distributed):
+    if variable_is_distributed:
+        # Distributed variables have sizes dependent on the local bounds of the dimension.
+        ret = [len(d) for d in dimensions]
+    else:
+        # Undistributed variables have bounds consistent with the global bounds on the dimension.
+        ret = [d.bounds_global[1] - d.bounds_global[0] for d in dimensions]
+    return tuple(ret)
 
 
 def get_shape_from_variable(variable):
-    dimensions = variable._dimensions
-    value = variable._value
-    try:
-        shape = get_dimension_lengths(dimensions)
-    except TypeError:
+    if variable.is_empty:
+        shape = tuple()
+    else:
+        dimensions = variable._dimensions
+        value = variable._value
         try:
-            shape = value.shape
-        except AttributeError:
-            shape = tuple()
+            shape = get_dimension_lengths(dimensions, variable.dist)
+        except TypeError:
+            try:
+                shape = value.shape
+            except AttributeError:
+                shape = tuple()
     return shape
 
 
@@ -938,7 +948,7 @@ def has_unlimited_dimension(dimensions):
     return ret
 
 
-def update_unlimited_dimension_length(variable_value, dimensions):
+def update_unlimited_dimension_length(variable_value, dimensions, variable_is_distributed):
     """
     Update unlimited dimension length if present on the variable. Update only occurs if the variable's value is
     allocated.
@@ -946,7 +956,7 @@ def update_unlimited_dimension_length(variable_value, dimensions):
     if variable_value is not None:
         # Update any unlimited dimension length.
         if dimensions is not None:
-            aq = are_variable_and_dimensions_shape_equal(variable_value, dimensions)
+            aq = are_variable_and_dimensions_shape_equal(variable_value, dimensions, variable_is_distributed)
             if not aq:
                 msg = "Variable and dimension shapes must be equal."
                 raise ValueError(msg)
@@ -955,10 +965,10 @@ def update_unlimited_dimension_length(variable_value, dimensions):
                     d._size_current = variable_value.shape[idx]
 
 
-def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
+def are_variable_and_dimensions_shape_equal(variable_value, dimensions, variable_is_distributed):
     to_test = []
     vshape = variable_value.shape
-    dshape = get_dimension_lengths(dimensions)
+    dshape = get_dimension_lengths(dimensions, variable_is_distributed)
 
     if len(vshape) != len(dshape):
         ret = False
@@ -1034,8 +1044,8 @@ def get_mapping_for_slice(names_source, names_destination):
     return ret
 
 
-def variable_get_zeros(dimensions, dtype):
-    new_shape = get_dimension_lengths(dimensions)
+def variable_get_zeros(dimensions, dtype, variable_is_distributed):
+    new_shape = get_dimension_lengths(dimensions, variable_is_distributed)
     ret = np.zeros(new_shape, dtype=dtype)
     return ret
 

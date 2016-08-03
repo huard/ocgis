@@ -142,6 +142,10 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
+    def dist(self):
+        return self._archetype.dist
+
+    @property
     def has_bounds(self):
         return self._archetype.has_bounds
 
@@ -211,7 +215,7 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def shape(self):
-        return get_dimension_lengths(self.dimensions)
+        return get_dimension_lengths(self.dimensions, self.dist)
 
     @property
     def value_stacked(self):
