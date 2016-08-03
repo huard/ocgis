@@ -276,9 +276,11 @@ class TestOcgMpi(AbstractTestNewInterface):
         else:
             self.assertIsNone(actual)
 
-    @attr('mpi-2')
+    @attr('mpi-2', 'mpi-5')
     def test_update_dimension_bounds(self):
         ompi = OcgMpi()
         dim = ompi.create_dimension('five', 5, dist=True)
         ompi.update_dimension_bounds()
         self.assertEqual(dim.bounds_global, (0, 5))
+        if MPI_SIZE > 1:
+            self.assertNotEqual(dim.bounds_local, dim.bounds_global)
