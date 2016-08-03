@@ -166,6 +166,10 @@ class OcgMpi(AbstractOcgisObject):
             for dim in dimensions:
                 # For distributed bounds, the local and global bounds will be different.
                 if dim.dist:
+                    # Before updating bounds, set the global bounds so they will always be available to associated
+                    # variables.
+                    dim.bounds_global = (0, len(dim))
+                    # Use this to calculate the local bounds for a dimension.
                     omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
                     bounds_local = omb.bounds_local
                     if bounds_local is not None:

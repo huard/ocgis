@@ -275,3 +275,10 @@ class TestOcgMpi(AbstractTestNewInterface):
                 self.assertEqual(actual_dim, ompi.get_dimension(actual_dim.name))
         else:
             self.assertIsNone(actual)
+
+    @attr('mpi-2')
+    def test_update_dimension_bounds(self):
+        ompi = OcgMpi()
+        dim = ompi.create_dimension('five', 5, dist=True)
+        ompi.update_dimension_bounds()
+        self.assertEqual(dim.bounds_global, (0, 5))

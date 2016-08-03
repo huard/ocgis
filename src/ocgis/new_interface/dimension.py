@@ -18,7 +18,8 @@ class Dimension(AbstractInterfaceObject):
 
         self._name = name
         self.__src_idx__ = None
-        self._bounds_local = '__not_set__'
+        self._bounds_global = None
+        self._bounds_local = None
         self._size = size
         self._size_current = size_current
         self.dist = dist
@@ -80,13 +81,18 @@ class Dimension(AbstractInterfaceObject):
 
     @property
     def bounds_global(self):
-        # tdk: remove
-        raise NotImplementedError
+        if self._bounds_global is None:
+            ret = (0, len(self))
+        else:
+            ret = self._bounds_global
+        return ret
 
-    @property
-    def _bounds_global(self):
-        # tdk: remove
-        raise NotImplementedError
+    @bounds_global.setter
+    def bounds_global(self, value):
+        if value is not None:
+            value = tuple(value)
+            assert len(value) == 2
+        self._bounds_global = value
 
     @property
     def bounds_local(self):
