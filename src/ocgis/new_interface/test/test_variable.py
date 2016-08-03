@@ -297,7 +297,7 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
-        # tdk: RESUME: test is failing in parallel
+        # tdk: RESUME: test is failing in parallel - need a method to indicate if a variable is distributed
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True)
             ompi = OcgMpi()
