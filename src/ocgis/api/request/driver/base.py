@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.mpi import find_dimension_in_sequence
 from ocgis.new_interface.variable import SourcedVariable
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -302,17 +303,6 @@ class AbstractDriver(object):
     @abc.abstractmethod
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         """Initialize everything but dimensions on the target variable."""
-
-
-def find_dimension_in_sequence(dimension_name, dimensions):
-    ret = None
-    for dim in dimensions:
-        if dimension_name == dim.name:
-            ret = dim
-            break
-    if ret is None:
-        raise ValueError('Dimension not found: {}'.format(dimension_name))
-    return ret
 
 
 def get_group(ddict, keyseq):

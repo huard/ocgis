@@ -560,7 +560,7 @@ class Variable(AbstractContainer, Attributes):
         dimensions = list(self.dimensions)
         dimensions.append(Dimension(name=name_dimension, size=bounds_value.shape[-1]))
 
-        var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
+        var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units, dist=self.dist)
         self.bounds = var
 
         # This will synchronize the bounds mask with the variable's mask.

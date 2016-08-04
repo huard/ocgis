@@ -297,23 +297,28 @@ class TestVariable(AbstractTestNewInterface):
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
         """Test variable behavior with distributed dimensions."""
-        # tdk: RESUME: test is failing in parallel - need to use new dist keyword when creating the variable
+
         for with_bounds in [False, True]:
             dim = Dimension('is_dist', 5, dist=True, src_idx='auto')
             ompi = OcgMpi()
             ompi.add_dimension(dim)
             ompi.update_dimension_bounds()
+            var_value = np.arange(5, dtype=float) + 10
             if ompi.rank == 0:
-                var_value = np.arange(5, dtype=float)
                 mask = [False, True, False, True, False]
-                var = Variable('has_dist_dim', value=var_value, mask=mask, dimensions=dim)
+                var = Variable('has_dist_dim', value=var_value, mask=mask, dimensions='is_dist')
+                self.assertFalse(var.dimensions[0].dist)
+                if with_bounds:
+                    var.set_extrapolated_bounds('has_dist_dim_bounds', 'bounds')
             else:
                 var = None
 
             var = ompi.scatter_variable(var)
+            self.assertTrue(var.dist)
+            self.assertTrue(var.dimensions[0].dist)
 
             if with_bounds:
-                var.set_extrapolated_bounds('dist_bounds', 'bounds')
+                self.assertIsNotNone(var.bounds)
             else:
                 self.assertIsNone(var.bounds)
 
@@ -321,18 +326,25 @@ class TestVariable(AbstractTestNewInterface):
                 if with_bounds:
                     self.assertEqual(var.bounds.shape, (var.shape[0], 2))
                 if MPI_RANK == 0:
-                    desired_value = np.array([0, 1, 2], dtype=float)
+                    desired_value = np.array([10, 11, 12], dtype=float)
                     desired_mask = np.array([False, True, False])
+                    desired_src_idx = np.array([0, 1, 2], dtype=Dimension._default_dtype)
                 else:
-                    desired_value = np.array([3, 4], dtype=float)
+                    desired_value = np.array([13, 14], dtype=float)
                     desired_mask = np.array([True, False])
+                    desired_src_idx = np.array([3, 4], dtype=Dimension._default_dtype)
                 self.assertNumpyAll(var.value, desired_value)
                 self.assertNumpyAll(var.get_mask(), desired_mask)
+                self.assertNumpyAll(var.dimensions[0]._src_idx, desired_src_idx)
             elif MPI_SIZE == 8:
                 if MPI_RANK > 4:
+                    self.assertTrue(var.is_empty)
                     self.assertIsNone(var.value)
                     self.assertIsNone(var.get_mask())
-                    self.assertIsNone(var.bounds)
+                    if with_bounds:
+                        self.assertTrue(var.bounds.is_empty)
+                    else:
+                        self.assertIsNone(var.bounds)
                 else:
                     self.assertEqual(var.value[0], var_value[MPI_RANK])
 
@@ -463,6 +475,14 @@ class TestVariable(AbstractTestNewInterface):
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
+
+    def test_dimensions(self):
+        var = Variable('bounded', value=[1, 2, 3, 4], dimensions='aa')
+        var.set_extrapolated_bounds('aa_bounds', 'aabnds')
+        print var.bounds.dimensions
+        var.dimensions = Dimension(4, 'bb')
+        print var.dimensions
+        print var.bounds.dimensions
 
     def test_get_between(self):
         bv = Variable('foo', value=[0])
