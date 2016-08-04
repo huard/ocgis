@@ -288,6 +288,10 @@ class Variable(AbstractContainer, Attributes):
             dimensions = tuple(get_iter(dimensions, dtype=Dimension))
         self._dimensions = dimensions
         update_unlimited_dimension_length(self._value, dimensions, self.dist)
+        if self.bounds is not None:
+            bounds_dimensions = list(self.bounds.dimensions)
+            bounds_dimensions[0:self.ndim] = self.dimensions
+            self.bounds.dimensions = bounds_dimensions
 
     @property
     def extent(self):

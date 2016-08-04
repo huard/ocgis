@@ -138,6 +138,10 @@ class OcgMpi(AbstractOcgisObject):
         # Distribute the values and masks if the variable has distributed dimensions.
         if self.rank == root:
             variables_to_scatter = [variable[s] for s in slices]
+            for var in variables_to_scatter:
+                if var.bounds is not None:
+                    from ocgis_logging import log
+                    log.debug((var.shape, var.bounds.shape))
         else:
             variables_to_scatter = None
 
