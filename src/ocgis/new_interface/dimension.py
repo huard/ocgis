@@ -53,10 +53,6 @@ class Dimension(AbstractInterfaceObject):
         slc = get_formatted_slice(slc, 1)[0]
         ret = self.copy()
 
-        # Track source indices following a slice.
-        if ret._src_idx is None:
-            ret._src_idx = self._get_src_idx_()
-
         # Slicing work is done here.
         self.__getitem_main__(ret, slc)
 
@@ -152,7 +148,7 @@ class Dimension(AbstractInterfaceObject):
     def set_size(self, value, src_idx=None):
         if value is not None:
             if isinstance(src_idx, basestring) and src_idx == 'auto':
-                src_idx = np.arange(value, dtype=self._default_dtype)
+                src_idx = create_src_idx(0, value, dtype=self._default_dtype)
         elif value is None:
             src_idx = None
         else:
@@ -215,13 +211,6 @@ class Dimension(AbstractInterfaceObject):
 
         ret.set_size(length, src_idx=src_idx)
 
-    def _get_src_idx_(self):
-        if len(self) == 0:
-            ret = None
-        else:
-            if self.bounds_local is None:
-                ret = np.arange(len(self), dtype=self._default_dtype)
-            else:
-                lower, upper = self.bounds_local
-                ret = np.arange(lower, upper, dtype=self._default_dtype)
-        return ret
+
+def create_src_idx(start, stop, dtype=np.int32):
+    return np.arange(start, stop, dtype=dtype)

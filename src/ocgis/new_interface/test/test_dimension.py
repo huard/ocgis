@@ -74,7 +74,7 @@ class TestDimension(AbstractTestNewInterface):
             dim[400:500]
 
         # Test with negative indexing.
-        dim = Dimension(name='geom', size=2)
+        dim = Dimension(name='geom', size=2, src_idx='auto')
         slc = slice(0, -1, None)
         actual = dim[slc]
         self.assertEqual(actual, Dimension('geom', size=1, src_idx='auto'))
@@ -125,6 +125,11 @@ class TestDimension(AbstractTestNewInterface):
         dim = self.get_dimension(src_idx=np.arange(10))
         sub = dim[:-3]
         self.assertEqual(sub._src_idx.shape[0], sub.size)
+
+        # Test source index is None after slicing.
+        dim = Dimension('water', 10)
+        sub = dim[0:3]
+        self.assertIsNone(sub._src_idx)
 
     def test_len(self):
         dim = Dimension('foo')
