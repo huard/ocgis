@@ -299,7 +299,7 @@ class TestVariable(AbstractTestNewInterface):
         """Test variable behavior with distributed dimensions."""
         # tdk: RESUME: test is failing in parallel - need to use new dist keyword when creating the variable
         for with_bounds in [False, True]:
-            dim = Dimension('is_dist', 5, dist=True)
+            dim = Dimension('is_dist', 5, dist=True, src_idx='auto')
             ompi = OcgMpi()
             ompi.add_dimension(dim)
             ompi.update_dimension_bounds()

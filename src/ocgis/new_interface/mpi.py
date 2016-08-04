@@ -138,11 +138,20 @@ class OcgMpi(AbstractOcgisObject):
         if self.rank == root:
             # Variable is now distributed...or about to be.
             variable.dist = True
+            # Temporarily remove the source indices to ensure sizes match up.
+            src_idx_store = {}
+            for dim in variable.dimensions:
+                src_idx_store[dim.name] = dim._src_idx
+                dim._src_idx = None
             variables_to_scatter = [variable[s] for s in slices]
         else:
             variables_to_scatter = None
 
         scattered_variable = self.comm.scatter(variables_to_scatter, root=root)
+
+        if self.rank == root:
+            for dim in scattered_variable.dimensions:
+                dim._src_idx = src_idx_store[dim.name]
 
         return scattered_variable
 
