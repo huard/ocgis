@@ -29,7 +29,7 @@ class Dimension(AbstractInterfaceObject):
 
     def __eq__(self, other):
         ret = True
-        skip = ('__src_idx__', 'mpi')
+        skip = ('__src_idx__',)
         for k, v in self.__dict__.items():
             if k in skip:
                 continue
@@ -59,6 +59,9 @@ class Dimension(AbstractInterfaceObject):
 
         # Slicing work is done here.
         self.__getitem_main__(ret, slc)
+
+        # Global bounds have no meaning after a slice.
+        ret.bounds_global = None
 
         return ret
 

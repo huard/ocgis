@@ -136,6 +136,8 @@ class OcgMpi(AbstractOcgisObject):
 
         # Distribute the values and masks if the variable has distributed dimensions.
         if self.rank == root:
+            # Variable is now distributed...or about to be.
+            variable.dist = True
             variables_to_scatter = [variable[s] for s in slices]
         else:
             variables_to_scatter = None
