@@ -290,7 +290,7 @@ class Variable(AbstractContainer, Attributes):
         update_unlimited_dimension_length(self._value, dimensions, self.dist)
         if self.bounds is not None:
             bounds_dimensions = list(self.bounds.dimensions)
-            bounds_dimensions[0:self.ndim] = self.dimensions
+            bounds_dimensions[0:len(self.dimensions)] = self.dimensions
             self.bounds.dimensions = bounds_dimensions
 
     @property
