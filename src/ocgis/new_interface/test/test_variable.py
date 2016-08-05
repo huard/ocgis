@@ -1,6 +1,7 @@
 import os
 from collections import OrderedDict
 from copy import deepcopy
+from unittest import SkipTest
 
 import numpy as np
 from numpy.core.multiarray import ndarray
@@ -180,6 +181,38 @@ class TestVariable(AbstractTestNewInterface):
             actual = v_actual[idx].value[0]
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
+
+    @attr('mpi')
+    def test_system_scatter_gather_variable(self):
+        """Test a proof-of-concept scatter and gather operation on a simple variable."""
+
+        if MPI_SIZE != 2:
+            raise SkipTest('mpi-2 only')
+
+        slices = [slice(0, 2), slice(2, 5)]
+        var_value = np.arange(5)
+
+        if MPI_RANK == 0:
+            dim = Dimension('five', 5)
+            var = Variable('five', value=var_value, dimensions=dim)
+            to_scatter = [var[slc] for slc in slices]
+        else:
+            to_scatter = None
+
+        lvar = MPI_COMM.scatter(to_scatter)
+
+        self.assertNumpyAll(lvar.value, var_value[slices[MPI_RANK]])
+        self.assertEqual(lvar.dimensions[0], Dimension('five', 5)[slices[MPI_RANK]])
+
+        gathered = MPI_COMM.gather(lvar)
+
+        if MPI_RANK == 0:
+            size = sum([len(v.dimensions[0]) for v in gathered])
+            new_dim = Dimension(gathered[0].dimensions[0].name, size)
+            new_value = hgather([v.value for v in gathered])
+            new_var = Variable(gathered[0].name, value=new_value, dimensions=new_dim)
+            self.assertNumpyAll(new_var.value, var.value)
+            self.assertEqual(new_var.dimensions[0], dim)
 
     @attr('mpi-2', 'mpi-8')
     def test_system_with_distributed_dimensions(self):
