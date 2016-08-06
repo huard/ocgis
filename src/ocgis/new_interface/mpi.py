@@ -328,9 +328,10 @@ class MpiBoundsCalculator(AbstractOcgisObject):
             ret = bounds[1] - bounds[0]
         return ret
 
-    def get_rank_bounds(self, length=None):
+    def get_rank_bounds(self, length=None, rank=None):
         length = length or self.nelements
-        grb = get_rank_bounds(length, size=self.size, rank=self.rank)
+        rank = rank or self.rank
+        grb = get_rank_bounds(length, size=self.size, rank=rank)
         return grb
 
 
