@@ -44,12 +44,12 @@ MPI_RANK = MPI_COMM.Get_rank()
 
 
 class OcgMpi(AbstractOcgisObject):
-    def __init__(self, comm=None):
-        self.comm = comm or MPI_COMM
+    def __init__(self, size=MPI_SIZE):
+        self.size = size
+        self.dimensions = {}
+        for rank in range(size):
+            self.dimensions[rank] = get_template_rank_dict()
 
-        self.size = self.comm.Get_size()
-        self.rank = self.comm.Get_rank()
-        self.dimensions = {None: {'dimensions': [], 'groups': {}}}
         self.has_updated_dimensions = False
 
     def add_dimension(self, dim, group=None, force=False):
@@ -57,11 +57,12 @@ class OcgMpi(AbstractOcgisObject):
         if not isinstance(dim, Dimension):
             raise ValueError('"dim" must be a "Dimension" object.')
 
-        the_group = self._create_or_get_group_(group)
-        if not force and any([dim.name == d.name for d in the_group['dimensions']]):
-            raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
-        else:
-            the_group['dimensions'].append(dim)
+        for rank in range(self.size):
+            the_group = self._create_or_get_group_(group, rank=rank)
+            if not force and any([dim.name == d.name for d in the_group['dimensions']]):
+                raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
+            else:
+                the_group['dimensions'].append(dim)
 
     def create_dimension(self, *args, **kwargs):
         from dimension import Dimension
@@ -97,8 +98,8 @@ class OcgMpi(AbstractOcgisObject):
         ret = [dim.bounds_local for dim in the_group['dimensions']]
         return tuple(ret)
 
-    def get_dimension(self, name, group=None):
-        group_data = self.get_group(group=group)
+    def get_dimension(self, name, group=None, rank=MPI_RANK):
+        group_data = self.get_group(group=group, rank=rank)
         ret = None
         for d in group_data['dimensions']:
             if d.name == name:
@@ -108,13 +109,14 @@ class OcgMpi(AbstractOcgisObject):
             raise ValueError('Dimension not found: {}'.format(name))
         return ret
 
-    def get_group(self, group=None):
-        return self._create_or_get_group_(group)
+    def get_group(self, group=None, rank=MPI_RANK):
+        return self._create_or_get_group_(group, rank=rank)
 
-    def iter_groups(self):
+    def iter_groups(self, rank=MPI_RANK):
         from ocgis.api.request.driver.base import iter_all_group_keys, get_group
-        for group_key in iter_all_group_keys(self.dimensions):
-            group_data = get_group(self.dimensions, group_key)
+        dimensions = self.dimensions[rank]
+        for group_key in iter_all_group_keys(dimensions):
+            group_data = get_group(dimensions, group_key)
             yield group_key, group_data
 
     def scatter_variable(self, variable, root=0):
@@ -181,60 +183,71 @@ class OcgMpi(AbstractOcgisObject):
 
         return scattered_variable
 
-    def update_dimension_bounds(self):
+    def update_dimension_bounds(self, rank=MPI_RANK):
+        """
+
+        :param rank: If ``'all'``, update across all ranks. Otherwise, update for the integer rank provided.
+        :type rank: str/int
+        """
         if self.has_updated_dimensions:
             raise ValueError('Dimensions already updated.')
 
-        for _, group_data in self.iter_groups():
-            dimensions = tuple(group_data['dimensions'])
-            lengths = [len(dim) for dim in dimensions if dim.dist]
+        if rank == 'all':
+            ranks = range(self.size)
+        else:
+            ranks = [rank]
 
-            # Choose the size of the distribution group. There needs to be at least one element per rank.
-            the_size = self.size
-            if len(lengths) != 0:
-                if min(lengths) < self.size:
-                    the_size = min(lengths)
-                else:
-                    pass
-            else:
-                pass
+        for rank in ranks:
+            for _, group_data in self.iter_groups(rank=rank):
+                dimensions = tuple(group_data['dimensions'])
+                lengths = [len(dim) for dim in dimensions if dim.dist]
 
-            # Update the local bounds for the dimension.
-            for dim in dimensions:
-                # For distributed bounds, the local and global bounds will be different.
-                if dim.dist:
-                    # Before updating bounds, set the global bounds so they will always be available to associated
-                    # variables.
-                    dim.bounds_global = (0, len(dim))
-                    # Use this to calculate the local bounds for a dimension.
-                    omb = MpiBoundsCalculator(nelements=len(dim), size=the_size)
-                    bounds_local = omb.bounds_local
-                    if bounds_local is not None:
-                        start, stop = bounds_local
-                        if dim._src_idx is None:
-                            src_idx = None
-                        else:
-                            src_idx = dim._src_idx[start:stop]
-                        dim.set_size(stop - start, src_idx=src_idx)
+                # Choose the size of the distribution group. There needs to be at least one element per rank.
+                the_size = self.size
+                if len(lengths) != 0:
+                    if min(lengths) < self.size:
+                        the_size = min(lengths)
                     else:
-                        # If there are no local bounds, the dimension is empty.
-                        dim.is_empty = True
-                    dim.bounds_local = bounds_local
+                        pass
                 else:
-                    # The dimension is not distributed. Local bounds don't need to be set.
                     pass
 
-            # If there are any empty dimensions on the rank, than all dimensions are empty.
-            is_empty = [dim.is_empty for dim in dimensions]
-            if any(is_empty):
+                # Update the local bounds for the dimension.
                 for dim in dimensions:
-                    dim.is_empty = True
-            else:
-                pass
+                    # For distributed bounds, the local and global bounds will be different.
+                    if dim.dist:
+                        # Before updating bounds, set the global bounds so they will always be available to associated
+                        # variables.
+                        dim.bounds_global = (0, len(dim))
+                        # Use this to calculate the local bounds for a dimension.
+                        omb = MpiBoundsCalculator(nelements=len(dim), size=the_size, rank=rank)
+                        bounds_local = omb.bounds_local
+                        if bounds_local is not None:
+                            start, stop = bounds_local
+                            if dim._src_idx is None:
+                                src_idx = None
+                            else:
+                                src_idx = dim._src_idx[start:stop]
+                            dim.set_size(stop - start, src_idx=src_idx)
+                        else:
+                            # If there are no local bounds, the dimension is empty.
+                            dim.is_empty = True
+                        dim.bounds_local = bounds_local
+                    else:
+                        # The dimension is not distributed. Local bounds don't need to be set.
+                        pass
+
+                # If there are any empty dimensions on the rank, than all dimensions are empty.
+                is_empty = [dim.is_empty for dim in dimensions]
+                if any(is_empty):
+                    for dim in dimensions:
+                        dim.is_empty = True
+                else:
+                    pass
 
         self.has_updated_dimensions = True
 
-    def _create_or_get_group_(self, group):
+    def _create_or_get_group_(self, group, rank=MPI_RANK):
         # The group sequence may be modified.
         group = deepcopy(group)
         # Allow None and single string group selection.
@@ -244,7 +257,7 @@ class OcgMpi(AbstractOcgisObject):
         if group[0] is not None:
             group.insert(0, None)
 
-        ret = self.dimensions
+        ret = self.dimensions[rank]
         for ctr, g in enumerate(group):
             # No group nesting for the first iteration.
             if ctr > 0:
@@ -297,10 +310,10 @@ class OcgMpi(AbstractOcgisObject):
 
 
 class MpiBoundsCalculator(AbstractOcgisObject):
-    def __init__(self, nelements, size=None):
+    def __init__(self, nelements, size=MPI_SIZE, rank=MPI_RANK):
         self.nelements = nelements
-        self.rank = MPI_RANK
-        self.size = size or MPI_SIZE
+        self.rank = rank
+        self.size = size
 
     @property
     def bounds_global(self):
@@ -528,6 +541,10 @@ def get_optimal_splits(size, shape):
                     fill = even_split
                 splits[idx] = fill
     return tuple(splits)
+
+
+def get_template_rank_dict():
+    return {None: {'dimensions': [], 'groups': {}}}
 
 
 def find_dimension_in_sequence(dimension_name, dimensions):

@@ -7,7 +7,7 @@ from mpi4py.MPI import COMM_NULL
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
-    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice
+    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.test.base import attr
@@ -186,16 +186,16 @@ class TestOcgMpi(AbstractTestNewInterface):
             ompi.update_dimension_bounds()
 
         if ompi.size == 2:
-            if ompi.rank == 0:
+            if MPI_RANK == 0:
                 self.assertEqual(dim.bounds_local, (0, 3))
                 self.assertEqual(dim._src_idx.tolist(), [2, 3, 4])
-            elif ompi.rank == 1:
+            elif MPI_RANK == 1:
                 self.assertEqual(dim.bounds_local, (3, 5))
                 self.assertEqual(dim._src_idx.tolist(), [5, 6])
         elif ompi.size == 8:
-            if ompi.rank <= 4:
+            if MPI_RANK <= 4:
                 self.assertEqual(len(dim), 1)
-                self.assertEqual(dim._src_idx[0], src_idx[ompi.rank])
+                self.assertEqual(dim._src_idx[0], src_idx[MPI_RANK])
             else:
                 self.assertTrue(dim.is_empty)
 
@@ -213,12 +213,12 @@ class TestOcgMpi(AbstractTestNewInterface):
             desired = {(1, 0): ((0, 5), (0, 10), (0, 3)),
                        (2, 0): ((0, 3), (0, 10), (0, 2)),
                        (2, 1): ((3, 5), (0, 10), (2, 3))}
-            self.assertEqual(bounds_local, desired[(ompi.size, ompi.rank)])
+            self.assertEqual(bounds_local, desired[(ompi.size, MPI_RANK)])
         else:
-            if ompi.rank <= 1:
+            if MPI_RANK <= 1:
                 self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
             for dim in dimensions:
-                if ompi.rank > 2:
+                if MPI_RANK > 2:
                     self.assertTrue(dim.is_empty)
                 else:
                     self.assertFalse(dim.is_empty)
@@ -242,11 +242,11 @@ class TestOcgMpi(AbstractTestNewInterface):
         desired = Dimension('foo')
         self.assertEqual(actual, desired)
 
-        desired = {None: {'dimensions': [Dimension(name='end_of_days', size=None, size_current=None),
-                                         Dimension(name='start_of_days', size=None, size_current=None)],
+        desired = {0: {None: {'dimensions': [Dimension(name='end_of_days', size=None, size_current=None),
+                                             Dimension(name='start_of_days', size=None, size_current=None)],
                           'groups': {'flower': {'dimensions': [], 'groups': {}}, 'moon': {'dimensions': [], 'groups': {
                               'base': {'dimensions': [Dimension(name='foo', size=None, size_current=None)],
-                                       'groups': {}}}}}}}
+                                       'groups': {}}}}}}}}
         self.assertEqual(ocmpi.dimensions, desired)
 
     @attr('mpi-2', 'mpi-5', 'mpi-8')
