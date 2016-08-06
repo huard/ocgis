@@ -189,8 +189,42 @@ class TestVariable(AbstractTestNewInterface):
         if MPI_SIZE != 2:
             raise SkipTest('mpi-2 only')
 
-        slices = [slice(0, 2), slice(2, 5)]
+        slices = [slice(0, 3), slice(3, 5)]
         var_value = np.arange(5)
+
+        if MPI_RANK == 0:
+            dim = Dimension('five', 5)
+            var = Variable('five', value=var_value, dimensions=dim)
+            to_scatter = [var[slc] for slc in slices]
+        else:
+            to_scatter = None
+
+        lvar = MPI_COMM.scatter(to_scatter)
+
+        self.assertNumpyAll(lvar.value, var_value[slices[MPI_RANK]])
+        self.assertEqual(lvar.dimensions[0], Dimension('five', 5)[slices[MPI_RANK]])
+
+        gathered = MPI_COMM.gather(lvar)
+
+        if MPI_RANK == 0:
+            size = sum([len(v.dimensions[0]) for v in gathered])
+            new_dim = Dimension(gathered[0].dimensions[0].name, size)
+            new_value = hgather([v.value for v in gathered])
+            new_var = Variable(gathered[0].name, value=new_value, dimensions=new_dim)
+            self.assertNumpyAll(new_var.value, var.value)
+            self.assertEqual(new_var.dimensions[0], dim)
+
+    @attr('mpi')
+    def test_system_scatter_gather_variable_with_ocgmpi(self):
+        """Test a proof-of-concept scatter and gather operation on a simple variable using OCGIS's MPI interface."""
+
+        if MPI_SIZE != 2:
+            raise SkipTest('mpi-2 only')
+
+        ompi = OcgMpi()
+        ompi.create_dimension('five', 5, dist=True)
+        ompi.update_dimension_bounds()
+        self.log.debug(ompi.get_bounds_local())
 
         if MPI_RANK == 0:
             dim = Dimension('five', 5)
