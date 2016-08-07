@@ -164,16 +164,17 @@ class Test(AbstractTestNewInterface):
     @attr('mpi')
     def test_variable_scatter(self):
         var_value = np.arange(5, dtype=float) + 50
+        var_mask = np.array([True, True, False, True, False])
         if MPI_RANK == 0:
             src_mpi = OcgMpi()
 
             dim = src_mpi.create_dimension('five', 5)
-            var = Variable('the_five', value=var_value, dimensions=dim)
+            var = Variable('the_five', value=var_value, mask=var_mask, dimensions=dim)
 
             dest_mpi = deepcopy(src_mpi)
-            dest_mpi.get_dimension('five').dist = True
+            for drank in range(MPI_SIZE):
+                dest_mpi.get_dimension('five', rank=drank).dist = True
             dest_mpi.update_dimension_bounds()
-            self.log.debug(dest_mpi.dimensions)
         else:
             var, src_mpi, dest_mpi = [None] * 3
 
@@ -181,8 +182,7 @@ class Test(AbstractTestNewInterface):
 
         dest_dim = dest_mpi.get_dimension('five')
         self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
-
-        self.fail()
+        self.assertNumpyAll(var_mask[slice(*dest_dim.bounds_local)], svar.get_mask())
 
 
 class TestOcgMpi(AbstractTestNewInterface):
@@ -308,3 +308,22 @@ class TestOcgMpi(AbstractTestNewInterface):
         self.assertEqual(dim.bounds_global, (0, 5))
         if MPI_SIZE > 1:
             self.assertNotEqual(dim.bounds_local, dim.bounds_global)
+            if MPI_SIZE == 2:
+                if MPI_RANK == 0:
+                    self.assertEqual(dim.bounds_local, (0, 3))
+                else:
+                    self.assertEqual(dim.bounds_local, (3, 5))
+
+        # Test updating on single processor.
+        if MPI_SIZE == 1:
+            ompi = OcgMpi(size=2)
+            dim = ompi.create_dimension('five', 5, dist=True)
+            ompi.update_dimension_bounds()
+            self.assertEqual(dim.bounds_global, (0, 5))
+            for rank in range(2):
+                actual = ompi.get_dimension('five', rank=rank)
+                self.assertEqual(actual.bounds_global, (0, 5))
+                if rank == 0:
+                    self.assertEqual(actual.bounds_local, (0, 3))
+                else:
+                    self.assertEqual(actual.bounds_local, (3, 5))
