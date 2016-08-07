@@ -7,9 +7,10 @@ from mpi4py.MPI import COMM_NULL
 
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
-    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK
+    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK, variable_scatter
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.new_interface.variable import Variable
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_local_to_global_slices
 
@@ -160,6 +161,29 @@ class Test(AbstractTestNewInterface):
         actual = get_global_to_local_slice(start_stop, bounds_local)
         self.assertEqual(actual, desired)
 
+    @attr('mpi')
+    def test_variable_scatter(self):
+        var_value = np.arange(5, dtype=float) + 50
+        if MPI_RANK == 0:
+            src_mpi = OcgMpi()
+
+            dim = src_mpi.create_dimension('five', 5)
+            var = Variable('the_five', value=var_value, dimensions=dim)
+
+            dest_mpi = deepcopy(src_mpi)
+            dest_mpi.get_dimension('five').dist = True
+            dest_mpi.update_dimension_bounds()
+            self.log.debug(dest_mpi.dimensions)
+        else:
+            var, src_mpi, dest_mpi = [None] * 3
+
+        svar, dest_mpi = variable_scatter(var, dest_mpi)
+
+        dest_dim = dest_mpi.get_dimension('five')
+        self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
+
+        self.fail()
+
 
 class TestOcgMpi(AbstractTestNewInterface):
     def get_ocgmpi_01(self):
@@ -276,7 +300,7 @@ class TestOcgMpi(AbstractTestNewInterface):
         else:
             self.assertIsNone(actual)
 
-    @attr('mpi-2', 'mpi-5')
+    @attr('mpi')
     def test_update_dimension_bounds(self):
         ompi = OcgMpi()
         dim = ompi.create_dimension('five', 5, dist=True)

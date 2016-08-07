@@ -93,8 +93,8 @@ class OcgMpi(AbstractOcgisObject):
         else:
             return None
 
-    def get_bounds_local(self, group=None):
-        the_group = self.get_group(group=group)
+    def get_bounds_local(self, group=None, rank=MPI_RANK):
+        the_group = self.get_group(group=group, rank=rank)
         ret = [dim.bounds_local for dim in the_group['dimensions']]
         return tuple(ret)
 
@@ -109,6 +109,10 @@ class OcgMpi(AbstractOcgisObject):
             raise ValueError('Dimension not found: {}'.format(name))
         return ret
 
+    def get_dimensions(self, names, **kwargs):
+        ret = [self.get_dimension(name, **kwargs) for name in names]
+        return ret
+
     def get_group(self, group=None, rank=MPI_RANK):
         return self._create_or_get_group_(group, rank=rank)
 
@@ -119,71 +123,7 @@ class OcgMpi(AbstractOcgisObject):
             group_data = get_group(dimensions, group_key)
             yield group_key, group_data
 
-    def scatter_variable(self, variable, root=0):
-        # tdk: test a variable with no dimensions
-        # Only updated dimensions are allowed for scatters.
-        assert self.has_updated_dimensions
-
-        if self.rank == root:
-            group = variable.group
-            dimension_names = [dim.name for dim in variable.dimensions]
-
-        else:
-            group = None
-            dimension_names = None
-
-        dimension_names = self.comm.bcast(dimension_names, root=root)
-        group = self.comm.bcast(group, root=root)
-
-        # Gather dimension bound slices to use for subsetting the values/masks.
-        dimensions = self.get_group(group=group)['dimensions']
-        dimensions = [find_dimension_in_sequence(name, dimensions) for name in dimension_names]
-        bounds_local = [d.bounds_local for d in dimensions]
-        the_slice = [slice(b[0], b[1]) for b in bounds_local]
-
-        # Check for empty dimensions and creation of empty variables.
-        for idx, dim in enumerate(dimensions):
-            if dim.is_empty:
-                the_slice[idx] = 'empty'
-
-        slices = self.comm.gather(the_slice, root=root)
-
-        # Distribute the values and masks if the variable has distributed dimensions.
-        if self.rank == root:
-            variables_to_scatter = [None] * len(slices)
-            empty_variable = variable.copy()
-            empty_variable._value = None
-            empty_variable._mask = None
-            if empty_variable.bounds is not None:
-                empty_variable.bounds._value = None
-                empty_variable.bounds._mask = None
-
-            for idx, slc in enumerate(slices):
-                if slc != ['empty']:
-                    variables_to_scatter[idx] = variable[slc]
-                else:
-                    variables_to_scatter[idx] = empty_variable
-
-        else:
-            variables_to_scatter = None
-
-        scattered_variable = self.comm.scatter(variables_to_scatter, root=root)
-        scattered_variable.dist = True
-        if scattered_variable.bounds is not None:
-            scattered_variable.dist = True
-
-        scattered_dimensions = [find_dimension_in_sequence(dim.name, dimensions) for dim in
-                                scattered_variable.dimensions]
-        scattered_variable.dimensions = scattered_dimensions
-
-        if scattered_variable.bounds is not None:
-            from ocgis_logging import log
-            log.debug(scattered_variable.bounds.dimensions)
-            log.debug(scattered_variable.bounds.value.tolist())
-
-        return scattered_variable
-
-    def update_dimension_bounds(self, rank=MPI_RANK):
+    def update_dimension_bounds(self, rank='all'):
         """
 
         :param rank: If ``'all'``, update across all ranks. Otherwise, update for the integer rank provided.
@@ -501,26 +441,23 @@ def hgather(elements):
     return fill
 
 
-def vgather(elements):
-    n = sum([e.shape[0] for e in elements])
-    fill = np.zeros((n, elements[0].shape[1]), dtype=elements[0].dtype)
-    start = 0
-    for e in elements:
-        shape_e = e.shape
-        if shape_e[0] == 0:
-            continue
-        stop = start + shape_e[0]
-        fill[start:stop, :] = e
-        start = stop
-    return fill
-
-
 def create_nd_slices(splits, shape):
     ret = [None] * len(shape)
     for idx, (split, shp) in enumerate(zip(splits, shape)):
         ret[idx] = create_slices(shp, split)
     ret = [slices for slices in itertools.product(*ret)]
     return tuple(ret)
+
+
+def find_dimension_in_sequence(dimension_name, dimensions):
+    ret = None
+    for dim in dimensions:
+        if dimension_name == dim.name:
+            ret = dim
+            break
+    if ret is None:
+        raise DimensionNotFound('Dimension not found: {}'.format(dimension_name))
+    return ret
 
 
 def get_optimal_splits(size, shape):
@@ -547,12 +484,80 @@ def get_template_rank_dict():
     return {None: {'dimensions': [], 'groups': {}}}
 
 
-def find_dimension_in_sequence(dimension_name, dimensions):
-    ret = None
-    for dim in dimensions:
-        if dimension_name == dim.name:
-            ret = dim
-            break
-    if ret is None:
-        raise DimensionNotFound('Dimension not found: {}'.format(dimension_name))
-    return ret
+def variable_scatter(variable, dest_mpi, root=0, comm=None):
+    comm = comm or MPI_COMM
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    # tdk: test a variable with no dimensions
+    # Only updated dimensions are allowed for scatters.
+    if rank == root:
+        assert dest_mpi.has_updated_dimensions
+
+    if rank == root:
+        group = variable.group
+        dimension_names = [dim.name for dim in variable.dimensions]
+    else:
+        group = None
+        dimension_names = None
+    dest_mpi = comm.bcast(dest_mpi, root=root)
+    group = comm.bcast(group, root=root)
+    dimension_names = comm.bcast(dimension_names, root=root)
+    dest_dimensions = dest_mpi.get_dimensions(dimension_names, group=group)
+
+    # # Gather dimension bound slices to use for subsetting the values/masks.
+    # dimensions = self.get_group(group=group)['dimensions']
+    # dimensions = [find_dimension_in_sequence(name, dimensions) for name in dimension_names]
+    # bounds_local = [d.bounds_local for d in dimensions]
+    # the_slice = [slice(b[0], b[1]) for b in bounds_local]
+
+    # # Check for empty dimensions and creation of empty variables.
+    # for idx, dim in enumerate(dimensions):
+    #     if dim.is_empty:
+    #         the_slice[idx] = 'empty'
+
+    # slices = self.comm.gather(the_slice, root=root)
+
+    # Distribute the values and masks if the variable has distributed dimensions.
+    if rank == root:
+        # variables_to_scatter = [None] * len(slices)
+        # empty_variable = variable.copy()
+        # empty_variable._value = None
+        # empty_variable._mask = None
+        # if empty_variable.bounds is not None:
+        #     empty_variable.bounds._value = None
+        #     empty_variable.bounds._mask = None
+
+        slices = [None] * size
+        for current_rank in range(size):
+            current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
+            slices[rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
+
+        variables_to_scatter = [None] * size
+        for idx, slc in enumerate(slices):
+            variables_to_scatter[idx] = variable[slc]
+
+    else:
+        variables_to_scatter = None
+
+    scattered_variable = comm.scatter(variables_to_scatter, root=root)
+    scattered_variable.dist = True
+    from ocgis_logging import log
+    log.debug(dest_dimensions[0].__dict__)
+    scattered_variable.dimensions = dest_dimensions
+
+    return scattered_variable, dest_mpi
+
+
+def vgather(elements):
+    n = sum([e.shape[0] for e in elements])
+    fill = np.zeros((n, elements[0].shape[1]), dtype=elements[0].dtype)
+    start = 0
+    for e in elements:
+        shape_e = e.shape
+        if shape_e[0] == 0:
+            continue
+        stop = start + shape_e[0]
+        fill[start:stop, :] = e
+        start = stop
+    return fill
