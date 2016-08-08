@@ -47,6 +47,13 @@ class TestDimension(AbstractTestNewInterface):
         dim.bounds_local = [0, 2]
         self.assertEqual(dim.bounds_local, (0, 2))
 
+    def test_convert_to_empty(self):
+        dim = Dimension('three', 3, src_idx=[10, 11, 12])
+        dim.convert_to_empty()
+        self.assertEqual(len(dim), 0)
+        self.assertFalse(dim.is_unlimited)
+        self.assertIsNone(dim._src_idx)
+
     def test_copy(self):
         sd = self.get_dimension(src_idx=np.arange(10))
         self.assertIsNotNone(sd._src_idx)

@@ -401,11 +401,8 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def value(self):
-        if self.is_empty:
-            return
-        else:
-            if self._value is None:
-                self._value = self._get_value_()
+        if self._value is None:
+            self._value = self._get_value_()
         return self._value
 
     @value.setter
@@ -922,18 +919,15 @@ def get_dimension_lengths(dimensions):
 
 
 def get_shape_from_variable(variable):
-    if variable.is_empty:
-        shape = tuple()
-    else:
-        dimensions = variable._dimensions
-        value = variable._value
+    dimensions = variable._dimensions
+    value = variable._value
+    try:
+        shape = get_dimension_lengths(dimensions)
+    except TypeError:
         try:
-            shape = get_dimension_lengths(dimensions)
-        except TypeError:
-            try:
-                shape = value.shape
-            except AttributeError:
-                shape = tuple()
+            shape = value.shape
+        except AttributeError:
+            shape = tuple()
     return shape
 
 

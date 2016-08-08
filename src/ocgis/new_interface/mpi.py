@@ -173,7 +173,9 @@ class OcgMpi(AbstractOcgisObject):
                             dim.set_size(stop - start, src_idx=src_idx)
                         else:
                             # If there are no local bounds, the dimension is empty.
-                            dim.is_empty = True
+                            dim.convert_to_empty()
+                            # Remove any source indices on empty dimensions.
+                            dim._src_idx = None
                         dim.bounds_local = bounds_local
                     else:
                         # The dimension is not distributed. Local bounds don't need to be set.
@@ -183,7 +185,7 @@ class OcgMpi(AbstractOcgisObject):
                 is_empty = [dim.is_empty for dim in dimensions]
                 if any(is_empty):
                     for dim in dimensions:
-                        dim.is_empty = True
+                        dim.convert_to_empty()
                 else:
                     pass
 
@@ -516,12 +518,20 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
         variables_to_scatter = [None] * size
         for idx, slc in enumerate(slices):
             variables_to_scatter[idx] = variable[slc]
-
     else:
         variables_to_scatter = None
 
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
-    scattered_variable.dimensions = dest_dimensions
+    try:
+        scattered_variable.dimensions = dest_dimensions
+    except:
+        from ocgis_logging import log
+        log.debug(['variable shape', scattered_variable.shape])
+        log.debug(['variable value', scattered_variable.value])
+        log.debug(['variable mask', scattered_variable.get_mask()])
+        log.debug(['dimension shape', [len(d) for d in scattered_variable.dimensions]])
+        log.debug(['dimension is_empty', [d.is_empty for d in scattered_variable.dimensions]])
+        raise
 
     return scattered_variable, dest_mpi
 

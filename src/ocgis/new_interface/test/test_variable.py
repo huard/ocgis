@@ -182,6 +182,21 @@ class TestVariable(AbstractTestNewInterface):
             desired = v[idx].value[0]
             self.assertNumpyAll(actual, desired)
 
+    def test_system_empty_dimensions(self):
+        d1 = Dimension('three', 3)
+        d2 = Dimension('is_empty', 0, dist=True)
+        d2.convert_to_empty()
+        d3 = Dimension('what', 10)
+
+        var = Variable('tester', dimensions=[d1, d2, d3])
+        self.assertTrue(var.is_empty)
+        self.assertEqual(var.shape, (3, 0, 10))
+
+        self.assertIsNone(var.value)
+        self.assertIsNone(var._value)
+        self.assertIsNone(var.get_mask())
+        self.assertIsNone(var._mask)
+
     @attr('mpi')
     def test_system_scatter_gather_variable(self):
         """Test a proof-of-concept scatter and gather operation on a simple variable."""

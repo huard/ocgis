@@ -185,13 +185,16 @@ class Test(AbstractTestNewInterface):
         svar, dest_mpi = variable_scatter(var, dest_mpi)
         var_bounds_value = MPI_COMM.bcast(var_bounds_value)
         dim_src_idx = MPI_COMM.bcast(dim_src_idx)
-        dim_src_idx = MPI_COMM.bcast(dim_src_idx)
 
-        dest_dim = dest_mpi.get_dimension('five')
-        self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
-        self.assertNumpyAll(var_mask[slice(*dest_dim.bounds_local)], svar.get_mask())
-        self.assertNumpyAll(var_bounds_value[slice(*dest_dim.bounds_local)], svar.bounds.value)
-        self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.dimensions[0]._src_idx)
+        if MPI_RANK > 4:
+            self.assertTrue(svar.is_empty)
+        else:
+            dest_dim = dest_mpi.get_dimension('five')
+            self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
+            self.assertNumpyAll(var_mask[slice(*dest_dim.bounds_local)], svar.get_mask())
+            self.assertNumpyAll(var_bounds_value[slice(*dest_dim.bounds_local)], svar.bounds.value)
+            self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.dimensions[0]._src_idx)
+            self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.bounds.dimensions[0]._src_idx)
 
 
 class TestOcgMpi(AbstractTestNewInterface):

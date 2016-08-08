@@ -23,7 +23,7 @@ class Dimension(AbstractInterfaceObject):
         self._size = size
         self._size_current = size_current
         self.dist = dist
-        self.is_empty = False
+        self._is_empty = False
 
         self.set_size(self.size or self.size_current, src_idx=src_idx)
 
@@ -109,6 +109,10 @@ class Dimension(AbstractInterfaceObject):
         self._bounds_local = value
 
     @property
+    def is_empty(self):
+        return self._is_empty
+
+    @property
     def is_unlimited(self):
         if self.size is None:
             ret = True
@@ -144,6 +148,11 @@ class Dimension(AbstractInterfaceObject):
             if len(value) != len(self):
                 raise ValueError('Source index length must equal the dimension length.')
         self.__src_idx__ = value
+
+    def convert_to_empty(self):
+        self._is_empty = True
+        self.set_size(0)
+        self.bounds_local = (0, 0)
 
     def set_size(self, value, src_idx=None):
         if value is not None:
