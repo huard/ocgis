@@ -497,41 +497,42 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     if rank == root:
         assert dest_mpi.has_updated_dimensions
 
+    # Find the appropriate group for the dimensions.
     if rank == root:
         group = variable.group
         dimension_names = [dim.name for dim in variable.dimensions]
     else:
         group = None
         dimension_names = None
+    # Synchronize the processes with the MPI distribution and the group containing the dimensions.
     dest_mpi = comm.bcast(dest_mpi, root=root)
     group = comm.bcast(group, root=root)
     dimension_names = comm.bcast(dimension_names, root=root)
+
+    # These are the dimensions for the local process.
     dest_dimensions = dest_mpi.get_dimensions(dimension_names, group=group)
 
-    # Distribute the values and masks if the variable has distributed dimensions.
     if rank == root:
         size = dest_mpi.size
         slices = [None] * size
+
+        # Get the slices need to scatter the variables. These are essentially the local bounds on each dimension.
         for current_rank in range(size):
             current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
             slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
         variables_to_scatter = [None] * size
+
+        # Slice the variables. These sliced variables are the scatter targets.
         for idx, slc in enumerate(slices):
             variables_to_scatter[idx] = variable[slc]
     else:
         variables_to_scatter = None
 
+    # Scatter the variable across processes.
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
-    try:
-        scattered_variable.dimensions = dest_dimensions
-    except:
-        from ocgis_logging import log
-        log.debug(['variable shape', scattered_variable.shape])
-        log.debug(['variable value', scattered_variable.value])
-        log.debug(['variable mask', scattered_variable.get_mask()])
-        log.debug(['dimension shape', [len(d) for d in scattered_variable.dimensions]])
-        log.debug(['dimension is_empty', [d.is_empty for d in scattered_variable.dimensions]])
-        raise
+    # Update the scattered variable dimensions with the destination dimensions on the process. Everything should align
+    # shape-wise. If they don't, an exception will be raised.
+    scattered_variable.dimensions = dest_dimensions
 
     return scattered_variable, dest_mpi
 
