@@ -505,39 +505,14 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     group = comm.bcast(group, root=root)
     dimension_names = comm.bcast(dimension_names, root=root)
     dest_dimensions = dest_mpi.get_dimensions(dimension_names, group=group)
-    from ocgis_logging import log
-    log.debug(dest_dimensions[0].__dict__)
-    # # Gather dimension bound slices to use for subsetting the values/masks.
-    # dimensions = self.get_group(group=group)['dimensions']
-    # dimensions = [find_dimension_in_sequence(name, dimensions) for name in dimension_names]
-    # bounds_local = [d.bounds_local for d in dimensions]
-    # the_slice = [slice(b[0], b[1]) for b in bounds_local]
-
-    # # Check for empty dimensions and creation of empty variables.
-    # for idx, dim in enumerate(dimensions):
-    #     if dim.is_empty:
-    #         the_slice[idx] = 'empty'
-
-    # slices = self.comm.gather(the_slice, root=root)
 
     # Distribute the values and masks if the variable has distributed dimensions.
     if rank == root:
-        # variables_to_scatter = [None] * len(slices)
-        # empty_variable = variable.copy()
-        # empty_variable._value = None
-        # empty_variable._mask = None
-        # if empty_variable.bounds is not None:
-        #     empty_variable.bounds._value = None
-        #     empty_variable.bounds._mask = None
-
         size = dest_mpi.size
         slices = [None] * size
-        from ocgis_logging import log
-        log.debug(dest_mpi.dimensions)
         for current_rank in range(size):
             current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
             slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
-        log.debug(['slices', slices])
         variables_to_scatter = [None] * size
         for idx, slc in enumerate(slices):
             variables_to_scatter[idx] = variable[slc]
@@ -546,9 +521,6 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
         variables_to_scatter = None
 
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
-    from ocgis_logging import log
-    log.debug(scattered_variable.bounds.shape)
-
     scattered_variable.dimensions = dest_dimensions
 
     return scattered_variable, dest_mpi
