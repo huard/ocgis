@@ -169,7 +169,8 @@ class Test(AbstractTestNewInterface):
         if MPI_RANK == 0:
             src_mpi = OcgMpi()
 
-            dim = src_mpi.create_dimension('five', 5)
+            dim = src_mpi.create_dimension('five', 5, src_idx='auto')
+            dim_src_idx = dim._src_idx.copy()
             var = Variable('the_five', value=var_value, mask=var_mask, dimensions=dim)
             var.set_extrapolated_bounds('the_five_bounds', 'bounds')
             var_bounds_value = var.bounds.value
@@ -179,15 +180,18 @@ class Test(AbstractTestNewInterface):
                 dest_mpi.get_dimension('five', rank=drank).dist = True
             dest_mpi.update_dimension_bounds()
         else:
-            var, src_mpi, dest_mpi, var_bounds_value = [None] * 4
+            var, src_mpi, dest_mpi, var_bounds_value, dim_src_idx = [None] * 5
 
         svar, dest_mpi = variable_scatter(var, dest_mpi)
         var_bounds_value = MPI_COMM.bcast(var_bounds_value)
+        dim_src_idx = MPI_COMM.bcast(dim_src_idx)
+        dim_src_idx = MPI_COMM.bcast(dim_src_idx)
 
         dest_dim = dest_mpi.get_dimension('five')
         self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
         self.assertNumpyAll(var_mask[slice(*dest_dim.bounds_local)], svar.get_mask())
         self.assertNumpyAll(var_bounds_value[slice(*dest_dim.bounds_local)], svar.bounds.value)
+        self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.dimensions[0]._src_idx)
 
 
 class TestOcgMpi(AbstractTestNewInterface):

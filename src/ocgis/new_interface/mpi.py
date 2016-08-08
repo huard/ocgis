@@ -59,7 +59,7 @@ class OcgMpi(AbstractOcgisObject):
 
         for rank in range(self.size):
             if rank > 0:
-                dim = deepcopy(dim)
+                dim = dim.copy()
             the_group = self._create_or_get_group_(group, rank=rank)
             if not force and any([dim.name == d.name for d in the_group['dimensions']]):
                 raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))

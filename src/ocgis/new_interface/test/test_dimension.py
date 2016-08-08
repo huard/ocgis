@@ -59,6 +59,13 @@ class TestDimension(AbstractTestNewInterface):
         self.assertTrue(np.may_share_memory(sd2._src_idx, sd3._src_idx))
         self.assertTrue(np.may_share_memory(sd3._src_idx, sd._src_idx))
 
+        # Test setting new values on object.
+        dim = Dimension('five', 5)
+        cdim = dim.copy()
+        cdim._name = 'six'
+        self.assertEqual(dim.name, 'five')
+        self.assertEqual(cdim.name, 'six')
+
     def test_eq(self):
         lhs = self.get_dimension()
         rhs = self.get_dimension()
