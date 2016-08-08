@@ -196,6 +196,28 @@ class Test(AbstractTestNewInterface):
             self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.dimensions[0]._src_idx)
             self.assertNumpyAll(dim_src_idx[slice(*dest_dim.bounds_local)], svar.bounds.dimensions[0]._src_idx)
 
+    @attr('mpi')
+    def test_variable_scatter_ndimensions(self):
+        if MPI_RANK == 0:
+            r = Dimension('realization', 3)
+            t = Dimension('time', 365)
+            l = Dimension('level', 10)
+            y = Dimension('y', 90, dist=True)
+            x = Dimension('x', 360, dist=True)
+
+            var = Variable('tas', dimensions=[r, t, l, y, x])
+
+            dest_mpi = OcgMpi()
+            for d in var.dimensions:
+                dest_mpi.add_dimension(d)
+            dest_mpi.update_dimension_bounds()
+        else:
+            var, dest_mpi = [None] * 2
+
+        svar, dest_mpi = variable_scatter(var, dest_mpi)
+
+        self.assertIsNotNone(svar)
+
 
 class TestOcgMpi(AbstractTestNewInterface):
     def get_ocgmpi_01(self):
