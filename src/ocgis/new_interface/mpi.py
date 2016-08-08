@@ -547,8 +547,8 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
 
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
     from ocgis_logging import log
-    log.debug(scattered_variable.shape)
-    scattered_variable.dist = True
+    log.debug(scattered_variable.bounds.shape)
+
     scattered_variable.dimensions = dest_dimensions
 
     return scattered_variable, dest_mpi

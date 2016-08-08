@@ -165,24 +165,29 @@ class Test(AbstractTestNewInterface):
     def test_variable_scatter(self):
         var_value = np.arange(5, dtype=float) + 50
         var_mask = np.array([True, True, False, True, False])
+
         if MPI_RANK == 0:
             src_mpi = OcgMpi()
 
             dim = src_mpi.create_dimension('five', 5)
             var = Variable('the_five', value=var_value, mask=var_mask, dimensions=dim)
+            var.set_extrapolated_bounds('the_five_bounds', 'bounds')
+            var_bounds_value = var.bounds.value
 
             dest_mpi = deepcopy(src_mpi)
             for drank in range(MPI_SIZE):
                 dest_mpi.get_dimension('five', rank=drank).dist = True
             dest_mpi.update_dimension_bounds()
         else:
-            var, src_mpi, dest_mpi = [None] * 3
+            var, src_mpi, dest_mpi, var_bounds_value = [None] * 4
 
         svar, dest_mpi = variable_scatter(var, dest_mpi)
+        var_bounds_value = MPI_COMM.bcast(var_bounds_value)
 
         dest_dim = dest_mpi.get_dimension('five')
         self.assertNumpyAll(var_value[slice(*dest_dim.bounds_local)], svar.value)
         self.assertNumpyAll(var_mask[slice(*dest_dim.bounds_local)], svar.get_mask())
+        self.assertNumpyAll(var_bounds_value[slice(*dest_dim.bounds_local)], svar.bounds.value)
 
 
 class TestOcgMpi(AbstractTestNewInterface):
