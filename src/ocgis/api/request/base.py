@@ -155,10 +155,10 @@ class RequestDataset(object):
         self._metadata = deepcopy(metadata)
         self._uri = None
 
-        # Set the default dimension distribution.
-        self.dist = dist or OcgMpi()
         # Set the default MPI communicator.
         self.comm = comm or MPI_COMM
+        # Set the default dimension distribution.
+        self.dist = dist or OcgMpi(size=self.comm.Get_size())
 
         # This is an "open" file-like object that may be passed in-place of file location parameters.
         self.opened = opened
