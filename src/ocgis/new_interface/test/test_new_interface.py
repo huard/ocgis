@@ -55,8 +55,8 @@ class AbstractTestNewInterface(TestBase):
         x = [101, 102, 103]
         y = [40, 41, 42, 43]
 
-        x_dim = Dimension('xdim', length=len(x))
-        y_dim = Dimension('ydim', length=len(y))
+        x_dim = Dimension('xdim', size=len(x))
+        y_dim = Dimension('ydim', size=len(y))
 
         kwds = {'crs': crs}
 

@@ -141,9 +141,10 @@ class GridXY(AbstractSpatialContainer):
             ret = (self.parent[self._y_name].dimensions[0], self.parent[self._x_name].dimensions[0])
         return ret
 
+    # tdk: REMOVE
     @property
     def dist(self):
-        return self._archetype.dist
+        raise NotImplementedError
 
     @property
     def has_bounds(self):
@@ -215,7 +216,7 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def shape(self):
-        return get_dimension_lengths(self.dimensions, self.dist)
+        return get_dimension_lengths(self.dimensions)
 
     @property
     def value_stacked(self):
@@ -704,11 +705,11 @@ def expand_grid(grid):
         new_dimensions = [y.dimensions[0], x.dimensions[0]]
 
         x.value = None
-        x.dimensions = new_dimensions
+        x._dimensions = None
         x.value = new_x_value
 
         y.value = None
-        y.dimensions = new_dimensions
+        y._dimensions = None
         y.value = new_y_value
 
         assert y.ndim == 2
@@ -720,6 +721,10 @@ def expand_grid(grid):
             name_dimension = y.bounds.dimensions[1].name
             y.bounds = None
             x.bounds = None
+            y.dimensions = new_dimensions
+            x.dimensions = new_dimensions
             # tdk: this should leverage the bounds already in place on the vectors
             grid.set_extrapolated_bounds(name_x, name_y, name_dimension)
-
+        else:
+            y.dimensions = new_dimensions
+            x.dimensions = new_dimensions
