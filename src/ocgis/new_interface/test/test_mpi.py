@@ -307,8 +307,9 @@ class TestOcgMpi(AbstractTestNewInterface):
                                        'groups': {}}}}}}}}
         self.assertEqual(ocmpi.dimensions, desired)
 
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    @attr('mpi')
     def test_gather_dimensions(self):
+        raise SkipTest('Gather dimensions will be implemented differently.')
         ompi = self.get_ocgmpi_01()
         desired = deepcopy(ompi.get_group())
 

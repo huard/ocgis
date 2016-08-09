@@ -99,6 +99,8 @@ class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
                  units='auto', parent=None, bounds=None):
+        self._is_init = True
+
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
@@ -141,6 +143,8 @@ class Variable(AbstractContainer, Attributes):
 
         if mask is not None:
             self.set_mask(mask)
+
+        self._is_init = False
 
     def __add_to_collection_finalize__(self, vc):
         """
@@ -287,7 +291,9 @@ class Variable(AbstractContainer, Attributes):
             dimensions = tuple(get_iter(dimensions, dtype=Dimension))
         self._dimensions = dimensions
         update_unlimited_dimension_length(self._value, dimensions)
-        if self.bounds is not None:
+        # Only update the bounds dimensions if this is not part of the variable initialization process. Bounds are
+        # configured normally during initialization.
+        if not self._is_init and self.has_bounds:
             bounds_dimensions = list(self.bounds.dimensions)
             bounds_dimensions[0:len(self.dimensions)] = self.dimensions
             self.bounds.dimensions = bounds_dimensions

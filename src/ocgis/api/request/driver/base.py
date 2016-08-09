@@ -213,10 +213,10 @@ class AbstractDriver(object):
 
     def init_variable_from_source(self, variable):
         variable_metadata = self.get_variable_metadata(variable)
-        dist = self.dimensions
 
         # Create the dimensions if they are not present.
         if variable._dimensions is None:
+            dist = self.dimensions
             desired_dimensions = variable_metadata['dimensions']
             new_dimensions = []
             for d in desired_dimensions:

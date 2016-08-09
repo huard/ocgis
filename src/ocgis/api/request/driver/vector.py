@@ -155,7 +155,7 @@ class DriverVector(AbstractDriver):
         # Iteration is always based on source indices. Generate them if they are not available on the variable.
         iteration_dimension = variable.dimensions[0]
         if iteration_dimension._src_idx is None:
-            src_idx = iteration_dimension._get_src_idx_()
+            raise ValueError("Iteration dimension must have a source index.")
         else:
             src_idx = iteration_dimension._src_idx
 

@@ -229,67 +229,7 @@ class TestVariable(AbstractTestNewInterface):
             self.assertNumpyAll(new_var.value, var.value)
             self.assertEqual(new_var.dimensions[0], dim)
 
-    @attr('mpi-2', 'mpi-8')
-    def test_system_with_distributed_dimensions(self):
-        """Test variable behavior with distributed dimensions."""
-
-        for with_bounds in [False, True]:
-            dim = Dimension('is_dist', 5, dist=True, src_idx='auto')
-            ompi = OcgMpi()
-            ompi.add_dimension(dim)
-            ompi.update_dimension_bounds()
-            var_value = np.arange(5, dtype=float) + 10
-            if ompi.rank == 0:
-                mask = [False, True, False, True, False]
-                var = Variable('has_dist_dim', value=var_value, mask=mask, dimensions='is_dist')
-                self.assertFalse(var.dimensions[0].dist)
-                if with_bounds:
-                    var.set_extrapolated_bounds('has_dist_dim_bounds', 'bounds')
-            else:
-                var = None
-
-            var = ompi.scatter_variable(var)
-            self.assertTrue(var.dist)
-            self.assertTrue(var.dimensions[0].dist)
-
-            if with_bounds:
-                self.assertIsNotNone(var.bounds)
-            else:
-                self.assertIsNone(var.bounds)
-
-            if MPI_SIZE == 2:
-                if with_bounds:
-                    self.assertEqual(var.bounds.shape, (var.shape[0], 2))
-                if MPI_RANK == 0:
-                    desired_value = np.array([10, 11, 12], dtype=float)
-                    desired_mask = np.array([False, True, False])
-                    desired_src_idx = np.array([0, 1, 2], dtype=Dimension._default_dtype)
-                else:
-                    desired_value = np.array([13, 14], dtype=float)
-                    desired_mask = np.array([True, False])
-                    desired_src_idx = np.array([3, 4], dtype=Dimension._default_dtype)
-                self.assertNumpyAll(var.value, desired_value)
-                self.assertNumpyAll(var.get_mask(), desired_mask)
-                self.assertNumpyAll(var.dimensions[0]._src_idx, desired_src_idx)
-            elif MPI_SIZE == 8:
-                if MPI_RANK > 4:
-                    self.assertTrue(var.is_empty)
-                    self.assertIsNone(var.value)
-                    self.assertIsNone(var.get_mask())
-                    if with_bounds:
-                        self.assertTrue(var.bounds.is_empty)
-                    else:
-                        self.assertIsNone(var.bounds)
-                else:
-                    self.assertEqual(var.value[0], var_value[MPI_RANK])
-
-            # Test some basic manipulations.
-            if not var.is_empty:
-                var.value += 5
-                var.set_mask(np.ones(var.shape))
-                self.assertIsNotNone(var[0])
-
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    @attr('mpi')
     def test_system_with_distributed_dimensions_from_file_netcdf(self):
         """Test a distributed read from file."""
 
@@ -312,23 +252,23 @@ class TestVariable(AbstractTestNewInterface):
 
         for u in use_metadata:
             if u:
-                mpi = OcgMpi()
+                dist = OcgMpi()
             else:
-                mpi = None
+                dist = None
 
-            rd = RequestDataset(uri=path, mpi=mpi)
+            rd = RequestDataset(uri=path, dist=dist)
             if u:
                 metadata = rd.metadata
                 metadata['dimensions']['major']['dist'] = True
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd)
-                self.assertEqual(len(rd.mpi.get_group()), 2)
+                self.assertEqual(len(rd.dist.get_group()), 2)
             else:
                 ompi = OcgMpi()
-                major = ompi.create_dimension('major', size=5, dist=True)
-                minor = ompi.create_dimension('minor', size=3, dist=False)
+                major = ompi.create_dimension('major', size=5, dist=True, src_idx='auto')
+                minor = ompi.create_dimension('minor', size=3, dist=False, src_idx='auto')
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.mpi.get_group()['dimensions']), 0)
+                self.assertEqual(len(rd.dist.get_group()['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertFalse(fvar.dimensions[1].dist)
@@ -354,7 +294,7 @@ class TestVariable(AbstractTestNewInterface):
 
         MPI_COMM.Barrier()
 
-    @attr('mpi-2', 'mpi-8')
+    @attr('mpi')
     def test_system_with_distributed_dimensions_from_file_shapefile(self):
         """Test a distributed read from file."""
 
@@ -371,22 +311,23 @@ class TestVariable(AbstractTestNewInterface):
 
         for u in use_metadata:
             if u:
-                mpi = OcgMpi()
+                dist = OcgMpi()
             else:
-                mpi = None
+                dist = None
 
-            rd = RequestDataset(uri=path, mpi=mpi, driver=DriverVector)
+            rd = RequestDataset(uri=path, dist=dist, driver=DriverVector)
             if u:
                 metadata = rd.metadata
                 metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = True
                 fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd)
-                self.assertEqual(len(rd.mpi.get_group()['dimensions']), 1)
+                self.assertEqual(len(rd.dist.get_group()['dimensions']), 1)
             else:
                 ompi = OcgMpi()
-                geom_dimension = ompi.create_dimension(constants.NAME_GEOMETRY_DIMENSION, size=51, dist=True)
+                geom_dimension = ompi.create_dimension(constants.NAME_GEOMETRY_DIMENSION, size=51, dist=True,
+                                                       src_idx='auto')
                 fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd, dimensions=[geom_dimension])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.mpi.dimensions[None]['dimensions']), 0)
+                self.assertEqual(len(rd.dist.dimensions[rd.comm.Get_rank()][None]['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertIsNotNone(fvar.value)
@@ -987,7 +928,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
         self.assertEqual(dims[0].size_current, 3650)
         self.assertEqual(['time', 'lat', 'lon'], [d.name for d in dims])
         for d in dims:
-            self.assertIsNone(d.__src_idx__)
+            # Source indices are always created on dimensions loaded from file.
+            self.assertIsNotNone(d.__src_idx__)
         self.assertEqual(sv.attrs['standard_name'], 'air_temperature')
 
     def test_get_value(self):
