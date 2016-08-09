@@ -178,9 +178,9 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(desired, actual)
 
         for idx in range(v.shape[0]):
-            actual = v_actual[idx].value[0]
-            desired = v[idx].value[0]
-            self.assertNumpyAll(actual, desired)
+            a = v_actual[idx].value[0]
+            d = v[idx].value[0]
+            self.assertNumpyAll(a, d)
 
     def test_system_empty_dimensions(self):
         d1 = Dimension('three', 3)
@@ -977,7 +977,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get_sourcedvariable()
         self.assertTrue(len(sv.dimensions), 3)
 
-    def test_init_from_source_(self):
+    def test_init_from_source(self):
         sv = self.get_sourcedvariable()
         init_from_source(sv)
         self.assertEqual(sv.dtype, np.float32)

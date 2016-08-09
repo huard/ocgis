@@ -12,7 +12,7 @@ from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
 from ocgis.interface.base.field import Field
-from ocgis.new_interface.mpi import OcgMpi
+from ocgis.new_interface.mpi import OcgMpi, MPI_COMM
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple, get_by_sequence
 from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.util.units import get_units_object, get_are_units_equivalent
@@ -126,8 +126,10 @@ class RequestDataset(object):
     .. _time units: http://netcdf4-python.googlecode.com/svn/trunk/docs/netCDF4-module.html#num2date
     .. _time calendar: http://netcdf4-python.googlecode.com/svn/trunk/docs/netCDF4-module.html#num2date
 
-    :param mpi: An OCGIS MPI object to use for the request.
-    :type mpi: :class:`~ocgis.new_interface.mpi.OcgMpi`
+    :param dist: Overloaded dimension distribution
+    :type dist: :class:`~ocgis.new_interface.mpi.OcgMpi`
+    :param comm: The MPI communicator.
+    :type comm: :class:`mpi4py.MPI_COMM`
     """
 
     # contains key-value links to drivers. as new drivers are added, this dictionary must be updated.
@@ -141,7 +143,7 @@ class RequestDataset(object):
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,
                  name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True,
-                 opened=None, mpi=None):
+                 opened=None, dist=None, comm=None):
 
         self._is_init = True
 
@@ -153,8 +155,10 @@ class RequestDataset(object):
         self._metadata = deepcopy(metadata)
         self._uri = None
 
-        # Set the default MPI if none is provided to the constructor.
-        self.mpi = mpi or OcgMpi()
+        # Set the default dimension distribution.
+        self.dist = dist or OcgMpi()
+        # Set the default MPI communicator.
+        self.comm = comm or MPI_COMM
 
         # This is an "open" file-like object that may be passed in-place of file location parameters.
         self.opened = opened

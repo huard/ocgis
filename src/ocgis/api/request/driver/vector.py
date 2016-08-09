@@ -272,7 +272,7 @@ class DriverVector(AbstractDriver):
 
     def _get_dimensions_main_(self, group_meta):
         desired_dimension = group_meta['dimensions'].values()[0]
-        new_dimension = Dimension(name=desired_dimension['name'], size=desired_dimension['length'])
+        new_dimension = Dimension(name=desired_dimension['name'], size=desired_dimension['length'], src_idx='auto')
         return [new_dimension]
 
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):

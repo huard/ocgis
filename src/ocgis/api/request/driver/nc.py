@@ -439,7 +439,8 @@ def get_dimensions_from_netcdf_metadata(metadata, desired_dimensions):
         else:
             length = dim_length
             length_current = None
-        new_dim = Dimension(dim_name, size=length, size_current=length_current)
+        # tdk: identify best method to remove the need to set 'auto' when creating a source index
+        new_dim = Dimension(dim_name, size=length, size_current=length_current, src_idx='auto')
         new_dimensions.append(new_dim)
     return new_dimensions
 

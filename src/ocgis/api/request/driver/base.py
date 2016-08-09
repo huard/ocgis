@@ -105,10 +105,8 @@ class AbstractDriver(object):
 
     def get_dimensions(self):
         """
-        :return: A dimension object dictionary. The key is the dimension group. The value is a sequence of dimensions.
-         If the dimensions are for the "root" group, the key should be ``None``. This method accounts for any MPI
-         distribution.
-        :rtype: dict
+        :return: The dimension distribution object.
+        :rtype: :class:`ocgis.new_interface.mpi.OcgMpi`
         """
 
         # Convert metadata into a grouping consistent with the MPI dimensions.
@@ -119,9 +117,9 @@ class AbstractDriver(object):
             for dimension_name, dimension_meta in group_meta['dimensions'].items():
                 target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
                 target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist', False)
-                self.rd.mpi.add_dimension(target_dimension, group=group_name)
-        self.rd.mpi.update_dimension_bounds()
-        return self.rd.mpi.dimensions
+                self.rd.dist.add_dimension(target_dimension, group=group_name)
+        self.rd.dist.update_dimension_bounds()
+        return self.rd.dist
 
     @abc.abstractmethod
     def get_dump_report(self):
@@ -215,14 +213,14 @@ class AbstractDriver(object):
 
     def init_variable_from_source(self, variable):
         variable_metadata = self.get_variable_metadata(variable)
+        dist = self.dimensions
 
         # Create the dimensions if they are not present.
         if variable._dimensions is None:
             desired_dimensions = variable_metadata['dimensions']
             new_dimensions = []
             for d in desired_dimensions:
-                dimension_group = get_group(self.dimensions, variable.group)['dimensions']
-                to_append = find_dimension_in_sequence(d, dimension_group)
+                to_append = dist.get_dimension(d, group=variable.group)
                 new_dimensions.append(to_append)
             super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
 

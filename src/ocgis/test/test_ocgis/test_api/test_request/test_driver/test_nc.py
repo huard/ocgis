@@ -27,6 +27,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.mpi import MPI_RANK
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
@@ -70,11 +71,11 @@ class TestDriverNetcdf(TestBase):
             rd = RequestDataset(uri=path)
             driver = DriverNetcdf(rd)
 
-            actual = driver.get_dimensions()
+            actual = driver.get_dimensions().dimensions
 
             # All dimensions are not distributed.
-            for keyseq in iter_all_group_keys(actual):
-                group = get_group(actual, keyseq)
+            for keyseq in iter_all_group_keys(actual[MPI_RANK]):
+                group = get_group(actual[MPI_RANK], keyseq)
                 for dim in group['dimensions']:
                     self.assertFalse(dim.dist)
 
@@ -83,7 +84,7 @@ class TestDriverNetcdf(TestBase):
                     u'nest2': {'dimensions': [], 'groups': {
                         u'nest1': {'dimensions': [Dimension(name='outlier', size=4, size_current=4)],
                                    'groups': {}}}}}}}}}
-                self.assertEqual(actual, desired)
+                self.assertEqual(actual[MPI_RANK], desired)
 
             if k.dim_count == 2 and k.nested:
                 self.assertIsNotNone(driver.metadata['groups']['nest1']['groups']['nest2'])
@@ -96,7 +97,7 @@ class TestDriverNetcdf(TestBase):
                 nest1['groups']['nest2']['groups']['nest3'] = deepcopy(template)
                 nest1['groups']['nest2']['groups']['nest1']['dimensions'].append(Dimension('outlier', 4))
                 desired = {None: {'dimensions': two_dimensions, 'groups': {u'nest1': nest1}}}
-                groups_actual = list(iter_all_group_keys((actual)))
+                groups_actual = list(iter_all_group_keys((actual[MPI_RANK])))
                 groups_desired = list(iter_all_group_keys(desired))
                 self.assertEqual(groups_actual, groups_desired)
 
