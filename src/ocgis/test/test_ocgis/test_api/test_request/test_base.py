@@ -84,6 +84,30 @@ class TestRequestDataset(TestBase):
                 field = rd2.get()
                 self.assertIsInstance(field, OcgField)
 
+    def test_system_group_indexing(self):
+        """Test extracting a field from a group."""
+
+        path = self.get_temporary_file_path('foo.nc')
+        path_out_field = self.get_temporary_file_path('foo_out_field.nc')
+        path_out_vc = self.get_temporary_file_path('foo_out_vc.nc')
+        var_value = np.array([40, 41, 42], dtype=float)
+        with self.nc_scope(path, 'w') as ds:
+            group = ds.createGroup('nest1')
+            group = group.createGroup('nest2')
+            group.createDimension('time', 3)
+            var = group.createVariable('time', float, dimensions=('time',))
+            var[:] = var_value
+
+        dmap = {'time': {'variable': 'time'}}
+        rd1 = RequestDataset(uri=path, field_group=['nest1', 'nest2'], dimension_map=dmap)
+        vc = rd1.get_variable_collection()
+        vc.write(path_out_vc)
+
+        rd2 = RequestDataset(uri=path_out_vc, field_group=['nest1', 'nest2'], dimension_map=dmap)
+        field = rd2.get()
+        self.assertNumpyAll(field.time.value, var_value)
+        field.write(path_out_field)
+
     def test_conform_units_to(self):
         rd = self.get_request_dataset_netcdf(variable='a', units='celsius', conform_units_to='fahrenheit')
         self.assertEqual(rd.conform_units_to, 'fahrenheit')
@@ -128,7 +152,7 @@ class TestRequestDataset(TestBase):
 
         field = rd.get()
 
-        self.assertEqual(field.dimensions['lvl'].length, 3)
+        self.assertEqual(len(field.dimensions['lvl']), 3)
         self.assertIsInstance(field, OcgField)
 
     def test_metadata(self):
@@ -149,9 +173,9 @@ class TestRequestDataset(TestBase):
 
     def test_name(self):
         for name in [None, 'morning']:
-            rd = self.get_request_dataset_netcdf(name=name)
+            rd = self.get_request_dataset_netcdf(field_name=name)
             field = rd.get()
-            self.assertEqual(field.name, name)
+            self.assertEqual(field.field_name, name)
 
     def test_t_conform_units_to(self):
         t_conform_units_to = 'hours since 2000-1-1'
@@ -168,7 +192,7 @@ class TestRequestDataset(TestBase):
 
         field = rd.get()
 
-        self.assertEqual(field.dimensions['a'].length, 3)
+        self.assertEqual(len(field.dimensions['a']), 3)
         self.assertIsInstance(field, OcgField)
         self.assertIsNone(field['a']._value)
 
@@ -179,7 +203,7 @@ class TestRequestDataset(TestBase):
 
         field = rd.get()
 
-        self.assertEqual(field.dimensions['a'].length, 2)
+        self.assertEqual(len(field.dimensions['a']), 2)
         self.assertIsInstance(field, OcgField)
         self.assertIsNone(field['a']._value)
 
@@ -197,7 +221,7 @@ class TestRequestDataset(TestBase):
 
         field = rd.get()
 
-        self.assertEqual(field.dimensions['a'].length, 2)
+        self.assertEqual(len(field.dimensions['a']), 2)
         self.assertIsInstance(field, OcgField)
         self.assertIsNone(field['a']._value)
 

@@ -24,6 +24,7 @@ class OcgField(VariableCollection):
         dimension_map = deepcopy(kwargs.pop('dimension_map', None))
         self.dimension_map = get_merged_dimension_map(dimension_map)
 
+        self.field_name = kwargs.pop('field_name', None)
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
         self.grid_is_vectorized = kwargs.pop('grid_is_vectorized', 'auto')
         self.format_time = kwargs.pop('format_time', True)

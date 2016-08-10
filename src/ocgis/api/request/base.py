@@ -8,6 +8,7 @@ from copy import deepcopy
 from ocgis import constants
 from ocgis import env
 from ocgis.api.collection import AbstractCollection
+from ocgis.api.request.driver.base import get_group
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
@@ -114,9 +115,8 @@ class RequestDataset(object):
     ``'vector'`` ``'shp'``         An ESRI Shapefile.
     ============ ================= =============================================
 
-    :param str name: Name of the requested data in the output collection. If ``None``, defaults to ``alias``. If this is
-     a multivariate request (i.e. more than one variable) and this is ``None``, then the aliases will be joined by
-     ``'_'`` to create the name.
+    :param str field_name: Name of the requested field in the output collection. If ``None``, defaults to the variable
+     name or names joined by ``_``.
     :param bool regrid_source: If ``False``, do not regrid this dataset. This is relevant only if a
      ``regrid_destination`` dataset is present. Please see :ref:`esmpy-regridding` for an overview.
     :param bool regrid_destination: If ``True``, use this dataset as the destination grid for a regridding operation.
@@ -139,10 +139,12 @@ class RequestDataset(object):
     _Drivers[DriverVector.key] = DriverVector
 
     # tdk: RESUME: driver-specific option for netcdf: grid_abstraction - perhaps driver_options?
+    # tdk: doc field_group
     def __init__(self, uri=None, variable=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,
-                 name=None, driver=None, regrid_source=True, regrid_destination=False, metadata=None, format_time=True,
+                 field_name=None, field_group=None, driver=None, regrid_source=True, regrid_destination=False,
+                 metadata=None, format_time=True,
                  opened=None, dist=None, comm=None):
 
         self._is_init = True
@@ -188,7 +190,8 @@ class RequestDataset(object):
             variable = get_tuple(variable)
         self._variable = variable
 
-        self.name = name
+        self.field_group = field_group
+        self.field_name = field_name
         self.time_range = time_range
         self.time_region = time_region
         self.time_subset_func = time_subset_func
@@ -209,7 +212,7 @@ class RequestDataset(object):
         # Update metadata for time variable.
         tvar = get_by_sequence(self.dimension_map, ['time', 'variable'])
         if tvar is not None:
-            m = self.metadata['variables'][tvar]
+            m = get_group(self.metadata, self.field_group, has_root=False)['variables'][tvar]
             if t_units is not None:
                 m['attributes']['units'] = t_units
             if t_calendar is not None:
@@ -399,11 +402,21 @@ class RequestDataset(object):
         return ret
 
     def get(self):
+        return self.get_field()
+
+    def get_field(self):
         """
         :rtype: :class:`~ocgis.interface.base.Field`
         """
         # Get the field from the driver object.
-        return self.driver.get_field(format_time=self.format_time, grid_abstraction=self.grid_abstraction)
+        return self.driver.get_field(format_time=self.format_time, grid_abstraction=self.grid_abstraction,
+                                     field_name=self.field_name)
+
+    def get_variable_collection(self):
+        """
+        :rtype: `VariableCollection`
+        """
+        return self.driver.get_variable_collection()
 
     def inspect(self):
         """

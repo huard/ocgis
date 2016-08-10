@@ -8,7 +8,7 @@ import numpy as np
 from netCDF4._netCDF4 import VLType
 
 from ocgis import env
-from ocgis.api.request.driver.base import AbstractDriver
+from ocgis.api.request.driver.base import AbstractDriver, get_group
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -171,6 +171,8 @@ class DriverNetcdf(AbstractDriver):
         try:
             vc.write_attributes_to_netcdf_object(dataset)
             for variable in vc.values():
+                # Before orphaning the variable, load its value into memory.
+                variable.load(eager=True)
                 with orphaned(vc, variable):
                     variable.write(dataset, **kwargs)
             for child in vc.children.values():
@@ -282,12 +284,11 @@ def parse_metadata(rootgrp, fill=None):
 
 
 def read_from_collection(target, request_dataset, parent=None, name=None):
-    name = name or request_dataset.name
     ret = VariableCollection(attrs=deepcopy(target.__dict__), parent=parent, name=name)
-    for name, ncvar in target.variables.iteritems():
-        ret[name] = SourcedVariable(name=name, request_dataset=request_dataset, parent=ret)
-    for name, ncgroup in target.groups.items():
-        child = read_from_collection(ncgroup, request_dataset, parent=ret, name=name)
+    for varname, ncvar in target.variables.iteritems():
+        ret[varname] = SourcedVariable(name=varname, request_dataset=request_dataset, parent=ret)
+    for group_name, ncgroup in target.groups.items():
+        child = read_from_collection(ncgroup, request_dataset, parent=ret, name=group_name)
         ret.add_child(child)
     return ret
 
@@ -394,13 +395,8 @@ def format_attribute_for_dump_report(attr_value):
 
 
 def init_variable_using_metadata_for_netcdf(variable, metadata):
-    source = metadata
-    if variable.parent is not None:
-        if variable.parent.parent is not None:
-            source = metadata['groups'][variable.parent.name]
-
+    source = get_group(metadata, variable.group, has_root=False)
     desired_name = variable.name or variable._request_dataset.variable
-
     var = source['variables'][desired_name]
 
     if variable._dtype is None:
@@ -452,12 +448,15 @@ def get_value_from_request_dataset(variable):
     rd = variable._request_dataset
 
     ds = rd.driver.open()
-    source = ds
-    if variable.parent is not None:
-        if variable.parent.parent is not None:
-            source = ds.groups[variable.parent.name]
-    desired_name = variable.name or rd.variable
     try:
+        source = ds
+        if variable.group is not None:
+            for vg in variable.group:
+                if vg is None:
+                    continue
+                else:
+                    source = source.groups[vg]
+        desired_name = variable.name or rd.variable
         ncvar = source.variables[desired_name]
         ret = get_variable_value(ncvar, variable.dimensions)
         return ret

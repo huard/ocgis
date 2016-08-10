@@ -166,6 +166,12 @@ class AbstractDriver(object):
         # Get the raw variable collection from source.
         vc = self.get_variable_collection()
 
+        # If there is a group index, extract the appropriate child for the target field.
+        field_group = self.rd.field_group
+        if field_group is not None:
+            for fg in field_group:
+                vc = vc.children[fg]
+
         # Modify the coordinate system variable. If it is overloaded on the request dataset, then the variable
         # collection needs to be updated to hold the variable and any alternative coordinate systems needs to be
         # removed.
@@ -303,7 +309,7 @@ class AbstractDriver(object):
         """Initialize everything but dimensions on the target variable."""
 
 
-def get_group(ddict, keyseq):
+def get_group(ddict, keyseq, has_root=True):
     keyseq = deepcopy(keyseq)
 
     if keyseq is None:
@@ -317,30 +323,15 @@ def get_group(ddict, keyseq):
     curr = ddict
     for key in keyseq:
         if key is None:
-            curr = curr[None]
+            if has_root:
+                curr = curr[None]
         else:
             curr = curr['groups'][key]
     return curr
 
 
 def get_variable_metadata_from_request_dataset(driver, variable):
-    to_check = variable.parent
-    current_meta = driver.rd.metadata['groups']
-    ctr = 0
-    while to_check is not None:
-        try:
-            current_meta = current_meta[to_check.name]
-        except KeyError:
-            to_check = None
-        else:
-            to_check = to_check.parent
-            ctr += 1
-    if ctr > 0:
-        meta = current_meta
-    else:
-        meta = driver.rd.metadata
-
-    return meta['variables'][variable.name]
+    return get_group(driver.rd.metadata, variable.group, has_root=False)['variables'][variable.name]
 
 
 def iter_all_group_keys(ddict, entry=None):
