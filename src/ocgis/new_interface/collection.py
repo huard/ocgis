@@ -1,22 +1,23 @@
 from collections import OrderedDict
 
-from ocgis.api.collection import AbstractCollection
+from ocgis.new_interface.variable import VariableCollection
 
 
-class SpatialCollection(AbstractCollection):
-    def __init__(self, *args, **kwargs):
-        self.properties = kwargs.pop('properties', None)
-        self.geometry_variable = kwargs.pop('geometry_variable', None)
-
-        super(SpatialCollection, self).__init__(*args, **kwargs)
+class SpatialCollection(VariableCollection):
+    def add_field(self, field, uid):
+        if uid not in self.children:
+            self.children[uid] = OrderedDict()
+        children = self.children[uid]
+        children
 
     @property
     def geoms(self):
         ret = OrderedDict()
-        for ii in range(self.geometry_variable.shape[0]):
-            ret[self.geometry_variable.uid.value[ii]] = self.geometry_variable.value[ii]
+        for k, v in self.children.items():
+            ret[k] = v.geom.value[0]
         return ret
 
     @property
     def crs(self):
-        return self.geometry_variable.crs
+        for key in self.keys():
+            return self[key].geom.crs

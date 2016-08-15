@@ -6,6 +6,7 @@ from unittest import SkipTest
 import numpy as np
 from numpy.core.multiarray import ndarray
 from numpy.testing.utils import assert_equal
+from shapely.geometry import Point
 
 from ocgis import RequestDataset
 from ocgis import constants
@@ -13,6 +14,8 @@ from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import VariableInCollectionError, EmptySubsetError, NoUnitsError, PayloadProtectedError, \
     DimensionsRequiredError
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_RANK, OcgMpi, MPI_COMM, hgather
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, SourcedVariable, VariableCollection, ObjectType, init_from_source
@@ -1012,6 +1015,20 @@ class TestVariableCollection(AbstractTestNewInterface):
 
         vc = self.get_variablecollection()
         self.assertEqual(vc.attrs, {'foo': 'bar'})
+
+    def test_system_as_spatial_collection(self):
+        """Test creating a variable collection that is similar to a spatial collection."""
+
+        uid = Variable(name='the_uid', value=[4], dimensions='geom')
+        geom = GeometryVariable(name='the_geom', value=[Point(1, 2)], dimensions='geom')
+        container = OcgField(name=uid.value[0], variables=[uid, geom], dimension_map={'geom': {'variable': 'the_geom'}})
+        geom.set_uid(uid)
+        coll = VariableCollection()
+        coll.add_child(container)
+        data = Variable(name='tas', value=[4, 5, 6], dimensions='time')
+        contained = OcgField(name='tas_data', variables=[data])
+        coll.children[container.name].add_child(contained)
+        self.assertEqual(data.group, [None, 4, 'tas_data'])
 
     @attr('data')
     def test_system_cf_netcdf(self):
