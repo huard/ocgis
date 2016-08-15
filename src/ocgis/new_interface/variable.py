@@ -808,7 +808,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-    def add_child(self, child):
+    def add_child(self, child, force=False):
+        if child.name in self.children and not force:
+            raise ValueError("Child with name '{}' already in parent with name '{}'.".format(child.name, self.name))
         child.parent = self
         self.children[child.name] = child
 

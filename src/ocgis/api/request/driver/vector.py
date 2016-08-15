@@ -229,7 +229,6 @@ class DriverVector(AbstractDriver):
 
         # Open the output Fiona object using overloaded values or values determined at call-time.
         if isinstance(fiona_or_path, basestring):
-            fiona_driver = kwargs.pop('fiona_driver', 'ESRI Shapefile')
             fiona_crs = get_fiona_crs(field, crs)
             fiona_schema = get_fiona_schema(field, geom, variables_to_write, fiona_schema)
             sink = fiona.open(fiona_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
