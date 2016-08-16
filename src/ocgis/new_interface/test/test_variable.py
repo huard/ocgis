@@ -1073,6 +1073,13 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertNumpyAll(sub_vc['lower'].value, sub.value)
             self.assertIn('coordinate_system', sub_vc)
 
+    def test_copy(self):
+        # Test children added to copied variable collection are not added to the copy source.
+        vc = VariableCollection()
+        vc_copy = vc.copy()
+        vc_copy.add_child(VariableCollection(name='child'))
+        self.assertEqual(len(vc.children), 0)
+
     def test_write_netcdf_and_read_netcdf(self):
         vc = self.get_variablecollection()
         path = self.get_temporary_file_path('foo.nc')

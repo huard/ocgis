@@ -808,19 +808,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-    def add_child(self, child, force=False):
-        if child.name in self.children and not force:
-            raise ValueError("Child with name '{}' already in parent with name '{}'.".format(child.name, self.name))
-        child.parent = self
-        self.children[child.name] = child
-
-    def copy(self):
-        ret = AbstractCollection.copy(self)
-        for v in ret.values():
-            v = v.copy()
-            v.parent = ret
-        return ret
-
     def __getitem__(self, item):
         if not isinstance(item, dict):
             ret = AbstractCollection.__getitem__(self, item)
@@ -858,6 +845,12 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def shapes(self):
         return OrderedDict([[k, v.shape] for k, v in self.items() if not isinstance(v, CoordinateReferenceSystem)])
 
+    def add_child(self, child, force=False):
+        if child.name in self.children and not force:
+            raise ValueError("Child with name '{}' already in parent with name '{}'.".format(child.name, self.name))
+        child.parent = self
+        self.children[child.name] = child
+
     def add_variable(self, variable, force=False):
         """
         :param :class:`ocgis.interface.base.variable.Variable`
@@ -885,11 +878,35 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
         variable.parent = self
 
+    def copy(self):
+        ret = AbstractCollection.copy(self)
+        for v in ret.values():
+            v = v.copy()
+            v.parent = ret
+        ret.children = ret.children.copy()
+        return ret
+
     def load(self):
         """Load all variables from source."""
 
         for v in self.values():
             v.load()
+
+    def iter_data_variables(self):
+        from ocgis.new_interface.geom import GeometryVariable
+        for k, v in self.items():
+            if not isinstance(v, (CoordinateReferenceSystem, GeometryVariable)):
+                yield k, v
+
+    @staticmethod
+    def read(*args, **kwargs):
+        from ocgis import RequestDataset
+        rd = RequestDataset(*args, **kwargs)
+        return rd.driver.get_variable_collection()
+
+    @classmethod
+    def read_netcdf(cls, path):
+        return cls.read(uri=path, driver='netCDF')
 
     def set_mask(self, variable, exclude=None):
         names_container = [d.name for d in variable.dimensions]
@@ -901,16 +918,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 slice_map = get_mapping_for_slice(names_container, names_variable)
                 if len(slice_map) > 0:
                     set_mask_by_variable(variable, v, slice_map)
-
-    @staticmethod
-    def read(*args, **kwargs):
-        from ocgis import RequestDataset
-        rd = RequestDataset(*args, **kwargs)
-        return rd.driver.get_variable_collection()
-
-    @classmethod
-    def read_netcdf(cls, path):
-        return cls.read(uri=path, driver='netCDF')
 
     def write(self, *args, **kwargs):
         # tdk: the driver argument should accept the string key of the target driver

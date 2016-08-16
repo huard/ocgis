@@ -4,11 +4,11 @@ from ocgis.new_interface.variable import VariableCollection
 
 
 class SpatialCollection(VariableCollection):
-    def add_field(self, field, uid):
+    def add_field(self, field, container):
+        uid = container.geom.uid.value[0]
         if uid not in self.children:
-            self.children[uid] = OrderedDict()
-        children = self.children[uid]
-        children
+            self.children[uid] = container
+        container.add_child(field)
 
     @property
     def geoms(self):
@@ -19,5 +19,14 @@ class SpatialCollection(VariableCollection):
 
     @property
     def crs(self):
-        for key in self.keys():
-            return self[key].geom.crs
+        for child in self.children.values():
+            return child.crs
+
+    @property
+    def properties(self):
+        ret = OrderedDict()
+        for k, v in self.children.items():
+            ret[k] = OrderedDict()
+            for k2, v2 in v.iter_data_variables():
+                ret[k][k2] = v2.value[0]
+        return ret

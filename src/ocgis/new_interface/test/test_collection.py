@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
@@ -10,7 +9,7 @@ from ocgis.new_interface.collection import SpatialCollection
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.new_interface.variable import Variable
 
 
 class TestSpatialCollection(AbstractTestNewInterface):
@@ -24,7 +23,6 @@ class TestSpatialCollection(AbstractTestNewInterface):
         return exact
 
     def test(self):
-        # tdk: RESUME: this is the main test for the spatial collection
         # Create exact field 1.
         gridxy = self.get_gridxy(with_xy_bounds=True)
         exact = self.get_exact_field(gridxy.x.value, gridxy.y.value)
@@ -53,30 +51,25 @@ class TestSpatialCollection(AbstractTestNewInterface):
         self.assertEqual(poi.crs, crs)
 
         # Execute a subset for each geometry and add to the collection.
-        sc = SpatialCollection(properties=VariableCollection(variables=[gridcode, description]),
-                               geometry_variable=geoms)
+        sc = SpatialCollection()
         for ii in range(poi.geom.shape[0]):
             subset = poi.geom[ii]
             subset_geom = subset.value[0]
+            container = poi.get_field_slice({'geom': ii})
             for field in [field1, field2]:
                 subset_field = field.geom.get_intersects(subset_geom).parent
-                uid = subset.parent['gridcode'].value[0]
-                if uid not in sc:
-                    sc[uid] = OrderedDict()
-                sc[uid][subset_field.name] = subset_field
+                sc.add_field(subset_field, container)
 
-        self.assertTrue(sc[110101]['exact1'].geom.value[0, 0].intersects(Point(100.972, 41.941)))
-        self.assertTrue(sc[110101]['exact2'].geom.value[0, 0].intersects(Point(100.972, 41.941)))
+        self.assertTrue(sc.children[110101].children['exact1'].geom.value[0, 0].intersects(Point(100.972, 41.941)))
+        self.assertTrue(sc.children[110101].children['exact2'].geom.value[0, 0].intersects(Point(100.972, 41.941)))
 
-        self.assertTrue(sc[12103]['exact1'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
-        self.assertTrue(sc[12103]['exact2'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
+        self.assertTrue(sc.children[12103].children['exact1'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
+        self.assertTrue(sc.children[12103].children['exact2'].geom.value[0, 0].intersects(Point(102.898, 40.978)))
 
         self.assertEqual(len(sc.properties), 2)
-        self.assertIsInstance(sc.geometry_variable, GeometryVariable)
         self.assertEqual(sc.crs, crs)
 
         path = self.get_temporary_file_path('grid.shp')
         path2 = self.get_temporary_file_path('poi.shp')
         field2.write(path, driver=DriverVector)
         poi.write(path2, driver=DriverVector)
-        self.fail('continue testing usage of spatial collection')
