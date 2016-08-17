@@ -9,6 +9,7 @@ from ocgis import constants
 from ocgis import env
 from ocgis.api.collection import AbstractCollection
 from ocgis.api.request.driver.base import get_group
+from ocgis.api.request.driver.csv_ import DriverCSV
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
@@ -137,6 +138,7 @@ class RequestDataset(object):
     _Drivers[DriverNetcdf.key] = DriverNetcdf
     _Drivers[DriverNetcdfCF.key] = DriverNetcdfCF
     _Drivers[DriverVector.key] = DriverVector
+    _Drivers[DriverCSV.key] = DriverCSV
 
     # tdk: RESUME: driver-specific option for netcdf: grid_abstraction - perhaps driver_options?
     # tdk: doc field_group

@@ -5,7 +5,7 @@ from copy import deepcopy
 from ocgis.exc import DefinitionValidationError
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.mpi import find_dimension_in_sequence
-from ocgis.new_interface.variable import SourcedVariable
+from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh
 
 
@@ -151,11 +151,17 @@ class AbstractDriver(object):
         _jsonformat_(meta)
         return json.dumps(meta)
 
-    @abc.abstractmethod
     def get_variable_collection(self):
         """
         :rtype: :class:`ocgis.new_interface.variable.VariableCollection`
         """
+
+        dimension = self.dimensions.get_group()['dimensions'][0]
+        ret = VariableCollection()
+        for v in self.metadata['variables'].values():
+            nvar = SourcedVariable(name=v['name'], dimensions=dimension, dtype=v['dtype'], request_dataset=self.rd)
+            ret.add_variable(nvar)
+        return ret
 
     def get_variable_metadata(self, variable_object):
         variable_metadata = get_variable_metadata_from_request_dataset(self, variable_object)
