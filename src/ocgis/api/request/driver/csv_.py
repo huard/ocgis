@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.mpi import MPI_COMM
 
 
 class DriverCSV(AbstractDriver):
@@ -50,7 +51,7 @@ class DriverCSV(AbstractDriver):
                 for tl in to_load:
                     if tl._value is None:
                         tl.allocate_value()
-                    tl.value[idx] = row[tl.name]
+                    tl.value[idx - bounds_local[0]] = row[tl.name]
             return variable.value
         finally:
             self.close(f)
@@ -65,22 +66,40 @@ class DriverCSV(AbstractDriver):
 
     @staticmethod
     def write_variable_collection(vc, file_or_path, **kwargs):
-        if isinstance(file_or_path, basestring):
-            should_close = True
-            file_or_path = open(file_or_path, mode='w')
-        else:
-            should_close = False
+        comm = kwargs.pop('comm', MPI_COMM)
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
-        try:
-            fieldnames = [v.name for v in vc.iter_data_variables()]
-            writer = csv.DictWriter(file_or_path, fieldnames)
-            writer.writeheader()
-            for idx in range(vc[fieldnames[0]].shape[0]):
-                row = {fn: vc[fn].value[idx] for fn in fieldnames}
-                writer.writerow(row)
-        finally:
-            if should_close:
-                file_or_path.close()
+        if size > 1:
+            assert isinstance(file_or_path, basestring)
+
+        fieldnames = [v.name for v in vc.iter_data_variables()]
+
+        if rank == 0:
+            opened = open(file_or_path, mode='w')
+            try:
+                writer = csv.DictWriter(opened, fieldnames)
+                writer.writeheader()
+            finally:
+                opened.close()
+
+        for current_rank_write in range(size):
+            if rank == current_rank_write:
+                if isinstance(file_or_path, basestring):
+                    should_close = True
+                    file_or_path = open(file_or_path, mode='a')
+                else:
+                    should_close = False
+
+                try:
+                    writer = csv.DictWriter(file_or_path, fieldnames)
+                    for idx in range(vc[fieldnames[0]].shape[0]):
+                        row = {fn: vc[fn].value[idx] for fn in fieldnames}
+                        writer.writerow(row)
+                finally:
+                    if should_close:
+                        file_or_path.close()
+            comm.Barrier()
 
     def _close_(self, obj):
         obj.close()

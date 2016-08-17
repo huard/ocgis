@@ -61,6 +61,8 @@ class TestBase(unittest.TestCase):
     reset_env = True
     # set to false to not create and destroy a temporary directory before each test
     create_dir = True
+    # Set to False to keep the test directory following test execution.
+    remove_dir = True
     # set to false to not shutdown logging
     shutdown_logging = True
     # prefix for the temporary test directories
@@ -696,7 +698,7 @@ class TestBase(unittest.TestCase):
 
     def tearDown(self):
         try:
-            if self.create_dir:
+            if self.create_dir and self.remove_dir:
                 shutil.rmtree(self.current_dir_output)
         finally:
             if self.reset_env:
