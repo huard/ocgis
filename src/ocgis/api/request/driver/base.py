@@ -158,7 +158,7 @@ class AbstractDriver(object):
 
         dimension = self.dimensions.get_group()['dimensions'][0]
         ret = VariableCollection()
-        for v in self.metadata['variables'].values():
+        for v in self.rd.metadata['variables'].values():
             nvar = SourcedVariable(name=v['name'], dimensions=dimension, dtype=v['dtype'], request_dataset=self.rd)
             ret.add_variable(nvar)
         return ret

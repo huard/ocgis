@@ -894,9 +894,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
     def iter_data_variables(self):
         from ocgis.new_interface.geom import GeometryVariable
-        for k, v in self.items():
+        for v in self.values():
             if not isinstance(v, (CoordinateReferenceSystem, GeometryVariable)):
-                yield k, v
+                yield v
 
     @staticmethod
     def read(*args, **kwargs):

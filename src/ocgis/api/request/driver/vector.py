@@ -11,8 +11,6 @@ from shapely.geometry import mapping
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.interface.base.crs import CoordinateReferenceSystem
-
-# tdk: clean-up
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
@@ -205,6 +203,7 @@ class DriverVector(AbstractDriver):
             for v in field.values():
                 if isinstance(v, GeometryVariable):
                     geom = v
+
         if geom is None:
             exc = ValueError('A geometry variable is required.')
             ocgis_lh(exc=exc)

@@ -144,7 +144,7 @@ class RequestDataset(object):
     # tdk: doc field_group
     def __init__(self, uri=None, variable=None, units=None, time_range=None, time_region=None,
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
-                 t_calendar=None, t_conform_units_to=None, grid_abstraction='polygon', dimension_map=None,
+                 t_calendar=None, t_conform_units_to=None, grid_abstraction='auto', dimension_map=None,
                  field_name=None, field_group=None, driver=None, regrid_source=True, regrid_destination=False,
                  metadata=None, format_time=True,
                  opened=None, dist=None, comm=None):

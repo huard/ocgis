@@ -64,8 +64,23 @@ class DriverCSV(AbstractDriver):
         raise NotImplementedError
 
     @staticmethod
-    def write_variable_collection(vc, dataset_or_path, **kwargs):
-        raise NotImplementedError
+    def write_variable_collection(vc, file_or_path, **kwargs):
+        if isinstance(file_or_path, basestring):
+            should_close = True
+            file_or_path = open(file_or_path, mode='w')
+        else:
+            should_close = False
+
+        try:
+            fieldnames = [v.name for v in vc.iter_data_variables()]
+            writer = csv.DictWriter(file_or_path, fieldnames)
+            writer.writeheader()
+            for idx in range(vc[fieldnames[0]].shape[0]):
+                row = {fn: vc[fn].value[idx] for fn in fieldnames}
+                writer.writerow(row)
+        finally:
+            if should_close:
+                file_or_path.close()
 
     def _close_(self, obj):
         obj.close()
