@@ -8,6 +8,7 @@ from netCDF4._netCDF4 import VLType
 
 from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
+from ocgis.constants import NetCDFWriteMode
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -86,10 +87,10 @@ class DriverNetcdf(AbstractDriver):
         """
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
-        is_global_write = kwargs.pop('is_global_write', False)
+        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.normal)
 
         # No data should be written during a global write. Data will be filled in during the append process.
-        if is_global_write:
+        if write_mode == NetCDFWriteMode.template:
             file_only = True
 
         # Write the parent collection if available on the variable.
@@ -119,7 +120,7 @@ class DriverNetcdf(AbstractDriver):
                     break
             # Create the dimensions.
             for dim in dimensions:
-                create_dimension_or_pass(dim, dataset, is_global_write=is_global_write)
+                create_dimension_or_pass(dim, dataset, write_mode=write_mode)
             dimensions = [d.name for d in dimensions]
 
         # Only use the fill value if something is masked.
@@ -421,9 +422,9 @@ def get_variable_value(variable, dimensions):
     return ret
 
 
-def create_dimension_or_pass(dim, dataset, is_global_write=False):
+def create_dimension_or_pass(dim, dataset, write_mode=NetCDFWriteMode.normal):
     if dim.name not in dataset.dimensions:
-        if is_global_write:
+        if write_mode == NetCDFWriteMode.template:
             lower, upper = dim.bounds_global
             size = upper - lower
         else:

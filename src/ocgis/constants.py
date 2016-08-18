@@ -1,7 +1,7 @@
 import numpy as np
 
+from ocgis.util.enum import Enum
 
-# : Standard bounds name used when none is available from the input data.
 OCGIS_BOUNDS = 'bounds'
 
 #: Default netCDF4 output file type
@@ -157,3 +157,10 @@ DEFAULT_UID_START = 1
 NAME_GEOMETRY_DIMENSION = 'ocgis_geom'
 
 DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER = 'ocgis_geom_uid'
+
+
+# Enumeration for netCDF writing.
+class NetCDFWriteMode(Enum):
+    normal = 1
+    template = 2
+    fill = 3
