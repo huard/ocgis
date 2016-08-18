@@ -42,8 +42,8 @@ class TestDriverNetcdf(TestBase):
             ds.createDimension('a', 2)
         rd = RequestDataset(uri=path, driver='netcdf')
         self.assertIsInstance(rd.driver, DriverNetcdf)
-        field = rd.get()
-        self.assertEqual(len(field), 0)
+        vc = rd.get_variable_collection()
+        self.assertEqual(len(vc), 0)
 
     def test_get_dimensions(self):
 
@@ -82,7 +82,7 @@ class TestDriverNetcdf(TestBase):
             if k.dim_count == 0 and k.nested:
                 desired = {None: {'dimensions': [], 'groups': {u'nest1': {'dimensions': [], 'groups': {
                     u'nest2': {'dimensions': [], 'groups': {
-                        u'nest1': {'dimensions': [Dimension(name='outlier', size=4, size_current=4)],
+                        u'nest1': {'dimensions': [Dimension(name='outlier', size=4, size_current=4, src_idx='auto')],
                                    'groups': {}}}}}}}}}
                 self.assertEqual(actual[MPI_RANK], desired)
 
@@ -112,7 +112,7 @@ class TestDriverNetcdf(TestBase):
                 b[:] = idx
         uri = [path1, path2]
         rd = RequestDataset(uri=uri, driver=DriverNetcdf)
-        field = rd.get()
+        field = rd.get_variable_collection()
         self.assertEqual(field['b'].value.tolist(), [0, 1])
 
 

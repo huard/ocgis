@@ -7,7 +7,7 @@ import numpy as np
 from netCDF4._netCDF4 import VLType
 
 from ocgis import env
-from ocgis.api.request.driver.base import AbstractDriver, get_group
+from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -24,19 +24,13 @@ class DriverNetcdf(AbstractDriver):
     output_formats = 'all'
 
     def get_metadata(self):
-        ds = self.open()
-        try:
+        with driver_scope(self) as ds:
             ret = parse_metadata(ds)
-        finally:
-            self.close(ds)
         return ret
 
     def get_variable_collection(self):
-        ds = self.open()
-        try:
+        with driver_scope(self) as ds:
             ret = read_from_collection(ds, self.rd, parent=None)
-        finally:
-            self.close(ds)
         return ret
 
     def get_variable_value(self, variable):
@@ -171,21 +165,24 @@ class DriverNetcdf(AbstractDriver):
             if close_dataset:
                 dataset.close()
 
-    def _close_(self, obj):
-        obj.close()
-
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
 
     def _init_variable_from_source_main_(self, variable, variable_object):
         init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
 
-    def _open_(self, group_indexing=None, mode='r'):
-        uri = self.rd.uri
+    @staticmethod
+    def _open_(uri, mode='r', **kwargs):
+        """
+        :rtype: object
+        """
+        kwargs = deepcopy(kwargs)
+        group_indexing = kwargs.pop('group_indexing', None)
+
         if isinstance(uri, basestring):
-            ret = nc.Dataset(uri, mode=mode)
+            ret = nc.Dataset(uri, mode=mode, **kwargs)
         else:
-            ret = nc.MFDataset(uri)
+            ret = nc.MFDataset(uri, **kwargs)
 
         if group_indexing is not None:
             for group_name in get_iter(group_indexing):
@@ -380,10 +377,7 @@ def get_value_from_request_dataset(variable):
         raise PayloadProtectedError
 
     rd = variable._request_dataset
-
-    ds = rd.driver.open()
-    try:
-        source = ds
+    with driver_scope(rd.driver) as source:
         if variable.group is not None:
             for vg in variable.group:
                 if vg is None:
@@ -393,9 +387,7 @@ def get_value_from_request_dataset(variable):
         desired_name = variable.name or rd.variable
         ncvar = source.variables[desired_name]
         ret = get_variable_value(ncvar, variable.dimensions)
-        return ret
-    finally:
-        ds.close()
+    return ret
 
 
 def get_variable_value(variable, dimensions):

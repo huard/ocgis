@@ -264,7 +264,7 @@ class AbstractDriver(object):
         :param opened_or_path: Output file path or an open file object.
         :rtype: bool
         """
-        if isinstance(opened_or_path, basestring):
+        if isinstance(opened_or_path, (basestring, tuple, list)):
             ret = False
         else:
             ret = True
@@ -281,10 +281,12 @@ class AbstractDriver(object):
             print line
 
     @classmethod
-    def open(cls, uri, mode='r', rd=None, **kwargs):
+    def open(cls, uri=None, mode='r', rd=None, **kwargs):
         if rd is not None and rd.opened is not None:
             ret = rd.opened
         else:
+            if rd is not None and uri is None:
+                uri = rd.uri
             ret = cls._open_(uri, mode=mode, **kwargs)
         return ret
 
@@ -344,6 +346,15 @@ class AbstractDriver(object):
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         """Initialize everything but dimensions on the target variable."""
 
+    @staticmethod
+    @abc.abstractmethod
+    def _open_(uri, mode='r', **kwargs):
+        """
+        :rtype: object
+        """
+
+        return open(uri, mode=mode, **kwargs)
+
     @classmethod
     @abc.abstractmethod
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size):
@@ -354,15 +365,6 @@ class AbstractDriver(object):
         :param rank: The MPI rank.
         :param size: The MPI size.
         """
-
-    @staticmethod
-    @abc.abstractmethod
-    def _open_(uri, mode='r', **kwargs):
-        """
-        :rtype: object
-        """
-
-        return open(uri, mode=mode, **kwargs)
 
 
 def format_attribute_for_dump_report(attr_value):
@@ -476,12 +478,14 @@ def driver_scope(driver, opened_or_path=None, mode='r', **kwargs):
                 opened_or_path = rd.opened
             else:
                 opened_or_path = rd.uri
+    else:
+        rd = None
 
     if driver.inquire_opened_state(opened_or_path):
         should_close = False
     else:
         should_close = True
-        opened_or_path = driver.open(opened_or_path, mode=mode, **kwargs)
+        opened_or_path = driver.open(uri=opened_or_path, mode=mode, rd=rd, **kwargs)
 
     try:
         yield opened_or_path
