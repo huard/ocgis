@@ -136,7 +136,10 @@ class TestDriverNetcdf(TestBase):
         vc = driver.get_variable_collection()
         vc.write(path_out)
 
-        self.assertNcEqual(path_in, path_out)
+        if MPI_RANK == 0:
+            self.assertNcEqual(path_in, path_out)
+
+        MPI_COMM.Barrier()
 
 
 class TestDriverNetcdfCF(TestBase):

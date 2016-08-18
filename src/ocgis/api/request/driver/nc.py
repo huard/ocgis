@@ -87,10 +87,10 @@ class DriverNetcdf(AbstractDriver):
         """
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
-        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.normal)
+        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.NORMAL)
 
         # No data should be written during a global write. Data will be filled in during the append process.
-        if write_mode == NetCDFWriteMode.template:
+        if write_mode == NetCDFWriteMode.TEMPLATE:
             file_only = True
 
         # Write the parent collection if available on the variable.
@@ -101,39 +101,46 @@ class DriverNetcdf(AbstractDriver):
             msg = 'A variable "name" is required.'
             raise ValueError(msg)
 
-        if var.dimensions is None:
-            new_names = ['dim_ocgis_{}_{}'.format(var.name, ctr) for ctr in range(var.ndim)]
-            var.create_dimensions(new_names)
+        # Dimension creation should not occur during a fill operation. The dimensions and variables have already been
+        # created.
+        if write_mode != NetCDFWriteMode.FILL:
+            if var.dimensions is None:
+                new_names = ['dim_ocgis_{}_{}'.format(var.name, ctr) for ctr in range(var.ndim)]
+                var.create_dimensions(new_names)
 
-        dimensions = var.dimensions
+            dimensions = var.dimensions
 
-        dtype = var._get_netcdf_dtype_()
-        if isinstance(dtype, ObjectType):
-            dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
+            dtype = var._get_netcdf_dtype_()
+            if isinstance(dtype, ObjectType):
+                dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
 
-        if len(dimensions) > 0:
-            dimensions = list(dimensions)
-            # Convert the unlimited dimension to fixed size if requested.
-            for idx, d in enumerate(dimensions):
-                if d.is_unlimited and unlimited_to_fixedsize:
-                    dimensions[idx] = Dimension(d.name, size=var.shape[idx])
-                    break
-            # Create the dimensions.
-            for dim in dimensions:
-                create_dimension_or_pass(dim, dataset, write_mode=write_mode)
-            dimensions = [d.name for d in dimensions]
+            if len(dimensions) > 0:
+                dimensions = list(dimensions)
+                # Convert the unlimited dimension to fixed size if requested.
+                for idx, d in enumerate(dimensions):
+                    if d.is_unlimited and unlimited_to_fixedsize:
+                        dimensions[idx] = Dimension(d.name, size=var.shape[idx])
+                        break
+                # Create the dimensions.
+                for dim in dimensions:
+                    create_dimension_or_pass(dim, dataset, write_mode=write_mode)
+                dimensions = [d.name for d in dimensions]
 
-        # Only use the fill value if something is masked.
-        if len(dimensions) > 0 and not file_only and var.get_mask().any():
-            fill_value = var.fill_value
-        else:
-            # Copy from original attributes.
-            if '_FillValue' not in var.attrs:
-                fill_value = None
+            # Only use the fill value if something is masked.
+            if len(dimensions) > 0 and not file_only and var.get_mask().any():
+                fill_value = var.fill_value
             else:
-                fill_value = var._get_netcdf_fill_value_()
+                # Copy from original attributes.
+                if '_FillValue' not in var.attrs:
+                    fill_value = None
+                else:
+                    fill_value = var._get_netcdf_fill_value_()
 
-        ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+        if write_mode == NetCDFWriteMode.FILL:
+            ncvar = dataset.variables[var.name]
+        else:
+            ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
+
         if not file_only:
             try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
@@ -143,10 +150,11 @@ class DriverNetcdf(AbstractDriver):
                 for idx, v in iter_array(var.value, use_mask=False, return_value=True):
                     ncvar[idx] = np.array(v)
 
-        var.write_attributes_to_netcdf_object(ncvar)
-
-        if var.units is not None:
-            ncvar.units = var.units
+        # Only set variable attributes if this is not a fill operation.
+        if write_mode != NetCDFWriteMode.FILL:
+            var.write_attributes_to_netcdf_object(ncvar)
+            if var.units is not None:
+                ncvar.units = var.units
 
         dataset.sync()
 
@@ -164,18 +172,35 @@ class DriverNetcdf(AbstractDriver):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        with driver_scope(cls, opened_or_path=opened_or_path, mode='w') as dataset:
-            vc.write_attributes_to_netcdf_object(dataset)
-            for variable in vc.values():
-                # Before orphaning the variable, load its value into memory. Load all other variable values at the same
-                # time.
-                variable.load(eager=True)
-                with orphaned(vc, variable):
-                    variable.write(dataset, **kwargs)
-            for child in vc.children.values():
-                group = nc.Group(dataset, child.name)
-                child.write(group, **kwargs)
-            dataset.sync()
+        if rank == 0:
+            # First pass, create the template dataset.
+            kwargs['write_mode'] = NetCDFWriteMode.TEMPLATE
+            with driver_scope(cls, opened_or_path=opened_or_path, mode='w') as dataset:
+                vc.write_attributes_to_netcdf_object(dataset)
+                for variable in vc.values():
+                    # Before orphaning the variable, load its value into memory. Load all other variable values at the
+                    # same time.
+                    variable.load(eager=True)
+                    with orphaned(vc, variable):
+                        variable.write(dataset, **kwargs)
+                for child in vc.children.values():
+                    group = nc.Group(dataset, child.name)
+                    child.write(group, **kwargs)
+                dataset.sync()
+
+        # Second pass, we are only interested in filling arrays using local bounds.
+        kwargs['write_mode'] = NetCDFWriteMode.FILL
+        for rank_to_write in range(size):
+            if rank == rank_to_write:
+                with driver_scope(cls, opened_or_path=opened_or_path, mode='a') as dataset:
+                    for variable in vc.values():
+                        with orphaned(vc, variable):
+                            variable.write(dataset, **kwargs)
+                    for child in vc.children.values():
+                        group = nc.Group(dataset, child.name)
+                        child.write(group, **kwargs)
+                    dataset.sync()
+            comm.Barrier()
 
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
@@ -422,9 +447,9 @@ def get_variable_value(variable, dimensions):
     return ret
 
 
-def create_dimension_or_pass(dim, dataset, write_mode=NetCDFWriteMode.normal):
+def create_dimension_or_pass(dim, dataset, write_mode=NetCDFWriteMode.NORMAL):
     if dim.name not in dataset.dimensions:
-        if write_mode == NetCDFWriteMode.template:
+        if write_mode == NetCDFWriteMode.TEMPLATE:
             lower, upper = dim.bounds_global
             size = upper - lower
         else:
