@@ -941,50 +941,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         driver.write_variable_collection(*args, **kwargs)
 
 
-def get_dimension_lengths(dimensions):
-    ret = [len(d) for d in dimensions]
-    return tuple(ret)
-
-
-def get_shape_from_variable(variable):
-    dimensions = variable._dimensions
-    value = variable._value
-    try:
-        shape = get_dimension_lengths(dimensions)
-    except TypeError:
-        try:
-            shape = value.shape
-        except AttributeError:
-            shape = tuple()
-    return shape
-
-
-def has_unlimited_dimension(dimensions):
-    ret = False
-    for d in dimensions:
-        if d.is_unlimited:
-            ret = True
-            break
-    return ret
-
-
-def update_unlimited_dimension_length(variable_value, dimensions):
-    """
-    Update unlimited dimension length if present on the variable. Update only occurs if the variable's value is
-    allocated.
-    """
-    if variable_value is not None:
-        # Update any unlimited dimension length.
-        if dimensions is not None:
-            aq = are_variable_and_dimensions_shape_equal(variable_value, dimensions)
-            if not aq:
-                msg = "Variable and dimension shapes must be equal."
-                raise ValueError(msg)
-            for idx, d in enumerate(dimensions):
-                if d.size is None:
-                    d._size_current = variable_value.shape[idx]
-
-
 def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
     to_test = []
     vshape = variable_value.shape
@@ -1005,6 +961,19 @@ def are_variable_and_dimensions_shape_equal(variable_value, dimensions):
     return ret
 
 
+def get_attribute_property(variable, name):
+    return variable.attrs.get(name)
+
+
+def get_dimension_lengths(dimensions):
+    ret = [len(d) for d in dimensions]
+    return tuple(ret)
+
+
+def get_dslice(dimensions, slc):
+    return {d.name: s for d, s in zip(dimensions, slc)}
+
+
 def get_mapped_slice(slc_src, names_src, names_dst):
     ret = [slice(None)] * len(names_dst)
     for idx, name in enumerate(names_dst):
@@ -1015,6 +984,55 @@ def get_mapped_slice(slc_src, names_src, names_dst):
         else:
             ret[idx] = slc_src[idx_src]
     return tuple(ret)
+
+
+def get_mapping_for_slice(names_source, names_destination):
+    to_map = set(names_source).intersection(names_destination)
+    ret = []
+    for name in to_map:
+        ret.append([names_source.index(name), names_destination.index(name)])
+    return ret
+
+
+def get_shape_from_variable(variable):
+    dimensions = variable._dimensions
+    value = variable._value
+    try:
+        shape = get_dimension_lengths(dimensions)
+    except TypeError:
+        try:
+            shape = value.shape
+        except AttributeError:
+            shape = tuple()
+    return shape
+
+
+def get_slice_sequence_using_local_bounds(variable):
+    ndim = variable.ndim
+    ret = [None] * ndim
+    for idx, dim in enumerate(variable.dimensions):
+        lower, upper = dim.bounds_local
+        ret[idx] = slice(lower, upper)
+    return ret
+
+
+def has_unlimited_dimension(dimensions):
+    ret = False
+    for d in dimensions:
+        if d.is_unlimited:
+            ret = True
+            break
+    return ret
+
+
+def init_from_source(variable):
+    request_dataset = variable._request_dataset
+    if request_dataset is not None:
+        request_dataset.driver.init_variable_from_source(variable)
+
+
+def set_attribute_property(variable, name, value):
+    variable.attrs[name] = value
 
 
 def set_bounds_mask_from_parent(mask, bounds):
@@ -1029,10 +1047,6 @@ def set_bounds_mask_from_parent(mask, bounds):
     else:
         raise NotImplementedError(mask.ndim)
     bounds.set_mask(mask_bounds)
-
-
-def get_dslice(dimensions, slc):
-    return {d.name: s for d, s in zip(dimensions, slc)}
 
 
 def set_mask_by_variable(source_variable, target_variable, slice_map=None):
@@ -1056,12 +1070,21 @@ def set_mask_by_variable(source_variable, target_variable, slice_map=None):
     target_variable.set_mask(mask_target)
 
 
-def get_mapping_for_slice(names_source, names_destination):
-    to_map = set(names_source).intersection(names_destination)
-    ret = []
-    for name in to_map:
-        ret.append([names_source.index(name), names_destination.index(name)])
-    return ret
+def update_unlimited_dimension_length(variable_value, dimensions):
+    """
+    Update unlimited dimension length if present on the variable. Update only occurs if the variable's value is
+    allocated.
+    """
+    if variable_value is not None:
+        # Update any unlimited dimension length.
+        if dimensions is not None:
+            aq = are_variable_and_dimensions_shape_equal(variable_value, dimensions)
+            if not aq:
+                msg = "Variable and dimension shapes must be equal."
+                raise ValueError(msg)
+            for idx, d in enumerate(dimensions):
+                if d.size is None:
+                    d._size_current = variable_value.shape[idx]
 
 
 def variable_get_zeros(dimensions, dtype):
@@ -1069,16 +1092,3 @@ def variable_get_zeros(dimensions, dtype):
     ret = np.zeros(new_shape, dtype=dtype)
     return ret
 
-
-def get_attribute_property(variable, name):
-    return variable.attrs.get(name)
-
-
-def set_attribute_property(variable, name, value):
-    variable.attrs[name] = value
-
-
-def init_from_source(variable):
-    request_dataset = variable._request_dataset
-    if request_dataset is not None:
-        request_dataset.driver.init_variable_from_source(variable)

@@ -12,7 +12,8 @@ from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection
+from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection, \
+    get_slice_sequence_using_local_bounds
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list, iter_array
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -87,6 +88,10 @@ class DriverNetcdf(AbstractDriver):
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
         is_global_write = kwargs.pop('is_global_write', False)
 
+        # No data should be written during a global write. Data will be filled in during the append process.
+        if is_global_write:
+            file_only = True
+
         # Write the parent collection if available on the variable.
         if var.parent is not None:
             return var.parent.write(dataset, **kwargs)
@@ -114,7 +119,7 @@ class DriverNetcdf(AbstractDriver):
                     break
             # Create the dimensions.
             for dim in dimensions:
-                create_dimension_or_pass(dim, dataset)
+                create_dimension_or_pass(dim, dataset, is_global_write=is_global_write)
             dimensions = [d.name for d in dimensions]
 
         # Only use the fill value if something is masked.
@@ -130,7 +135,8 @@ class DriverNetcdf(AbstractDriver):
         ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
         if not file_only:
             try:
-                ncvar[:] = var._get_netcdf_value_()
+                fill_slice = get_slice_sequence_using_local_bounds(var)
+                ncvar[fill_slice] = var._get_netcdf_value_()
             except AttributeError:
                 # Assume ObjectType.
                 for idx, v in iter_array(var.value, use_mask=False, return_value=True):
@@ -415,9 +421,14 @@ def get_variable_value(variable, dimensions):
     return ret
 
 
-def create_dimension_or_pass(dim, dataset):
+def create_dimension_or_pass(dim, dataset, is_global_write=False):
     if dim.name not in dataset.dimensions:
-        dataset.createDimension(dim.name, dim.size)
+        if is_global_write:
+            lower, upper = dim.bounds_global
+            size = upper - lower
+        else:
+            size = dim.size
+        dataset.createDimension(dim.name, size)
 
 
 def get_crs_variable(metadata, to_search=None):
