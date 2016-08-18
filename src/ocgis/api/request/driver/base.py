@@ -1,5 +1,6 @@
 import abc
 import json
+from contextlib import contextmanager
 from copy import deepcopy
 
 from ocgis.exc import DefinitionValidationError
@@ -78,18 +79,9 @@ class AbstractDriver(object):
         :rtype: list[str, ...]
         """
 
-    def close(self, obj):
-        if self.rd.opened is None:
-            self._close_(obj)
-        else:
-            pass
-
-    # tdk: order
-    @abc.abstractmethod
-    def _close_(self, obj):
-        """
-        Close and finalize the open file object.
-        """
+    @classmethod
+    def close(cls, obj):
+        cls._close_(obj)
 
     def get_crs(self):
         """:rtype: ~ocgis.interface.base.crs.CoordinateReferenceSystem"""
@@ -253,6 +245,20 @@ class AbstractDriver(object):
         if conform_units_to is not None:
             variable.cfunits_conform(conform_units_to)
 
+    @staticmethod
+    def inquire_opened_state(opened_or_path):
+        """
+        Return ``True`` if the input is an opened file object.
+
+        :param opened_or_path: Output file path or an open file object.
+        :rtype: bool
+        """
+        if isinstance(opened_or_path, basestring):
+            ret = False
+        else:
+            ret = True
+        return ret
+
     def inspect(self):
         """
         Inspect the request dataset printing information to stdout.
@@ -263,19 +269,9 @@ class AbstractDriver(object):
         for line in Inspect(request_dataset=self.rd).get_report_possible():
             print line
 
-    def open(self, *args, **kwargs):
-        if self.rd.opened is None:
-            ret = self._open_(*args, **kwargs)
-        else:
-            ret = self.rd.opened
-        return ret
-
-    # tdk: order
-    @abc.abstractmethod
-    def _open_(self):
-        """
-        :rtype: object
-        """
+    @classmethod
+    def open(cls, uri, mode='r', **kwargs):
+        return cls._open_(uri, mode=mode, **kwargs)
 
     @classmethod
     def validate_ops(cls, ops):
@@ -310,9 +306,26 @@ class AbstractDriver(object):
         :rtype: sequence
         """
 
+    @staticmethod
+    def _close_(obj):
+        """
+        Close and finalize the open file object.
+        """
+
+        obj.close()
+
     @abc.abstractmethod
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         """Initialize everything but dimensions on the target variable."""
+
+    @staticmethod
+    @abc.abstractmethod
+    def _open_(uri, mode='r', **kwargs):
+        """
+        :rtype: object
+        """
+
+        return open(uri, mode=mode, **kwargs)
 
 
 def get_group(ddict, keyseq, has_root=True):
@@ -354,3 +367,18 @@ def iter_group_keys(ddict, keyseq):
         yld = deepcopy(keyseq)
         yld.append(key)
         yield yld
+
+
+@contextmanager
+def driver_scope(driver, opened_or_path, mode='r', **kwargs):
+    if driver.inquire_opened_state(opened_or_path):
+        should_close = False
+    else:
+        should_close = True
+        opened_or_path = driver.open(opened_or_path, mode=mode, **kwargs)
+
+    try:
+        yield opened_or_path
+    finally:
+        if should_close:
+            driver.close(opened_or_path)

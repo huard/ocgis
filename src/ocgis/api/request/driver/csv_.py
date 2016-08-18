@@ -1,7 +1,7 @@
 import csv
 from collections import OrderedDict
 
-from ocgis.api.request.driver.base import AbstractDriver
+from ocgis.api.request.driver.base import AbstractDriver, driver_scope
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_COMM
 
@@ -64,46 +64,31 @@ class DriverCSV(AbstractDriver):
     def write_variable(*args, **kwargs):
         raise NotImplementedError
 
-    @staticmethod
-    def write_variable_collection(vc, file_or_path, **kwargs):
+    @classmethod
+    def write_variable_collection(cls, vc, opened_or_path, **kwargs):
         comm = kwargs.pop('comm', MPI_COMM)
         rank = comm.Get_rank()
         size = comm.Get_size()
 
         if size > 1:
-            if not isinstance(file_or_path, basestring):
+            if not cls.inquire_opened_state(opened_or_path):
                 raise ValueError('Only paths allowed for parallel writes.')
 
         fieldnames = [v.name for v in vc.iter_data_variables()]
 
         if rank == 0:
-            opened = open(file_or_path, mode='w')
-            try:
+            with driver_scope(cls, opened_or_path, mode='w') as opened:
                 writer = csv.DictWriter(opened, fieldnames)
                 writer.writeheader()
-            finally:
-                opened.close()
 
         for current_rank_write in range(size):
             if rank == current_rank_write:
-                if isinstance(file_or_path, basestring):
-                    should_close = True
-                    file_or_path = open(file_or_path, mode='a')
-                else:
-                    should_close = False
-
-                try:
-                    writer = csv.DictWriter(file_or_path, fieldnames)
+                with driver_scope(cls, opened_or_path, mode='a') as opened:
+                    writer = csv.DictWriter(opened, fieldnames)
                     for idx in range(vc[fieldnames[0]].shape[0]):
                         row = {fn: vc[fn].value[idx] for fn in fieldnames}
                         writer.writerow(row)
-                finally:
-                    if should_close:
-                        file_or_path.close()
             comm.Barrier()
-
-    def _close_(self, obj):
-        obj.close()
 
     def _get_dimensions_main_(self, group_metadata):
         dref = group_metadata['dimensions'].values()[0]
@@ -112,8 +97,3 @@ class DriverCSV(AbstractDriver):
 
     def _init_variable_from_source_main_(self, *args, **kwargs):
         pass
-
-    def _open_(self, mode='r'):
-        uri = self.rd.uri
-        ret = open(uri, mode=mode)
-        return ret
