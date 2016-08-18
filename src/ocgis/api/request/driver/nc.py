@@ -71,15 +71,16 @@ class DriverNetcdf(AbstractDriver):
 
     @staticmethod
     def write_variable(var, dataset, **kwargs):
+        file_only = kwargs.pop('file_only', False)
+        unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
+
+        # Write the parent collection if available on the variable.
         if var.parent is not None:
             return var.parent.write(dataset, **kwargs)
 
         if var.name is None:
             msg = 'A variable "name" is required.'
             raise ValueError(msg)
-
-        file_only = kwargs.pop('file_only', False)
-        unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
         if var.dimensions is None:
             new_names = ['dim_ocgis_{}_{}'.format(var.name, ctr) for ctr in range(var.ndim)]
@@ -146,7 +147,8 @@ class DriverNetcdf(AbstractDriver):
         with driver_scope(cls, opened_or_path=opened_or_path, mode='w') as dataset:
             vc.write_attributes_to_netcdf_object(dataset)
             for variable in vc.values():
-                # Before orphaning the variable, load its value into memory.
+                # Before orphaning the variable, load its value into memory. Load all other variable values at the same
+                # time.
                 variable.load(eager=True)
                 with orphaned(vc, variable):
                     variable.write(dataset, **kwargs)

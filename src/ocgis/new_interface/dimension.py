@@ -12,7 +12,7 @@ class Dimension(AbstractInterfaceObject):
             if src_idx != 'auto' and size is None and size_current is None:
                 raise ValueError('Unsized dimensions should not have source indices.')
             if src_idx != 'auto':
-                raise ValueError('"src_idx" not recognized: {}'.format(src_idx))
+                raise ValueError('"src_idx" argument not recognized: {}'.format(src_idx))
 
         super(Dimension, self).__init__()
 
