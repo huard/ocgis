@@ -2,10 +2,12 @@ import abc
 import json
 from contextlib import contextmanager
 from copy import deepcopy
+from warnings import warn
 
 from ocgis.exc import DefinitionValidationError
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import find_dimension_in_sequence
+from ocgis.new_interface.mpi import find_dimension_in_sequence, MPI_COMM
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -118,12 +120,16 @@ class AbstractDriver(object):
         self.rd.dist.update_dimension_bounds()
         return self.rd.dist
 
-    @abc.abstractmethod
     def get_dump_report(self):
-        """
-        :returns: A sequence of strings containing the metadata dump from the source request dataset.
-        :rtype: list[str, ...]
-        """
+        lines = get_dump_report_for_group(self.metadata)
+        lines.insert(0, 'OCGIS Driver Key: ' + self.key + ' {')
+        for group_name, group_metadata in self.metadata.get('groups', {}).items():
+            lines.append('')
+            lines.append('group: ' + group_name + ' {')
+            lines += get_dump_report_for_group(group_metadata, global_attributes_name=group_name, indent=2)
+            lines.append('  }')
+        lines.append('}')
+        return lines
 
     @abc.abstractmethod
     def get_variable_value(self, variable):
@@ -238,7 +244,7 @@ class AbstractDriver(object):
         # The variable is now allocated.
         variable._allocated = True
 
-    def initialize_variable_value(self, variable):
+    def init_variable_value(self, variable):
         """Set the variable value from source data conforming units in the process."""
 
         value = self.get_variable_value(variable)
@@ -303,17 +309,28 @@ class AbstractDriver(object):
         """Write a variable. Not applicable for tabular formats."""
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def write_variable_collection(self, *args, **kwargs):
-        """Write a variable collection to file(s)."""
+    @classmethod
+    def write_variable_collection(cls, vc, opened_or_path, comm=None, **kwargs):
+        comm = comm or MPI_COMM
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
-    @abc.abstractmethod
+        if size > 1:
+            if cls.inquire_opened_state(opened_or_path):
+                raise ValueError('Only paths allowed for parallel writes.')
+
+        cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, **kwargs)
+
     def _get_dimensions_main_(self, group_metadata):
         """
         :param dict group_metadata: Metadata dictionary for the target group.
         :return: A sequence of dimension objects.
         :rtype: sequence
         """
+
+        gmd = group_metadata['dimensions']
+        dims = [Dimension(dref['name'], size=dref['size'], src_idx='auto') for dref in gmd.values()]
+        return tuple(dims)
 
     @staticmethod
     def _close_(obj):
@@ -327,6 +344,17 @@ class AbstractDriver(object):
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         """Initialize everything but dimensions on the target variable."""
 
+    @classmethod
+    @abc.abstractmethod
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size):
+        """
+        :param vc: :class:`~ocgis.new_interface.variable.VariableCollection`
+        :param opened_or_path: Opened file object or path to the file object to open.
+        :param comm: The MPI communicator.
+        :param rank: The MPI rank.
+        :param size: The MPI size.
+        """
+
     @staticmethod
     @abc.abstractmethod
     def _open_(uri, mode='r', **kwargs):
@@ -335,6 +363,60 @@ class AbstractDriver(object):
         """
 
         return open(uri, mode=mode, **kwargs)
+
+
+def format_attribute_for_dump_report(attr_value):
+    if isinstance(attr_value, basestring):
+        ret = '"{}"'.format(attr_value)
+    else:
+        ret = attr_value
+    return ret
+
+
+def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
+    lines = ['dimensions:']
+    template = '    {0} = {1} ;{2}'
+    for key, value in group['dimensions'].iteritems():
+        if value.get('isunlimited', False):
+            one = 'ISUNLIMITED'
+            two = ' // {0} currently'.format(value['size'])
+        else:
+            one = value['size']
+            two = ''
+        lines.append(template.format(key, one, two))
+
+    lines.append('')
+    lines.append('variables:')
+    var_template = '    {0} {1}({2}) ;'
+    attr_template = '      {0}:{1} = {2} ;'
+    for key, value in group['variables'].iteritems():
+        dims = [str(d) for d in value['dimensions']]
+        dims = ', '.join(dims)
+        lines.append(var_template.format(value['dtype'], key, dims))
+        for key2, value2 in value.get('attributes', {}).iteritems():
+            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
+
+    lines.append('')
+    lines.append('// {} attributes:'.format(global_attributes_name))
+    template = '    :{0} = {1} ;'
+    for key, value in group.get('global_attributes', {}).iteritems():
+        try:
+            lines.append(template.format(key, format_attribute_for_dump_report(value)))
+        except UnicodeEncodeError:
+            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
+            # template formatting will break.
+            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
+            warn(msg)
+
+    if indent > 0:
+        indent_string = ''
+        for _ in range(indent):
+            indent_string += ' '
+        for idx, current in enumerate(lines):
+            if len(current) > 0:
+                lines[idx] = indent_string + current
+
+    return lines
 
 
 def get_group(ddict, keyseq, has_root=True):

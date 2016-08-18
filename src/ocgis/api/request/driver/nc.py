@@ -1,7 +1,6 @@
 import logging
 from collections import OrderedDict
 from copy import deepcopy
-from warnings import warn
 
 import netCDF4 as nc
 import numpy as np
@@ -23,17 +22,6 @@ class DriverNetcdf(AbstractDriver):
     extensions = ('.*\.nc', 'http.*')
     key = 'netcdf'
     output_formats = 'all'
-
-    def get_dump_report(self):
-        lines = get_dump_report_for_group(self.metadata)
-        lines.insert(0, 'netcdf {')
-        for group_name, group_metadata in self.metadata['groups'].items():
-            lines.append('')
-            lines.append('group: ' + group_name + ' {')
-            lines += get_dump_report_for_group(group_metadata, global_attributes_name=group_name, indent=2)
-            lines.append('  }')
-        lines.append('}')
-        return lines
 
     def get_metadata(self):
         ds = self.open()
@@ -293,52 +281,6 @@ def read_from_collection(target, request_dataset, parent=None, name=None):
     return ret
 
 
-def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
-    lines = ['dimensions:']
-    template = '    {0} = {1} ;{2}'
-    for key, value in group['dimensions'].iteritems():
-        if value['isunlimited']:
-            one = 'ISUNLIMITED'
-            two = ' // {0} currently'.format(value['len'])
-        else:
-            one = value['len']
-            two = ''
-        lines.append(template.format(key, one, two))
-
-    lines.append('')
-    lines.append('variables:')
-    var_template = '    {0} {1}({2}) ;'
-    attr_template = '      {0}:{1} = {2} ;'
-    for key, value in group['variables'].iteritems():
-        dims = [str(d) for d in value['dimensions']]
-        dims = ', '.join(dims)
-        lines.append(var_template.format(value['dtype'], key, dims))
-        for key2, value2 in value['attributes'].iteritems():
-            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
-
-    lines.append('')
-    lines.append('// {} attributes:'.format(global_attributes_name))
-    template = '    :{0} = {1} ;'
-    for key, value in group['global_attributes'].iteritems():
-        try:
-            lines.append(template.format(key, format_attribute_for_dump_report(value)))
-        except UnicodeEncodeError:
-            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
-            # template formatting will break.
-            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
-            warn(msg)
-
-    if indent > 0:
-        indent_string = ''
-        for _ in range(indent):
-            indent_string += ' '
-        for idx, current in enumerate(lines):
-            if len(current) > 0:
-                lines[idx] = indent_string + current
-
-    return lines
-
-
 def update_group_metadata(rootgrp, fill):
     fill.update({'global_attributes': deepcopy(rootgrp.__dict__)})
 
@@ -384,14 +326,6 @@ def update_group_metadata(rootgrp, fill):
         subdim = {key: {'len': len(value), 'isunlimited': value.isunlimited()}}
         dimensions.update(subdim)
     fill.update({'dimensions': dimensions})
-
-
-def format_attribute_for_dump_report(attr_value):
-    if isinstance(attr_value, basestring):
-        ret = '"{}"'.format(attr_value)
-    else:
-        ret = attr_value
-    return ret
 
 
 def init_variable_using_metadata_for_netcdf(variable, metadata):

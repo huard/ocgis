@@ -793,7 +793,7 @@ class SourcedVariable(Variable):
 
     def _get_value_(self):
         if self._value is None and not self._has_initialized_value:
-            self._request_dataset.driver.initialize_variable_value(self)
+            self._request_dataset.driver.init_variable_value(self)
             ret = self._value
             self._has_initialized_value = True
         else:

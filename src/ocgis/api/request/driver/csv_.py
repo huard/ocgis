@@ -2,8 +2,6 @@ import csv
 from collections import OrderedDict
 
 from ocgis.api.request.driver.base import AbstractDriver, driver_scope
-from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import MPI_COMM
 
 
 class DriverCSV(AbstractDriver):
@@ -11,16 +9,14 @@ class DriverCSV(AbstractDriver):
     key = 'csv'
     output_formats = 'all'
 
-    def get_dump_report(self):
-        lines = ['URI: {}'.format(self.rd.uri)]
-        return lines
-
     def get_metadata(self):
         with driver_scope(self) as f:
             meta = {}
-            # Get variable names.
+            # Get variable names assuming headers are always on the first row.
             reader = csv.reader(f)
             variable_names = reader.next()
+
+            # Fill in variable and dimension metadata.
             meta['variables'] = OrderedDict()
             meta['dimensions'] = OrderedDict()
             for varname in variable_names:
@@ -51,22 +47,12 @@ class DriverCSV(AbstractDriver):
         return variable.value
 
     @classmethod
-    def write_variable_collection(cls, vc, opened_or_path, **kwargs):
-        comm = kwargs.pop('comm', MPI_COMM)
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-
-        if size > 1:
-            if cls.inquire_opened_state(opened_or_path):
-                raise ValueError('Only paths allowed for parallel writes.')
-
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
         fieldnames = [v.name for v in vc.iter_data_variables()]
-
         if rank == 0:
             with driver_scope(cls, opened_or_path, mode='w') as opened:
                 writer = csv.DictWriter(opened, fieldnames)
                 writer.writeheader()
-
         for current_rank_write in range(size):
             if rank == current_rank_write:
                 with driver_scope(cls, opened_or_path, mode='a') as opened:
@@ -75,11 +61,6 @@ class DriverCSV(AbstractDriver):
                         row = {fn: vc[fn].value[idx] for fn in fieldnames}
                         writer.writerow(row)
             comm.Barrier()
-
-    def _get_dimensions_main_(self, group_metadata):
-        dref = group_metadata['dimensions'].values()[0]
-        dim = Dimension(dref['name'], size=dref['size'], src_idx='auto')
-        return tuple([dim])
 
     def _init_variable_from_source_main_(self, *args, **kwargs):
         pass

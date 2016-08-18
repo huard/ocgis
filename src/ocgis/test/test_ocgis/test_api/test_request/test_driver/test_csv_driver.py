@@ -43,6 +43,13 @@ class TestDriverCSV(TestBase):
 
         self.assertCSVFilesEqual(path, path_out)
 
+    def test_get_dump_report(self):
+        path = self.get_path_to_template_csv()
+        rd = RequestDataset(path)
+        driver = DriverCSV(rd)
+        dr = driver.get_dump_report()
+        self.assertGreater(len(dr), 1)
+
     @attr('mpi')
     def test_system_parallel_write(self):
         if MPI_RANK == 0:

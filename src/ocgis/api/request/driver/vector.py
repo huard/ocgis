@@ -23,7 +23,7 @@ class DriverVector(AbstractDriver):
     output_formats = [constants.OUTPUT_FORMAT_NUMPY, constants.OUTPUT_FORMAT_NETCDF_UGRID_2D_FLEXIBLE_MESH,
                       constants.OUTPUT_FORMAT_SHAPEFILE]
 
-    def initialize_variable_value(self, variable):
+    def init_variable_value(self, variable):
         value = self.get_variable_value(variable)
 
         if variable.parent is None:
