@@ -282,6 +282,9 @@ class AbstractDriver(object):
 
     @classmethod
     def open(cls, uri=None, mode='r', rd=None, **kwargs):
+        if uri is None and rd is None:
+            raise ValueError('A URI or request dataset is required.')
+
         if rd is not None and rd.opened is not None:
             ret = rd.opened
         else:
@@ -357,7 +360,7 @@ class AbstractDriver(object):
 
     @classmethod
     @abc.abstractmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
         """
         :param vc: :class:`~ocgis.new_interface.variable.VariableCollection`
         :param opened_or_path: Opened file object or path to the file object to open.

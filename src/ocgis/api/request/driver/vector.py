@@ -9,9 +9,8 @@ import numpy as np
 from shapely.geometry import mapping
 
 from ocgis import constants
-from ocgis.api.request.driver.base import AbstractDriver
+from ocgis.api.request.driver.base import AbstractDriver, driver_scope
 from ocgis.interface.base.crs import CoordinateReferenceSystem
-from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh
@@ -50,9 +49,6 @@ class DriverVector(AbstractDriver):
             if conform_units_to is not None:
                 v.cfunits_conform(conform_units_to)
 
-    def _close_(self, obj):
-        pass
-
     def get_crs(self):
         crs = self.metadata['crs']
         if len(crs) == 0:
@@ -71,39 +67,10 @@ class DriverVector(AbstractDriver):
     def get_dimensioned_variables(self):
         return self.rd.metadata['variables'].keys()
 
-    def get_dump_report(self):
-        """
-        :returns: A sequence of strings suitable for printing or writing to file.
-        :rtype: [str, ...]
-        """
-
-        from ocgis import CoordinateReferenceSystem
-
-        meta = self.rd.metadata
-        try:
-            ds = self.open()
-            n = len(ds)
-        finally:
-            self.close(ds)
-        lines = []
-        lines.append('')
-        lines.append('URI = {0}'.format(self.rd.uri))
-        lines.append('')
-        lines.append('Geometry Type: {0}'.format(meta['schema']['geometry']))
-        lines.append('Geometry Count: {0}'.format(n))
-        lines.append('CRS: {0}'.format(CoordinateReferenceSystem(value=meta['crs']).value))
-        lines.append('Properties:')
-        for k, v in meta['schema']['properties'].iteritems():
-            lines.append(' {0} {1}'.format(v, k))
-        lines.append('')
-
-        return lines
-
     def get_metadata(self):
-        data = self.open()
-        try:
+        with driver_scope(self) as data:
             m = data.sc.get_meta(path=self.rd.uri)
-            m['dimensions'] = {constants.NAME_GEOMETRY_DIMENSION: {'length': len(data),
+            m['dimensions'] = {constants.NAME_GEOMETRY_DIMENSION: {'size': len(data),
                                                                    'name': constants.NAME_GEOMETRY_DIMENSION}}
             m['variables'] = OrderedDict()
 
@@ -118,21 +85,20 @@ class DriverVector(AbstractDriver):
             m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
                                                     'dtype': object,
                                                     'name': constants.NAME_GEOMETRY_DIMENSION,
-                                                                 'attributes': OrderedDict()}
+                                                    'attributes': OrderedDict()}
             return m
-        finally:
-            self.close(data)
 
     def get_source_metadata_as_json(self):
         # tdk: test on vector and netcdf
         raise NotImplementedError
 
-    def _open_(self, slc=None):
+    @staticmethod
+    def _open_(uri, mode='r', **kwargs):
         from ocgis import GeomCabinetIterator
-        return GeomCabinetIterator(path=self.rd.uri, slc=slc)
+        return GeomCabinetIterator(path=uri, **kwargs)
 
     def get_variable_collection(self):
-        parent = VariableCollection(name=self.rd.name)
+        parent = VariableCollection()
         for n, v in self.metadata['variables'].items():
             SourcedVariable(name=n, request_dataset=self.rd, parent=parent)
         GeometryVariable(name=constants.NAME_GEOMETRY_DIMENSION, request_dataset=self.rd, parent=parent)
@@ -158,8 +124,7 @@ class DriverVector(AbstractDriver):
             src_idx = iteration_dimension._src_idx
 
         # For vector formats based on loading via iteration, it makes sense to load all values with a single pass.
-        g = self.open(slc=src_idx)
-        try:
+        with driver_scope(self, slc=src_idx) as g:
             ret = {}
             if variable.parent is None:
                 ret[variable.name] = np.zeros(variable.shape, dtype=variable.dtype)
@@ -176,18 +141,10 @@ class DriverVector(AbstractDriver):
                     for dv in self.get_dimensioned_variables():
                         ret[dv][idx] = row['properties'][dv]
                     ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
-        finally:
-            self.close(g)
         return ret
 
-    def write_gridxy(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def write_variable(self, *args, **kwargs):
-        raise NotImplementedError
-
-    @staticmethod
-    def write_variable_collection(field, fiona_or_path, **kwargs):
+    @classmethod
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
         # tdk: test conforming units!
 
         crs = kwargs.get('crs')
@@ -198,9 +155,10 @@ class DriverVector(AbstractDriver):
         # Find the geometry variable.
         geom = None
         try:
-            geom = field.geom
+            # Try to get the geometry assuming it is a field object.
+            geom = vc.geom
         except AttributeError:
-            for v in field.values():
+            for v in vc.values():
                 if isinstance(v, GeometryVariable):
                     geom = v
 
@@ -215,30 +173,30 @@ class DriverVector(AbstractDriver):
         if len(variable_names) > 0:
             if geom.name not in variable_names:
                 variable_names.append(geom.name)
-            variables_to_write = [field[v] for v in variable_names]
+            variables_to_write = [vc[v] for v in variable_names]
             for v in variables_to_write:
                 dimensions_to_iterate += list(v.dimensions_names)
         else:
             variables_to_write = []
-            for v in field.values():
+            for v in vc.values():
                 if len(set(dimensions_to_iterate).intersection(v.dimensions_names)) > 0:
                     dimensions_to_iterate += list(v.dimensions_names)
                     variables_to_write.append(v)
         dimensions_to_iterate = set(dimensions_to_iterate)
 
         # Open the output Fiona object using overloaded values or values determined at call-time.
-        if isinstance(fiona_or_path, basestring):
-            fiona_crs = get_fiona_crs(field, crs)
-            fiona_schema = get_fiona_schema(field, geom, variables_to_write, fiona_schema)
-            sink = fiona.open(fiona_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
+        if isinstance(opened_or_path, basestring):
+            fiona_crs = get_fiona_crs(vc, crs)
+            fiona_schema = get_fiona_schema(vc, geom, variables_to_write, fiona_schema)
+            sink = fiona.open(opened_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
             should_close = True
         else:
-            sink = fiona_or_path
+            sink = opened_or_path
             fiona_schema = sink.schema
             should_close = False
 
         try:
-            iter_dslices = iter_field_slices_for_records(field, dimensions_to_iterate,
+            iter_dslices = iter_field_slices_for_records(vc, dimensions_to_iterate,
                                                          [v.name for v in variables_to_write])
             properties = fiona_schema['properties'].keys()
             for sub in iter_dslices:
@@ -268,10 +226,10 @@ class DriverVector(AbstractDriver):
             if should_close:
                 sink.close()
 
-    def _get_dimensions_main_(self, group_meta):
-        desired_dimension = group_meta['dimensions'].values()[0]
-        new_dimension = Dimension(name=desired_dimension['name'], size=desired_dimension['length'], src_idx='auto')
-        return [new_dimension]
+    @staticmethod
+    def _close_(*args, **kwargs):
+        # Geometry iterators have no close methods.
+        pass
 
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         if variable_object._dtype is None:
@@ -293,36 +251,6 @@ def get_dtype_from_fiona_type(ftype):
     else:
         raise NotImplementedError(ftype)
     return ret
-
-
-def get_fiona_type_from_variable(variable):
-    m = {datetime.date: 'str',
-         datetime.datetime: 'str',
-         np.int64: 'int',
-         NoneType: None,
-         np.float64: 'float',
-         np.float32: 'float',
-         np.float16: 'float',
-         np.int16: 'int',
-         np.int32: 'int',
-         str: 'str',
-         np.dtype('int32'): 'int',
-         np.dtype('int64'): 'int',
-         np.dtype('float32'): 'float',
-         np.dtype('float64'): 'float',
-         int: 'int',
-         float: 'float',
-         object: 'str'}
-    dtype = variable._get_vector_dtype_()
-    try:
-        ftype = m[dtype]
-    except KeyError:
-        # This may be a NumPy string type.
-        if str(dtype).startswith('|S'):
-            ftype = 'str'
-        else:
-            raise
-    return ftype
 
 
 def get_fiona_crs(vc_or_field, default):
@@ -365,6 +293,36 @@ def get_fiona_string_width(arr):
             ret = len(ii)
     ret = 'str:{}'.format(ret)
     return ret
+
+
+def get_fiona_type_from_variable(variable):
+    m = {datetime.date: 'str',
+         datetime.datetime: 'str',
+         np.int64: 'int',
+         NoneType: None,
+         np.float64: 'float',
+         np.float32: 'float',
+         np.float16: 'float',
+         np.int16: 'int',
+         np.int32: 'int',
+         str: 'str',
+         np.dtype('int32'): 'int',
+         np.dtype('int64'): 'int',
+         np.dtype('float32'): 'float',
+         np.dtype('float64'): 'float',
+         int: 'int',
+         float: 'float',
+         object: 'str'}
+    dtype = variable._get_vector_dtype_()
+    try:
+        ftype = m[dtype]
+    except KeyError:
+        # This may be a NumPy string type.
+        if str(dtype).startswith('|S'):
+            ftype = 'str'
+        else:
+            raise
+    return ftype
 
 
 def iter_field_slices_for_records(vc_like, dimension_names, variable_names):

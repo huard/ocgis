@@ -13,6 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem, Spherical
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
+from ocgis.new_interface.mpi import MPI_RANK
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase, attr
@@ -31,7 +32,6 @@ class TestDriverVector(TestBase):
 
     def get_request_dataset(self, variable=None):
         uri = os.path.join(self.path_bin, 'shp', 'state_boundaries', 'state_boundaries.shp')
-        # uri = GeomCabinet().get_shp_path('state_boundaries')
         rd = RequestDataset(uri=uri, driver='vector', variable=variable)
         return rd
 
@@ -84,7 +84,7 @@ class TestDriverVector(TestBase):
 
     def test_close(self):
         driver = self.get_driver()
-        sci = driver.open()
+        sci = driver.open(rd=driver.rd)
         driver.close(sci)
 
     def test_get_crs(self):
@@ -98,8 +98,9 @@ class TestDriverVector(TestBase):
 
     def test_get_dimensions(self):
         driver = self.get_driver()
-        actual = driver.get_dimensions()
-        desired = {None: {'dimensions': [Dimension(name='ocgis_geom', size=51, size_current=51)], 'groups': {}}}
+        actual = driver.get_dimensions().dimensions[MPI_RANK]
+        desired = {None: {'dimensions': [Dimension(name='ocgis_geom', size=51, size_current=51, src_idx='auto')],
+                          'groups': {}}}
         self.assertEqual(actual, desired)
 
     def test_get_dump_report(self):
@@ -151,7 +152,7 @@ class TestDriverVector(TestBase):
 
     def test_open(self):
         driver = self.get_driver()
-        sci = driver.open()
+        sci = driver.open(rd=driver.rd)
         self.assertIsInstance(sci, GeomCabinetIterator)
         self.assertFalse(sci.as_spatial_dimension)
 
