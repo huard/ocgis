@@ -295,13 +295,13 @@ class AbstractDriver(object):
                 msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'.format(cls.key, cls.output_formats)
                 ocgis_lh(logger='driver', exc=DefinitionValidationError('output_format', msg))
 
-    @abc.abstractmethod
     def write_gridxy(self, *args, **kwargs):
         """Write a grid."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def write_variable(self, *args, **kwargs):
-        """Write a variable."""
+        """Write a variable. Not applicable for tabular formats."""
+        raise NotImplementedError
 
     @abc.abstractmethod
     def write_variable_collection(self, *args, **kwargs):

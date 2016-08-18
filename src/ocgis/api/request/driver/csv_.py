@@ -50,14 +50,6 @@ class DriverCSV(AbstractDriver):
                     tl.value[idx - bounds_local[0]] = row[tl.name]
         return variable.value
 
-    @staticmethod
-    def write_gridxy(*args, **kwargs):
-        raise NotImplementedError
-
-    @staticmethod
-    def write_variable(*args, **kwargs):
-        raise NotImplementedError
-
     @classmethod
     def write_variable_collection(cls, vc, opened_or_path, **kwargs):
         comm = kwargs.pop('comm', MPI_COMM)
