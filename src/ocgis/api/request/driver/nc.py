@@ -320,7 +320,7 @@ def update_group_metadata(rootgrp, fill):
     # get dimensions
     dimensions = OrderedDict()
     for key, value in rootgrp.dimensions.iteritems():
-        subdim = {key: {'len': len(value), 'isunlimited': value.isunlimited()}}
+        subdim = {key: {'name': key, 'size': len(value), 'isunlimited': value.isunlimited()}}
         dimensions.update(subdim)
     fill.update({'dimensions': dimensions})
 
@@ -359,7 +359,7 @@ def get_dimensions_from_netcdf_metadata(metadata, desired_dimensions):
     new_dimensions = []
     for dim_name in desired_dimensions:
         dim = metadata['dimensions'][dim_name]
-        dim_length = dim['len']
+        dim_length = dim['size']
         if dim['isunlimited']:
             length = None
             length_current = dim_length
