@@ -143,7 +143,7 @@ class DriverNetcdf(AbstractDriver):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        with driver_scope(cls, opened_or_path=opened_or_path) as dataset:
+        with driver_scope(cls, opened_or_path=opened_or_path, mode='w') as dataset:
             vc.write_attributes_to_netcdf_object(dataset)
             for variable in vc.values():
                 # Before orphaning the variable, load its value into memory.

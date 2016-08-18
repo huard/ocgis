@@ -27,7 +27,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import MPI_RANK
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
@@ -114,6 +114,29 @@ class TestDriverNetcdf(TestBase):
         rd = RequestDataset(uri=uri, driver=DriverNetcdf)
         field = rd.get_variable_collection()
         self.assertEqual(field['b'].value.tolist(), [0, 1])
+
+    @attr('mpi')
+    def test_write_variable_collection(self):
+        if MPI_RANK == 0:
+            path_in = self.get_temporary_file_path('foo.nc')
+            path_out = self.get_temporary_file_path('foo_out.nc')
+            with self.nc_scope(path_in, 'w') as ds:
+                ds.createDimension('seven', 7)
+                var = ds.createVariable('var_seven', float, dimensions=('seven',))
+                var[:] = np.arange(7, dtype=float) + 10
+                var.foo = 'bar'
+        else:
+            path_in, path_out = [None] * 2
+        path_in = MPI_COMM.bcast(path_in)
+        path_out = MPI_COMM.bcast(path_out)
+
+        rd = RequestDataset(path_in)
+        rd.metadata['dimensions']['seven']['dist'] = True
+        driver = DriverNetcdf(rd)
+        vc = driver.get_variable_collection()
+        vc.write(path_out)
+
+        self.assertNcEqual(path_in, path_out)
 
 
 class TestDriverNetcdfCF(TestBase):
