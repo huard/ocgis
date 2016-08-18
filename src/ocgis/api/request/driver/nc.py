@@ -129,8 +129,8 @@ class DriverNetcdf(AbstractDriver):
 
         dataset.sync()
 
-    @staticmethod
-    def write_variable_collection(vc, dataset_or_path, **kwargs):
+    @classmethod
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
         """
         Write the variable collection to an open netCDF dataset or file path.
 
@@ -143,14 +143,7 @@ class DriverNetcdf(AbstractDriver):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
-        if not isinstance(dataset_or_path, (nc.Dataset, nc.Group)):
-            dataset = nc.Dataset(dataset_or_path, 'w')
-            close_dataset = True
-        else:
-            dataset = dataset_or_path
-            close_dataset = False
-
-        try:
+        with driver_scope(cls, opened_or_path=opened_or_path) as dataset:
             vc.write_attributes_to_netcdf_object(dataset)
             for variable in vc.values():
                 # Before orphaning the variable, load its value into memory.
@@ -161,9 +154,6 @@ class DriverNetcdf(AbstractDriver):
                 group = nc.Group(dataset, child.name)
                 child.write(group, **kwargs)
             dataset.sync()
-        finally:
-            if close_dataset:
-                dataset.close()
 
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
