@@ -80,8 +80,13 @@ class AbstractDriver(object):
         """
 
     @classmethod
-    def close(cls, obj):
-        cls._close_(obj)
+    def close(cls, obj, rd=None):
+        # If the request dataset has an opened file object, do not close the file as we expect the client to handle
+        # closing/finalization options.
+        if rd is not None and rd.opened is not None:
+            pass
+        else:
+            cls._close_(obj)
 
     def get_crs(self):
         """:rtype: ~ocgis.interface.base.crs.CoordinateReferenceSystem"""
@@ -270,8 +275,12 @@ class AbstractDriver(object):
             print line
 
     @classmethod
-    def open(cls, uri, mode='r', **kwargs):
-        return cls._open_(uri, mode=mode, **kwargs)
+    def open(cls, uri, mode='r', rd=None, **kwargs):
+        if rd is not None and rd.opened is not None:
+            ret = rd.opened
+        else:
+            ret = cls._open_(uri, mode=mode, **kwargs)
+        return ret
 
     @classmethod
     def validate_ops(cls, ops):
@@ -370,7 +379,22 @@ def iter_group_keys(ddict, keyseq):
 
 
 @contextmanager
-def driver_scope(driver, opened_or_path, mode='r', **kwargs):
+def driver_scope(driver, opened_or_path=None, mode='r', **kwargs):
+    if opened_or_path is None:
+        try:
+            # Attempt to get the request dataset from the driver. If not there, assume we are working with the driver
+            # class and not an instance created with a request dataset.
+            rd = driver.rd
+        except AttributeError:
+            rd = None
+        if rd is None:
+            raise ValueError('Without a driver instance and no open object or file path, nothing can be scoped.')
+        else:
+            if rd.opened is not None:
+                opened_or_path = rd.opened
+            else:
+                opened_or_path = rd.uri
+
     if driver.inquire_opened_state(opened_or_path):
         should_close = False
     else:

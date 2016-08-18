@@ -16,8 +16,7 @@ class DriverCSV(AbstractDriver):
         return lines
 
     def get_metadata(self):
-        f = self.open()
-        try:
+        with driver_scope(self) as f:
             meta = {}
             # Get variable names.
             reader = csv.reader(f)
@@ -27,8 +26,6 @@ class DriverCSV(AbstractDriver):
             for varname in variable_names:
                 meta['variables'][varname] = {'name': varname, 'dtype': object, 'dimensions': ('n_records',)}
             meta['dimensions']['n_records'] = {'name': 'n_records', 'size': sum(1 for _ in f)}
-        finally:
-            self.close(f)
         return meta
 
     def get_variable_value(self, variable):
@@ -38,8 +35,7 @@ class DriverCSV(AbstractDriver):
         else:
             to_load = variable.parent.values()
 
-        f = self.open()
-        try:
+        with driver_scope(self) as f:
             reader = csv.DictReader(f)
             bounds_local = variable.dimensions[0].bounds_local
             for idx, row in enumerate(reader):
@@ -52,9 +48,7 @@ class DriverCSV(AbstractDriver):
                     if tl._value is None:
                         tl.allocate_value()
                     tl.value[idx - bounds_local[0]] = row[tl.name]
-            return variable.value
-        finally:
-            self.close(f)
+        return variable.value
 
     @staticmethod
     def write_gridxy(*args, **kwargs):
@@ -71,7 +65,7 @@ class DriverCSV(AbstractDriver):
         size = comm.Get_size()
 
         if size > 1:
-            if not cls.inquire_opened_state(opened_or_path):
+            if cls.inquire_opened_state(opened_or_path):
                 raise ValueError('Only paths allowed for parallel writes.')
 
         fieldnames = [v.name for v in vc.iter_data_variables()]
