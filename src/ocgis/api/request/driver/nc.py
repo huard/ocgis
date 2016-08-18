@@ -71,8 +71,21 @@ class DriverNetcdf(AbstractDriver):
 
     @staticmethod
     def write_variable(var, dataset, **kwargs):
+        """
+        Write a variable to an open netCDF dataset object.
+
+        :param var: Variable object.
+        :param dataset: Open netCDF dataset object.
+        :param kwargs: Arguments to netCDF variable creation with additional keyword arguments below.
+        :keyword bool file_only: (``=False``) If ``True``, do not write the value to the output file. Create an empty
+         netCDF file.
+        :keyword bool unlimited_to_fixedsize: (``=False``) If ``True``, convert the unlimited dimension to a fixed size.
+        :keyword bool is_global_write: (``=False``) If ``True``, consider this a global write and create variables
+         using dimension global bounds. Setting to ``True``, will set ``file_only`` to ``True`` by default.
+        """
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
+        is_global_write = kwargs.pop('is_global_write', False)
 
         # Write the parent collection if available on the variable.
         if var.parent is not None:
