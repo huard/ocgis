@@ -334,6 +334,19 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     @property
+    def has_allocated_value(self):
+        """
+        :return: ``True`` if the value has been allocated.
+        :rtype: bool
+        """
+
+        if self._value is None:
+            ret = False
+        else:
+            ret = True
+        return ret
+
+    @property
     def has_distributed_dimension(self):
         """
         :return: ``True`` if the variable has a distributed dimension.

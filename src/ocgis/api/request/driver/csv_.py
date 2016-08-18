@@ -45,7 +45,7 @@ class DriverCSV(AbstractDriver):
                     if idx >= bounds_local[1]:
                         break
                 for tl in to_load:
-                    if tl._value is None:
+                    if not tl.has_allocated_value:
                         tl.allocate_value()
                     tl.value[idx - bounds_local[0]] = row[tl.name]
         return variable.value
