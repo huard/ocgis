@@ -71,7 +71,8 @@ class DriverCSV(AbstractDriver):
         size = comm.Get_size()
 
         if size > 1:
-            assert isinstance(file_or_path, basestring)
+            if not isinstance(file_or_path, basestring):
+                raise ValueError('Only paths allowed for parallel writes.')
 
         fieldnames = [v.name for v in vc.iter_data_variables()]
 
