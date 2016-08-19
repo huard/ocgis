@@ -363,6 +363,21 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     @property
+    def has_masked_values(self):
+        """
+        Return ``True`` if any values are masked.
+
+        :rtype: bool
+        """
+
+        if self._mask is None:
+            ret = False
+        else:
+            mask = self.get_mask()
+            ret = mask.any()
+        return ret
+
+    @property
     def is_empty(self):
         ret = False
         if self.has_distributed_dimension:
@@ -752,7 +767,11 @@ class Variable(AbstractContainer, Attributes):
         return self.fill_value
 
     def _get_netcdf_value_(self):
-        return self.masked_value
+        if self.has_masked_values:
+            ret = self.masked_value
+        else:
+            ret = self.value
+        return ret
 
     def _get_vector_value_(self):
         return self.masked_value

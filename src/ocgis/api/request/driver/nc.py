@@ -127,7 +127,7 @@ class DriverNetcdf(AbstractDriver):
                 dimensions = [d.name for d in dimensions]
 
             # Only use the fill value if something is masked.
-            if len(dimensions) > 0 and not file_only and var.get_mask().any():
+            if len(dimensions) > 0 and not file_only and var.has_masked_values:
                 fill_value = var.fill_value
             else:
                 # Copy from original attributes.
