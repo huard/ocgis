@@ -27,7 +27,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE, hgather
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
@@ -236,6 +236,35 @@ class TestDriverNetcdfCF(TestBase):
         self.assertEqual(field['tas'].units, 'celsius')
 
     @attr('data', 'mpi')
+    def test_system_cf_data_read_parallel(self):
+        """Test some basic reading operations."""
+
+        if MPI_SIZE != 2:
+            return
+
+        rd = self.test_data.get_rd('cancm4_tas')
+        rd.metadata['dimensions']['lat']['dist'] = True
+        rd.metadata['dimensions']['lon']['dist'] = True
+        field = rd.get()
+
+        with self.nc_scope(rd.uri) as source:
+            rank0 = source.variables['tas'][:, 0:32, 0:64]
+            rank1 = source.variables['tas'][:, 32:64, 64:128]
+            global_mean = source.variables['tas'][:].mean()
+
+        actual = field['tas'].value
+        if MPI_RANK == 0:
+            self.assertNumpyAll(actual, rank0)
+        else:
+            self.assertNumpyAll(actual, rank1)
+
+        gathered = MPI_COMM.gather(actual.flatten())
+
+        if MPI_RANK == 0:
+            gathered = hgather(gathered)
+            self.assertEqual(global_mean, gathered.mean())
+
+    @attr('data', 'mpi')
     def test_system_cf_data_write_parallel(self):
         """Test some basic reading operations."""
 
@@ -252,6 +281,13 @@ class TestDriverNetcdfCF(TestBase):
         field.write(path_out)
 
         if MPI_RANK == 0:
+            # with nc_scope(path_out) as actual:
+            #     with nc_scope(rd.uri) as desired:
+            #         actual_tas = actual.variables['lon'][:]
+            #         desired_tas = desired.variables['lon'][:]
+            #         from ocgis.new_interface.ocgis_logging import log
+            #         log.debug([actual_tas.mean(), desired_tas.mean()])
+            #         self.assertNumpyAll(actual_tas.data, desired_tas)
             ignore_attributes = {'time_bnds': ['units', 'calendar'], 'lat_bnds': ['units'], 'lon_bnds': ['units']}
             self.assertNcEqual(path_out, rd.uri, ignore_variables=['latitude_longitude'],
                                ignore_attributes=ignore_attributes)

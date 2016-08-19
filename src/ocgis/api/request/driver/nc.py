@@ -145,7 +145,8 @@ class DriverNetcdf(AbstractDriver):
         if not file_only and var.ndim > 0:
             try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
-                ncvar[fill_slice] = var._get_netcdf_value_()
+                data_value = var._get_netcdf_value_()
+                ncvar[fill_slice] = data_value
             except AttributeError:
                 # Assume ObjectType.
                 for idx, v in iter_array(var.value, use_mask=False, return_value=True):
