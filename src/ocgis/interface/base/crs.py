@@ -9,6 +9,7 @@ from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseMultipartGeometry
 
 from ocgis import constants
+from ocgis.constants import NetCDFWriteMode
 from ocgis.exc import SpatialWrappingError, ProjectionCoordinateNotFound, ProjectionDoesNotMatch
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import osr
@@ -118,7 +119,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         """Compatibility with variable."""
         pass
 
-    def write_to_rootgrp(self, rootgrp, with_proj4=True):
+    def write_to_rootgrp(self, rootgrp, with_proj4=False):
         """
         Write the coordinate system to an open netCDF file.
 
@@ -135,7 +136,11 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         return variable
 
     def write(self, *args, **kwargs):
-        return self.write_to_rootgrp(*args, **kwargs)
+        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.NORMAL)
+        # Fill operations set values on variables. Coordinate system variables have no inherent values constructed only
+        # from attributes.
+        if write_mode != NetCDFWriteMode.FILL:
+            return self.write_to_rootgrp(*args, **kwargs)
 
 
 class WrappableCoordinateReferenceSystem(object):

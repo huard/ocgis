@@ -141,7 +141,8 @@ class DriverNetcdf(AbstractDriver):
         else:
             ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
 
-        if not file_only:
+        # Do not fill values on file_only calls. Also, only fill values for variables with dimension greater than zero.
+        if not file_only and var.ndim > 0:
             try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
                 ncvar[fill_slice] = var._get_netcdf_value_()

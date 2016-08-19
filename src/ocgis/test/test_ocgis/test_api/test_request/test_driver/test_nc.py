@@ -217,8 +217,9 @@ class TestDriverNetcdfCF(TestBase):
         self.assertIsInstance(d, DriverNetcdf)
 
     @attr('data')
-    def test_combo_data(self):
-        # tdk: test request dataset get() checks for appropriate dimensions - perhaps add a "strict" option
+    def test_system_cf_data_read(self):
+        """Test some basic reading operations."""
+
         rd = self.test_data.get_rd('cancm4_tas')
         field = rd.get()
         self.assertIsInstance(field, OcgField)
@@ -231,6 +232,15 @@ class TestDriverNetcdfCF(TestBase):
         rd = RequestDataset(uri=path, units='celsius')
         field = rd.get()
         self.assertEqual(field['tas'].units, 'celsius')
+
+    @attr('data', 'mpi')
+    def test_system_cf_data_write_parallel(self):
+        """Test some basic reading operations."""
+
+        out = self.get_temporary_file_path('foo.nc')
+        rd = self.test_data.get_rd('cancm4_tas')
+        field = rd.get()
+        field.write(out)
 
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.
