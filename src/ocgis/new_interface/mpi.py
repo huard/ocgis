@@ -144,8 +144,7 @@ class OcgMpi(AbstractOcgisObject):
 
                 # If there are no distributed dimensions, there is no work to be dome with MPI bounds.
                 if not any([dim.dist for dim in dimdict.values()]):
-                    self.has_updated_dimensions = True
-                    return
+                    continue
 
                 # Get dimension lengths.
                 lengths = {dim.name: len(dim) for dim in dimdict.values() if dim.dist}

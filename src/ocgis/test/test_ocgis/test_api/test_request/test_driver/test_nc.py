@@ -143,7 +143,6 @@ class TestDriverNetcdf(TestBase):
 
 
 class TestDriverNetcdfCF(TestBase):
-    remove_dir = False
 
     def get_drivernetcdf(self, **kwargs):
         path = self.get_drivernetcdf_file_path()

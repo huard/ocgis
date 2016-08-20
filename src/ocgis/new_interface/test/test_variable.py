@@ -346,7 +346,7 @@ class TestVariable(AbstractTestNewInterface):
 
         MPI_COMM.Barrier()
 
-    @attr('mpi-2', 'mpi-5', 'mpi-8')
+    @attr('mpi')
     def test_system_with_distributed_dimensions_ndvariable(self):
         """Test multi-dimensional variable behavior with distributed dimensions."""
 
@@ -361,7 +361,7 @@ class TestVariable(AbstractTestNewInterface):
 
         var = Variable('ndist', dimensions=dimensions)
 
-        if MPI_RANK > 2:
+        if MPI_RANK > 4:
             self.assertTrue(var.is_empty)
         else:
             self.assertFalse(var.is_empty)

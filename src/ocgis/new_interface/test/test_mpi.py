@@ -269,14 +269,14 @@ class TestOcgMpi(AbstractTestNewInterface):
         bounds_local = ompi.get_bounds_local()
         if ompi.size <= 2:
             desired = {(1, 0): ((0, 5), (0, 10), (0, 3)),
-                       (2, 0): ((0, 3), (0, 10), (0, 2)),
-                       (2, 1): ((3, 5), (0, 10), (2, 3))}
+                       (2, 0): ((0, 3), (0, 10), (0, 3)),
+                       (2, 1): ((3, 5), (0, 10), (0, 3))}
             self.assertEqual(bounds_local, desired[(ompi.size, MPI_RANK)])
         else:
             if MPI_RANK <= 1:
                 self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
             for dim in dimensions:
-                if MPI_RANK > 2:
+                if MPI_RANK > 4:
                     self.assertTrue(dim.is_empty)
                 else:
                     self.assertFalse(dim.is_empty)
