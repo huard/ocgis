@@ -369,7 +369,10 @@ class TestOcgMpi(AbstractTestNewInterface):
             ompi.create_dimension('lon', 128, dist=True)
             ompi.update_dimension_bounds()
             for rank in range(2):
+                lat = ompi.get_dimension('lat', rank=rank)
+                self.assertEqual(lat.bounds_local, (0, 64))
                 lon = ompi.get_dimension('lon', rank=rank)
-                self.assertEqual(lon.bounds_local, (0, 128))
-
-                # Test three dimensions.
+                if rank == 0:
+                    self.assertEqual(lon.bounds_local, (0, 64))
+                else:
+                    self.assertEqual(lon.bounds_local, (64, 128))

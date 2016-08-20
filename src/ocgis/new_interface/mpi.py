@@ -127,7 +127,6 @@ class OcgMpi(AbstractOcgisObject):
 
     def update_dimension_bounds(self, rank='all'):
         """
-
         :param rank: If ``'all'``, update across all ranks. Otherwise, update for the integer rank provided.
         :type rank: str/int
         """
@@ -141,53 +140,50 @@ class OcgMpi(AbstractOcgisObject):
 
         for rank in ranks:
             for _, group_data in self.iter_groups(rank=rank):
-                dimensions = tuple(group_data['dimensions'])
-                lengths = [len(dim) for dim in dimensions if dim.dist]
+                dimdict = {dim.name: dim for dim in group_data['dimensions']}
 
-                # Choose the size of the distribution group. There needs to be at least one element per rank.
+                # If there are no distributed dimensions, there is no work to be dome with MPI bounds.
+                if not any([dim.dist for dim in dimdict.values()]):
+                    self.has_updated_dimensions = True
+                    return
+
+                # Get dimension lengths.
+                lengths = {dim.name: len(dim) for dim in dimdict.values() if dim.dist}
+                # Choose the size of the distribution group. There needs to be at least one element per rank. First,
+                # get the longest distributed dimension.
+                max_length = max(lengths.values())
+                for k, v in lengths.items():
+                    if v == max_length:
+                        distributed_dimension = dimdict[k]
+                # Adjust the MPI distributed size if the length of the longest dimension is less than the rank count.
+                # Dimensions on higher ranks will be considered empty.
                 the_size = self.size
-                if len(lengths) != 0:
-                    if min(lengths) < self.size:
-                        the_size = min(lengths)
-                    else:
-                        pass
-                else:
-                    pass
+                if len(distributed_dimension) < the_size:
+                    the_size = len(distributed_dimension)
 
-                # Update the local bounds for the dimension.
-                for dim in dimensions:
-                    # For distributed bounds, the local and global bounds will be different.
-                    if dim.dist:
-                        # Before updating bounds, set the global bounds so they will always be available to associated
-                        # variables.
-                        dim.bounds_global = (0, len(dim))
-                        # Use this to calculate the local bounds for a dimension.
-                        omb = MpiBoundsCalculator(nelements=len(dim), size=the_size, rank=rank)
-                        bounds_local = omb.bounds_local
-                        if bounds_local is not None:
-                            start, stop = bounds_local
-                            if dim._src_idx is None:
-                                src_idx = None
-                            else:
-                                src_idx = dim._src_idx[start:stop]
-                            dim.set_size(stop - start, src_idx=src_idx)
-                        else:
-                            # If there are no local bounds, the dimension is empty.
-                            dim.convert_to_empty()
-                            # Remove any source indices on empty dimensions.
-                            dim._src_idx = None
-                        dim.bounds_local = bounds_local
+                # Fix the global bounds.
+                distributed_dimension.bounds_global = (0, len(distributed_dimension))
+                # Use this to calculate the local bounds for a dimension.
+                omb = MpiBoundsCalculator(nelements=len(distributed_dimension), size=the_size, rank=rank)
+                bounds_local = omb.bounds_local
+                if bounds_local is not None:
+                    start, stop = bounds_local
+                    if distributed_dimension._src_idx is None:
+                        src_idx = None
                     else:
-                        # The dimension is not distributed. Local bounds don't need to be set.
-                        pass
+                        src_idx = distributed_dimension._src_idx[start:stop]
+                    distributed_dimension.set_size(stop - start, src_idx=src_idx)
+                else:
+                    # If there are no local bounds, the dimension is empty.
+                    distributed_dimension.convert_to_empty()
+                    # Remove any source indices on empty dimensions.
+                    distributed_dimension._src_idx = None
+                distributed_dimension.bounds_local = bounds_local
 
                 # If there are any empty dimensions on the rank, than all dimensions are empty.
-                is_empty = [dim.is_empty for dim in dimensions]
-                if any(is_empty):
-                    for dim in dimensions:
+                if distributed_dimension.is_empty:
+                    for dim in dimdict.values():
                         dim.convert_to_empty()
-                else:
-                    pass
 
         self.has_updated_dimensions = True
 
