@@ -154,8 +154,14 @@ class DriverVector(AbstractDriver):
 
     @staticmethod
     def _open_(uri, mode='r', **kwargs):
-        from ocgis import GeomCabinetIterator
-        return GeomCabinetIterator(path=uri, **kwargs)
+        if mode == 'r':
+            from ocgis import GeomCabinetIterator
+            return GeomCabinetIterator(path=uri, **kwargs)
+        elif mode == 'w':
+            ret = fiona.open(uri, mode='w', **kwargs)
+        else:
+            raise ValueError('Mode not supported: "{}"'.format(mode))
+        return ret
 
     @classmethod
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
@@ -166,19 +172,7 @@ class DriverVector(AbstractDriver):
         fiona_driver = kwargs.get('fiona_driver', 'ESRI Shapefile')
         variable_names = kwargs.get('variable_names', [])
 
-        # Find the geometry variable.
-        geom = None
-        try:
-            # Try to get the geometry assuming it is a field object.
-            geom = vc.geom
-        except AttributeError:
-            for v in vc.values():
-                if isinstance(v, GeometryVariable):
-                    geom = v
-
-        if geom is None:
-            exc = ValueError('A geometry variable is required.')
-            ocgis_lh(exc=exc)
+        geom = get_geometry_variable(vc)
 
         # Identify the dimensions to use for variable iteration. These are found by accumulating variables having the
         # same dimensions as the geometry variable. Any additional dimensions are appended to this list. Also collect
@@ -339,3 +333,27 @@ def iter_field_slices_for_records(vc_like, dimension_names, variable_names):
     for indices in itertools.product(*iterators):
         dslice = {d.name: indices[idx] for idx, d in enumerate(dimensions)}
         yield target[dslice]
+
+
+def get_geometry_variable(field_like):
+    """
+    :param field_like: A field or variable collection.
+    :return: The geometry variable.
+    :rtype: GeometryVariable
+    :raises: ValueError
+    """
+
+    # Find the geometry variable.
+    geom = None
+    try:
+        # Try to get the geometry assuming it is a field object.
+        geom = field_like.geom
+    except AttributeError:
+        for v in field_like.values():
+            if isinstance(v, GeometryVariable):
+                geom = v
+    if geom is None:
+        exc = ValueError('A geometry variable is required.')
+        ocgis_lh(exc=exc)
+
+    return geom
