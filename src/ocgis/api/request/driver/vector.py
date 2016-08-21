@@ -139,9 +139,13 @@ class DriverVector(AbstractDriver):
         return ret
 
     @staticmethod
-    def _close_(*args, **kwargs):
-        # Geometry iterators have no close methods.
-        pass
+    def _close_(obj):
+        from ocgis.util.geom_cabinet import GeomCabinetIterator
+        if isinstance(obj, GeomCabinetIterator):
+            # Geometry iterators have no close methods.
+            pass
+        else:
+            obj.close()
 
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         if variable_object._dtype is None:
@@ -167,7 +171,7 @@ class DriverVector(AbstractDriver):
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
         # tdk: test conforming units!
 
-        crs = kwargs.get('crs')
+        fiona_crs = kwargs.get('crs')
         fiona_schema = kwargs.get('fiona_schema')
         fiona_driver = kwargs.get('fiona_driver', 'ESRI Shapefile')
         variable_names = kwargs.get('variable_names', [])
@@ -193,17 +197,17 @@ class DriverVector(AbstractDriver):
         dimensions_to_iterate = set(dimensions_to_iterate)
 
         # Open the output Fiona object using overloaded values or values determined at call-time.
-        if isinstance(opened_or_path, basestring):
-            fiona_crs = get_fiona_crs(vc, crs)
+        if not cls.inquire_opened_state(opened_or_path):
+            if fiona_crs is None:
+                fiona_crs = get_fiona_crs(vc)
             fiona_schema = get_fiona_schema(vc, geom, variables_to_write, fiona_schema)
-            sink = fiona.open(opened_or_path, 'w', driver=fiona_driver, crs=fiona_crs, schema=fiona_schema)
-            should_close = True
         else:
-            sink = opened_or_path
-            fiona_schema = sink.schema
-            should_close = False
+            fiona_schema = opened_or_path.schema
+            fiona_crs = opened_or_path.crs
+            fiona_driver = opened_or_path.driver
 
-        try:
+        with driver_scope(cls, opened_or_path=opened_or_path, mode='w', driver=fiona_driver,
+                          crs=fiona_crs, schema=fiona_schema) as sink:
             iter_dslices = iter_field_slices_for_records(vc, dimensions_to_iterate,
                                                          [v.name for v in variables_to_write])
             properties = fiona_schema['properties'].keys()
@@ -230,9 +234,6 @@ class DriverVector(AbstractDriver):
                 # tdk: OPTIMIZE: this mapping should not repeat for each geometry. there should be a cache.
                 record = {'properties': record, 'geometry': mapping(sub[geom.name].value.flatten()[0])}
                 sink.write(record)
-        finally:
-            if should_close:
-                sink.close()
 
 
 def get_dtype_from_fiona_type(ftype):
@@ -247,13 +248,17 @@ def get_dtype_from_fiona_type(ftype):
     return ret
 
 
-def get_fiona_crs(vc_or_field, default):
-    ret = default
-    if ret is None:
-        try:
-            ret = vc_or_field.crs.value
-        except AttributeError:
-            ret = None
+def get_fiona_crs(vc_or_field):
+    try:
+        # Attempt to pull the coordinate system from the field-like object. If it is a variable collection, look for
+        # CRS variables.
+        ret = vc_or_field.crs.value
+    except AttributeError:
+        ret = None
+        for v in vc_or_field.values():
+            if isinstance(v, CoordinateReferenceSystem):
+                ret = v
+                break
     return ret
 
 

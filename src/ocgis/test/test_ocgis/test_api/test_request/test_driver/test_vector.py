@@ -161,7 +161,7 @@ class TestDriverVector(TestBase):
         field = self.get_driver().get_field()
         path1 = self.get_temporary_file_path('out1.shp')
         path2 = self.get_temporary_file_path('out2.shp')
-        fiona_crs = get_fiona_crs(field, None)
+        fiona_crs = get_fiona_crs(field)
         fiona_schema = get_fiona_schema(field, field.geom, None, None)
         fobject = fiona.open(path2, mode='w', schema=fiona_schema, crs=fiona_crs, driver='ESRI Shapefile')
         for target in [path1, fobject]:

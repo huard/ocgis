@@ -466,12 +466,12 @@ def iter_group_keys(ddict, keyseq):
 
 
 @contextmanager
-def driver_scope(driver, opened_or_path=None, mode='r', **kwargs):
+def driver_scope(ocgis_driver, opened_or_path=None, mode='r', **kwargs):
     if opened_or_path is None:
         try:
             # Attempt to get the request dataset from the driver. If not there, assume we are working with the driver
             # class and not an instance created with a request dataset.
-            rd = driver.rd
+            rd = ocgis_driver.rd
         except AttributeError:
             rd = None
         if rd is None:
@@ -484,14 +484,14 @@ def driver_scope(driver, opened_or_path=None, mode='r', **kwargs):
     else:
         rd = None
 
-    if driver.inquire_opened_state(opened_or_path):
+    if ocgis_driver.inquire_opened_state(opened_or_path):
         should_close = False
     else:
         should_close = True
-        opened_or_path = driver.open(uri=opened_or_path, mode=mode, rd=rd, **kwargs)
+        opened_or_path = ocgis_driver.open(uri=opened_or_path, mode=mode, rd=rd, **kwargs)
 
     try:
         yield opened_or_path
     finally:
         if should_close:
-            driver.close(opened_or_path)
+            ocgis_driver.close(opened_or_path)
