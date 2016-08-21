@@ -92,11 +92,6 @@ class DriverVector(AbstractDriver):
         # tdk: test on vector and netcdf
         raise NotImplementedError
 
-    @staticmethod
-    def _open_(uri, mode='r', **kwargs):
-        from ocgis import GeomCabinetIterator
-        return GeomCabinetIterator(path=uri, **kwargs)
-
     def get_variable_collection(self):
         parent = VariableCollection()
         for n, v in self.metadata['variables'].items():
@@ -142,6 +137,25 @@ class DriverVector(AbstractDriver):
                         ret[dv][idx] = row['properties'][dv]
                     ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
         return ret
+
+    @staticmethod
+    def _close_(*args, **kwargs):
+        # Geometry iterators have no close methods.
+        pass
+
+    def _init_variable_from_source_main_(self, variable_object, variable_metadata):
+        if variable_object._dtype is None:
+            variable_object.dtype = variable_metadata['dtype']
+
+        variable_attrs = variable_object._attrs
+        for k, v in variable_metadata['attributes'].items():
+            if k not in variable_attrs:
+                variable_attrs[k] = deepcopy(v)
+
+    @staticmethod
+    def _open_(uri, mode='r', **kwargs):
+        from ocgis import GeomCabinetIterator
+        return GeomCabinetIterator(path=uri, **kwargs)
 
     @classmethod
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
@@ -226,20 +240,6 @@ class DriverVector(AbstractDriver):
             if should_close:
                 sink.close()
 
-    @staticmethod
-    def _close_(*args, **kwargs):
-        # Geometry iterators have no close methods.
-        pass
-
-    def _init_variable_from_source_main_(self, variable_object, variable_metadata):
-        if variable_object._dtype is None:
-            variable_object.dtype = variable_metadata['dtype']
-
-        variable_attrs = variable_object._attrs
-        for k, v in variable_metadata['attributes'].items():
-            if k not in variable_attrs:
-                variable_attrs[k] = deepcopy(v)
-
 
 def get_dtype_from_fiona_type(ftype):
     if ftype.startswith('int'):
@@ -270,15 +270,12 @@ def get_fiona_schema(vc_or_field, geometry_variable, variables_to_write, default
     else:
         variable_names_to_write = [v.name for v in vc_or_field.values()]
     if ret is None:
-        ret = {}
-        ret['geometry'] = geometry_variable.geom_type
-        ret['properties'] = OrderedDict()
+        ret = {'geometry': geometry_variable.geom_type, 'properties': OrderedDict()}
         p = ret['properties']
-        for v in vc_or_field.values():
+        for v in vc_or_field.iter_data_variables():
             if v.name not in variable_names_to_write:
                 continue
-            if not isinstance(v, (GeometryVariable, CoordinateReferenceSystem)):
-                p[v.name] = get_fiona_type_from_variable(v)
+            p[v.name] = get_fiona_type_from_variable(v)
         for k, v in p.items():
             if v == 'str':
                 p[k] = get_fiona_string_width(vc_or_field[k].masked_value.compressed())
