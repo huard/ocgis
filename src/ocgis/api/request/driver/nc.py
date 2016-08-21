@@ -30,6 +30,10 @@ class DriverNetcdf(AbstractDriver):
             ret = parse_metadata(ds)
         return ret
 
+    @classmethod
+    def get_variable_for_writing_temporal(cls, temporal_variable):
+        return temporal_variable.value_numtime
+
     def get_variable_collection(self):
         with driver_scope(self) as ds:
             ret = read_from_collection(ds, self.rd, parent=None)
@@ -71,8 +75,8 @@ class DriverNetcdf(AbstractDriver):
                 gridxy.x = original_x
                 gridxy.y = original_y
 
-    @staticmethod
-    def write_variable(var, dataset, **kwargs):
+    @classmethod
+    def write_variable(cls, var, dataset, **kwargs):
         """
         Write a variable to an open netCDF dataset object.
 
@@ -110,7 +114,7 @@ class DriverNetcdf(AbstractDriver):
 
             dimensions = var.dimensions
 
-            dtype = var._get_netcdf_dtype_()
+            dtype = cls.get_variable_write_dtype(var)
             if isinstance(dtype, ObjectType):
                 dtype = dtype.create_vltype(dataset, dimensions[0].name + '_VLType')
 
@@ -128,13 +132,13 @@ class DriverNetcdf(AbstractDriver):
 
             # Only use the fill value if something is masked.
             if len(dimensions) > 0 and not file_only and var.has_masked_values:
-                fill_value = var.fill_value
+                fill_value = cls.get_variable_write_fill_value(var)
             else:
                 # Copy from original attributes.
                 if '_FillValue' not in var.attrs:
                     fill_value = None
                 else:
-                    fill_value = var._get_netcdf_fill_value_()
+                    fill_value = cls.get_variable_write_fill_value(var)
 
         if write_mode == NetCDFWriteMode.FILL:
             ncvar = dataset.variables[var.name]
@@ -145,7 +149,7 @@ class DriverNetcdf(AbstractDriver):
         if not file_only and var.ndim > 0:
             try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
-                data_value = var._get_netcdf_value_()
+                data_value = cls.get_variable_write_value(var)
                 ncvar[fill_slice] = data_value
             except AttributeError:
                 # Assume ObjectType.

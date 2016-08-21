@@ -604,34 +604,8 @@ class TemporalVariable(SourcedVariable):
             ret = self.value_numtime
         return ret
 
-    def _get_netcdf_dtype_(self):
-        return self._get_netcdf_value_().dtype
-
-    def _get_netcdf_fill_value_(self):
-        return self._get_netcdf_value_().fill_value
-
-    def _get_netcdf_value_(self):
-        return self.value_numtime
-
     def _get_to_conform_value_(self):
         return self.value_numtime
-
-    def _get_vector_value_(self):
-        return self.value_datetime
-
-    def _get_vector_value_(self):
-        if self.format_time:
-            ret = self.value_datetime
-        else:
-            ret = super(TemporalVariable, self)._get_vector_value_()
-        return ret
-
-    def _get_vector_dtype_(self):
-        if self.format_time:
-            ret = datetime.datetime
-        else:
-            ret = super(TemporalVariable, self)._get_vector_dtype_()
-        return ret
 
     def _set_to_conform_value_(self, value):
         # Wipe the original values.

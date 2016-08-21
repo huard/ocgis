@@ -58,7 +58,7 @@ class DriverCSV(AbstractDriver):
                 with driver_scope(cls, opened_or_path, mode='a') as opened:
                     writer = csv.DictWriter(opened, fieldnames)
                     for idx in range(vc[fieldnames[0]].shape[0]):
-                        row = {fn: vc[fn].value[idx] for fn in fieldnames}
+                        row = {fn: cls.get_variable_write_value(vc[fn])[idx] for fn in fieldnames}
                         writer.writerow(row)
             comm.Barrier()
 

@@ -238,24 +238,25 @@ class TestDriverNetcdfCF(TestBase):
     def test_system_cf_data_write_parallel(self):
         """Test some basic reading operations."""
 
-        if MPI_RANK == 0:
-            path_out = self.get_temporary_file_path('foo.nc')
-        else:
-            path_out = None
-        path_out = MPI_COMM.bcast(path_out)
+        for _ in range(10):
+            if MPI_RANK == 0:
+                path_out = self.get_temporary_file_path('foo.nc')
+            else:
+                path_out = None
+            path_out = MPI_COMM.bcast(path_out)
 
-        rd = self.test_data.get_rd('cancm4_tas')
-        rd.metadata['dimensions']['lat']['dist'] = True
-        rd.metadata['dimensions']['lon']['dist'] = True
-        field = rd.get()
-        field.write(path_out)
+            rd = self.test_data.get_rd('cancm4_tas')
+            rd.metadata['dimensions']['lat']['dist'] = True
+            rd.metadata['dimensions']['lon']['dist'] = True
+            field = rd.get()
+            field.write(path_out)
 
-        if MPI_RANK == 0:
-            ignore_attributes = {'time_bnds': ['units', 'calendar'], 'lat_bnds': ['units'], 'lon_bnds': ['units']}
-            self.assertNcEqual(path_out, rd.uri, ignore_variables=['latitude_longitude'],
-                               ignore_attributes=ignore_attributes)
+            if MPI_RANK == 0:
+                ignore_attributes = {'time_bnds': ['units', 'calendar'], 'lat_bnds': ['units'], 'lon_bnds': ['units']}
+                self.assertNcEqual(path_out, rd.uri, ignore_variables=['latitude_longitude'],
+                                   ignore_attributes=ignore_attributes)
 
-        MPI_COMM.Barrier()
+            MPI_COMM.Barrier()
 
     def test_dimension_map(self):
         # Test overloaded dimension map from request dataset is used.

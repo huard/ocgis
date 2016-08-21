@@ -760,25 +760,6 @@ class Variable(AbstractContainer, Attributes):
     def _set_to_conform_value_(self, value):
         self.value = value
 
-    def _get_netcdf_dtype_(self):
-        return self.dtype
-
-    def _get_netcdf_fill_value_(self):
-        return self.fill_value
-
-    def _get_netcdf_value_(self):
-        if self.has_masked_values:
-            ret = self.masked_value
-        else:
-            ret = self.value
-        return ret
-
-    def _get_vector_value_(self):
-        return self.masked_value
-
-    def _get_vector_dtype_(self):
-        return self.dtype
-
 
 class SourcedVariable(Variable):
     def __init__(self, *args, **kwargs):

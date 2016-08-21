@@ -293,7 +293,7 @@ def get_fiona_type_from_variable(variable):
          int: 'int',
          float: 'float',
          object: 'str'}
-    dtype = variable._get_vector_dtype_()
+    dtype = DriverVector.get_variable_write_dtype(variable)
     try:
         ftype = m[dtype]
     except KeyError:

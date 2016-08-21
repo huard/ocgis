@@ -170,6 +170,41 @@ class AbstractDriver(object):
         variable_metadata = get_variable_metadata_from_request_dataset(self, variable_object)
         return variable_metadata
 
+    @classmethod
+    def get_variable_for_writing(cls, variable):
+        """
+        Allows variables to overload which member to use for writing. For example, temporal variables always want
+        numeric times.
+        """
+        from ocgis.new_interface.temporal import TemporalVariable
+        if isinstance(variable, TemporalVariable):
+            ret = cls.get_variable_for_writing_temporal(variable)
+        else:
+            ret = variable
+        return ret
+
+    @classmethod
+    def get_variable_for_writing_temporal(cls, temporal_variable):
+        # Only return datetime objects directly if time is being formatted. Otherwise return the standard value, these
+        # could be datetime objects if passed during initialization.
+        if temporal_variable.format_time:
+            ret = temporal_variable.value_datetime
+        else:
+            ret = temporal_variable.value
+        return ret
+
+    @classmethod
+    def get_variable_write_dtype(cls, variable):
+        return cls.get_variable_for_writing(variable).dtype
+
+    @classmethod
+    def get_variable_write_fill_value(cls, variable):
+        return cls.get_variable_for_writing(variable).fill_value
+
+    @classmethod
+    def get_variable_write_value(cls, variable):
+        return cls.get_variable_for_writing(variable).masked_value
+
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
         # Get the raw variable collection from source.
