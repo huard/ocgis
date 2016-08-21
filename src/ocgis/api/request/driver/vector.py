@@ -200,7 +200,7 @@ class DriverVector(AbstractDriver):
         if not cls.inquire_opened_state(opened_or_path):
             if fiona_crs is None:
                 fiona_crs = get_fiona_crs(vc)
-            fiona_schema = get_fiona_schema(vc, geom, variables_to_write, fiona_schema)
+            fiona_schema = get_fiona_schema(vc, geom, variables_to_write)
         else:
             fiona_schema = opened_or_path.schema
             fiona_crs = opened_or_path.crs
@@ -247,22 +247,21 @@ def get_fiona_crs(vc_or_field):
     return ret
 
 
-def get_fiona_schema(vc_or_field, geometry_variable, variables_to_write, default):
-    ret = default
+def get_fiona_schema(vc_or_field, geometry_variable, variables_to_write):
     if variables_to_write is not None:
         variable_names_to_write = [v.name for v in variables_to_write]
     else:
-        variable_names_to_write = [v.name for v in vc_or_field.values()]
-    if ret is None:
-        ret = {'geometry': geometry_variable.geom_type, 'properties': OrderedDict()}
-        p = ret['properties']
-        for v in vc_or_field.iter_data_variables():
-            if v.name not in variable_names_to_write:
-                continue
-            p[v.name] = get_fiona_type_from_variable(v)
-        for k, v in p.items():
-            if v == 'str':
-                p[k] = get_fiona_string_width(vc_or_field[k].masked_value.compressed())
+        variable_names_to_write = [v.name for v in vc_or_field.iter_data_variables()]
+
+    ret = {'geometry': geometry_variable.geom_type, 'properties': OrderedDict()}
+    p = ret['properties']
+    for v in vc_or_field.iter_data_variables():
+        if v.name not in variable_names_to_write:
+            continue
+        p[v.name] = get_fiona_type_from_variable(v)
+    for k, v in p.items():
+        if v == 'str':
+            p[k] = get_fiona_string_width(vc_or_field[k].masked_value.compressed())
     return ret
 
 
