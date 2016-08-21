@@ -161,7 +161,7 @@ class DriverVector(AbstractDriver):
         if mode == 'r':
             from ocgis import GeomCabinetIterator
             return GeomCabinetIterator(path=uri, **kwargs)
-        elif mode == 'w':
+        elif mode in ('a', 'w'):
             ret = fiona.open(uri, mode='w', **kwargs)
         else:
             raise ValueError('Mode not supported: "{}"'.format(mode))
@@ -206,34 +206,19 @@ class DriverVector(AbstractDriver):
             fiona_crs = opened_or_path.crs
             fiona_driver = opened_or_path.driver
 
-        with driver_scope(cls, opened_or_path=opened_or_path, mode='w', driver=fiona_driver,
-                          crs=fiona_crs, schema=fiona_schema) as sink:
-            iter_dslices = iter_field_slices_for_records(vc, dimensions_to_iterate,
-                                                         [v.name for v in variables_to_write])
-            properties = fiona_schema['properties'].keys()
-            for sub in iter_dslices:
-                record = OrderedDict()
-                for p in properties:
-                    # Attempt to pull a datetime object if they are available.
-                    try:
-                        indexed_value = sub[p].value_datetime.flatten()[0]
-                    except AttributeError:
-                        indexed_value = sub[p].value.flatten()[0]
-                    # Convert object to string if this is its data type. This is important for things like datetime
-                    # objects which require this conversion before writing.
-                    if indexed_value is not None:
-                        if fiona_schema['properties'][p].startswith('str'):
-                            indexed_value = str(indexed_value)
-                        else:
-                            # Attempt to convert the data to a Python-native data type.
-                            try:
-                                indexed_value = indexed_value.tolist()
-                            except AttributeError:
-                                pass
-                    record[p] = indexed_value
-                # tdk: OPTIMIZE: this mapping should not repeat for each geometry. there should be a cache.
-                record = {'properties': record, 'geometry': mapping(sub[geom.name].value.flatten()[0])}
-                sink.write(record)
+        # Write the template file.
+        if rank == 0:
+            with driver_scope(cls, opened_or_path=opened_or_path, mode='w', driver=fiona_driver,
+                              crs=fiona_crs, schema=fiona_schema) as _:
+                pass
+
+        # Write data on each rank to the file.
+        for rank_to_write in range(size):
+            if rank == rank_to_write:
+                with driver_scope(cls, opened_or_path=opened_or_path, mode='a', driver=fiona_driver,
+                                  crs=fiona_crs, schema=fiona_schema) as sink:
+                    write_records_to_fiona(sink, vc, geom, dimensions_to_iterate, variables_to_write, fiona_schema)
+            comm.Barrier()
 
 
 def get_dtype_from_fiona_type(ftype):
@@ -362,3 +347,31 @@ def get_geometry_variable(field_like):
         ocgis_lh(exc=exc)
 
     return geom
+
+
+def write_records_to_fiona(sink, vc, geom, dimensions_to_iterate, variables_to_write, fiona_schema):
+    iter_dslices = iter_field_slices_for_records(vc, dimensions_to_iterate, [v.name for v in variables_to_write])
+    properties = fiona_schema['properties'].keys()
+    for sub in iter_dslices:
+        record = OrderedDict()
+        for p in properties:
+            # Attempt to pull a datetime object if they are available.
+            try:
+                indexed_value = sub[p].value_datetime.flatten()[0]
+            except AttributeError:
+                indexed_value = sub[p].value.flatten()[0]
+            # Convert object to string if this is its data type. This is important for things like
+            # datetime objects which require this conversion before writing.
+            if indexed_value is not None:
+                if fiona_schema['properties'][p].startswith('str'):
+                    indexed_value = str(indexed_value)
+                else:
+                    # Attempt to convert the data to a Python-native data type.
+                    try:
+                        indexed_value = indexed_value.tolist()
+                    except AttributeError:
+                        pass
+            record[p] = indexed_value
+        # tdk: OPTIMIZE: this mapping should not repeat for each geometry. there should be a cache.
+        record = {'properties': record, 'geometry': mapping(sub[geom.name].value.flatten()[0])}
+        sink.write(record)
