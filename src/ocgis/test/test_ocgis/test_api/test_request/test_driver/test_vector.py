@@ -13,7 +13,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem, Spherical
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.mpi import MPI_RANK
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase, attr
@@ -156,34 +156,7 @@ class TestDriverVector(TestBase):
         self.assertIsInstance(sci, GeomCabinetIterator)
         self.assertFalse(sci.as_spatial_dimension)
 
-    @attr('mpi')
     def test_write_variable_collection(self):
-        # Test writing the field to file.
-        field = self.get_driver().get_field()
-        path1 = self.get_temporary_file_path('out1.shp')
-        path2 = self.get_temporary_file_path('out2.shp')
-        fiona_crs = get_fiona_crs(field)
-        fiona_schema = get_fiona_schema(field, field.geom, None)
-        fobject = fiona.open(path2, mode='w', schema=fiona_schema, crs=fiona_crs, driver='ESRI Shapefile')
-        for target in [path1, fobject]:
-            field.write(target, driver=DriverVector)
-
-            if isinstance(target, basestring):
-                path = path1
-            else:
-                path = path2
-                fobject.close()
-
-            with fiona.open(path) as source:
-                self.assertEqual(len(source), 51)
-            rd = RequestDataset(uri=path)
-            field2 = rd.get()
-            for v in field.values():
-                if isinstance(v, CoordinateReferenceSystem):
-                    self.assertEqual(v, field2.crs)
-                else:
-                    self.assertNumpyAll(v.value, field2[v.name].value)
-
         # Attempt to write without a geometry variable.
         v = Variable('a', value=[1, 2], dimensions='bb')
         field = OcgField(variables=v)
@@ -216,3 +189,48 @@ class TestDriverVector(TestBase):
         vc.write(path, variable_names=['keep'], driver=DriverVector)
         read = RequestDataset(uri=path).get()
         self.assertNotIn('remove', read)
+
+    @attr('mpi')
+    def test_write_variable_collection_parallel(self):
+        if MPI_RANK == 0:
+            path1 = self.get_temporary_file_path('out1.shp')
+            path2 = self.get_temporary_file_path('out2.shp')
+        else:
+            path1, path2 = [None] * 2
+        path1 = MPI_COMM.bcast(path1)
+        path2 = MPI_COMM.bcast(path2)
+
+        # Test writing the field to file.
+        field = self.get_driver().get_field()
+
+        # Only test open file objects on a single processor.
+        if MPI_SIZE == 1:
+            fiona_crs = get_fiona_crs(field)
+            fiona_schema = get_fiona_schema(field, field.geom, None)
+            fobject = fiona.open(path2, mode='w', schema=fiona_schema, crs=fiona_crs, driver='ESRI Shapefile')
+        else:
+            fobject = None
+
+        for target in [path1, fobject]:
+            # Skip the open file object test during a multi-proc test.
+            if MPI_SIZE > 1 and fobject is None:
+                continue
+
+            field.write(target, driver=DriverVector)
+
+            if isinstance(target, basestring):
+                path = path1
+            else:
+                path = path2
+                fobject.close()
+
+            if MPI_RANK == 0:
+                with fiona.open(path) as source:
+                    self.assertEqual(len(source), 51)
+                rd = RequestDataset(uri=path)
+                field2 = rd.get()
+                for v in field.values():
+                    if isinstance(v, CoordinateReferenceSystem):
+                        self.assertEqual(v, field2.crs)
+                    else:
+                        self.assertNumpyAll(v.value, field2[v.name].value)
