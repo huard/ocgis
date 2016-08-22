@@ -101,6 +101,38 @@ class TestDriverNetcdf(TestBase):
                 groups_desired = list(iter_all_group_keys(desired))
                 self.assertEqual(groups_actual, groups_desired)
 
+    def test_get_dump_report(self):
+        # Test with nested groups.
+        path = self.get_temporary_file_path('foo.nc')
+        with self.nc_scope(path, 'w') as ds:
+            ds.convention = 'CF Free-For-All 0.99'
+            ds.createDimension('dim_root', 5)
+            var1_root = ds.createVariable('var1_root', float, dimensions=('dim_root',))
+            var1_root.who_knew = 'I did not.'
+
+            group1 = ds.createGroup('group1')
+            group1.createDimension('dim_group1', 7)
+            var1_group1 = group1.createVariable('var1_group1', int, dimensions=('dim_group1',))
+            var1_group1.whatever = 'End of the line!'
+
+            group1_group1 = group1.createGroup('group1_group1')
+            group1_group1.createDimension('dim_group1_group1', 10)
+            var1_group1_group1 = group1_group1.createVariable('bitter_end', float, dimensions=('dim_group1_group1',))
+            var1_group1_group1.foo = 70
+
+        rd = RequestDataset(path)
+        driver = DriverNetcdf(rd)
+        lines = driver.get_dump_report()
+        desired = ['OCGIS Driver Key: netcdf {', 'dimensions:', '    dim_root = 5 ;', 'variables:',
+                   '    float64 var1_root(dim_root) ;', '      var1_root:who_knew = "I did not." ;', '',
+                   '// global attributes:', '    :convention = "CF Free-For-All 0.99" ;', '', u'group: group1 {',
+                   '  dimensions:', '      dim_group1 = 7 ;', '  variables:', '      int64 var1_group1(dim_group1) ;',
+                   '        var1_group1:whatever = "End of the line!" ;', '', u'  group: group1_group1 {',
+                   '    dimensions:', '        dim_group1_group1 = 10 ;', '    variables:',
+                   '        float64 bitter_end(dim_group1_group1) ;', '          bitter_end:foo = 70 ;',
+                   '    } // group: group1_group1', '  } // group: group1', '}']
+        self.assertEqual(lines, desired)
+
     def test_open(self):
         # Test with a multi-file dataset.
         path1 = self.get_temporary_file_path('foo1.nc')
@@ -339,11 +371,7 @@ class TestDriverNetcdfCF(TestBase):
 
     def test_get_dump_report(self):
         d = self.get_drivernetcdf()
-        # self.ncdump(d.rd.uri)
         r = d.get_dump_report()
-        # print 'BREAK ---------------------------------/n/n/n'
-        # for line in r:
-        #     print line
         self.assertGreaterEqual(len(r), 24)
 
     def test_get_dimension_map(self):

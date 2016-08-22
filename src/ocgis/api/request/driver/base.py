@@ -120,15 +120,23 @@ class AbstractDriver(object):
         self.rd.dist.update_dimension_bounds()
         return self.rd.dist
 
-    def get_dump_report(self):
-        lines = get_dump_report_for_group(self.metadata)
-        lines.insert(0, 'OCGIS Driver Key: ' + self.key + ' {')
-        for group_name, group_metadata in self.metadata.get('groups', {}).items():
+    def get_dump_report(self, indent=0, group_metadata=None, first=True, global_attributes_name='global'):
+        lines = []
+        if first:
+            lines.append('OCGIS Driver Key: ' + self.key + ' {')
+            group_metadata = self.metadata
+        else:
+            indent += 2
+        lines += get_dump_report_for_group(group_metadata, global_attributes_name=global_attributes_name, indent=indent)
+        for group_name, group_metadata in group_metadata.get('groups', {}).items():
             lines.append('')
-            lines.append('group: ' + group_name + ' {')
-            lines += get_dump_report_for_group(group_metadata, global_attributes_name=group_name, indent=2)
-            lines.append('  }')
-        lines.append('}')
+            lines.append(' ' * indent + 'group: ' + group_name + ' {')
+            dump_lines = self.get_dump_report(group_metadata=group_metadata, first=False, indent=indent,
+                                              global_attributes_name=group_name)
+            lines += dump_lines
+            lines.append(' ' * indent + '  }' + ' // group: {}'.format(group_name))
+        if first:
+            lines.append('}')
         return lines
 
     @abc.abstractmethod
@@ -405,6 +413,38 @@ class AbstractDriver(object):
         """
 
 
+@contextmanager
+def driver_scope(ocgis_driver, opened_or_path=None, mode='r', **kwargs):
+    if opened_or_path is None:
+        try:
+            # Attempt to get the request dataset from the driver. If not there, assume we are working with the driver
+            # class and not an instance created with a request dataset.
+            rd = ocgis_driver.rd
+        except AttributeError:
+            rd = None
+        if rd is None:
+            raise ValueError('Without a driver instance and no open object or file path, nothing can be scoped.')
+        else:
+            if rd.opened is not None:
+                opened_or_path = rd.opened
+            else:
+                opened_or_path = rd.uri
+    else:
+        rd = None
+
+    if ocgis_driver.inquire_opened_state(opened_or_path):
+        should_close = False
+    else:
+        should_close = True
+        opened_or_path = ocgis_driver.open(uri=opened_or_path, mode=mode, rd=rd, **kwargs)
+
+    try:
+        yield opened_or_path
+    finally:
+        if should_close:
+            ocgis_driver.close(opened_or_path)
+
+
 def format_attribute_for_dump_report(attr_value):
     if isinstance(attr_value, basestring):
         ret = '"{}"'.format(attr_value)
@@ -414,44 +454,47 @@ def format_attribute_for_dump_report(attr_value):
 
 
 def get_dump_report_for_group(group, global_attributes_name='global', indent=0):
-    lines = ['dimensions:']
-    template = '    {0} = {1} ;{2}'
-    for key, value in group['dimensions'].iteritems():
-        if value.get('isunlimited', False):
-            one = 'ISUNLIMITED'
-            two = ' // {0} currently'.format(value['size'])
-        else:
-            one = value['size']
-            two = ''
-        lines.append(template.format(key, one, two))
+    lines = []
 
-    lines.append('')
-    lines.append('variables:')
-    var_template = '    {0} {1}({2}) ;'
-    attr_template = '      {0}:{1} = {2} ;'
-    for key, value in group['variables'].iteritems():
-        dims = [str(d) for d in value['dimensions']]
-        dims = ', '.join(dims)
-        lines.append(var_template.format(value['dtype'], key, dims))
-        for key2, value2 in value.get('attributes', {}).iteritems():
-            lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
+    if len(group['dimensions']) > 0:
+        lines.append('dimensions:')
+        template = '    {0} = {1} ;{2}'
+        for key, value in group['dimensions'].items():
+            if value.get('isunlimited', False):
+                one = 'ISUNLIMITED'
+                two = ' // {0} currently'.format(value['size'])
+            else:
+                one = value['size']
+                two = ''
+            lines.append(template.format(key, one, two))
 
-    lines.append('')
-    lines.append('// {} attributes:'.format(global_attributes_name))
-    template = '    :{0} = {1} ;'
-    for key, value in group.get('global_attributes', {}).iteritems():
-        try:
-            lines.append(template.format(key, format_attribute_for_dump_report(value)))
-        except UnicodeEncodeError:
-            # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
-            # template formatting will break.
-            msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
-            warn(msg)
+    if len(group['variables']) > 0:
+        lines.append('variables:')
+        var_template = '    {0} {1}({2}) ;'
+        attr_template = '      {0}:{1} = {2} ;'
+        for key, value in group['variables'].items():
+            dims = [str(d) for d in value['dimensions']]
+            dims = ', '.join(dims)
+            lines.append(var_template.format(value['dtype'], key, dims))
+            for key2, value2 in value.get('attributes', {}).iteritems():
+                lines.append(attr_template.format(key, key2, format_attribute_for_dump_report(value2)))
+
+    global_attributes = group.get('global_attributes', {})
+    if len(global_attributes) > 0:
+        lines.append('')
+        lines.append('// {} attributes:'.format(global_attributes_name))
+        template = '    :{0} = {1} ;'
+        for key, value in global_attributes.items():
+            try:
+                lines.append(template.format(key, format_attribute_for_dump_report(value)))
+            except UnicodeEncodeError:
+                # for a unicode string, if "\u" is in the string and an inappropriate unicode character is used, then
+                # template formatting will break.
+                msg = 'Unable to encode attribute "{0}". Skipping printing of attribute value.'.format(key)
+                warn(msg)
 
     if indent > 0:
-        indent_string = ''
-        for _ in range(indent):
-            indent_string += ' '
+        indent_string = ' ' * indent
         for idx, current in enumerate(lines):
             if len(current) > 0:
                 lines[idx] = indent_string + current
@@ -498,35 +541,3 @@ def iter_group_keys(ddict, keyseq):
         yld = deepcopy(keyseq)
         yld.append(key)
         yield yld
-
-
-@contextmanager
-def driver_scope(ocgis_driver, opened_or_path=None, mode='r', **kwargs):
-    if opened_or_path is None:
-        try:
-            # Attempt to get the request dataset from the driver. If not there, assume we are working with the driver
-            # class and not an instance created with a request dataset.
-            rd = ocgis_driver.rd
-        except AttributeError:
-            rd = None
-        if rd is None:
-            raise ValueError('Without a driver instance and no open object or file path, nothing can be scoped.')
-        else:
-            if rd.opened is not None:
-                opened_or_path = rd.opened
-            else:
-                opened_or_path = rd.uri
-    else:
-        rd = None
-
-    if ocgis_driver.inquire_opened_state(opened_or_path):
-        should_close = False
-    else:
-        should_close = True
-        opened_or_path = ocgis_driver.open(uri=opened_or_path, mode=mode, rd=rd, **kwargs)
-
-    try:
-        yield opened_or_path
-    finally:
-        if should_close:
-            ocgis_driver.close(opened_or_path)
