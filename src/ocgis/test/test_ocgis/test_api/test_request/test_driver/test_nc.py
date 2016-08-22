@@ -173,6 +173,24 @@ class TestDriverNetcdf(TestBase):
 
         MPI_COMM.Barrier()
 
+    def test_write_variable_collection_dataset_variable_kwargs(self):
+        """Test writing while overloading things like the dataset data model."""
+
+        path_in = self.get_temporary_file_path('foo.nc')
+        path_out = self.get_temporary_file_path('foo_out.nc')
+        with self.nc_scope(path_in, 'w', format='NETCDF3_CLASSIC') as ds:
+            ds.createDimension('seven', 7)
+            var = ds.createVariable('var_seven', np.float32, dimensions=('seven',))
+            var[:] = np.arange(7, dtype=np.float32) + 10
+            var.foo = 'bar'
+
+        rd = RequestDataset(path_in)
+        driver = DriverNetcdf(rd)
+        vc = driver.get_variable_collection()
+        vc.write(path_out, dataset_kwargs={'format': 'NETCDF3_CLASSIC'}, variable_kwargs={'zlib': True})
+
+        self.assertNcEqual(path_in, path_out)
+
 
 class TestDriverNetcdfCF(TestBase):
 

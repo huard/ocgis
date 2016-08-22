@@ -178,30 +178,33 @@ class DriverNetcdf(AbstractDriver):
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
 
+        dataset_kwargs = kwargs.get('dataset_kwargs', {})
+        variable_kwargs = kwargs.get('variable_kwargs', {})
+
         if rank == 0:
             # First pass, create the template dataset.
-            kwargs['write_mode'] = NetCDFWriteMode.TEMPLATE
-            with driver_scope(cls, opened_or_path=opened_or_path, mode='w') as dataset:
+            variable_kwargs['write_mode'] = NetCDFWriteMode.TEMPLATE
+            with driver_scope(cls, opened_or_path=opened_or_path, mode='w', **dataset_kwargs) as dataset:
                 vc.write_attributes_to_netcdf_object(dataset)
                 for variable in vc.values():
                     # Before orphaning the variable, load its value into memory. Load all other variable values at the
                     # same time.
                     variable.load(eager=True)
                     with orphaned(vc, variable):
-                        variable.write(dataset, **kwargs)
+                        variable.write(dataset, **variable_kwargs)
                 for child in vc.children.values():
                     group = nc.Group(dataset, child.name)
                     child.write(group, **kwargs)
                 dataset.sync()
 
         # Second pass, we are only interested in filling arrays using local bounds.
-        kwargs['write_mode'] = NetCDFWriteMode.FILL
+        variable_kwargs['write_mode'] = NetCDFWriteMode.FILL
         for rank_to_write in range(size):
             if rank == rank_to_write:
-                with driver_scope(cls, opened_or_path=opened_or_path, mode='a') as dataset:
+                with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
                     for variable in vc.values():
                         with orphaned(vc, variable):
-                            variable.write(dataset, **kwargs)
+                            variable.write(dataset, **variable_kwargs)
                     for child in vc.children.values():
                         group = nc.Group(dataset, child.name)
                         child.write(group, **kwargs)
@@ -219,7 +222,6 @@ class DriverNetcdf(AbstractDriver):
         """
         :rtype: object
         """
-        kwargs = deepcopy(kwargs)
         group_indexing = kwargs.pop('group_indexing', None)
 
         if isinstance(uri, basestring):

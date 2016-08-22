@@ -393,7 +393,6 @@ class AbstractDriver(object):
         """Initialize everything but dimensions on the target variable."""
 
     @staticmethod
-    @abc.abstractmethod
     def _open_(uri, mode='r', **kwargs):
         """
         :rtype: object

@@ -215,6 +215,8 @@ class TestBase(unittest.TestCase):
         ignore_attributes = ignore_attributes or {}
 
         try:
+            self.assertEqual(src.data_model, dest.data_model)
+
             for dimname, dim in src.dimensions.iteritems():
                 self.assertEqual(len(dim), len(dest.dimensions[dimname]))
             self.assertEqual(set(src.dimensions.keys()), set(dest.dimensions.keys()))
