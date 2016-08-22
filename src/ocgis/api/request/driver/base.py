@@ -124,7 +124,7 @@ class AbstractDriver(object):
         lines = []
         if first:
             lines.append('OCGIS Driver Key: ' + self.key + ' {')
-            group_metadata = self.metadata
+            group_metadata = group_metadata or self.metadata
         else:
             indent += 2
         lines += get_dump_report_for_group(group_metadata, global_attributes_name=global_attributes_name, indent=indent)
