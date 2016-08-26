@@ -1,5 +1,4 @@
 import itertools
-from copy import deepcopy
 
 import numpy as np
 
@@ -187,8 +186,6 @@ class OcgMpi(AbstractOcgisObject):
         self.has_updated_dimensions = True
 
     def _create_or_get_group_(self, group, rank=MPI_RANK):
-        # The group sequence may be modified.
-        group = deepcopy(group)
         # Allow None and single string group selection.
         if group is None or isinstance(group, basestring):
             group = [group]

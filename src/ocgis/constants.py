@@ -164,3 +164,13 @@ class NetCDFWriteMode(Enum):
     NORMAL = 0
     TEMPLATE = 1
     FILL = 2
+
+
+# MPI Distribution flags.
+class MPIDistributionMode(Enum):
+    # Object is distributed across communicator group procs.
+    DISTRIBUTED = 0
+    # Object is replicated across communicator group procs.
+    REPLICATED = 1
+    # Object exists on a single communicator proc.
+    ISOLATED = 2
