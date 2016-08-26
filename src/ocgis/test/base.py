@@ -233,10 +233,17 @@ class TestBase(unittest.TestCase):
 
                 try:
                     if not metadata_only:
-                        if close:
-                            self.assertNumpyAllClose(var_value, dvar_value)
+                        if var_value.dtype == object:
+                            for idx in range(var_value.shape[0]):
+                                if close:
+                                    self.assertNumpyAllClose(var_value[idx], dvar_value[idx])
+                                else:
+                                    self.assertNumpyAll(var_value[idx], dvar_value[idx], check_arr_dtype=check_types)
                         else:
-                            self.assertNumpyAll(var_value, dvar_value, check_arr_dtype=check_types)
+                            if close:
+                                self.assertNumpyAllClose(var_value, dvar_value)
+                            else:
+                                self.assertNumpyAll(var_value, dvar_value, check_arr_dtype=check_types)
                 except (AssertionError, AttributeError):
                     # Zero-length netCDF variables should not be tested for value equality. Values are meaningless and
                     # only the attributes should be tested for equality.

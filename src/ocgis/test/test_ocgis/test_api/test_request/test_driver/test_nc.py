@@ -27,8 +27,9 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter
 from ocgis.new_interface.temporal import TemporalVariable
+from ocgis.new_interface.variable import Variable, ObjectType, VariableCollection
 from ocgis.test.base import TestBase, nc_scope, attr
 from ocgis.util.units import get_units_object
 
@@ -190,6 +191,37 @@ class TestDriverNetcdf(TestBase):
         vc.write(path_out, dataset_kwargs={'format': 'NETCDF3_CLASSIC'}, variable_kwargs={'zlib': True})
 
         self.assertNcEqual(path_in, path_out)
+
+    @attr('mpi')
+    def test_write_variable_collection_object_arrays(self):
+        """Test writing variable length arrays in parallel."""
+
+        if MPI_RANK == 0:
+            path_actual = self.get_temporary_file_path('in.nc')
+            path_desired = self.get_temporary_file_path('out.nc')
+
+            value = [[1, 3, 5],
+                     [7, 9],
+                     [11]]
+            v = Variable(name='objects', value=value, fill_value=4, dtype=ObjectType(int), dimensions='values')
+
+            with self.nc_scope(path_desired, 'w') as ds:
+                v.write(ds)
+        else:
+            v, path_actual, path_desired = [None] * 3
+        path_actual = MPI_COMM.bcast(path_actual)
+        path_desired = MPI_COMM.bcast(path_desired)
+
+        dest_mpi = OcgMpi()
+        dest_mpi.create_dimension('values', 3, dist=True)
+        dest_mpi.update_dimension_bounds()
+
+        scattered, _ = variable_scatter(v, dest_mpi)
+        outvc = VariableCollection(variables=[scattered])
+        outvc.write(path_actual)
+
+        if MPI_RANK == 0:
+            self.assertNcEqual(path_actual, path_desired)
 
 
 class TestDriverNetcdfCF(TestBase):
