@@ -25,7 +25,7 @@ class AbstractDriver(object):
 
     def __init__(self, rd):
         self.rd = rd
-        self._metadata = None
+        self._metadata_raw = None
         self._dimension_map = None
         self._dimensions = None
         self._crs = None
@@ -51,14 +51,18 @@ class AbstractDriver(object):
     @property
     def dimension_map(self):
         if self._dimension_map is None:
-            self._dimension_map = self.get_dimension_map(self.metadata)
+            self._dimension_map = self.get_dimension_map(self.metadata_source)
         return self._dimension_map
 
     @property
-    def metadata(self):
-        if self._metadata is None:
-            self._metadata = self.get_metadata()
-        return self._metadata
+    def metadata_raw(self):
+        if self._metadata_raw is None:
+            self._metadata_raw = self.get_metadata()
+        return self._metadata_raw
+
+    @property
+    def metadata_source(self):
+        return self.rd.metadata
 
     @abc.abstractproperty
     def extensions(self):
@@ -109,22 +113,24 @@ class AbstractDriver(object):
         """
 
         # Convert metadata into a grouping consistent with the MPI dimensions.
-        target_metdata = {None: self.rd.metadata}
+        target_metdata = {None: self.metadata_source}
+        dist = self.rd.dist
         for group_name in iter_all_group_keys(target_metdata):
             group_meta = get_group(target_metdata, group_name)
             dimensions = self._get_dimensions_main_(group_meta)
             for dimension_name, dimension_meta in group_meta['dimensions'].items():
                 target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
                 target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist', False)
-                self.rd.dist.add_dimension(target_dimension, group=group_name)
-        self.rd.dist.update_dimension_bounds()
-        return self.rd.dist
+                dist.add_dimension(target_dimension, group=group_name)
+        # tdk: this will have to be moved to account for slicing
+        dist.update_dimension_bounds()
+        return dist
 
     def get_dump_report(self, indent=0, group_metadata=None, first=True, global_attributes_name='global'):
         lines = []
         if first:
             lines.append('OCGIS Driver Key: ' + self.key + ' {')
-            group_metadata = group_metadata or self.metadata
+            group_metadata = group_metadata or self.metadata_source
         else:
             indent += 2
         lines += get_dump_report_for_group(group_metadata, global_attributes_name=global_attributes_name, indent=indent)
@@ -138,10 +144,6 @@ class AbstractDriver(object):
         if first:
             lines.append('}')
         return lines
-
-    @abc.abstractmethod
-    def get_variable_value(self, variable):
-        """Get value for the variable."""
 
     def get_source_metadata_as_json(self):
         # tdk: test
@@ -158,7 +160,7 @@ class AbstractDriver(object):
                         pass
                 d[k] = v
 
-        meta = deepcopy(self.metadata)
+        meta = deepcopy(self.metadata_source)
         _jsonformat_(meta)
         return json.dumps(meta)
 
@@ -169,7 +171,7 @@ class AbstractDriver(object):
 
         dimension = self.dimensions.get_group()['dimensions'][0]
         ret = VariableCollection()
-        for v in self.rd.metadata['variables'].values():
+        for v in self.metadata_source['variables'].values():
             nvar = SourcedVariable(name=v['name'], dimensions=dimension, dtype=v['dtype'], request_dataset=self.rd)
             ret.add_variable(nvar)
         return ret
@@ -200,6 +202,10 @@ class AbstractDriver(object):
         else:
             ret = temporal_variable.value
         return ret
+
+    @abc.abstractmethod
+    def get_variable_value(self, variable):
+        """Get value for the variable."""
 
     @classmethod
     def get_variable_write_dtype(cls, variable):
@@ -523,7 +529,7 @@ def get_group(ddict, keyseq, has_root=True):
 
 
 def get_variable_metadata_from_request_dataset(driver, variable):
-    return get_group(driver.rd.metadata, variable.group, has_root=False)['variables'][variable.name]
+    return get_group(driver.metadata_source, variable.group, has_root=False)['variables'][variable.name]
 
 
 def iter_all_group_keys(ddict, entry=None):

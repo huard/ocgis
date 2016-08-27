@@ -242,7 +242,7 @@ class DriverNetcdfCF(DriverNetcdf):
     _priority = True
 
     def get_crs(self):
-        return get_crs_variable(self.metadata)
+        return get_crs_variable(self.metadata_source)
 
     def get_dimension_map(self, metadata):
         # Get dimension variable metadata. This involves checking for the presence of any bounds variables.

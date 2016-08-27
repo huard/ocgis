@@ -322,7 +322,7 @@ class RequestDataset(object):
     @property
     def metadata(self):
         if self._metadata is None:
-            self._metadata = deepcopy(self.driver.metadata)
+            self._metadata = deepcopy(self.driver.metadata_raw)
         return self._metadata
 
     @property
