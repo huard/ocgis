@@ -71,32 +71,42 @@ class OcgMpi(AbstractOcgisObject):
         for dim in dims:
             self.add_dimension(dim, **kwargs)
 
-    def add_variable(self, var, ranks='all', dist=MPIDistributionMode.REPLICATED, force=False):
+    def add_variable(self, name_or_variable, ranks='all', dist=MPIDistributionMode.REPLICATED, force=False,
+                     dimensions=None, group=None):
         """
         Add a variable to the distribution mapping.
 
-        :param var: The variable to add to the distribution.
-        :type var: :class:`~ocgis.new_interface.variable.Variable`
+        :param name_or_variable: The variable or variable name to add to the distribution.
+        :type name_or_variable: :class:`~ocgis.new_interface.variable.Variable`
         :param ranks: If ``'all'``, add variable to all ranks. Otherwise, add to the integer ranks.
         :type ranks: str/int
         :param dist: The distribution mode.
         :type dist: :class:`~ocgis.constants.MPIDistributionMode`
         :param force: If ``True``, overwrite any variables with the same name.
+        :param sequence dimensions: A sequence of dimension names if ``name_or_variable`` is a name. Otherwise,
+         dimensions are pulled from the variable object.
         :raises: ValueError
         """
+        from ocgis.new_interface.variable import Variable
+
+        if isinstance(name_or_variable, Variable):
+            group = group or name_or_variable.group
+            name = name_or_variable or name_or_variable.name
+            dimensions = name_or_variable.dimensions or tuple([dim.name for dim in name_or_variable])
+        else:
+            name = name_or_variable
 
         if ranks == 'all':
             rank_homes = range(self.size)
         else:
             rank_homes = get_iter(ranks, dtype=int)
         for rank_home in rank_homes:
-            the_group = self._create_or_get_group_(var.group, rank_home)
-            if not force and var.name in the_group['variables']:
-                raise ValueError('Variable with name "{}" already in group "{}" and "force=False".'.format(var.name,
-                                                                                                           var.group))
+            the_group = self._create_or_get_group_(group, rank_home)
+            if not force and name in the_group['variables']:
+                msg = 'Variable with name "{}" already in group "{}" and "force=False".'
+                raise ValueError(msg.format(name, group))
             else:
-                the_group['variables'][var.name] = {'dist': dist,
-                                                    'dimensions': tuple(dim.name for dim in var.dimensions)}
+                the_group['variables'][name] = {'dist': dist, 'dimensions': dimensions}
 
     def add_variables(self, vars, **kwargs):
         for var in vars:

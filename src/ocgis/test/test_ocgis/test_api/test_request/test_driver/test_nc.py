@@ -166,6 +166,8 @@ class TestDriverNetcdf(TestBase):
         rd = RequestDataset(path_in)
         rd.metadata['dimensions']['seven']['dist'] = True
         driver = DriverNetcdf(rd)
+        import ipdb;
+        ipdb.set_trace()
         vc = driver.get_variable_collection()
         vc.write(path_out)
 

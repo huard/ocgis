@@ -74,8 +74,8 @@ class Dimension(AbstractInterfaceObject):
         return not self.__eq__(other)
 
     def __repr__(self):
-        msg = "{0}(name='{1}', size={2}, size_current={3})".format(self.__class__.__name__, self.name, self.size,
-                                                                   self.size_current)
+        template = "{0}(name='{1}', size={2}, size_current={3}, dist={4})"
+        msg = template.format(self.__class__.__name__, self.name, self.size, self.size_current, self.dist)
         return msg
 
     @property

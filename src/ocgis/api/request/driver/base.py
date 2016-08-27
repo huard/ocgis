@@ -4,7 +4,8 @@ from contextlib import contextmanager
 from copy import deepcopy
 from warnings import warn
 
-from ocgis.exc import DefinitionValidationError
+from ocgis.constants import MPIDistributionMode
+from ocgis.exc import DefinitionValidationError, OcgMpiError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.mpi import find_dimension_in_sequence, MPI_COMM
@@ -113,15 +114,37 @@ class AbstractDriver(object):
         """
 
         # Convert metadata into a grouping consistent with the MPI dimensions.
-        target_metdata = {None: self.metadata_source}
+        metadata = {None: self.metadata_source}
         dist = self.rd.dist
-        for group_name in iter_all_group_keys(target_metdata):
-            group_meta = get_group(target_metdata, group_name)
+        for group_index in iter_all_group_keys(metadata):
+            group_meta = get_group(metadata, group_index)
+
+            # Add the dimensions to the distribution object.
             dimensions = self._get_dimensions_main_(group_meta)
             for dimension_name, dimension_meta in group_meta['dimensions'].items():
                 target_dimension = find_dimension_in_sequence(dimension_name, dimensions)
                 target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist', False)
-                dist.add_dimension(target_dimension, group=group_name)
+                dist.add_dimension(target_dimension, group=group_index)
+
+            # Add the variables to the distribution object.
+            for variable_name, variable_meta in group_meta['variables'].items():
+                # If the variable has any distributed dimensions, the variable is always distributed. Otherwise, allow
+                # the variable to determine if it is replicated or isolated. Default is replicated.
+                dist_ranks = 'all'
+                if any([dim.dist for dim in dist.get_dimensions(variable_meta['dimensions'], group=group_index)]):
+                    variable_dist = MPIDistributionMode.DISTRIBUTED
+                else:
+                    variable_dist = variable_meta.get('dist', MPIDistributionMode.REPLICATED)
+                    # Distributed variables require distributed dimensions.
+                    if variable_dist == MPIDistributionMode.DISTRIBUTED:
+                        msg = 'The distributed variable "{}" requires distributed dimensions.'
+                        raise OcgMpiError(msg.format(variable_name))
+                    # If the variable is isolated, identify the ranks it should be on.
+                    if variable_dist == MPIDistributionMode.ISOLATED:
+                        dist_ranks = variable_meta.get('dist_ranks', (0,))
+                dist.add_variable(variable_name, dimensions=variable_meta['dimensions'], group=group_index,
+                                  dist=variable_dist, ranks=dist_ranks)
+
         # tdk: this will have to be moved to account for slicing
         dist.update_dimension_bounds()
         return dist
