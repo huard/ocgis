@@ -11,6 +11,7 @@ import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
 from copy import deepcopy, copy
+from pprint import pprint
 
 import fiona
 import netCDF4 as nc
@@ -686,6 +687,10 @@ class TestBase(unittest.TestCase):
         paths = list(paths)
         cmd = ['/home/benkoziol/sandbox/PanoplyJ/panoply.sh'] + paths
         subprocess.check_call(cmd)
+
+    def pprint(self, *args, **kwargs):
+        print('')
+        pprint(*args, **kwargs)
 
     def print_scope(self):
         return print_scope()

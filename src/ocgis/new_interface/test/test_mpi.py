@@ -5,12 +5,13 @@ from unittest import SkipTest
 import numpy as np
 from mpi4py.MPI import COMM_NULL
 
+from ocgis.constants import MPIDistributionMode
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
     get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK, variable_scatter
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
-from ocgis.new_interface.variable import Variable
+from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import attr
 from ocgis.util.helpers import get_local_to_global_slices
 
@@ -231,7 +232,41 @@ class TestOcgMpi(AbstractTestNewInterface):
         self.assertIsNotNone(s._src_idx)
         return ompi
 
-    @attr('mpi-2', 'mpi-8')
+    def test_init(self):
+        ompi = OcgMpi(size=2)
+        self.assertEqual(len(ompi.mapping), 2)
+
+        dim_x = Dimension('x', 5, dist=False)
+        dim_y = Dimension('y', 11, dist=True)
+        var_tas = Variable('tas', value=np.arange(0, 5 * 11).reshape(5, 11), dimensions=(dim_x, dim_y))
+        thing = Variable('thing', value=np.arange(11) * 10, dimensions=(dim_y,))
+
+        vc = VariableCollection(variables=[var_tas, thing])
+        child = VariableCollection(name='younger')
+        vc.add_child(child)
+        childer = VariableCollection(name='youngest')
+        child.add_child(childer)
+        dim_six = Dimension('six', 6)
+        hidden = Variable('hidden', value=[6, 7, 8, 9, 0, 10], dimensions=dim_six)
+        childer.add_variable(hidden)
+
+        ompi.add_dimensions([dim_x, dim_y])
+        ompi.add_dimension(dim_six, group=hidden.group)
+        ompi.add_variables([var_tas, thing])
+        ompi.add_variable(hidden, dist=MPIDistributionMode.ISOLATED, ranks=1)
+
+        hidden_actual = ompi.get_variable(hidden, rank=1)
+        self.assertEqual(hidden_actual['dist'], MPIDistributionMode.ISOLATED)
+        variable_ranks_actual = ompi.get_variable_ranks(hidden)
+        self.assertEqual(variable_ranks_actual, (1,))
+
+        variable_ranks_actual = ompi.get_variable_ranks(thing)
+        self.assertEqual(variable_ranks_actual, (0, 1))
+
+        # self.pprint(ompi.mapping)
+        # import ipdb;ipdb.set_trace()
+
+    @attr('mpi')
     def test(self):
         ompi = OcgMpi()
         src_idx = [2, 3, 4, 5, 6]
@@ -271,7 +306,7 @@ class TestOcgMpi(AbstractTestNewInterface):
             desired = {(1, 0): ((0, 5), (0, 10), (0, 3)),
                        (2, 0): ((0, 3), (0, 10), (0, 3)),
                        (2, 1): ((3, 5), (0, 10), (0, 3))}
-            self.assertEqual(bounds_local, desired[(ompi.size, MPI_RANK)])
+            self.assertAsSetEqual(bounds_local, desired[(ompi.size, MPI_RANK)])
         else:
             if MPI_RANK <= 1:
                 self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
@@ -300,12 +335,22 @@ class TestOcgMpi(AbstractTestNewInterface):
         desired = Dimension('foo')
         self.assertEqual(actual, desired)
 
-        desired = {0: {None: {'dimensions': [Dimension(name='end_of_days', size=None, size_current=None),
-                                             Dimension(name='start_of_days', size=None, size_current=None)],
-                          'groups': {'flower': {'dimensions': [], 'groups': {}}, 'moon': {'dimensions': [], 'groups': {
-                              'base': {'dimensions': [Dimension(name='foo', size=None, size_current=None)],
-                                       'groups': {}}}}}}}}
-        self.assertEqual(ocmpi.dimensions, desired)
+        desired = {0: {None: {'variables': {},
+                              'dimensions': {'end_of_days': Dimension(name='end_of_days', size=None, size_current=None),
+                                             'start_of_days': Dimension(name='start_of_days', size=None,
+                                                                        size_current=None)},
+                              'groups': {'flower': {'variables': {}, 'dimensions': {}, 'groups': {}},
+                                         'moon': {'variables': {}, 'dimensions': {},
+                                                  'groups': {'base': {'variables': {},
+                                                                      'dimensions': {
+                                                                          'foo': Dimension(
+                                                                              name='foo',
+                                                                              size=None,
+                                                                              size_current=None)},
+                                                                      'groups': {}}}}}}}}
+        # print(ocmpi.mapping)
+        # self.pprint(ocmpi.mapping)
+        self.assertDictEqual(ocmpi.mapping, desired)
 
     @attr('mpi')
     def test_gather_dimensions(self):

@@ -3,8 +3,9 @@ import itertools
 import numpy as np
 
 from ocgis.base import AbstractOcgisObject
+from ocgis.constants import MPIDistributionMode
 from ocgis.exc import DimensionNotFound
-from ocgis.util.helpers import get_optimal_slice_from_array
+from ocgis.util.helpers import get_optimal_slice_from_array, get_iter
 
 try:
     from mpi4py import MPI
@@ -45,9 +46,9 @@ MPI_RANK = MPI_COMM.Get_rank()
 class OcgMpi(AbstractOcgisObject):
     def __init__(self, size=MPI_SIZE):
         self.size = size
-        self.dimensions = {}
+        self.mapping = {}
         for rank in range(size):
-            self.dimensions[rank] = get_template_rank_dict()
+            self.mapping[rank] = get_template_rank_dict()
 
         self.has_updated_dimensions = False
 
@@ -60,10 +61,46 @@ class OcgMpi(AbstractOcgisObject):
             if rank > 0:
                 dim = dim.copy()
             the_group = self._create_or_get_group_(group, rank=rank)
-            if not force and any([dim.name == d.name for d in the_group['dimensions']]):
-                raise ValueError('Dimension with name "{}" already in group "{}".'.format(dim.name, group))
+            if not force and dim.name in the_group['dimensions']:
+                raise ValueError('Dimension with name "{}" already in group "{}" and "force=False".'.format(dim.name,
+                                                                                                            group))
             else:
-                the_group['dimensions'].append(dim)
+                the_group['dimensions'][dim.name] = dim
+
+    def add_dimensions(self, dims, **kwargs):
+        for dim in dims:
+            self.add_dimension(dim, **kwargs)
+
+    def add_variable(self, var, ranks='all', dist=MPIDistributionMode.REPLICATED, force=False):
+        """
+        Add a variable to the distribution mapping.
+
+        :param var: The variable to add to the distribution.
+        :type var: :class:`~ocgis.new_interface.variable.Variable`
+        :param ranks: If ``'all'``, add variable to all ranks. Otherwise, add to the integer ranks.
+        :type ranks: str/int
+        :param dist: The distribution mode.
+        :type dist: :class:`~ocgis.constants.MPIDistributionMode`
+        :param force: If ``True``, overwrite any variables with the same name.
+        :raises: ValueError
+        """
+
+        if ranks == 'all':
+            rank_homes = range(self.size)
+        else:
+            rank_homes = get_iter(ranks, dtype=int)
+        for rank_home in rank_homes:
+            the_group = self._create_or_get_group_(var.group, rank_home)
+            if not force and var.name in the_group['variables']:
+                raise ValueError('Variable with name "{}" already in group "{}" and "force=False".'.format(var.name,
+                                                                                                           var.group))
+            else:
+                the_group['variables'][var.name] = {'dist': dist,
+                                                    'dimensions': tuple(dim.name for dim in var.dimensions)}
+
+    def add_variables(self, vars, **kwargs):
+        for var in vars:
+            self.add_variable(var, **kwargs)
 
     def create_dimension(self, *args, **kwargs):
         from dimension import Dimension
@@ -71,6 +108,23 @@ class OcgMpi(AbstractOcgisObject):
         dim = Dimension(*args, **kwargs)
         self.add_dimension(dim, group=group)
         return dim
+
+    def create_variable(self, *args, **kwargs):
+        from variable import Variable
+
+        dist = kwargs.pop('dist', MPIDistributionMode.REPLICATED)
+        group = kwargs.pop('group', None)
+        ranks = kwargs.pop('ranks', None)
+
+        if ranks is None:
+            if dist in (MPIDistributionMode.REPLICATED, MPIDistributionMode.DISTRIBUTED):
+                ranks = 'all'
+            elif dist == MPIDistributionMode.ISOLATED:
+                ranks = (0,)
+
+        var = Variable(*args, **kwargs)
+        self.add_variable(var, group=group, ranks=ranks, dist=dist)
+        return var
 
     def gather_dimensions(self, group=None, root=0):
         target_group = self.get_group(group=group)
@@ -96,32 +150,50 @@ class OcgMpi(AbstractOcgisObject):
 
     def get_bounds_local(self, group=None, rank=MPI_RANK):
         the_group = self.get_group(group=group, rank=rank)
-        ret = [dim.bounds_local for dim in the_group['dimensions']]
+        ret = [dim.bounds_local for dim in the_group['dimensions'].values()]
         return tuple(ret)
 
     def get_dimension(self, name, group=None, rank=MPI_RANK):
         group_data = self.get_group(group=group, rank=rank)
-        ret = None
-        for d in group_data['dimensions']:
-            if d.name == name:
-                ret = d
-                break
-        if ret is None:
-            raise ValueError('Dimension not found: {}'.format(name))
-        return ret
+        return group_data['dimensions'][name]
 
     def get_dimensions(self, names, **kwargs):
         ret = [self.get_dimension(name, **kwargs) for name in names]
         return ret
+
+    def get_variable(self, name_or_variable, group=None, rank=MPI_RANK):
+        if group is None:
+            try:
+                group = name_or_variable.group
+            except AttributeError:
+                pass
+        try:
+            name = name_or_variable.name
+        except AttributeError:
+            name = name_or_variable
+
+        group_data = self.get_group(group, rank=rank)
+        return group_data['variables'][name]
+
+    def get_variable_ranks(self, name_or_variable):
+        present_on_ranks = []
+        for rank in range(self.size):
+            try:
+                _ = self.get_variable(name_or_variable, rank=rank)
+            except KeyError:
+                continue
+            else:
+                present_on_ranks.append(rank)
+        return tuple(present_on_ranks)
 
     def get_group(self, group=None, rank=MPI_RANK):
         return self._create_or_get_group_(group, rank=rank)
 
     def iter_groups(self, rank=MPI_RANK):
         from ocgis.api.request.driver.base import iter_all_group_keys, get_group
-        dimensions = self.dimensions[rank]
-        for group_key in iter_all_group_keys(dimensions):
-            group_data = get_group(dimensions, group_key)
+        mapping = self.mapping[rank]
+        for group_key in iter_all_group_keys(mapping):
+            group_data = get_group(mapping, group_key)
             yield group_key, group_data
 
     def update_dimension_bounds(self, rank='all'):
@@ -139,7 +211,7 @@ class OcgMpi(AbstractOcgisObject):
 
         for rank in ranks:
             for _, group_data in self.iter_groups(rank=rank):
-                dimdict = {dim.name: dim for dim in group_data['dimensions']}
+                dimdict = group_data['dimensions']
 
                 # If there are no distributed dimensions, there is no work to be dome with MPI bounds.
                 if not any([dim.dist for dim in dimdict.values()]):
@@ -193,14 +265,14 @@ class OcgMpi(AbstractOcgisObject):
         if group[0] is not None:
             group.insert(0, None)
 
-        ret = self.dimensions[rank]
+        ret = self.mapping[rank]
         for ctr, g in enumerate(group):
             # No group nesting for the first iteration.
             if ctr > 0:
                 ret = ret['groups']
             # This is the default fill for the group.
             if g not in ret:
-                ret[g] = {'groups': {}, 'dimensions': []}
+                ret[g] = {'groups': {}, 'dimensions': {}, 'variables': {}}
             ret = ret[g]
         return ret
 
@@ -477,7 +549,7 @@ def get_optimal_splits(size, shape):
 
 
 def get_template_rank_dict():
-    return {None: {'dimensions': [], 'groups': {}}}
+    return {None: {'dimensions': {}, 'groups': {}, 'variables': {}}}
 
 
 def variable_scatter(variable, dest_mpi, root=0, comm=None):
