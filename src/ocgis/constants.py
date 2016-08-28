@@ -160,7 +160,7 @@ DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER = 'ocgis_geom_uid'
 
 
 # Enumeration for netCDF writing.
-class NetCDFWriteMode(Enum):
+class MPIWriteMode(Enum):
     NORMAL = 0
     TEMPLATE = 1
     FILL = 2

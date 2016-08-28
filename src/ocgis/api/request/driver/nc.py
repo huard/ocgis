@@ -8,7 +8,7 @@ from netCDF4._netCDF4 import VLType
 
 from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
-from ocgis.constants import NetCDFWriteMode, MPIDistributionMode
+from ocgis.constants import MPIWriteMode, MPIDistributionMode
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -91,10 +91,10 @@ class DriverNetcdf(AbstractDriver):
         """
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
-        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.NORMAL)
+        write_mode = kwargs.pop('write_mode', MPIWriteMode.NORMAL)
 
         # No data should be written during a global write. Data will be filled in during the append process.
-        if write_mode == NetCDFWriteMode.TEMPLATE:
+        if write_mode == MPIWriteMode.TEMPLATE:
             file_only = True
 
         # Write the parent collection if available on the variable.
@@ -107,7 +107,7 @@ class DriverNetcdf(AbstractDriver):
 
         # Dimension creation should not occur during a fill operation. The dimensions and variables have already been
         # created.
-        if write_mode != NetCDFWriteMode.FILL:
+        if write_mode != MPIWriteMode.FILL:
             if var.dimensions is None:
                 new_names = ['dim_ocgis_{}_{}'.format(var.name, ctr) for ctr in range(var.ndim)]
                 var.create_dimensions(new_names)
@@ -140,13 +140,13 @@ class DriverNetcdf(AbstractDriver):
                 else:
                     fill_value = cls.get_variable_write_fill_value(var)
 
-        if write_mode == NetCDFWriteMode.FILL:
+        if write_mode == MPIWriteMode.FILL:
             ncvar = dataset.variables[var.name]
         else:
             ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
 
         # Do not fill values on file_only calls. Also, only fill values for variables with dimension greater than zero.
-        if not file_only and var.ndim > 0:
+        if not file_only and var.ndim > 0 and not var.is_empty:
             try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
                 data_value = cls.get_variable_write_value(var)
@@ -157,7 +157,7 @@ class DriverNetcdf(AbstractDriver):
                     ncvar[idx] = np.array(v)
 
         # Only set variable attributes if this is not a fill operation.
-        if write_mode != NetCDFWriteMode.FILL:
+        if write_mode != MPIWriteMode.FILL:
             var.write_attributes_to_netcdf_object(ncvar)
             if var.units is not None:
                 ncvar.units = var.units
@@ -183,7 +183,7 @@ class DriverNetcdf(AbstractDriver):
 
         if rank == 0:
             # First pass, create the template dataset.
-            variable_kwargs['write_mode'] = NetCDFWriteMode.TEMPLATE
+            variable_kwargs['write_mode'] = MPIWriteMode.TEMPLATE
             with driver_scope(cls, opened_or_path=opened_or_path, mode='w', **dataset_kwargs) as dataset:
                 vc.write_attributes_to_netcdf_object(dataset)
                 for variable in vc.values():
@@ -198,7 +198,7 @@ class DriverNetcdf(AbstractDriver):
                 dataset.sync()
 
         # Second pass, we are only interested in filling arrays using local bounds.
-        variable_kwargs['write_mode'] = NetCDFWriteMode.FILL
+        variable_kwargs['write_mode'] = MPIWriteMode.FILL
         for rank_to_write in range(size):
             if rank == rank_to_write:
                 with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
@@ -463,9 +463,9 @@ def get_variable_value(variable, dimensions):
     return ret
 
 
-def create_dimension_or_pass(dim, dataset, write_mode=NetCDFWriteMode.NORMAL):
+def create_dimension_or_pass(dim, dataset, write_mode=MPIWriteMode.NORMAL):
     if dim.name not in dataset.dimensions:
-        if write_mode == NetCDFWriteMode.TEMPLATE:
+        if write_mode == MPIWriteMode.TEMPLATE:
             lower, upper = dim.bounds_global
             size = upper - lower
         else:

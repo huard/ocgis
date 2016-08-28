@@ -9,7 +9,7 @@ from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseMultipartGeometry
 
 from ocgis import constants
-from ocgis.constants import NetCDFWriteMode
+from ocgis.constants import MPIWriteMode
 from ocgis.exc import SpatialWrappingError, ProjectionCoordinateNotFound, ProjectionDoesNotMatch
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import osr
@@ -136,10 +136,10 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         return variable
 
     def write(self, *args, **kwargs):
-        write_mode = kwargs.pop('write_mode', NetCDFWriteMode.NORMAL)
+        write_mode = kwargs.pop('write_mode', MPIWriteMode.NORMAL)
         # Fill operations set values on variables. Coordinate system variables have no inherent values constructed only
         # from attributes.
-        if write_mode != NetCDFWriteMode.FILL:
+        if write_mode != MPIWriteMode.FILL:
             return self.write_to_rootgrp(*args, **kwargs)
 
 
