@@ -203,12 +203,23 @@ class DriverNetcdf(AbstractDriver):
             if rank == rank_to_write:
                 with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
                     for variable in vc.values():
+                        # For isolated and replicated variables, only write once.
+                        if variable.dist != MPIDistributionMode.DISTRIBUTED:
+                            if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
+                                continue
+                            else:
+                                if rank != variable.ranks[0]:
+                                    continue
+                        # Call the individual variable write method in fill mode.
                         with orphaned(vc, variable):
                             variable.write(dataset, **variable_kwargs)
+                    # Recurse the children.
                     for child in vc.children.values():
                         group = nc.Group(dataset, child.name)
                         child.write(group, **kwargs)
                     dataset.sync()
+
+            # Open the file in sequence.
             comm.Barrier()
 
     def _get_dimensions_main_(self, group_metadata):
@@ -377,10 +388,18 @@ def init_variable_using_metadata_for_netcdf(driver, variable, metadata):
 
     # Use the distribution to identify if this is an isolated variable. Isolated variables exist on select ranks.
     dist_for_var = driver.dist.get_variable(variable)
-    if dist_for_var['dist'] == MPIDistributionMode.ISOLATED and driver.rd.comm.Get_rank() not in dist_for_var[
-        'dist_ranks']:
+    rank = driver.rd.comm.Get_rank()
+    if dist_for_var['dist'] == MPIDistributionMode.ISOLATED and rank not in dist_for_var['ranks']:
         variable._is_empty = True
 
+    # Update the variable's distribution and rank information.
+    variable.dist = dist_for_var['dist']
+    if variable.dist == MPIDistributionMode.ISOLATED:
+        variable.ranks = dist_for_var['ranks']
+    else:
+        variable.ranks = 'all'
+
+    # Update data type and fill value.
     if variable._dtype is None:
         var_dtype = var['dtype']
         desired_dtype = deepcopy(var_dtype)

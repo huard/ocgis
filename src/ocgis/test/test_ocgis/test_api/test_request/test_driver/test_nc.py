@@ -206,24 +206,18 @@ class TestDriverNetcdf(TestBase):
 
         rd = RequestDataset(path_in)
         rd.metadata['variables']['var_seven']['dist'] = MPIDistributionMode.ISOLATED
-        # Test isolated and replicated variables load all data using global bounds.
-        rd.metadata['dimensions']['seven']['dist'] = True
-        dist_rank = (1, 3)
+        ranks = (1, 3)
         # dist_rank = (0,)
-        rd.metadata['variables']['var_seven']['dist_ranks'] = dist_rank
+        rd.metadata['variables']['var_seven']['ranks'] = ranks
 
         vc = rd.get_variable_collection()
         actual = vc['var_seven']
-        # from ocgis.new_interface.ocgis_logging import log
-        # log.debug(actual.dimensions[0].bounds_local)
-        # log.debug(['bounds_global', actual.dimensions[0].bounds_global])
-        # MPI_COMM.Barrier()
+        self.assertIsNotNone(actual.dist)
 
-        if MPI_RANK in dist_rank:
+        if MPI_RANK in ranks:
             self.assertFalse(actual.is_empty)
             self.assertIsNotNone(actual.value)
         else:
-            # log.debug(actual.value)
             self.assertTrue(actual.is_empty)
             self.assertIsNone(actual._value)
             self.assertIsNone(actual.value)

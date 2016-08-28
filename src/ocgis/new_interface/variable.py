@@ -98,7 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None, is_empty=None):
+                 units='auto', parent=None, bounds=None, is_empty=None, dist=None, ranks=None):
         self._is_init = True
 
         Attributes.__init__(self, attrs=attrs)
@@ -107,8 +107,10 @@ class Variable(AbstractContainer, Attributes):
         self._value = None
         self._dtype = None
         self._mask = None
-        self._is_empty = None
+        self._is_empty = is_empty
 
+        self.dist = dist
+        self.ranks = ranks
         self.dtype = dtype
 
         self._fill_value = fill_value

@@ -105,10 +105,10 @@ class OcgMpi(AbstractOcgisObject):
             else:
                 the_group['variables'][name] = {'dist': dist, 'dimensions': dimensions}
 
-            if ranks == 'all' and dist == MPIDistributionMode.ISOLATED:
-                raise ValueError('Isolated variables should not be added to "all" ranks.')
-            else:
-                the_group['variables'][name]['dist_ranks'] = tuple(get_iter(ranks, dtype=int))
+            if dist == MPIDistributionMode.ISOLATED:
+                if ranks == 'all':
+                    raise ValueError('Isolated variables should not be added to "all" ranks.')
+                the_group['variables'][name]['ranks'] = tuple(get_iter(ranks, dtype=int))
 
     def add_variables(self, vars, **kwargs):
         for var in vars:
@@ -124,15 +124,18 @@ class OcgMpi(AbstractOcgisObject):
     def create_variable(self, *args, **kwargs):
         from variable import Variable
 
-        dist = kwargs.pop('dist', MPIDistributionMode.REPLICATED)
+        dist = kwargs.get('dist', MPIDistributionMode.REPLICATED)
+        kwargs['dist'] = dist
+
         group = kwargs.pop('group', None)
-        ranks = kwargs.pop('ranks', None)
+        ranks = kwargs.get('ranks', None)
 
         if ranks is None:
             if dist in (MPIDistributionMode.REPLICATED, MPIDistributionMode.DISTRIBUTED):
                 ranks = 'all'
             elif dist == MPIDistributionMode.ISOLATED:
                 ranks = (0,)
+            kwargs['ranks'] = ranks
 
         var = Variable(*args, **kwargs)
         self.add_variable(var, group=group, ranks=ranks, dist=dist)

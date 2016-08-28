@@ -130,20 +130,24 @@ class AbstractDriver(object):
             for variable_name, variable_meta in group_meta['variables'].items():
                 # If the variable has any distributed dimensions, the variable is always distributed. Otherwise, allow
                 # the variable to determine if it is replicated or isolated. Default is replicated.
-                dist_ranks = 'all'
+                ranks = 'all'
+                variable_dist = variable_meta.get('dist')
                 if any([dim.dist for dim in dist.get_dimensions(variable_meta['dimensions'], group=group_index)]):
+                    if variable_dist is not None and variable_dist != MPIDistributionMode.DISTRIBUTED:
+                        msg = 'The replicated or isolated variable "{}" must not have distributed dimensions.'
+                        raise OcgMpiError(msg.format(variable_name))
                     variable_dist = MPIDistributionMode.DISTRIBUTED
                 else:
-                    variable_dist = variable_meta.get('dist', MPIDistributionMode.REPLICATED)
+                    variable_dist = variable_dist or MPIDistributionMode.REPLICATED
                     # Distributed variables require distributed dimensions.
                     if variable_dist == MPIDistributionMode.DISTRIBUTED:
                         msg = 'The distributed variable "{}" requires distributed dimensions.'
                         raise OcgMpiError(msg.format(variable_name))
                     # If the variable is isolated, identify the ranks it should be on.
                     if variable_dist == MPIDistributionMode.ISOLATED:
-                        dist_ranks = variable_meta.get('dist_ranks', (0,))
+                        ranks = variable_meta.get('ranks', (0,))
                 dist.add_variable(variable_name, dimensions=variable_meta['dimensions'], group=group_index,
-                                  dist=variable_dist, ranks=dist_ranks)
+                                  dist=variable_dist, ranks=ranks)
 
         # tdk: this will have to be moved to account for slicing
         dist.update_dimension_bounds()
