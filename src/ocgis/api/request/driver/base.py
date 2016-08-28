@@ -28,7 +28,7 @@ class AbstractDriver(object):
         self.rd = rd
         self._metadata_raw = None
         self._dimension_map = None
-        self._dimensions = None
+        self._dist = None
         self._crs = None
 
     def __eq__(self, other):
@@ -44,10 +44,10 @@ class AbstractDriver(object):
         return self._crs
 
     @property
-    def dimensions(self):
-        if self._dimensions is None:
-            self._dimensions = self.get_dimensions()
-        return self._dimensions
+    def dist(self):
+        if self._dist is None:
+            self._dist = self.get_dist()
+        return self._dist
 
     @property
     def dimension_map(self):
@@ -107,7 +107,7 @@ class AbstractDriver(object):
         """:rtype: tuple(str, ...)"""
         return None
 
-    def get_dimensions(self):
+    def get_dist(self):
         """
         :return: The dimension distribution object.
         :rtype: :class:`ocgis.new_interface.mpi.OcgMpi`
@@ -303,7 +303,7 @@ class AbstractDriver(object):
 
         # Create the dimensions if they are not present.
         if variable._dimensions is None:
-            dist = self.dimensions
+            dist = self.dist
             desired_dimensions = variable_metadata['dimensions']
             new_dimensions = []
             for d in desired_dimensions:

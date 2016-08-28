@@ -98,7 +98,7 @@ class TestDriverVector(TestBase):
 
     def test_get_dimensions(self):
         driver = self.get_driver()
-        actual = driver.get_dimensions().dimensions[MPI_RANK]
+        actual = driver.get_dist().dimensions[MPI_RANK]
         desired = {None: {'dimensions': [Dimension(name='ocgis_geom', size=51, size_current=51, src_idx='auto')],
                           'groups': {}}}
         self.assertEqual(actual, desired)
