@@ -187,6 +187,7 @@ class TestDriverNetcdf(TestBase):
     def test_write_variable_collection_isolated_variables(self):
         """Test writing a variable collection containing an isolated variable."""
 
+        # tdk: there are multiple writes for isolated variables on multiple processors and replicated variables.
         if MPI_SIZE < 4:
             raise SkipTest('MPI procs < 4')
 
@@ -205,6 +206,8 @@ class TestDriverNetcdf(TestBase):
 
         rd = RequestDataset(path_in)
         rd.metadata['variables']['var_seven']['dist'] = MPIDistributionMode.ISOLATED
+        # Test isolated and replicated variables load all data using global bounds.
+        rd.metadata['dimensions']['seven']['dist'] = True
         dist_rank = (1, 3)
         # dist_rank = (0,)
         rd.metadata['variables']['var_seven']['dist_ranks'] = dist_rank
@@ -212,13 +215,17 @@ class TestDriverNetcdf(TestBase):
         vc = rd.get_variable_collection()
         actual = vc['var_seven']
         # from ocgis.new_interface.ocgis_logging import log
+        # log.debug(actual.dimensions[0].bounds_local)
+        # log.debug(['bounds_global', actual.dimensions[0].bounds_global])
+        # MPI_COMM.Barrier()
+
         if MPI_RANK in dist_rank:
             self.assertFalse(actual.is_empty)
             self.assertIsNotNone(actual.value)
         else:
+            # log.debug(actual.value)
             self.assertTrue(actual.is_empty)
             self.assertIsNone(actual._value)
-            # log.debug(actual.value)
             self.assertIsNone(actual.value)
 
         vc.write(path_out)
