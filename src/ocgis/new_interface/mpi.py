@@ -78,7 +78,8 @@ class OcgMpi(AbstractOcgisObject):
 
         :param name_or_variable: The variable or variable name to add to the distribution.
         :type name_or_variable: :class:`~ocgis.new_interface.variable.Variable`
-        :param ranks: If ``'all'``, add variable to all ranks. Otherwise, add to the integer ranks.
+        :param ranks: If ``'all'``, add variable to all ranks. Otherwise, add to the integer ranks. Should be ``'all'``
+         except for isolated variables which require a sequence of integer home ranks.
         :type ranks: str/int
         :param dist: The distribution mode.
         :type dist: :class:`~ocgis.constants.MPIDistributionMode`
@@ -96,17 +97,18 @@ class OcgMpi(AbstractOcgisObject):
         else:
             name = name_or_variable
 
-        if ranks == 'all':
-            rank_homes = range(self.size)
-        else:
-            rank_homes = get_iter(ranks, dtype=int)
-        for rank_home in rank_homes:
+        for rank_home in range(self.size):
             the_group = self._create_or_get_group_(group, rank_home)
             if not force and name in the_group['variables']:
                 msg = 'Variable with name "{}" already in group "{}" and "force=False".'
                 raise ValueError(msg.format(name, group))
             else:
                 the_group['variables'][name] = {'dist': dist, 'dimensions': dimensions}
+
+            if ranks == 'all' and dist == MPIDistributionMode.ISOLATED:
+                raise ValueError('Isolated variables should not be added to "all" ranks.')
+            else:
+                the_group['variables'][name]['dist_ranks'] = tuple(get_iter(ranks, dtype=int))
 
     def add_variables(self, vars, **kwargs):
         for var in vars:

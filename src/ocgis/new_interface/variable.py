@@ -98,7 +98,7 @@ class ObjectType(object):
 class Variable(AbstractContainer, Attributes):
 
     def __init__(self, name=None, value=None, mask=None, dimensions=None, dtype=None, attrs=None, fill_value=None,
-                 units='auto', parent=None, bounds=None):
+                 units='auto', parent=None, bounds=None, is_empty=None):
         self._is_init = True
 
         Attributes.__init__(self, attrs=attrs)
@@ -107,6 +107,7 @@ class Variable(AbstractContainer, Attributes):
         self._value = None
         self._dtype = None
         self._mask = None
+        self._is_empty = None
 
         self.dtype = dtype
 
@@ -379,12 +380,15 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def is_empty(self):
-        ret = False
-        if self.has_distributed_dimension:
-            for dim in self.dimensions:
-                if dim.is_empty:
-                    ret = True
-                    break
+        if self._is_empty is None:
+            ret = False
+            if self.has_distributed_dimension:
+                for dim in self.dimensions:
+                    if dim.is_empty:
+                        ret = True
+                        break
+        else:
+            ret = self._is_empty
         return ret
 
     @property
@@ -792,7 +796,7 @@ class SourcedVariable(Variable):
                     var.load()
 
     def _get_value_(self):
-        if self._value is None and not self._has_initialized_value:
+        if not self.is_empty and self._value is None and not self._has_initialized_value:
             self._request_dataset.driver.init_variable_value(self)
             ret = self._value
             self._has_initialized_value = True

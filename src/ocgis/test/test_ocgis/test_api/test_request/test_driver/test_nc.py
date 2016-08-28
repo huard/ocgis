@@ -29,7 +29,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter, MPI_SIZE
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import Variable, ObjectType, VariableCollection
 from ocgis.test.base import TestBase, nc_scope, attr
@@ -187,8 +187,8 @@ class TestDriverNetcdf(TestBase):
     def test_write_variable_collection_isolated_variables(self):
         """Test writing a variable collection containing an isolated variable."""
 
-        if MPI_SIZE < 4:
-            raise SkipTest('MPI procs < 4')
+        # if MPI_SIZE < 4:
+        #     raise SkipTest('MPI procs < 4')
 
         if MPI_RANK == 0:
             path_in = self.get_temporary_file_path('foo.nc')
@@ -205,14 +205,25 @@ class TestDriverNetcdf(TestBase):
 
         rd = RequestDataset(path_in)
         rd.metadata['variables']['var_seven']['dist'] = MPIDistributionMode.ISOLATED
-        rd.metadata['variables']['var_seven']['dist_ranks'] = (1, 3)
+        dist_rank = (1, 3)
+        # dist_rank = (0,)
+        rd.metadata['variables']['var_seven']['dist_ranks'] = dist_rank
 
         vc = rd.get_variable_collection()
         actual = vc['var_seven']
-        if MPI_RANK in (1, 3):
+        # from ocgis.new_interface.ocgis_logging import log
+        if MPI_RANK in dist_rank:
             self.assertFalse(actual.is_empty)
+            self.assertIsNotNone(actual.value)
         else:
             self.assertTrue(actual.is_empty)
+            self.assertIsNone(actual._value)
+            # log.debug(actual.value)
+            self.assertIsNone(actual.value)
+
+        vc.write(path_out)
+
+        self.assertNcEqual(path_in, path_out)
 
         MPI_COMM.Barrier()
 

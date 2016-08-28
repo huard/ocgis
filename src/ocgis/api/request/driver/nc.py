@@ -8,7 +8,7 @@ from netCDF4._netCDF4 import VLType
 
 from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
-from ocgis.constants import NetCDFWriteMode
+from ocgis.constants import NetCDFWriteMode, MPIDistributionMode
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -215,7 +215,7 @@ class DriverNetcdf(AbstractDriver):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
 
     def _init_variable_from_source_main_(self, variable, variable_object):
-        init_variable_using_metadata_for_netcdf(variable, self.rd.metadata)
+        init_variable_using_metadata_for_netcdf(self, variable, self.rd.metadata)
 
     @staticmethod
     def _open_(uri, mode='r', **kwargs):
@@ -370,10 +370,16 @@ def update_group_metadata(rootgrp, fill):
     fill.update({'dimensions': dimensions})
 
 
-def init_variable_using_metadata_for_netcdf(variable, metadata):
+def init_variable_using_metadata_for_netcdf(driver, variable, metadata):
     source = get_group(metadata, variable.group, has_root=False)
     desired_name = variable.name or variable._request_dataset.variable
     var = source['variables'][desired_name]
+
+    # Use the distribution to identify if this is an isolated variable. Isolated variables exist on select ranks.
+    dist_for_var = driver.dist.get_variable(variable)
+    if dist_for_var['dist'] == MPIDistributionMode.ISOLATED and driver.rd.comm.Get_rank() not in dist_for_var[
+        'dist_ranks']:
+        variable._is_empty = True
 
     if variable._dtype is None:
         var_dtype = var['dtype']
@@ -392,6 +398,8 @@ def init_variable_using_metadata_for_netcdf(variable, metadata):
         variable._fill_value = deepcopy(desired_fill_value)
 
     variable_attrs = variable._attrs
+    # Offset and scale factors are not supported by OCGIS. The data is unpacked when written to a new output file.
+    # tdk: consider supporting offset and scale factors
     exclude = ['add_offset', 'scale_factor']
     for k, v in var['attributes'].items():
         if k in exclude:
