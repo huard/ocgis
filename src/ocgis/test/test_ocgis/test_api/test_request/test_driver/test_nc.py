@@ -18,6 +18,7 @@ from ocgis import RequestDataset
 from ocgis import env
 from ocgis.api.request.driver.base import iter_all_group_keys, get_group
 from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
+from ocgis.constants import MPIDistributionMode
 from ocgis.exc import EmptySubsetError, DimensionNotFound, OcgWarning, CannotFormatTimeError, \
     NoDimensionedVariablesFound
 from ocgis.interface.base.crs import WGS84, CFWGS84, CFLambertConformal, CoordinateReferenceSystem, CFSpherical
@@ -28,7 +29,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter, MPI_SIZE
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import Variable, ObjectType, VariableCollection
 from ocgis.test.base import TestBase, nc_scope, attr
@@ -179,6 +180,39 @@ class TestDriverNetcdf(TestBase):
 
         if MPI_RANK == 0:
             self.assertNcEqual(path_in, path_out)
+
+        MPI_COMM.Barrier()
+
+    @attr('mpi')
+    def test_write_variable_collection_isolated_variables(self):
+        """Test writing a variable collection containing an isolated variable."""
+
+        if MPI_SIZE < 4:
+            raise SkipTest('MPI procs < 4')
+
+        if MPI_RANK == 0:
+            path_in = self.get_temporary_file_path('foo.nc')
+            path_out = self.get_temporary_file_path('foo_out.nc')
+            with self.nc_scope(path_in, 'w') as ds:
+                ds.createDimension('seven', 7)
+                var = ds.createVariable('var_seven', float, dimensions=('seven',))
+                var[:] = np.arange(7, dtype=float) + 10
+                var.foo = 'bar'
+        else:
+            path_in, path_out = [None] * 2
+        path_in = MPI_COMM.bcast(path_in)
+        path_out = MPI_COMM.bcast(path_out)
+
+        rd = RequestDataset(path_in)
+        rd.metadata['variables']['var_seven']['dist'] = MPIDistributionMode.ISOLATED
+        rd.metadata['variables']['var_seven']['dist_ranks'] = (1, 3)
+
+        vc = rd.get_variable_collection()
+        actual = vc['var_seven']
+        if MPI_RANK in (1, 3):
+            self.assertFalse(actual.is_empty)
+        else:
+            self.assertTrue(actual.is_empty)
 
         MPI_COMM.Barrier()
 
