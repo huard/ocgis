@@ -187,9 +187,16 @@ class DriverNetcdf(AbstractDriver):
             with driver_scope(cls, opened_or_path=opened_or_path, mode='w', **dataset_kwargs) as dataset:
                 vc.write_attributes_to_netcdf_object(dataset)
                 for variable in vc.values():
-                    # Before orphaning the variable, load its value into memory. Load all other variable values at the
-                    # same time.
-                    variable.load(eager=True)
+                    # For isolated and replicated variables, only write once.
+                    if variable.dist != MPIDistributionMode.DISTRIBUTED:
+                        if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
+                            continue
+                        else:
+                            if rank != variable.ranks[0]:
+                                continue
+                    # Before orphaning the variable, load its value into memory. Without parents, the variable does
+                    # not know which group it belongs to.
+                    variable.load()
                     with orphaned(vc, variable):
                         variable.write(dataset, **variable_kwargs)
                 for child in vc.children.values():
