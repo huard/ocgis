@@ -27,6 +27,6 @@ class SpatialCollection(VariableCollection):
         ret = OrderedDict()
         for k, v in self.children.items():
             ret[k] = OrderedDict()
-            for k2, v2 in v.iter_data_variables():
-                ret[k][k2] = v2.value[0]
+            for variable in v.iter_data_variables():
+                ret[k][variable.name] = variable.value[0]
         return ret
