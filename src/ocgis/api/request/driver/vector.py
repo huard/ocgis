@@ -10,6 +10,7 @@ from shapely.geometry import mapping
 
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver, driver_scope
+from ocgis.constants import MPIWriteMode
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
@@ -94,7 +95,7 @@ class DriverVector(AbstractDriver):
 
     def get_variable_collection(self):
         parent = VariableCollection()
-        for n, v in self.metadata['variables'].items():
+        for n, v in self.metadata_source['variables'].items():
             SourcedVariable(name=n, request_dataset=self.rd, parent=parent)
         GeometryVariable(name=constants.NAME_GEOMETRY_DIMENSION, request_dataset=self.rd, parent=parent)
         crs = self.get_crs()
@@ -105,7 +106,7 @@ class DriverVector(AbstractDriver):
     def get_variable_metadata(self, variable_object):
         if isinstance(variable_object, GeometryVariable):
             # Geometry variables are located in a different metadata section.
-            ret = self.metadata[variable_object.name]
+            ret = self.metadata_source[variable_object.name]
         else:
             ret = super(DriverVector, self).get_variable_metadata(variable_object)
         return ret
@@ -168,7 +169,7 @@ class DriverVector(AbstractDriver):
         return ret
 
     @classmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
         # tdk: test conforming units!
 
         fiona_crs = kwargs.get('crs')
@@ -207,7 +208,7 @@ class DriverVector(AbstractDriver):
             fiona_driver = opened_or_path.driver
 
         # Write the template file.
-        if rank == 0:
+        if rank == 0 and write_mode != MPIWriteMode.FILL:
             with driver_scope(cls, opened_or_path=opened_or_path, mode='w', driver=fiona_driver,
                               crs=fiona_crs, schema=fiona_schema) as _:
                 pass
@@ -292,7 +293,8 @@ def get_fiona_type_from_variable(variable):
          np.dtype('float64'): 'float',
          int: 'int',
          float: 'float',
-         object: 'str'}
+         object: 'str',
+         np.dtype('O'): 'str'}
     dtype = DriverVector.get_variable_write_dtype(variable)
     try:
         ftype = m[dtype]

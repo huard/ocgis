@@ -47,7 +47,7 @@ class DriverCSV(AbstractDriver):
         return variable.value
 
     @classmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
         fieldnames = [v.name for v in vc.iter_data_variables()]
         if rank == 0:
             with driver_scope(cls, opened_or_path, mode='w') as opened:

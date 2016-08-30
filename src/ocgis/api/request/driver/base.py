@@ -203,7 +203,7 @@ class AbstractDriver(object):
         :rtype: :class:`ocgis.new_interface.variable.VariableCollection`
         """
 
-        dimension = self.dimensions.get_group()['dimensions'][0]
+        dimension = self.dist.get_group()['dimensions'].values()[0]
         ret = VariableCollection()
         for v in self.metadata_source['variables'].values():
             nvar = SourcedVariable(name=v['name'], dimensions=dimension, dtype=v['dtype'], request_dataset=self.rd)

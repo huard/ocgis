@@ -9,6 +9,7 @@ from ocgis import RequestDataset, GeomCabinetIterator
 from ocgis import constants
 from ocgis.api.request.driver.base import AbstractDriver
 from ocgis.api.request.driver.vector import DriverVector, get_fiona_crs, get_fiona_schema
+from ocgis.constants import MPIDistributionMode
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem, Spherical
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
@@ -98,9 +99,16 @@ class TestDriverVector(TestBase):
 
     def test_get_dimensions(self):
         driver = self.get_driver()
-        actual = driver.get_dist().dimensions[MPI_RANK]
-        desired = {None: {'dimensions': [Dimension(name='ocgis_geom', size=51, size_current=51, src_idx='auto')],
-                          'groups': {}}}
+        actual = driver.get_dist().mapping[MPI_RANK]
+        desired = {None: {
+            'variables': {u'STATE_FIPS': {'dist': MPIDistributionMode.REPLICATED, 'dimensions': ('ocgis_geom',)},
+                          u'STATE_ABBR': {'dist': MPIDistributionMode.REPLICATED, 'dimensions': ('ocgis_geom',)},
+                          u'UGID': {'dist': MPIDistributionMode.REPLICATED, 'dimensions': ('ocgis_geom',)},
+                          u'ID': {'dist': MPIDistributionMode.REPLICATED, 'dimensions': ('ocgis_geom',)},
+                          u'STATE_NAME': {'dist': MPIDistributionMode.REPLICATED, 'dimensions': ('ocgis_geom',)}},
+            'dimensions': {
+                'ocgis_geom': Dimension(name='ocgis_geom', size=51, size_current=51, dist=False, src_idx='auto')},
+            'groups': {}}}
         self.assertEqual(actual, desired)
 
     def test_get_dump_report(self):
@@ -142,9 +150,9 @@ class TestDriverVector(TestBase):
             driver.inspect()
         self.assertTrue(len(ps.storage) >= 1)
 
-    def test_metadata(self):
+    def test_metadata_source(self):
         driver = self.get_driver()
-        m = driver.metadata
+        m = driver.metadata_source
         self.assertIsInstance(m, dict)
         self.assertIsInstance(m['groups'], dict)
         self.assertTrue(len(m) > 2)
