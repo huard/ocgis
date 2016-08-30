@@ -1084,16 +1084,12 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = self.get_variablecollection()
         path = self.get_temporary_file_path('foo.nc')
         vc.write(path)
-        # print '-----------------------------------------------'
         nvc = VariableCollection.read(path)
         path2 = self.get_temporary_file_path('foo2.nc')
         nvc.write(path2)
-
-        # RequestDataset(path).inspect()
-        # RequestDataset(path2).inspect()
-
         self.assertNcEqual(path, path2)
 
+    @attr('data')
     def test_write_netcdf_and_read_netcdf_data(self):
         # Test against a real data file.
         rd = self.get_request_dataset()
@@ -1115,7 +1111,7 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertIn(dname, ds.dimensions)
         desired = Dimension(dname, 4)
         self.assertEqual(v.dimensions[1], desired)
-        vc = VariableCollection.read_netcdf(path4)
+        vc = VariableCollection.read(path4)
         actual = vc['hello'].dimensions[1]
         actual = Dimension(actual.name, actual.size)
         self.assertEqual(actual, desired)

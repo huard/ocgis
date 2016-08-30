@@ -184,13 +184,15 @@ class DriverNetcdf(AbstractDriver):
         if rank == 0:
             # First pass, create the template dataset.
             variable_kwargs['write_mode'] = MPIWriteMode.TEMPLATE
+            kwargs['variable_kwargs'] = variable_kwargs
             with driver_scope(cls, opened_or_path=opened_or_path, mode='w', **dataset_kwargs) as dataset:
                 vc.write_attributes_to_netcdf_object(dataset)
                 for variable in vc.values():
                     # For isolated and replicated variables, only write once.
                     if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
-                        if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
-                            continue
+                        if variable.dist == MPIDistributionMode.REPLICATED:
+                            if rank != 0:
+                                continue
                         else:
                             if rank != variable.ranks[0]:
                                 continue
@@ -206,23 +208,27 @@ class DriverNetcdf(AbstractDriver):
 
         # Second pass, we are only interested in filling arrays using local bounds.
         variable_kwargs['write_mode'] = MPIWriteMode.FILL
+        kwargs['variable_kwargs'] = variable_kwargs
         for rank_to_write in range(size):
             if rank == rank_to_write:
                 with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
                     for variable in vc.values():
                         # For isolated and replicated variables, only write once.
                         if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
-                            if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
-                                continue
+                            if variable.dist == MPIDistributionMode.REPLICATED:
+                                if rank != 0:
+                                    continue
                             else:
                                 if rank != variable.ranks[0]:
                                     continue
+                        variable.load()
                         # Call the individual variable write method in fill mode.
                         with orphaned(vc, variable):
                             variable.write(dataset, **variable_kwargs)
                     # Recurse the children.
                     for child in vc.children.values():
-                        group = nc.Group(dataset, child.name)
+                        group = dataset.groups[child.name]
+                        # group = nc.Group(dataset, child.name)
                         child.write(group, **kwargs)
                     dataset.sync()
 
