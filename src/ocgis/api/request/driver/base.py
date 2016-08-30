@@ -4,11 +4,11 @@ from contextlib import contextmanager
 from copy import deepcopy
 from warnings import warn
 
-from ocgis.constants import MPIDistributionMode
+from ocgis.constants import MPIDistributionMode, MPIWriteMode
 from ocgis.exc import DefinitionValidationError, OcgMpiError
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
-from ocgis.new_interface.mpi import find_dimension_in_sequence, MPI_COMM
+from ocgis.new_interface.mpi import find_dimension_in_sequence, MPI_COMM, OcgMpi
 from ocgis.new_interface.variable import SourcedVariable, VariableCollection
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -112,10 +112,17 @@ class AbstractDriver(object):
         :return: The dimension distribution object.
         :rtype: :class:`ocgis.new_interface.mpi.OcgMpi`
         """
+        # Allow the request dataset to overload the distribution
+        if self.rd.dist is not None:
+            # Ensure the distribution is updated.
+            assert self.rd.dist.has_updated_dimensions
+            return self.rd.dist
+        # Otherwise, create the template distribution object.
+        else:
+            dist = OcgMpi(size=self.rd.comm.Get_size())
 
         # Convert metadata into a grouping consistent with the MPI dimensions.
         metadata = {None: self.metadata_source}
-        dist = self.rd.dist
         for group_index in iter_all_group_keys(metadata):
             group_meta = get_group(metadata, group_index)
 
@@ -389,16 +396,18 @@ class AbstractDriver(object):
         raise NotImplementedError
 
     @classmethod
-    def write_variable_collection(cls, vc, opened_or_path, comm=None, **kwargs):
-        comm = comm or MPI_COMM
+    def write_variable_collection(cls, vc, opened_or_path, **kwargs):
+        comm = kwargs.pop('comm', None) or MPI_COMM
         rank = comm.Get_rank()
         size = comm.Get_size()
+
+        write_mode = kwargs.pop('write_mode', MPIWriteMode.NORMAL)
 
         if size > 1:
             if cls.inquire_opened_state(opened_or_path):
                 raise ValueError('Only paths allowed for parallel writes.')
 
-        cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, **kwargs)
+        cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
 
     def _get_dimensions_main_(self, group_metadata):
         """
@@ -433,7 +442,7 @@ class AbstractDriver(object):
 
     @classmethod
     @abc.abstractmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
         """
         :param vc: :class:`~ocgis.new_interface.variable.VariableCollection`
         :param opened_or_path: Opened file object or path to the file object to open.

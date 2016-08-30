@@ -14,7 +14,7 @@ from ocgis.api.request.driver.nc import DriverNetcdf, DriverNetcdfCF
 from ocgis.api.request.driver.vector import DriverVector
 from ocgis.exc import RequestValidationError, NoDimensionedVariablesFound
 from ocgis.interface.base.field import Field
-from ocgis.new_interface.mpi import OcgMpi, MPI_COMM
+from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.util.helpers import get_iter, locate, validate_time_subset, get_tuple, get_by_sequence
 from ocgis.util.logging_ocgis import ocgis_lh
 from ocgis.util.units import get_units_object, get_are_units_equivalent
@@ -162,7 +162,7 @@ class RequestDataset(object):
         # Set the default MPI communicator.
         self.comm = comm or MPI_COMM
         # Set the default dimension distribution.
-        self.dist = dist or OcgMpi(size=self.comm.Get_size())
+        self.dist = dist
 
         # This is an "open" file-like object that may be passed in-place of file location parameters.
         self.opened = opened

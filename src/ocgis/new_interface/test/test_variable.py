@@ -251,27 +251,31 @@ class TestVariable(AbstractTestNewInterface):
         path = MPI_COMM.bcast(path, root=0)
         self.assertTrue(os.path.exists(path))
 
-        use_metadata = [False, True]
+        # Assert the request dataset distribution is used.
+        rd_a = RequestDataset(path, dist='placeholder')
+        try:
+            rd_a.driver.get_dist()
+        except AttributeError as e:
+            self.assertEqual(e.message, "'str' object has no attribute 'has_updated_dimensions'")
 
-        for u in use_metadata:
+        use_overloaded_dist = [False, True]
+        for u in use_overloaded_dist:
             if u:
-                dist = OcgMpi()
+                rd_b = RequestDataset(path)
+                rd_b.metadata['dimensions']['major']['dist'] = True
+                dist = rd_b.driver.get_dist()
             else:
                 dist = None
 
             rd = RequestDataset(uri=path, dist=dist)
             if u:
-                metadata = rd.metadata
-                metadata['dimensions']['major']['dist'] = True
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd)
-                self.assertEqual(len(rd.dist.get_group()), 2)
             else:
                 ompi = OcgMpi()
                 major = ompi.create_dimension('major', size=5, dist=True, src_idx='auto')
                 minor = ompi.create_dimension('minor', size=3, dist=False, src_idx='auto')
                 fvar = SourcedVariable(name='has_dist_dim', request_dataset=rd, dimensions=[major, minor])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.dist.get_group()['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertFalse(fvar.dimensions[1].dist)
@@ -310,39 +314,23 @@ class TestVariable(AbstractTestNewInterface):
         var_desired = SourcedVariable(name='STATE_NAME', request_dataset=rd_desired)
         value_desired = var_desired.value.tolist()
 
-        use_metadata = [False, True]
+        rd = RequestDataset(uri=path, driver=DriverVector)
+        metadata = rd.metadata
+        metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = True
+        fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd)
+        self.assertEqual(len(rd.driver.dist.get_group()['dimensions']), 1)
 
-        for u in use_metadata:
-            if u:
-                dist = OcgMpi()
-            else:
-                dist = None
+        self.assertTrue(fvar.dimensions[0].dist)
+        self.assertIsNotNone(fvar.value)
+        if MPI_SIZE > 1:
+            self.assertLessEqual(fvar.shape[0], 26)
 
-            rd = RequestDataset(uri=path, dist=dist, driver=DriverVector)
-            if u:
-                metadata = rd.metadata
-                metadata['dimensions'][constants.NAME_GEOMETRY_DIMENSION]['dist'] = True
-                fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd)
-                self.assertEqual(len(rd.dist.get_group()['dimensions']), 1)
-            else:
-                ompi = OcgMpi()
-                geom_dimension = ompi.create_dimension(constants.NAME_GEOMETRY_DIMENSION, size=51, dist=True,
-                                                       src_idx='auto')
-                fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd, dimensions=[geom_dimension])
-                ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.dist.mapping[rd.comm.Get_rank()][None]['dimensions']), 0)
-
-            self.assertTrue(fvar.dimensions[0].dist)
-            self.assertIsNotNone(fvar.value)
-            if MPI_SIZE > 1:
-                self.assertLessEqual(fvar.shape[0], 26)
-
-            values = MPI_COMM.gather(fvar.value)
-            if MPI_RANK == 0:
-                values = hgather(values)
-                self.assertEqual(values.tolist(), value_desired)
-            else:
-                self.assertIsNone(values)
+        values = MPI_COMM.gather(fvar.value)
+        if MPI_RANK == 0:
+            values = hgather(values)
+            self.assertEqual(values.tolist(), value_desired)
+        else:
+            self.assertIsNone(values)
 
         MPI_COMM.Barrier()
 
@@ -1053,7 +1041,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc.add_child(nvc)
         path = self.get_temporary_file_path('foo.nc')
         vc.write(path)
-        # self.ncdump(path)
+        # RequestDataset(path).inspect()
         rvc = VariableCollection.read(path)
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)

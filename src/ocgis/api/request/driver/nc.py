@@ -76,7 +76,7 @@ class DriverNetcdf(AbstractDriver):
                 gridxy.y = original_y
 
     @classmethod
-    def write_variable(cls, var, dataset, **kwargs):
+    def write_variable(cls, var, dataset, write_mode=MPIWriteMode.NORMAL, **kwargs):
         """
         Write a variable to an open netCDF dataset object.
 
@@ -91,7 +91,6 @@ class DriverNetcdf(AbstractDriver):
         """
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
-        write_mode = kwargs.pop('write_mode', MPIWriteMode.NORMAL)
 
         # No data should be written during a global write. Data will be filled in during the append process.
         if write_mode == MPIWriteMode.TEMPLATE:
@@ -165,7 +164,7 @@ class DriverNetcdf(AbstractDriver):
         dataset.sync()
 
     @classmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
         """
         Write the variable collection to an open netCDF dataset or file path.
 
@@ -177,41 +176,28 @@ class DriverNetcdf(AbstractDriver):
         :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
-
+        assert write_mode is not None
         dataset_kwargs = kwargs.get('dataset_kwargs', {})
         variable_kwargs = kwargs.get('variable_kwargs', {})
 
-        if rank == 0:
-            # First pass, create the template dataset.
-            variable_kwargs['write_mode'] = MPIWriteMode.TEMPLATE
-            kwargs['variable_kwargs'] = variable_kwargs
-            with driver_scope(cls, opened_or_path=opened_or_path, mode='w', **dataset_kwargs) as dataset:
-                vc.write_attributes_to_netcdf_object(dataset)
-                for variable in vc.values():
-                    # For isolated and replicated variables, only write once.
-                    if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
-                        if variable.dist == MPIDistributionMode.REPLICATED:
-                            if rank != 0:
-                                continue
-                        else:
-                            if rank != variable.ranks[0]:
-                                continue
-                    # Before orphaning the variable, load its value into memory. Without parents, the variable does
-                    # not know which group it belongs to.
-                    variable.load()
-                    with orphaned(vc, variable):
-                        variable.write(dataset, **variable_kwargs)
-                for child in vc.children.values():
-                    group = nc.Group(dataset, child.name)
-                    child.write(group, **kwargs)
-                dataset.sync()
+        # When filling a dataset, we use append mode.
+        if write_mode == MPIWriteMode.FILL:
+            mode = 'a'
+        else:
+            mode = 'w'
 
-        # Second pass, we are only interested in filling arrays using local bounds.
-        variable_kwargs['write_mode'] = MPIWriteMode.FILL
-        kwargs['variable_kwargs'] = variable_kwargs
+        # Write the data on each rank.
         for rank_to_write in range(size):
-            if rank == rank_to_write:
-                with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
+            # The template write only occurs on the first rank.
+            if write_mode == MPIWriteMode.TEMPLATE and rank_to_write != 0:
+                continue
+            # If this is not a template write, fill the data.
+            elif rank == rank_to_write:
+                with driver_scope(cls, opened_or_path=opened_or_path, mode=mode, **dataset_kwargs) as dataset:
+                    # Write global attributes if we are not filling data.
+                    if write_mode != MPIWriteMode.FILL:
+                        vc.write_attributes_to_netcdf_object(dataset)
+                    # This is the main variable write loop.
                     for variable in vc.values():
                         # For isolated and replicated variables, only write once.
                         if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
@@ -221,18 +207,23 @@ class DriverNetcdf(AbstractDriver):
                             else:
                                 if rank != variable.ranks[0]:
                                     continue
+                        # Load the variable's data before orphaning. The variable needs its parent to know which group
+                        # it is in.
                         variable.load()
-                        # Call the individual variable write method in fill mode.
+                        # Call the individual variable write method in fill mode. Orphaning is required as a variable
+                        # will attempt to write its parent first.
                         with orphaned(vc, variable):
-                            variable.write(dataset, **variable_kwargs)
+                            variable.write(dataset, write_mode=write_mode, **variable_kwargs)
                     # Recurse the children.
                     for child in vc.children.values():
-                        group = dataset.groups[child.name]
-                        # group = nc.Group(dataset, child.name)
-                        child.write(group, **kwargs)
+                        if write_mode != MPIWriteMode.FILL:
+                            group = nc.Group(dataset, child.name)
+                        else:
+                            group = dataset.groups[child.name]
+                        child.write(group, write_mode=write_mode, **kwargs)
                     dataset.sync()
 
-            # Open the file in sequence.
+            # Allow each rank to finish it's write process. Only one rank can have the dataset open at a given time.
             comm.Barrier()
 
     def _get_dimensions_main_(self, group_metadata):
