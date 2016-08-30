@@ -330,7 +330,7 @@ class TestVariable(AbstractTestNewInterface):
                                                        src_idx='auto')
                 fvar = SourcedVariable(name='STATE_NAME', request_dataset=rd, dimensions=[geom_dimension])
                 ompi.update_dimension_bounds()
-                self.assertEqual(len(rd.dist.dimensions[rd.comm.Get_rank()][None]['dimensions']), 0)
+                self.assertEqual(len(rd.dist.mapping[rd.comm.Get_rank()][None]['dimensions']), 0)
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertIsNotNone(fvar.value)
@@ -1033,7 +1033,7 @@ class TestVariableCollection(AbstractTestNewInterface):
     @attr('data')
     def test_system_cf_netcdf(self):
         rd = self.get_request_dataset()
-        vc = VariableCollection.read_netcdf(rd.uri)
+        vc = VariableCollection.read(rd.uri)
         for v in vc.values():
             self.assertIsNone(v._value)
         slc = {'lat': slice(10, 23), 'time': slice(0, 1), 'lon': slice(5, 10)}
@@ -1054,7 +1054,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         path = self.get_temporary_file_path('foo.nc')
         vc.write(path)
         # self.ncdump(path)
-        rvc = VariableCollection.read_netcdf(path)
+        rvc = VariableCollection.read(path)
         self.assertIn('nest', rvc.children)
         self.assertNumpyAll(rvc.children['nest']['desired'].value, desired.value)
 
@@ -1084,20 +1084,25 @@ class TestVariableCollection(AbstractTestNewInterface):
         vc = self.get_variablecollection()
         path = self.get_temporary_file_path('foo.nc')
         vc.write(path)
-        nvc = VariableCollection.read_netcdf(path)
+        # print '-----------------------------------------------'
+        nvc = VariableCollection.read(path)
         path2 = self.get_temporary_file_path('foo2.nc')
         nvc.write(path2)
+
+        # RequestDataset(path).inspect()
+        # RequestDataset(path2).inspect()
+
         self.assertNcEqual(path, path2)
 
     def test_write_netcdf_and_read_netcdf_data(self):
         # Test against a real data file.
         rd = self.get_request_dataset()
-        rvc = VariableCollection.read_netcdf(rd.uri)
+        rvc = VariableCollection.read(rd.uri)
         self.assertEqual(rvc.dimensions['time'].size_current, 3650)
         for var in rvc.itervalues():
             self.assertIsNone(var._value)
         path3 = self.get_temporary_file_path('foo3.nc')
-        rvc.write(path3)
+        rvc.write(path3, dataset_kwargs={'format': rd.metadata['file_format']})
         self.assertNcEqual(path3, rd.uri)
 
         # Test creating dimensions when writing to netCDF.

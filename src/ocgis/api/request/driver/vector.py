@@ -50,11 +50,11 @@ class DriverVector(AbstractDriver):
                 v.cfunits_conform(conform_units_to)
 
     def get_crs(self):
-        crs = self.metadata['crs']
+        crs = self.metadata_source['crs']
         if len(crs) == 0:
             ret = None
         else:
-            ret = CoordinateReferenceSystem(value=self.metadata['crs'])
+            ret = CoordinateReferenceSystem(value=crs)
         return ret
 
     def get_dimension_map(self, metadata):

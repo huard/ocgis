@@ -923,10 +923,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         rd = RequestDataset(*args, **kwargs)
         return rd.driver.get_variable_collection()
 
-    @classmethod
-    def read_netcdf(cls, path):
-        return cls.read(uri=path, driver='netCDF')
-
     def set_mask(self, variable, exclude=None):
         names_container = [d.name for d in variable.dimensions]
         for k, v in self.items():

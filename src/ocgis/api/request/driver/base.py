@@ -351,9 +351,7 @@ class AbstractDriver(object):
         Inspect the request dataset printing information to stdout.
         """
 
-        from ocgis.util.inspect import Inspect
-
-        for line in Inspect(request_dataset=self.rd).get_report_possible():
+        for line in self.get_dump_report():
             print line
 
     @classmethod

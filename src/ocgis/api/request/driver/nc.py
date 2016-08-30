@@ -188,7 +188,7 @@ class DriverNetcdf(AbstractDriver):
                 vc.write_attributes_to_netcdf_object(dataset)
                 for variable in vc.values():
                     # For isolated and replicated variables, only write once.
-                    if variable.dist != MPIDistributionMode.DISTRIBUTED:
+                    if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
                         if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
                             continue
                         else:
@@ -211,7 +211,7 @@ class DriverNetcdf(AbstractDriver):
                 with driver_scope(cls, opened_or_path=opened_or_path, mode='a', **dataset_kwargs) as dataset:
                     for variable in vc.values():
                         # For isolated and replicated variables, only write once.
-                        if variable.dist != MPIDistributionMode.DISTRIBUTED:
+                        if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
                             if variable.dist == MPIDistributionMode.REPLICATED and rank != 0:
                                 continue
                             else:
