@@ -848,7 +848,7 @@ class TestTemporalVariable(AbstractTestTemporal):
                 self.assertFalse(k.format_time)
             self.assertNumpyAll(td.value_numtime, np.ma.array(value))
 
-    def test_write_netcdf(self):
+    def test_write(self):
         tv = self.get_temporalvariable()
         path = self.get_temporary_file_path('foo.nc')
         self.assertEqual(tv.units, tv.bounds.units)

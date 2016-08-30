@@ -151,9 +151,12 @@ class DriverNetcdf(AbstractDriver):
                 data_value = cls.get_variable_write_value(var)
                 ncvar[fill_slice] = data_value
             except AttributeError:
-                # Assume ObjectType.
-                for idx, v in iter_array(var.value, use_mask=False, return_value=True):
-                    ncvar[idx] = np.array(v)
+                if isinstance(var.dtype, ObjectType):
+                    # Assume ObjectType.
+                    for idx, v in iter_array(var.value, use_mask=False, return_value=True):
+                        ncvar[idx] = np.array(v)
+                else:
+                    raise
 
         # Only set variable attributes if this is not a fill operation.
         if write_mode != MPIWriteMode.FILL:

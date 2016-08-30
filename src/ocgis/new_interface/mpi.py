@@ -35,7 +35,7 @@ class DummyMPIComm(object):
         return args[0][0]
 
 
-if MPI_ENABLED:
+if MPI_ENABLED and MPI.COMM_WORLD.Get_size() > 1:
     MPI_COMM = MPI.COMM_WORLD
 else:
     MPI_COMM = DummyMPIComm()
@@ -92,7 +92,7 @@ class OcgMpi(AbstractOcgisObject):
 
         if isinstance(name_or_variable, Variable):
             group = group or name_or_variable.group
-            name = name_or_variable or name_or_variable.name
+            name = name_or_variable.name
             dimensions = name_or_variable.dimensions or tuple([dim.name for dim in name_or_variable])
         else:
             name = name_or_variable
@@ -190,16 +190,9 @@ class OcgMpi(AbstractOcgisObject):
         group_data = self.get_group(group, rank=rank)
         return group_data['variables'][name]
 
-    def get_variable_ranks(self, name_or_variable):
-        present_on_ranks = []
-        for rank in range(self.size):
-            try:
-                _ = self.get_variable(name_or_variable, rank=rank)
-            except KeyError:
-                continue
-            else:
-                present_on_ranks.append(rank)
-        return tuple(present_on_ranks)
+    def get_variable_ranks(self, *args, **kwargs):
+        variable_dist = self.get_variable(*args, **kwargs)
+        return variable_dist.get('ranks', tuple(range(self.size)))
 
     def get_group(self, group=None, rank=MPI_RANK):
         return self._create_or_get_group_(group, rank=rank)

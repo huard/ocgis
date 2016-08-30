@@ -575,7 +575,7 @@ class TestGridXY(AbstractTestNewInterface):
         path = self.get_temporary_file_path('foo.nc')
         grid.write(path)
         # self.ncdump(path)
-        nvc = VariableCollection.read_netcdf(path)
+        nvc = VariableCollection.read(path)
         ngrid = GridXY(nvc['x'], nvc['y'], parent=nvc)
         # Mask is not written to coordinate variables.
         self.assertFalse(ngrid.get_mask()[1, 1])

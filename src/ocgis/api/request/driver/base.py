@@ -251,7 +251,12 @@ class AbstractDriver(object):
 
     @classmethod
     def get_variable_write_value(cls, variable):
-        return cls.get_variable_for_writing(variable).masked_value
+        from ocgis.new_interface.temporal import TemporalVariable
+        if isinstance(variable, TemporalVariable):
+            ret = cls.get_variable_for_writing(variable)
+        else:
+            ret = cls.get_variable_for_writing(variable).masked_value
+        return ret
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
