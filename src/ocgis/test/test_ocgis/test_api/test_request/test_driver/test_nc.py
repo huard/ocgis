@@ -277,6 +277,8 @@ class TestDriverNetcdf(TestBase):
         if MPI_RANK == 0:
             self.assertNcEqual(path_actual, path_desired)
 
+        MPI_COMM.Barrier()
+
 
 class TestDriverNetcdfCF(TestBase):
 

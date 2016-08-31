@@ -149,25 +149,13 @@ class DriverNetcdf(AbstractDriver):
         # Do not fill values on file_only calls. Also, only fill values for variables with dimension greater than zero.
         if not file_only and var.ndim > 0 and not var.is_empty:
             if isinstance(var.dtype, ObjectType):
-                from ocgis.new_interface.ocgis_logging import log
-                log.debug(('shape', var.shape, 'dimensions', var.dimensions[0].bounds_local))
-                log.debug(('value', var.value.tolist()))
-                log.debug(('ncvar.shape', ncvar.shape))
-                for idx in range(var.dimensions[0].bounds_local[0], var.dimensions[0].bounds_local[1]):
-                    # for idx, v in iter_array(var.value, use_mask=False, return_value=True):
-                    ncvar[idx] = np.array(var.value[idx])
+                bounds_local = var.dimensions[0].bounds_local
+                for idx in range(bounds_local[0], bounds_local[1]):
+                    ncvar[idx] = np.array(var.value[idx - bounds_local[0]])
             else:
-                # try:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
                 data_value = cls.get_variable_write_value(var)
                 ncvar[fill_slice] = data_value
-                # except AttributeError:
-                #     if isinstance(var.dtype, ObjectType):
-                #         Assume ObjectType.
-                # for idx, v in iter_array(var.value, use_mask=False, return_value=True):
-                #     ncvar[idx] = np.array(v)
-                # else:
-                #     raise
 
         # Only set variable attributes if this is not a fill operation.
         if write_mode != MPIWriteMode.FILL:
@@ -199,13 +187,12 @@ class DriverNetcdf(AbstractDriver):
             mode = 'a'
         else:
             mode = 'w'
-        from ocgis.new_interface.ocgis_logging import log
-        log.debug(('write_mode', write_mode))
+
         # Write the data on each rank.
         for rank_to_write in range(size):
             # The template write only occurs on the first rank.
             if write_mode == MPIWriteMode.TEMPLATE and rank_to_write != 0:
-                break
+                pass
             # If this is not a template write, fill the data.
             elif rank == rank_to_write:
                 with driver_scope(cls, opened_or_path=opened_or_path, mode=mode, **dataset_kwargs) as dataset:

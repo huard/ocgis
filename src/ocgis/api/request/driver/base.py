@@ -406,13 +406,23 @@ class AbstractDriver(object):
         rank = comm.Get_rank()
         size = comm.Get_size()
 
-        write_mode = kwargs.pop('write_mode', MPIWriteMode.NORMAL)
+        write_mode = kwargs.pop('write_mode', None)
 
         if size > 1:
             if cls.inquire_opened_state(opened_or_path):
                 raise ValueError('Only paths allowed for parallel writes.')
 
-        cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
+        if write_mode is None:
+            if size > 1:
+                write_modes = [MPIWriteMode.TEMPLATE, MPIWriteMode.FILL]
+            else:
+                write_modes = [MPIWriteMode.NORMAL]
+        else:
+            write_modes = [write_mode]
+
+        for write_mode in write_modes:
+            cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
+            # MPI_COMM.Barrier()
 
     def _get_dimensions_main_(self, group_metadata):
         """
