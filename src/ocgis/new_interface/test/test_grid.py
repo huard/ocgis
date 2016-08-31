@@ -133,7 +133,7 @@ class Test(AbstractTestNewInterface):
         # The file may be deleted before other ranks open.
         MPI_COMM.Barrier()
 
-    @attr('mpi', 'mpi-4', 'mpi-12')
+    @attr('mpi')
     def test_grid_get_intersects2(self):
         log.info('hello world')
         subset1 = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
@@ -180,7 +180,7 @@ class Test(AbstractTestNewInterface):
 
         log.info('success')
 
-    @attr('mpi', 'mpi-4')
+    @attr('mpi')
     def test_grid_get_intersects3(self):
         if MPI_RANK == 0:
             path_shp = self.path_state_boundaries
