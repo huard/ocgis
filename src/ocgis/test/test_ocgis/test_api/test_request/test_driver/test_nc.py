@@ -187,7 +187,6 @@ class TestDriverNetcdf(TestBase):
     def test_write_variable_collection_isolated_variables(self):
         """Test writing a variable collection containing an isolated variable."""
 
-        # tdk: there are multiple writes for isolated variables on multiple processors and replicated variables.
         if MPI_SIZE < 4:
             raise SkipTest('MPI procs < 4')
 

@@ -142,8 +142,6 @@ class DriverNetcdf(AbstractDriver):
         if write_mode == MPIWriteMode.FILL:
             ncvar = dataset.variables[var.name]
         else:
-            from ocgis.new_interface.ocgis_logging import log
-            log.debug('creating variable')
             ncvar = dataset.createVariable(var.name, dtype, dimensions=dimensions, fill_value=fill_value, **kwargs)
 
         # Do not fill values on file_only calls. Also, only fill values for variables with dimension greater than zero.
@@ -202,13 +200,14 @@ class DriverNetcdf(AbstractDriver):
                     # This is the main variable write loop.
                     for variable in vc.values():
                         # For isolated and replicated variables, only write once.
-                        if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
-                            if variable.dist == MPIDistributionMode.REPLICATED:
-                                if rank != 0:
-                                    continue
-                            else:
-                                if rank != variable.ranks[0]:
-                                    continue
+                        if write_mode != MPIWriteMode.TEMPLATE:
+                            if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
+                                if variable.dist == MPIDistributionMode.REPLICATED:
+                                    if rank != 0:
+                                        continue
+                                else:
+                                    if rank != variable.ranks[0]:
+                                        continue
                         # Load the variable's data before orphaning. The variable needs its parent to know which group
                         # it is in.
                         variable.load()
