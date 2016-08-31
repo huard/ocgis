@@ -209,7 +209,6 @@ class DriverVector(AbstractDriver):
 
         # Write the template file.
         if rank == 0 and write_mode != MPIWriteMode.FILL:
-            from ocgis.new_interface.ocgis_logging import log
             with driver_scope(cls, opened_or_path=opened_or_path, mode='w', driver=fiona_driver,
                               crs=fiona_crs, schema=fiona_schema) as _:
                 pass
