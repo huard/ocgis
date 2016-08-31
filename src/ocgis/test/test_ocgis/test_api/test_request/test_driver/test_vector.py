@@ -221,7 +221,7 @@ class TestDriverVector(TestBase):
 
         for target in [path1, fobject]:
             # Skip the open file object test during a multi-proc test.
-            if MPI_SIZE > 1 and fobject is None:
+            if MPI_SIZE > 1 and target is None:
                 continue
 
             field.write(target, driver=DriverVector)

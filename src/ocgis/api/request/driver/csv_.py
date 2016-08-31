@@ -2,6 +2,7 @@ import csv
 from collections import OrderedDict
 
 from ocgis.api.request.driver.base import AbstractDriver, driver_scope
+from ocgis.constants import MPIWriteMode
 
 
 class DriverCSV(AbstractDriver):
@@ -48,19 +49,23 @@ class DriverCSV(AbstractDriver):
 
     @classmethod
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
+
         fieldnames = [v.name for v in vc.iter_data_variables()]
-        if rank == 0:
+
+        if rank == 0 and write_mode != MPIWriteMode.FILL:
             with driver_scope(cls, opened_or_path, mode='w') as opened:
                 writer = csv.DictWriter(opened, fieldnames)
                 writer.writeheader()
-        for current_rank_write in range(size):
-            if rank == current_rank_write:
-                with driver_scope(cls, opened_or_path, mode='a') as opened:
-                    writer = csv.DictWriter(opened, fieldnames)
-                    for idx in range(vc[fieldnames[0]].shape[0]):
-                        row = {fn: cls.get_variable_write_value(vc[fn])[idx] for fn in fieldnames}
-                        writer.writerow(row)
-            comm.Barrier()
+
+        if write_mode != MPIWriteMode.TEMPLATE:
+            for current_rank_write in range(size):
+                if rank == current_rank_write:
+                    with driver_scope(cls, opened_or_path, mode='a') as opened:
+                        writer = csv.DictWriter(opened, fieldnames)
+                        for idx in range(vc[fieldnames[0]].shape[0]):
+                            row = {fn: cls.get_variable_write_value(vc[fn])[idx] for fn in fieldnames}
+                            writer.writerow(row)
+                comm.Barrier()
 
     def _init_variable_from_source_main_(self, *args, **kwargs):
         pass
