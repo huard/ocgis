@@ -494,22 +494,6 @@ class TestDriverNetcdfCF(TestBase):
 
         self.assertWarns(OcgWarning, _run_)
 
-        # Test pulling distributed dimensions from metadata.
-        d = self.get_drivernetcdf()
-        self.assertIsNone(d._dimension_map)
-        d.metadata_source['dimensions']['time']['dist'] = True
-        dmap = d.dimension_map
-        self.assertTrue(dmap['time']['dist'])
-
-    def test_tdk(self):
-        # Test only one distributed dimension allowed.
-        d = self.get_drivernetcdf()
-        self.assertIsNone(d._dimension_map)
-        d.metadata_source['dimensions']['time']['dist'] = True
-        d.metadata_source['dimensions']['x']['dist'] = True
-        with self.assertRaises(ValueError):
-            _ = d.dimension_map
-
 
 class OldTestDriverNetcdf(TestBase):
     def setUp(self):

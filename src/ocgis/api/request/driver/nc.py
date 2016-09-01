@@ -273,13 +273,6 @@ class DriverNetcdfCF(DriverNetcdf):
         for k, v in axes.items():
             axes[k] = get_dimension_map_entry(v, variables, dimensions)
 
-        # Confirm there is only one distributed dimension.
-        distributed_dimensions = [ii['dist'] for ii in axes.values() if ii is not None]
-        import ipdb;
-        ipdb.set_trace()
-        if sum(distributed_dimensions) > 1:
-            raise ValueError("Only one distributed dimension allowed.")
-
         # Attempt to find bounds for each entry (ignoring realizations).
         for k in check_bounds:
             if axes[k] is not None:
@@ -548,14 +541,7 @@ def get_dimension_map_entry(axis, variables, dimensions):
     if len(axis_vars) == 1:
         var_name = axis_vars[0]
 
-        # Identify if the variable has a distributed dimension.
-        dist = []
-        for dimension_name in variables[var_name]['dimensions']:
-            dimension_metadata = dimensions[dimension_name]
-            dist.append(dimension_metadata.get('dist', False))
-        dist = any(dist)
-
-        ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions']), 'dist': dist}
+        ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
     else:
         ret = None
     return ret
