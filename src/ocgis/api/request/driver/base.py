@@ -27,9 +27,7 @@ class AbstractDriver(object):
     def __init__(self, rd):
         self.rd = rd
         self._metadata_raw = None
-        self._dimension_map = None
         self._dist = None
-        self._crs = None
 
     def __eq__(self, other):
         return self.key == other.key
@@ -37,23 +35,21 @@ class AbstractDriver(object):
     def __str__(self):
         return '"{0}"'.format(self.key)
 
+    # tdk: remove me
     @property
     def crs(self):
-        if self._crs is None:
-            self._crs = self.get_crs() or self._default_crs
-        return self._crs
+        raise NotImplementedError
+
+    # tdk: remove me
+    @property
+    def dimension_map(self):
+        raise NotImplementedError
 
     @property
     def dist(self):
         if self._dist is None:
             self._dist = self.get_dist()
         return self._dist
-
-    @property
-    def dimension_map(self):
-        if self._dimension_map is None:
-            self._dimension_map = self.get_dimension_map(self.metadata_source)
-        return self._dimension_map
 
     @property
     def metadata_raw(self):
@@ -95,9 +91,15 @@ class AbstractDriver(object):
         else:
             cls._close_(obj)
 
-    def get_crs(self):
+    def get_crs(self, group_metadata):
         """:rtype: ~ocgis.interface.base.crs.CoordinateReferenceSystem"""
-        return None
+
+        crs = self._get_crs_main_(group_metadata)
+        if crs is None:
+            ret = self._default_crs
+        else:
+            ret = crs
+        return ret
 
     def get_dimension_map(self, metadata):
         """:rtype: dict"""
@@ -178,6 +180,10 @@ class AbstractDriver(object):
         if first:
             lines.append('}')
         return lines
+
+    @staticmethod
+    def get_group_metadata(group_index, metadata, has_root=False):
+        return get_group(metadata, group_index, has_root=has_root)
 
     def get_source_metadata_as_json(self):
         # tdk: test
@@ -260,32 +266,41 @@ class AbstractDriver(object):
 
     def get_field(self, *args, **kwargs):
         # tdk: test dimension map overloading
-        # Get the raw variable collection from source.
-        vc = self.get_variable_collection()
+        vc = kwargs.pop('vc', None)
+        if vc is None:
+            # Get the raw variable collection from source.
+            vc = self.get_variable_collection()
 
-        # If there is a group index, extract the appropriate child for the target field.
-        field_group = self.rd.field_group
-        if field_group is not None:
-            for fg in field_group:
-                vc = vc.children[fg]
+        # Get the appropriate metadata for the collection.
+        group_metadata = self.get_group_metadata(vc.group, self.metadata_source)
+        # Always pull the dimension map from the request dataset. This allows it to be overloaded.
+        dimension_map = self.get_group_metadata(vc.group, self.rd.dimension_map)
+
+        # # If there is a group index, extract the appropriate child for the target field.
+        # field_group = self.rd.field_group
+        # if field_group is not None:
+        #     for fg in field_group:
+        #         vc = vc.children[fg]
 
         # Modify the coordinate system variable. If it is overloaded on the request dataset, then the variable
         # collection needs to be updated to hold the variable and any alternative coordinate systems needs to be
         # removed.
         to_remove = None
         to_add = None
+        crs = self.get_crs(group_metadata)
         if self.rd._crs is not None and self.rd._crs != 'auto':
             to_add = self.rd._crs
-            to_remove = self.crs.name
-        elif self.crs is not None:
-            to_add = self.crs
+            if crs is not None:
+                to_remove = crs.name
+        elif crs is not None:
+            to_add = crs
         if to_remove is not None:
             vc.pop(to_remove, None)
         if to_add is not None:
             vc.add_variable(to_add, force=True)
 
         # Convert the raw variable collection to a field.
-        kwargs['dimension_map'] = self.rd.dimension_map
+        kwargs['dimension_map'] = dimension_map
         field = OcgField.from_variable_collection(vc, *args, **kwargs)
 
         # If this is a source grid for regridding, ensure the flag is updated.
@@ -306,13 +321,23 @@ class AbstractDriver(object):
         if self.rd.level_range is not None:
             field = field.level.get_between(*self.rd.level_range).parent
 
+        for child in field.children.values():
+            kwargs['vc'] = child
+            field.children[child.name] = self.get_field(*args, **kwargs)
+
         return field
 
-    @abc.abstractmethod
-    def get_metadata(self):
+    def get_metadata(self, group_metadata=None):
         """
         :rtype: dict
         """
+
+        if group_metadata is None:
+            group_metadata = self._get_metadata_main_()
+        group_metadata['dimension_map'] = self.get_dimension_map(group_metadata)
+        for next_group in group_metadata['groups'].values():
+            self.get_metadata(group_metadata=next_group)
+        return group_metadata
 
     def init_variable_from_source(self, variable):
         variable_metadata = self.get_variable_metadata(variable)
@@ -424,6 +449,10 @@ class AbstractDriver(object):
             cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
             # MPI_COMM.Barrier()
 
+    def _get_crs_main_(self, group_metadata):
+        """Return the coordinate system variable or None if not found."""
+        return None
+
     def _get_dimensions_main_(self, group_metadata):
         """
         :param dict group_metadata: Metadata dictionary for the target group.
@@ -434,6 +463,15 @@ class AbstractDriver(object):
         gmd = group_metadata['dimensions']
         dims = [Dimension(dref['name'], size=dref['size'], src_idx='auto') for dref in gmd.values()]
         return tuple(dims)
+
+    @abc.abstractmethod
+    def _get_metadata_main_(self):
+        """
+        Return the base metadata object. The superclass will finalize the metadata doing things like adding dimension
+        maps for each group.
+
+        :rtype: dict
+        """
 
     @staticmethod
     def _close_(obj):

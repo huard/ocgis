@@ -154,6 +154,9 @@ def get_merged_dimension_map(dimension_map):
     # Merge incoming dimension map with the template.
     if dimension_map is not None:
         for k, v in dimension_map.items():
+            # Groups in dimension maps don't matter to the target field. Each field keeps its own copy.
+            if k == 'groups':
+                continue
             for k2, v2, in v.items():
                 if k2 == 'attrs':
                     dimension_map_template[k][k2].update(v2)

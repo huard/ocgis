@@ -24,11 +24,6 @@ class DriverNetcdf(AbstractDriver):
     key = 'netcdf'
     output_formats = 'all'
 
-    def get_metadata(self):
-        with driver_scope(self) as ds:
-            ret = parse_metadata(ds)
-        return ret
-
     @classmethod
     def get_variable_for_writing_temporal(cls, temporal_variable):
         return temporal_variable.value_numtime
@@ -229,6 +224,11 @@ class DriverNetcdf(AbstractDriver):
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
 
+    def _get_metadata_main_(self):
+        with driver_scope(self) as ds:
+            ret = parse_metadata(ds)
+        return ret
+
     def _init_variable_from_source_main_(self, variable, variable_object):
         init_variable_using_metadata_for_netcdf(self, variable, self.rd.metadata)
 
@@ -255,9 +255,6 @@ class DriverNetcdfCF(DriverNetcdf):
     key = 'netcdf-cf'
     _default_crs = env.DEFAULT_COORDSYS
     _priority = True
-
-    def get_crs(self):
-        return get_crs_variable(self.metadata_source)
 
     def get_dimension_map(self, metadata):
         # tdk: we'll need to handle hierarchical fields at some point...dimension map only works on the first group
@@ -294,22 +291,24 @@ class DriverNetcdfCF(DriverNetcdf):
         crs_name = None
         if self.rd._crs is not None and self.rd._crs != 'auto':
             crs_name = self.rd._crs.name
-        elif self.crs is not None:
-            crs_name = self.crs.name
+        else:
+            crs = self.get_crs(metadata)
+            if crs is not None:
+                crs_name = crs.name
         if crs_name is not None:
             ret['crs'] = {'variable': crs_name}
 
         return ret
 
-    def get_dimensioned_variables(self, dimension_map, metadata):
+    def get_dimensioned_variables(self, group_dimension_map, group_metadata):
         axes_needed = ['time', 'x', 'y']
         dvars = []
 
-        for vname, v in metadata['variables'].items():
+        for vname, v in group_metadata['variables'].items():
             found_axis = []
             for a in axes_needed:
                 to_append = False
-                d = dimension_map.get(a)
+                d = group_dimension_map.get(a)
                 if d is not None:
                     for dname in v['dimensions']:
                         if dname in d['names']:
@@ -320,6 +319,9 @@ class DriverNetcdfCF(DriverNetcdf):
                 dvars.append(vname)
 
         return dvars
+
+    def _get_crs_main_(self, group_metadata):
+        return get_crs_variable(group_metadata)
 
 
 def parse_metadata(rootgrp, fill=None):

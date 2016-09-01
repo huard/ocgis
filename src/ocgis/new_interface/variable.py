@@ -48,6 +48,22 @@ class AbstractContainer(AbstractInterfaceObject):
     def dimensions(self):
         pass
 
+    @property
+    def group(self):
+        if self.parent is None:
+            ret = None
+        else:
+            curr = self.parent
+            ret = [curr.name]
+            while True:
+                if curr.parent is None:
+                    break
+                else:
+                    curr = curr.parent
+                    ret.append(curr.name)
+            ret.reverse()
+        return ret
+
     def allocate_parent(self):
         self.parent = VariableCollection()
         self.parent.add_variable(self)
@@ -319,22 +335,6 @@ class Variable(AbstractContainer, Attributes):
 
     def _get_fill_value_(self):
         return self._fill_value
-
-    @property
-    def group(self):
-        if self.parent is None:
-            ret = None
-        else:
-            curr = self.parent
-            ret = [curr.name]
-            while True:
-                if curr.parent is None:
-                    break
-                else:
-                    curr = curr.parent
-                    ret.append(curr.name)
-            ret.reverse()
-        return ret
 
     @property
     def has_allocated_value(self):
@@ -813,6 +813,7 @@ class SourcedVariable(Variable):
         super(SourcedVariable, self)._set_value_(value)
 
 
+# tdk: variable collection should inherit from abstract container
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     def __init__(self, name=None, variables=None, attrs=None, parent=None, children=None):
         self.name = name
@@ -844,6 +845,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 ret.add_variable(v, force=True)
         return ret
 
+    # tdk: dimensions and group can be removed with inheritance from abstractcontainer
     @property
     def dimensions(self):
         ret = {}
@@ -853,11 +855,27 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             except AttributeError:
                 # Assume an object like a coordinate reference system or other.
                 continue
-            for d in variable.dimensions:
+            for d in dimensions:
                 if d not in ret:
                     ret[d.name] = d
                 else:
                     assert d.length == ret[d.name].length
+        return ret
+
+    @property
+    def group(self):
+        if self.parent is None:
+            ret = None
+        else:
+            curr = self.parent
+            ret = [curr.name]
+            while True:
+                if curr.parent is None:
+                    break
+                else:
+                    curr = curr.parent
+                    ret.append(curr.name)
+            ret.reverse()
         return ret
 
     @property

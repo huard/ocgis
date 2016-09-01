@@ -302,7 +302,7 @@ class RequestDataset(object):
     @property
     def crs(self):
         if self._crs == 'auto':
-            ret = self.driver.crs
+            ret = self.driver.get_field().crs
         else:
             ret = self._crs
         return ret
@@ -319,7 +319,10 @@ class RequestDataset(object):
 
     @property
     def dimension_map(self):
-        ret = self._dimension_map or self.driver.dimension_map
+        if self._dimension_map is None:
+            ret = get_group_dimension_map(group_metadata=self.metadata)
+        else:
+            ret = self._dimension_map
         return ret
 
     @property
@@ -682,6 +685,17 @@ def get_driver(driver):
         exc = RequestValidationError('driver', 'Driver not found: {0}'.format(driver))
         ocgis_lh(logger='request', exc=exc)
     return klass
+
+
+def get_group_dimension_map(group_metadata, update_target=None):
+    if update_target is None:
+        update_target = group_metadata['dimension_map']
+    for group_name, group_metadata in group_metadata['groups'].items():
+        if 'groups' not in update_target:
+            update_target['groups'] = OrderedDict()
+        update_target['groups'][group_name] = group_metadata['dimension_map']
+        update_target = get_group_dimension_map(group_metadata, update_target=update_target)
+    return update_target
 
 
 def get_uri(uri, ignore_errors=False, followlinks=True):

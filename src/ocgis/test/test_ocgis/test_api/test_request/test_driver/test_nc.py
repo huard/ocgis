@@ -364,6 +364,7 @@ class TestDriverNetcdfCF(TestBase):
         self.assertEqual(rd.variable, 'tas')
         self.assertEqual(field['tas'].units, 'K')
         self.assertEqual(len(field.dimensions), 4)
+        self.assertIsNotNone(field.crs)
 
         # Test overloading units.
         path = self.test_data.get_uri('cancm4_tas')
@@ -392,16 +393,6 @@ class TestDriverNetcdfCF(TestBase):
             self.assertNcEqual(path_out, rd.uri, ignore_variables=['latitude_longitude'],
                                ignore_attributes=ignore_attributes)
 
-    def test_dimension_map(self):
-        # Test overloaded dimension map from request dataset is used.
-        dm = {'level': {'variable': 'does_not_exist'}}
-        driver = self.get_drivernetcdf(dimension_map=dm)
-        self.assertDictEqual(driver.rd.dimension_map, dm)
-        # The driver dimension map always loads from the data.
-        self.assertNotEqual(driver.dimension_map, dm)
-        self.assertNotEqual(dm, driver.get_dimension_map(driver.metadata_source))
-        field = driver.get_field()
-        self.assertIsNone(field.time)
 
     def test_get_dimension_map(self):
         d = self.get_drivernetcdf()
@@ -420,9 +411,18 @@ class TestDriverNetcdfCF(TestBase):
 
         self.assertWarns(OcgWarning, _run_)
 
+        # Test overloaded dimension map from request dataset is used.
+        dm = {'level': {'variable': 'does_not_exist'}}
+        driver = self.get_drivernetcdf(dimension_map=dm)
+        self.assertDictEqual(driver.rd.dimension_map, dm)
+        # The driver dimension map always loads from the data.
+        self.assertNotEqual(dm, driver.get_dimension_map(driver.metadata_source))
+        field = driver.get_field()
+        self.assertIsNone(field.time)
+
     def test_get_dimensioned_variables(self):
         driver = self.get_drivernetcdf()
-        dvars = driver.get_dimensioned_variables(driver.dimension_map, driver.metadata_source)
+        dvars = driver.get_dimensioned_variables(driver.rd.dimension_map, driver.metadata_source)
         self.assertEqual(len(dvars), 0)
 
         # Test a found variable.
@@ -442,6 +442,7 @@ class TestDriverNetcdfCF(TestBase):
     def test_get_field(self):
         # tdk: test that one-dimensional subsets are applied
         driver = self.get_drivernetcdf()
+        # driver.inspect()
         field = driver.get_field(format_time=False)
         self.assertIsInstance(field.time, TemporalVariable)
         with self.assertRaises(CannotFormatTimeError):
@@ -456,14 +457,14 @@ class TestDriverNetcdfCF(TestBase):
         # First, test the default is found.
         rd = RequestDataset(uri=path)
         driver = DriverNetcdfCF(rd)
-        self.assertEqual(driver.crs, CFSpherical())
+        self.assertEqual(driver.get_crs(driver.metadata_source), CFSpherical())
         self.assertEqual(driver.get_field().crs, CFSpherical())
         # Second, test the overloaded CRS is found.
         desired = CoordinateReferenceSystem(epsg=2136)
         rd = RequestDataset(uri=path, crs=desired)
         self.assertEqual(rd.crs, desired)
         driver = DriverNetcdfCF(rd)
-        self.assertEqual(driver.crs, CFSpherical())
+        self.assertEqual(driver.get_crs(driver.metadata_source), CFSpherical())
         field = driver.get_field()
         self.assertEqual(field.crs, desired)
         # Test file coordinate system variable is removed.
@@ -476,7 +477,7 @@ class TestDriverNetcdfCF(TestBase):
         rd = RequestDataset(uri=path)
         driver = DriverNetcdfCF(rd)
         self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
-        self.assertEqual(driver.crs, env.DEFAULT_COORDSYS)
+        self.assertEqual(driver.get_crs(driver.rd.metadata), env.DEFAULT_COORDSYS)
         self.assertEqual(driver.get_field().crs, env.DEFAULT_COORDSYS)
 
     def test_metadata_raw(self):
