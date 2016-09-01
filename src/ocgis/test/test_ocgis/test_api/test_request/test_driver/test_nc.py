@@ -481,7 +481,7 @@ class TestDriverNetcdfCF(TestBase):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata_source)
         desired = {'crs': {'variable': 'latitude_longitude'},
-                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time'], 'dist': False}}
+                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time']}}
         self.assertEqual(dmap, desired)
 
         def _run_():
