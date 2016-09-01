@@ -403,6 +403,23 @@ class TestDriverNetcdfCF(TestBase):
         field = driver.get_field()
         self.assertIsNone(field.time)
 
+    def test_get_dimension_map(self):
+        d = self.get_drivernetcdf()
+        dmap = d.get_dimension_map(d.metadata_source)
+        desired = {'crs': {'variable': 'latitude_longitude'},
+                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time']}}
+        self.assertEqual(dmap, desired)
+
+        def _run_():
+            env.SUPPRESS_WARNINGS = False
+            metadata = {'variables': {'x': {'name': 'x',
+                                            'attributes': {'axis': 'X', 'bounds': 'x_bounds'},
+                                            'dimensions': ('xx',)}},
+                        'dimensions': {'xx': {'name': 'xx', 'size': None}}}
+            d.get_dimension_map(metadata)
+
+        self.assertWarns(OcgWarning, _run_)
+
     def test_get_dimensioned_variables(self):
         driver = self.get_drivernetcdf()
         dvars = driver.get_dimensioned_variables(driver.dimension_map, driver.metadata_source)
@@ -476,23 +493,6 @@ class TestDriverNetcdfCF(TestBase):
         d = self.get_drivernetcdf()
         r = d.get_dump_report()
         self.assertGreaterEqual(len(r), 24)
-
-    def test_get_dimension_map(self):
-        d = self.get_drivernetcdf()
-        dmap = d.get_dimension_map(d.metadata_source)
-        desired = {'crs': {'variable': 'latitude_longitude'},
-                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time']}}
-        self.assertEqual(dmap, desired)
-
-        def _run_():
-            env.SUPPRESS_WARNINGS = False
-            metadata = {'variables': {'x': {'name': 'x',
-                                            'attributes': {'axis': 'X', 'bounds': 'x_bounds'},
-                                            'dimensions': ('xx',)}},
-                        'dimensions': {'xx': {'name': 'xx', 'size': None}}}
-            d.get_dimension_map(metadata)
-
-        self.assertWarns(OcgWarning, _run_)
 
 
 class OldTestDriverNetcdf(TestBase):
