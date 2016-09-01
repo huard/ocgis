@@ -131,6 +131,9 @@ class RequestDataset(object):
     :type dist: :class:`~ocgis.new_interface.mpi.OcgMpi`
     :param comm: The MPI communicator.
     :type comm: :class:`mpi4py.MPI_COMM`
+    :param bool use_default_dist: If ``True`` (the default), use a default MPI distribution determined by the driver.
+     If ``False``, do not apply a default distribution. In the absence of an overloaded distribution, defined by the
+     keyword argument ``dist``, no variables/dimensions will be distributed.
     """
 
     # contains key-value links to drivers. as new drivers are added, this dictionary must be updated.
@@ -146,8 +149,7 @@ class RequestDataset(object):
                  time_subset_func=None, level_range=None, conform_units_to=None, crs='auto', t_units=None,
                  t_calendar=None, t_conform_units_to=None, grid_abstraction='auto', dimension_map=None,
                  field_name=None, field_group=None, driver=None, regrid_source=True, regrid_destination=False,
-                 metadata=None, format_time=True,
-                 opened=None, dist=None, comm=None):
+                 metadata=None, format_time=True, opened=None, dist=None, comm=None, use_default_dist=True):
 
         self._is_init = True
 
@@ -158,6 +160,7 @@ class RequestDataset(object):
         self._dimension_map = deepcopy(dimension_map)
         self._metadata = deepcopy(metadata)
         self._uri = None
+        self.use_default_dist = use_default_dist
 
         # Set the default MPI communicator.
         self.comm = comm or MPI_COMM
