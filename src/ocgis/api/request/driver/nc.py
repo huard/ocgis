@@ -261,13 +261,26 @@ class DriverNetcdfCF(DriverNetcdf):
         return get_crs_variable(self.metadata_source)
 
     def get_dimension_map(self, metadata):
+        # tdk: we'll need to handle hierarchical fields at some point...dimension map only works on the first group
         # Get dimension variable metadata. This involves checking for the presence of any bounds variables.
         variables = metadata['variables']
+        dimensions = metadata['dimensions']
         axes = {'realization': 'R', 'time': 'T', 'level': 'L', 'x': 'X', 'y': 'Y'}
         check_bounds = axes.keys()
         check_bounds.pop(check_bounds.index('realization'))
+
+        # Get the main entry for each axis.
         for k, v in axes.items():
-            axes[k] = get_dimension_map_entry(v, variables)
+            axes[k] = get_dimension_map_entry(v, variables, dimensions)
+
+        # Confirm there is only one distributed dimension.
+        distributed_dimensions = [ii['dist'] for ii in axes.values() if ii is not None]
+        import ipdb;
+        ipdb.set_trace()
+        if sum(distributed_dimensions) > 1:
+            raise ValueError("Only one distributed dimension allowed.")
+
+        # Attempt to find bounds for each entry (ignoring realizations).
         for k in check_bounds:
             if axes[k] is not None:
                 keys = ['bounds']
@@ -525,7 +538,7 @@ def get_crs_variable(metadata, to_search=None):
     return crs
 
 
-def get_dimension_map_entry(axis, variables):
+def get_dimension_map_entry(axis, variables, dimensions):
     axis_vars = []
     for variable in variables.values():
         vattrs = variable['attributes']
@@ -534,7 +547,15 @@ def get_dimension_map_entry(axis, variables):
     assert len(axis_vars) <= 1
     if len(axis_vars) == 1:
         var_name = axis_vars[0]
-        ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
+
+        # Identify if the variable has a distributed dimension.
+        dist = []
+        for dimension_name in variables[var_name]['dimensions']:
+            dimension_metadata = dimensions[dimension_name]
+            dist.append(dimension_metadata.get('dist', False))
+        dist = any(dist)
+
+        ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions']), 'dist': dist}
     else:
         ret = None
     return ret

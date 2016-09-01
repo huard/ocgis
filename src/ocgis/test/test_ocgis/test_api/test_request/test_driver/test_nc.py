@@ -481,17 +481,34 @@ class TestDriverNetcdfCF(TestBase):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata_source)
         desired = {'crs': {'variable': 'latitude_longitude'},
-                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time']}}
+                   'time': {'variable': u'time', 'bounds': u'time_bounds', 'names': ['time'], 'dist': False}}
         self.assertEqual(dmap, desired)
 
         def _run_():
             env.SUPPRESS_WARNINGS = False
             metadata = {'variables': {'x': {'name': 'x',
                                             'attributes': {'axis': 'X', 'bounds': 'x_bounds'},
-                                            'dimensions': ('xx',)}}}
+                                            'dimensions': ('xx',)}},
+                        'dimensions': {'xx': {'name': 'xx', 'size': None}}}
             d.get_dimension_map(metadata)
 
         self.assertWarns(OcgWarning, _run_)
+
+        # Test pulling distributed dimensions from metadata.
+        d = self.get_drivernetcdf()
+        self.assertIsNone(d._dimension_map)
+        d.metadata_source['dimensions']['time']['dist'] = True
+        dmap = d.dimension_map
+        self.assertTrue(dmap['time']['dist'])
+
+    def test_tdk(self):
+        # Test only one distributed dimension allowed.
+        d = self.get_drivernetcdf()
+        self.assertIsNone(d._dimension_map)
+        d.metadata_source['dimensions']['time']['dist'] = True
+        d.metadata_source['dimensions']['x']['dist'] = True
+        with self.assertRaises(ValueError):
+            _ = d.dimension_map
 
 
 class OldTestDriverNetcdf(TestBase):
