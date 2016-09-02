@@ -12,11 +12,10 @@ from shapely.ops import cascaded_union
 from shapely.prepared import prep
 
 from ocgis import constants
-from ocgis import env, CoordinateReferenceSystem
+from ocgis import env
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.variable import Variable, VariableCollection, AbstractContainer, SourcedVariable
+from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
 
@@ -171,32 +170,6 @@ class GeometryVariable(AbstractSpatialVariable):
             return None
         else:
             return self.parent[self._name_uid]
-
-    # tdk: remove
-    @classmethod
-    def read_gis(cls, source, name, name_uid, name_dimension=None):
-        # tdk: RESUME: this should be creating a field and using a driver
-        if name_dimension is None:
-            name_dimension = constants.NAME_GEOMETRY_DIMENSION
-
-        geom_key = constants.DEFAULT_GEOMETRY_KEY
-        len_source = len(source)
-        for ctr, record in enumerate(source):
-            if ctr == 0:
-                values = {k: [None] * len_source for k in record['properties'].keys()}
-                ret_value = [None] * len_source
-                crs = CoordinateReferenceSystem(value=record['meta']['crs'])
-            ret_value[ctr] = record[geom_key]
-            for k, v in record['properties'].iteritems():
-                values[k][ctr] = v
-        parent = VariableCollection()
-        dimension = Dimension(name_dimension, len_source)
-        for k, v in values.iteritems():
-            var = Variable(value=v, name=k, dimensions=dimension)
-            parent.add_variable(var)
-        ret = GeometryVariable(name=name, parent=parent, value=ret_value, crs=crs, dimensions=dimension)
-        ret.set_uid(ret.parent[name_uid])
-        return ret
 
     def set_uid(self, variable):
         if self.parent is None:
