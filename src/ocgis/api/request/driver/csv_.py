@@ -10,21 +10,6 @@ class DriverCSV(AbstractDriver):
     key = 'csv'
     output_formats = 'all'
 
-    def get_metadata(self):
-        with driver_scope(self) as f:
-            meta = {}
-            # Get variable names assuming headers are always on the first row.
-            reader = csv.reader(f)
-            variable_names = reader.next()
-
-            # Fill in variable and dimension metadata.
-            meta['variables'] = OrderedDict()
-            meta['dimensions'] = OrderedDict()
-            for varname in variable_names:
-                meta['variables'][varname] = {'name': varname, 'dtype': object, 'dimensions': ('n_records',)}
-            meta['dimensions']['n_records'] = {'name': 'n_records', 'size': sum(1 for _ in f)}
-        return meta
-
     def get_variable_value(self, variable):
         # For CSV files, it makes sense to load all variables from source simultaneously.
         if variable.parent is None:
@@ -46,6 +31,21 @@ class DriverCSV(AbstractDriver):
                         tl.allocate_value()
                     tl.value[idx - bounds_local[0]] = row[tl.name]
         return variable.value
+
+    def _get_metadata_main_(self):
+        with driver_scope(self) as f:
+            meta = {}
+            # Get variable names assuming headers are always on the first row.
+            reader = csv.reader(f)
+            variable_names = reader.next()
+
+            # Fill in variable and dimension metadata.
+            meta['variables'] = OrderedDict()
+            meta['dimensions'] = OrderedDict()
+            for varname in variable_names:
+                meta['variables'][varname] = {'name': varname, 'dtype': object, 'dimensions': ('n_records',)}
+            meta['dimensions']['n_records'] = {'name': 'n_records', 'size': sum(1 for _ in f)}
+        return meta
 
     @classmethod
     def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):

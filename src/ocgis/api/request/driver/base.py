@@ -185,6 +185,21 @@ class AbstractDriver(object):
     def get_group_metadata(group_index, metadata, has_root=False):
         return get_group(metadata, group_index, has_root=has_root)
 
+    def get_metadata(self, group_metadata=None):
+        """
+        :rtype: dict
+        """
+
+        if group_metadata is None:
+            group_metadata = self._get_metadata_main_()
+        group_metadata['dimension_map'] = self.get_dimension_map(group_metadata)
+
+        # Allow metadata to not have groups.
+        if 'groups' in group_metadata:
+            for next_group in group_metadata['groups'].values():
+                self.get_metadata(group_metadata=next_group)
+        return group_metadata
+
     def get_source_metadata_as_json(self):
         # tdk: test
 
@@ -326,18 +341,6 @@ class AbstractDriver(object):
             field.children[child.name] = self.get_field(*args, **kwargs)
 
         return field
-
-    def get_metadata(self, group_metadata=None):
-        """
-        :rtype: dict
-        """
-
-        if group_metadata is None:
-            group_metadata = self._get_metadata_main_()
-        group_metadata['dimension_map'] = self.get_dimension_map(group_metadata)
-        for next_group in group_metadata['groups'].values():
-            self.get_metadata(group_metadata=next_group)
-        return group_metadata
 
     def init_variable_from_source(self, variable):
         variable_metadata = self.get_variable_metadata(variable)

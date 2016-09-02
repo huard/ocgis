@@ -690,11 +690,10 @@ def get_driver(driver):
 def get_group_dimension_map(group_metadata, update_target=None):
     if update_target is None:
         update_target = group_metadata['dimension_map']
-    for group_name, group_metadata in group_metadata['groups'].items():
-        if 'groups' not in update_target:
-            update_target['groups'] = OrderedDict()
-        update_target['groups'][group_name] = group_metadata['dimension_map']
-        update_target = get_group_dimension_map(group_metadata, update_target=update_target)
+    if 'groups' in update_target:
+        for group_name, group_metadata in group_metadata['groups'].items():
+            update_target['groups'][group_name] = group_metadata['dimension_map']
+            update_target = get_group_dimension_map(group_metadata, update_target=update_target)
     return update_target
 
 
