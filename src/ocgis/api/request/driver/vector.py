@@ -50,44 +50,23 @@ class DriverVector(AbstractDriver):
             if conform_units_to is not None:
                 v.cfunits_conform(conform_units_to)
 
-    def get_crs(self):
-        crs = self.metadata_source['crs']
+    def get_crs(self, group_metadata):
+        crs = group_metadata['crs']
         if len(crs) == 0:
             ret = None
         else:
             ret = CoordinateReferenceSystem(value=crs)
         return ret
 
-    def get_dimension_map(self, metadata):
+    def get_dimension_map(self, group_metadata):
         ret = {'geom': {'variable': constants.NAME_GEOMETRY_DIMENSION}}
-        crs = self.get_crs()
+        crs = self.get_crs(group_metadata)
         if crs is not None:
-            ret['crs'] = {'variable': self.get_crs().name}
+            ret['crs'] = {'variable': crs.name}
         return ret
 
     def get_dimensioned_variables(self):
         return self.rd.metadata['variables'].keys()
-
-    def get_metadata(self):
-        with driver_scope(self) as data:
-            m = data.sc.get_meta(path=self.rd.uri)
-            m['dimensions'] = {constants.NAME_GEOMETRY_DIMENSION: {'size': len(data),
-                                                                   'name': constants.NAME_GEOMETRY_DIMENSION}}
-            m['variables'] = OrderedDict()
-
-            # Groups are not currently supported in vector formats but metadata expects groups.
-            m['groups'] = OrderedDict()
-
-            for p, d in m['schema']['properties'].items():
-                d = get_dtype_from_fiona_type(d)
-                m['variables'][p] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,), 'dtype': d, 'name': p,
-                                     'attributes': OrderedDict()}
-
-            m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
-                                                    'dtype': object,
-                                                    'name': constants.NAME_GEOMETRY_DIMENSION,
-                                                    'attributes': OrderedDict()}
-            return m
 
     def get_source_metadata_as_json(self):
         # tdk: test on vector and netcdf
@@ -98,9 +77,9 @@ class DriverVector(AbstractDriver):
         for n, v in self.metadata_source['variables'].items():
             SourcedVariable(name=n, request_dataset=self.rd, parent=parent)
         GeometryVariable(name=constants.NAME_GEOMETRY_DIMENSION, request_dataset=self.rd, parent=parent)
-        crs = self.get_crs()
+        crs = self.get_crs(self.metadata_source)
         if crs is not None:
-            parent.add_variable(self.get_crs())
+            parent.add_variable(crs)
         return parent
 
     def get_variable_metadata(self, variable_object):
@@ -147,6 +126,27 @@ class DriverVector(AbstractDriver):
             pass
         else:
             obj.close()
+
+    def _get_metadata_main_(self):
+        with driver_scope(self) as data:
+            m = data.sc.get_meta(path=self.rd.uri)
+            m['dimensions'] = {constants.NAME_GEOMETRY_DIMENSION: {'size': len(data),
+                                                                   'name': constants.NAME_GEOMETRY_DIMENSION}}
+            m['variables'] = OrderedDict()
+
+            # Groups are not currently supported in vector formats but metadata expects groups.
+            m['groups'] = OrderedDict()
+
+            for p, d in m['schema']['properties'].items():
+                d = get_dtype_from_fiona_type(d)
+                m['variables'][p] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,), 'dtype': d, 'name': p,
+                                     'attributes': OrderedDict()}
+
+            m[constants.NAME_GEOMETRY_DIMENSION] = {'dimensions': (constants.NAME_GEOMETRY_DIMENSION,),
+                                                    'dtype': object,
+                                                    'name': constants.NAME_GEOMETRY_DIMENSION,
+                                                    'attributes': OrderedDict()}
+        return m
 
     def _init_variable_from_source_main_(self, variable_object, variable_metadata):
         if variable_object._dtype is None:

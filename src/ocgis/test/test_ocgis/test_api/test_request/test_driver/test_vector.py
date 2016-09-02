@@ -90,7 +90,7 @@ class TestDriverVector(TestBase):
 
     def test_get_crs(self):
         driver = self.get_driver()
-        self.assertEqual(WGS84(), driver.get_crs())
+        self.assertEqual(WGS84(), driver.get_crs(driver.metadata_source))
 
     def test_get_dimensioned_variables(self):
         driver = self.get_driver()

@@ -101,7 +101,7 @@ class AbstractDriver(object):
             ret = crs
         return ret
 
-    def get_dimension_map(self, metadata):
+    def get_dimension_map(self, group_metadata):
         """:rtype: dict"""
         return {}
 
