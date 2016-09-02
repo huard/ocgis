@@ -70,3 +70,4 @@ class TestDriverCSV(TestBase):
             self.assertCSVFilesEqual(in_path, out_path)
 
         MPI_COMM.Barrier()
+
