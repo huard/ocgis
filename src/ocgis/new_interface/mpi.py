@@ -605,6 +605,8 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     # Update the scattered variable dimensions with the destination dimensions on the process. Everything should align
     # shape-wise. If they don't, an exception will be raised.
     scattered_variable.dimensions = dest_dimensions
+    # The variable is not distributed.
+    scattered_variable.dist = MPIDistributionMode.DISTRIBUTED
 
     return scattered_variable, dest_mpi
 

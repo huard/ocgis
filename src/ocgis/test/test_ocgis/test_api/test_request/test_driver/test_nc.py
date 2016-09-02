@@ -132,6 +132,8 @@ class TestDriverNetcdf(TestBase):
         self.assertTrue(distributed_dimension.dist)
         self.assertEqual(dist.get_variable('y')['dist'], MPIDistributionMode.DISTRIBUTED)
 
+        MPI_COMM.Barrier()
+
     def test_get_dump_report(self):
         # Test with nested groups.
         path = self.get_temporary_file_path('foo.nc')
@@ -229,11 +231,10 @@ class TestDriverNetcdf(TestBase):
         ranks = (1, 3)
         # dist_rank = (0,)
         rd.metadata['variables']['var_seven']['ranks'] = ranks
-
         vc = rd.get_variable_collection()
         actual = vc['var_seven']
-        self.assertIsNotNone(actual.dist)
 
+        self.assertIsNotNone(actual.dist)
         if MPI_RANK in ranks:
             self.assertFalse(actual.is_empty)
             self.assertIsNotNone(actual.value)

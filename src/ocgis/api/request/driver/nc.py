@@ -181,6 +181,13 @@ class DriverNetcdf(AbstractDriver):
         else:
             mode = 'w'
 
+        # Check for distributed variables. If there are no distributed variables, do not add a barrier.
+        distributions = [variable.dist for variable in vc.values()]
+        if any([d is not None for d in distributions]):
+            add_barrier = True
+        else:
+            add_barrier = False
+
         # Write the data on each rank.
         for rank_to_write in range(size):
             # The template write only occurs on the first rank.
@@ -220,7 +227,8 @@ class DriverNetcdf(AbstractDriver):
                     dataset.sync()
 
             # Allow each rank to finish it's write process. Only one rank can have the dataset open at a given time.
-            comm.Barrier()
+            if add_barrier:
+                comm.Barrier()
 
     def _get_dimensions_main_(self, group_metadata):
         return tuple(get_dimensions_from_netcdf_metadata(group_metadata, group_metadata['dimensions'].keys()))
