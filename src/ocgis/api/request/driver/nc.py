@@ -8,7 +8,7 @@ from netCDF4._netCDF4 import VLType
 
 from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
-from ocgis.constants import MPIWriteMode, MPIDistributionMode
+from ocgis.constants import MPIWriteMode, MPIDistributionMode, DimensionMapKeys
 from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
@@ -83,6 +83,7 @@ class DriverNetcdf(AbstractDriver):
         :keyword bool is_global_write: (``=False``) If ``True``, consider this a global write and create variables
          using dimension global bounds. Setting to ``True``, will set ``file_only`` to ``True`` by default.
         """
+        assert isinstance(dataset, nc.Dataset)
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
@@ -319,6 +320,21 @@ class DriverNetcdfCF(DriverNetcdf):
                 dvars.append(vname)
 
         return dvars
+
+    def get_distributed_dimension_name(self, dimension_map, dimensions_metadata):
+        if DimensionMapKeys.X in dimension_map and DimensionMapKeys.Y in dimension_map:
+            sizes = np.zeros(2, dtype={'names': ['dim', 'size'], 'formats': [object, int]})
+
+            dimension_name_x = dimension_map[DimensionMapKeys.X]['names'][0]
+            dimension_name_y = dimension_map[DimensionMapKeys.Y]['names'][0]
+
+            sizes[0] = (dimension_name_x, dimensions_metadata[dimension_name_x]['size'])
+            sizes[1] = (dimension_name_y, dimensions_metadata[dimension_name_y]['size'])
+            max_index = np.argmax(sizes['size'])
+            ret = sizes['dim'][max_index]
+        else:
+            ret = None
+        return ret
 
     def _get_crs_main_(self, group_metadata):
         return get_crs_variable(group_metadata)

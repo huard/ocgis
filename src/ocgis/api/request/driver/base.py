@@ -135,6 +135,16 @@ class AbstractDriver(object):
                 target_dimension.dist = group_meta['dimensions'][dimension_name].get('dist', False)
                 dist.add_dimension(target_dimension, group=group_index)
 
+            # Configure the default distribution.
+            if self.rd.use_default_dist:
+                dimension_map = group_meta['dimension_map']
+                distributed_dimension_name = self.get_distributed_dimension_name(dimension_map,
+                                                                                 group_meta['dimensions'])
+                # Allow no distributed dimensions to be returned.
+                if distributed_dimension_name is not None:
+                    distributed_dimension = dist.get_dimension(distributed_dimension_name, group=group_index)
+                    distributed_dimension.dist = True
+
             # Add the variables to the distribution object.
             for variable_name, variable_meta in group_meta['variables'].items():
                 # If the variable has any distributed dimensions, the variable is always distributed. Otherwise, allow
@@ -161,6 +171,10 @@ class AbstractDriver(object):
         # tdk: this will have to be moved to account for slicing
         dist.update_dimension_bounds()
         return dist
+
+    def get_distributed_dimension_name(self, dimension_map, dimensions_metadata):
+        """Return the preferred distributed dimension name."""
+        return None
 
     def get_dump_report(self, indent=0, group_metadata=None, first=True, global_attributes_name='global'):
         lines = []

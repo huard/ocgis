@@ -111,6 +111,27 @@ class TestDriverNetcdf(TestBase):
                 groups_desired = list(iter_all_group_keys(desired))
                 self.assertEqual(groups_actual, groups_desired)
 
+    @attr('mpi')
+    def test_get_dist_default_distribution(self):
+        """Test using default distributions defined by drivers."""
+
+        if MPI_RANK == 0:
+            path = self.get_temporary_file_path('foo.nc')
+            varx = Variable('x', np.arange(5), dimensions='five', attrs={'axis': 'X'})
+            vary = Variable('y', np.arange(7) + 10, dimensions='seven', attrs={'axis': 'Y'})
+            vc = VariableCollection(variables=[varx, vary])
+            vc.write(path)
+        else:
+            path = None
+        path = MPI_COMM.bcast(path)
+
+        rd = RequestDataset(path)
+        dist = rd.driver.dist
+
+        distributed_dimension = dist.get_dimension('seven')
+        self.assertTrue(distributed_dimension.dist)
+        self.assertEqual(dist.get_variable('y')['dist'], MPIDistributionMode.DISTRIBUTED)
+
     def test_get_dump_report(self):
         # Test with nested groups.
         path = self.get_temporary_file_path('foo.nc')

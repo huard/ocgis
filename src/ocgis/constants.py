@@ -159,11 +159,14 @@ NAME_GEOMETRY_DIMENSION = 'ocgis_geom'
 DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER = 'ocgis_geom_uid'
 
 
-# Enumeration for netCDF writing.
-class MPIWriteMode(Enum):
-    NORMAL = 0
-    TEMPLATE = 1
-    FILL = 2
+# Dimension map key names.
+class DimensionMapKeys(object):
+    X = 'x'
+    Y = 'y'
+    Z = 'z'
+    TIME = 'time'
+    REALIZATION = 'realization'
+    CRS = 'crs'
 
 
 # MPI Distribution flags.
@@ -174,3 +177,10 @@ class MPIDistributionMode(Enum):
     REPLICATED = 1
     # Object exists on a single communicator proc.
     ISOLATED = 2
+
+
+# MPI Writing flags.
+class MPIWriteMode(Enum):
+    NORMAL = 0
+    TEMPLATE = 1
+    FILL = 2
