@@ -617,6 +617,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     # These are the dimensions for the local process.
     dest_dimensions = dest_mpi.get_dimensions(dimension_names, group=group)
 
+    # Slice the variables collecting the sequence to scatter to the MPI procs.
     if rank == root:
         size = dest_mpi.size
         slices = [None] * size

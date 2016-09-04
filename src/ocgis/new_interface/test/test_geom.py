@@ -13,7 +13,7 @@ from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
-from ocgis.new_interface.mpi import OcgMpi, MPI_RANK, variable_collection_scatter
+from ocgis.new_interface.mpi import OcgMpi, MPI_RANK, variable_scatter
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import attr
@@ -176,9 +176,16 @@ class TestGeometryVariable(AbstractTestNewInterface):
     @attr('mpi')
     def test_get_intersects_masked(self):
         # tdk: RESUME: finish this parallel geometry test
+        poly = wkt.loads(
+            'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
+        desired_mask = np.array([[True, True, False, True],
+                                 [True, False, True, True],
+                                 [True, True, False, True]])
+
         dist = OcgMpi()
-        dist.create_dimension('x', 4, dist=True)
-        dist.create_dimension('y', 3)
+        xdim = dist.create_dimension('x', 4, dist=True)
+        ydim = dist.create_dimension('y', 3)
+        dist.create_dimension('bounds', 2)
         dist.update_dimension_bounds()
 
         if MPI_RANK == 0:
@@ -187,28 +194,27 @@ class TestGeometryVariable(AbstractTestNewInterface):
             grid = GridXY(x=x, y=y)
             pa = get_geometry_variable(get_point_geometry_array, grid, crs=WGS84(), name='points',
                                        dimensions=['y', 'x'])
-
-            pa, dist = variable_collection_scatter(pa.parent, dist)
-
-        poly = wkt.loads(
-            'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
-        desired_mask = np.array([[True, True, False, True], [True, False, True, True], [True, True, False, True]])
+        else:
+            pa = None
+        pa, dist = variable_scatter(pa, dist)
 
         keywords = dict(use_spatial_index=[True, False])
-
         for k in self.iter_product_keywords(keywords):
             ret = pa.get_intersects_masked(poly, use_spatial_index=k.use_spatial_index)
-            self.assertNumpyAll(desired_mask, ret.get_mask())
+            desired_mask_local = desired_mask[slice(*ydim.bounds_local), slice(*xdim.bounds_local)]
+            self.assertNumpyAll(desired_mask_local, ret.get_mask())
             for element in ret.value.flat:
                 self.assertIsInstance(element, Point)
 
-            # Test pre-masked values in geometry are okay for intersects operation.
-            value = [Point(1, 1), Point(2, 2), Point(3, 3)]
-            value = np.ma.array(value, mask=[False, True, False], dtype=object)
-            pa2 = GeometryVariable(value=value)
-            b = box(0, 0, 5, 5)
-            res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
-            self.assertNumpyAll(res.get_mask(), value.mask)
+            # This does not test a parallel operation.
+            if MPI_RANK == 0:
+                # Test pre-masked values in geometry are okay for intersects operation.
+                value = [Point(1, 1), Point(2, 2), Point(3, 3)]
+                value = np.ma.array(value, mask=[False, True, False], dtype=object)
+                pa2 = GeometryVariable(value=value)
+                b = box(0, 0, 5, 5)
+                res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
+                self.assertNumpyAll(res.get_mask(), value.mask)
 
     def test_get_intersection_masked(self):
         pa = self.get_geometryvariable()
