@@ -212,8 +212,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
             # Do an empty subset, ensuring the appropriate exception is raised.
             try:
-                empty = pa.get_intersects_masked(Point(-8000, -9000), use_spatial_index=k.use_spatial_index,
-                                                 allow_empty_subset=k.allow_empty_subset)
+                _ = pa.get_intersects_masked(Point(-8000, -9000), use_spatial_index=k.use_spatial_index,
+                                             allow_empty_subset=k.allow_empty_subset)
             except EmptySubsetError:
                 self.assertFalse(k.allow_empty_subset)
             else:
