@@ -350,6 +350,22 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     @property
+    def has_dimensions(self):
+        """
+        :return: ``True`` if the variable has dimensions.
+        :rtype: bool
+        """
+
+        if self.dimensions is not None:
+            if len(self.dimensions) > 0:
+                ret = True
+            else:
+                ret = False
+        else:
+            ret = False
+        return ret
+
+    @property
     def has_distributed_dimension(self):
         """
         :return: ``True`` if the variable has a distributed dimension.
@@ -951,6 +967,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 slice_map = get_mapping_for_slice(names_container, names_variable)
                 if len(slice_map) > 0:
                     set_mask_by_variable(variable, v, slice_map)
+
+    def strip(self):
+        self._storage = OrderedDict()
+        self.children = OrderedDict()
 
     def write(self, *args, **kwargs):
         # tdk: the driver argument should accept the string key of the target driver

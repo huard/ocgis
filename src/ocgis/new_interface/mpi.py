@@ -89,13 +89,22 @@ class OcgMpi(AbstractOcgisObject):
         :raises: ValueError
         """
         from ocgis.new_interface.variable import Variable
+        from ocgis.new_interface.dimension import Dimension
 
         if isinstance(name_or_variable, Variable):
             group = group or name_or_variable.group
             name = name_or_variable.name
-            dimensions = name_or_variable.dimensions or tuple([dim.name for dim in name_or_variable])
+            dimensions = name_or_variable.dimensions
         else:
             name = name_or_variable
+            dimensions = list(get_iter(dimensions, dtype=(basestring, Dimension)))
+
+        if dimensions is not None and len(dimensions) > 0:
+            if isinstance(dimensions[0], Dimension):
+                dimensions = [dim.name for dim in dimensions]
+        else:
+            dimensions = []
+        dimensions = tuple(dimensions)
 
         for rank_home in range(self.size):
             the_group = self._create_or_get_group_(group, rank_home)
@@ -258,10 +267,19 @@ class OcgMpi(AbstractOcgisObject):
                     distributed_dimension._src_idx = None
                 distributed_dimension.bounds_local = bounds_local
 
-                # If there are any empty dimensions on the rank, than all dimensions are empty.
-                if distributed_dimension.is_empty:
-                    for dim in dimdict.values():
-                        dim.convert_to_empty()
+                # # If there are any empty dimensions on the rank, than all dimensions are empty.
+                # if distributed_dimension.is_empty:
+                #     for dim in dimdict.values():
+                #         dim.convert_to_empty()
+
+                # Update distributed variables. If a variable has a distributed dimension, it must be distributed.
+                # That's it.
+                for variable_name, variable_data in group_data['variables'].items():
+                    if len(variable_data['dimensions']) > 0:
+                        for dimension_name in variable_data['dimensions']:
+                            if group_data['dimensions'][dimension_name].dist:
+                                variable_data['dist'] = MPIDistributionMode.DISTRIBUTED
+                                break
 
         self.has_updated_dimensions = True
 
@@ -564,10 +582,24 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     comm = comm or MPI_COMM
     rank = comm.Get_rank()
 
-    # tdk: test a variable with no dimensions
-    # Only updated dimensions are allowed for scatters.
     if rank == root:
-        assert dest_mpi.has_updated_dimensions
+        if variable.dist is not None:
+            raise ValueError('Only variables with no prior distribution may be scattered.')
+        if not dest_mpi.has_updated_dimensions:
+            raise ValueError('The destination distribution must have updated dimensions.')
+        has_dimensions = variable.has_dimensions
+    else:
+        has_dimensions = None
+    has_dimensions = comm.bcast(has_dimensions, root=root)
+
+    # Synchronize distribution across processors.
+    dest_mpi = comm.bcast(dest_mpi, root=root)
+
+    # No use worrying about slicing the variable has no dimensions. Scatter the variable and be done with it.
+    if not has_dimensions:
+        scattered_variable = comm.bcast(variable, root=root)
+        scattered_variable.dist = MPIDistributionMode.REPLICATED
+        return scattered_variable, dest_mpi
 
     # Find the appropriate group for the dimensions.
     if rank == root:
@@ -576,6 +608,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     else:
         group = None
         dimension_names = None
+
     # Synchronize the processes with the MPI distribution and the group containing the dimensions.
     dest_mpi = comm.bcast(dest_mpi, root=root)
     group = comm.bcast(group, root=root)
@@ -605,10 +638,44 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     # Update the scattered variable dimensions with the destination dimensions on the process. Everything should align
     # shape-wise. If they don't, an exception will be raised.
     scattered_variable.dimensions = dest_dimensions
-    # The variable is not distributed.
-    scattered_variable.dist = MPIDistributionMode.DISTRIBUTED
+    # The variable is now distributed.
+    if scattered_variable.has_distributed_dimension:
+        scattered_variable.dist = MPIDistributionMode.DISTRIBUTED
+    else:
+        scattered_variable.dist = MPIDistributionMode.REPLICATED
 
     return scattered_variable, dest_mpi
+
+
+def variable_collection_scatter(variable_collection, dest_mpi, root=0, comm=None):
+    comm = comm or MPI_COMM
+    rank = comm.Get_rank()
+    if rank == root:
+        scattered_variable_collection = variable_collection.copy()
+        scattered_variable_collection.strip()
+        n_variables = len(variable_collection)
+        n_children = len(variable_collection.children)
+    else:
+        scattered_variable_collection, n_variables, n_children = [None] * 3
+
+    scattered_variable_collection = comm.bcast(scattered_variable_collection, root=root)
+    n_variables = comm.bcast(n_variables, root=root)
+    n_children = comm.bcast(n_children, root=root)
+
+    if rank == root:
+        variables = variable_collection.values()
+        children = variable_collection.children.values()
+    else:
+        variables = [None] * n_variables
+        children = [None] * n_children
+
+    for variable in variables:
+        scattered_variable, dest_mpi = variable_scatter(variable, dest_mpi, root=root, comm=comm)
+        scattered_variable_collection.add_variable(scattered_variable, force=True)
+    for child in children:
+        scattered_child = variable_collection_scatter(child, dest_mpi, root=root, comm=comm)
+        scattered_variable_collection.add_child(scattered_child, force=True)
+    return scattered_variable_collection, dest_mpi
 
 
 def vgather(elements):

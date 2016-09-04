@@ -13,8 +13,10 @@ from ocgis import env, CoordinateReferenceSystem
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
+from ocgis.new_interface.mpi import OcgMpi
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
+from ocgis.test.base import attr
 from ocgis.util.spatial.index import SpatialIndex
 
 
@@ -171,7 +173,14 @@ class TestGeometryVariable(AbstractTestNewInterface):
             if return_indices:
                 self.assertEqual(pa.value[slc][0], Point(1, 2))
 
+    @attr('mpi')
     def test_get_intersects_masked(self):
+        # tdk: finish this parallel test
+        dist = OcgMpi()
+        dist.create_dimension('x', 4, dist=True)
+        dist.create_dimension('y', 3)
+        dist.update_dimension_bounds()
+
         x = self.get_variable_x()
         y = self.get_variable_y()
         grid = GridXY(x=x, y=y)

@@ -8,7 +8,8 @@ from mpi4py.MPI import COMM_NULL
 from ocgis.constants import MPIDistributionMode
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
-    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK, variable_scatter
+    get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK, variable_scatter, \
+    variable_collection_scatter
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
@@ -161,6 +162,48 @@ class Test(AbstractTestNewInterface):
         desired = (0, 3)
         actual = get_global_to_local_slice(start_stop, bounds_local)
         self.assertEqual(actual, desired)
+
+    @attr('mpi')
+    def test_variable_collection_scatter(self):
+        dest_mpi = OcgMpi()
+        five = dest_mpi.create_dimension('five', 5, dist=True)
+        ten = dest_mpi.create_dimension('ten', 10)
+        dest_mpi.create_variable(name='five', dimensions=five)
+        dest_mpi.create_variable(name='all_in', dimensions=ten)
+        dest_mpi.create_variable(name='i_could_be_a_coordinate_system')
+        dest_mpi.update_dimension_bounds()
+
+        if MPI_RANK == 0:
+            var = Variable('holds_five', np.arange(5), dimensions='five')
+            var_empty = Variable('i_could_be_a_coordinate_system', attrs={'reality': 'im_not'})
+            var_not_dist = Variable('all_in', value=np.arange(10) + 10, dimensions='ten')
+            vc = VariableCollection(variables=[var, var_empty, var_not_dist])
+        else:
+            vc = None
+
+        svc, dest_mpi = variable_collection_scatter(vc, dest_mpi)
+
+        self.assertEqual(svc['i_could_be_a_coordinate_system'].attrs['reality'], 'im_not')
+
+        self.assertEqual(svc['all_in'].dist, MPIDistributionMode.REPLICATED)
+        self.assertFalse(svc['all_in'].is_empty)
+        self.assertNumpyAll(svc['all_in'].value, np.arange(10) + 10)
+
+        self.assertFalse(svc['i_could_be_a_coordinate_system'].is_empty)
+
+        if MPI_RANK == 0:
+            self.assertNumpyAll(var.value, vc[var.name].value)
+
+        actual = svc['holds_five'].value
+        if MPI_SIZE == 2:
+            desired = {0: np.arange(3), 1: np.arange(3, 5)}
+            self.assertNumpyAll(actual, desired[MPI_RANK])
+
+        actual = svc['holds_five'].is_empty
+        if MPI_RANK > 4:
+            self.assertTrue(actual)
+        else:
+            self.assertFalse(actual)
 
     @attr('mpi')
     def test_variable_scatter(self):
