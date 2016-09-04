@@ -15,6 +15,7 @@ from ocgis import constants
 from ocgis import env
 from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -213,7 +214,7 @@ class GeometryVariable(AbstractSpatialVariable):
             obj.value[idx] = geom.intersection(args[0])
         return ret
 
-    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False, cascade=False):
+    def get_intersects_masked(self, *args, **kwargs):
         """
         :param geometry: The Shapely geometry to use for subsetting.
         :type geometry: :class:`shapely.geometry.BaseGeometry'
@@ -225,20 +226,54 @@ class GeometryVariable(AbstractSpatialVariable):
         :returns: A spatial variable the same geometry type.
         """
         # tdk: doc keep_touches
+        cascade = kwargs.pop('cascade', False)
 
-        ret = self.copy()
-        original_mask = ret.get_mask().copy()
-        fill = geometryvariable_get_mask_from_intersects(self, geometry, use_spatial_index=use_spatial_index,
-                                                         keep_touches=keep_touches,
-                                                         original_mask=original_mask)
-        ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
+        if self.is_empty:
+            ret, original_mask = self, None
+        else:
+            ret = self.copy()
+            original_mask = ret.get_mask().copy()
+        fill = self.get_mask_from_intersects(*args, **kwargs)
+        if not self.is_empty:
+            ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
         return ret
 
-    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None):
-        return geometryvariable_get_mask_from_intersects(self, geometry,
-                                                         use_spatial_index=use_spatial_index,
-                                                         keep_touches=keep_touches,
-                                                         original_mask=original_mask)
+    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None,
+                                 allow_empty_subset=True, comm=None):
+        comm = comm or MPI_COMM
+        rank = comm.Get_rank()
+
+        # Empty variables return themselves. They should also be considered an empty subset in the event empty subsets
+        # not allowed.
+        if self.is_empty:
+            ret = self
+            is_empty_subset = True
+        else:
+            ret = geometryvariable_get_mask_from_intersects(self, geometry,
+                                                            use_spatial_index=use_spatial_index,
+                                                            keep_touches=keep_touches,
+                                                            original_mask=original_mask)
+
+            # If everything is masked, this is an empty subset.
+            if not allow_empty_subset and ret.all():
+                is_empty_subset = True
+            else:
+                is_empty_subset = False
+
+        if not allow_empty_subset:
+            empty_subsets = comm.gather(is_empty_subset)
+            if rank == 0:
+                if all(empty_subsets):
+                    raise_empty_subset = True
+                else:
+                    raise_empty_subset = False
+            else:
+                raise_empty_subset = None
+            raise_empty_subset = comm.bcast(raise_empty_subset)
+            if raise_empty_subset:
+                raise EmptySubsetError(self.name)
+
+        return ret
 
     def get_intersection_masked(self, *args, **kwargs):
         ret = self.get_intersects_masked(*args, **kwargs)
@@ -410,8 +445,8 @@ def get_spatial_operation(sc, name, args, kwargs):
     return ret
 
 
-def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=True,
-                                              keep_touches=False, original_mask=None):
+def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=True, keep_touches=False,
+                                              original_mask=None):
     # Create the fill array and reference the mask. This is the output geometry value array.
     if original_mask is None:
         original_mask = gvar.get_mask()
@@ -438,9 +473,5 @@ def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=
             else:
                 bool_value = True
             ref_fill_mask[global_index[idx]] = bool_value
-
-    # If everything is masked, this is an empty subset.
-    if ref_fill_mask.all():
-        raise EmptySubsetError(gvar.name)
 
     return fill

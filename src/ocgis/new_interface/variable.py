@@ -21,6 +21,17 @@ from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d
 from ocgis.util.units import get_units_object, get_conformed_units
 
 
+def handle_empty(func):
+    def wrapped(*args, **kwargs):
+        self = args[0]
+        if self.is_empty:
+            return self
+        else:
+            return func(*args, **kwargs)
+
+    return wrapped
+
+
 class AbstractContainer(AbstractInterfaceObject):
     __metaclass__ = ABCMeta
 
