@@ -278,9 +278,10 @@ class GeometryVariable(AbstractSpatialVariable):
     def get_intersection_masked(self, *args, **kwargs):
         ret = self.get_intersects_masked(*args, **kwargs)
 
-        ref_value = ret.value
-        for idx, geom in iter_array(ref_value, return_value=True):
-            ref_value[idx] = geom.intersection(args[0])
+        if not self.is_empty:
+            ref_value = ret.value
+            for idx, geom in iter_array(ref_value, return_value=True):
+                ref_value[idx] = geom.intersection(args[0])
 
         return ret
 
