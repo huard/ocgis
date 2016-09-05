@@ -1,6 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
+from ocgis.new_interface.mpi import get_global_to_local_slice
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -55,9 +56,6 @@ class Dimension(AbstractInterfaceObject):
 
         # Slicing work is done here.
         self.__getitem_main__(ret, slc)
-
-        # Global bounds have no meaning after a slice.
-        ret.bounds_global = None
 
         return ret
 
@@ -154,6 +152,19 @@ class Dimension(AbstractInterfaceObject):
         self.set_size(0)
         self.bounds_local = (0, 0)
 
+    def get_distributed_slice(self, slc):
+        if not self.is_empty:
+            slc = get_formatted_slice(slc, 1)[0]
+            local_slc = get_global_to_local_slice((slc.start, slc.stop), self.bounds_local)
+            if local_slc is None:
+                ret = self.copy()
+                ret.convert_to_empty()
+            else:
+                ret = self[slice(*local_slc)]
+        else:
+            ret = self
+        return ret
+
     def set_size(self, value, src_idx=None):
         if value is not None:
             if isinstance(src_idx, basestring) and src_idx == 'auto':
@@ -199,6 +210,10 @@ class Dimension(AbstractInterfaceObject):
                         length = abs(slc.start)
                 else:
                     raise
+            else:
+                # If the slice length is greater than the current length, keep the length the same.
+                if length > length_self:
+                    length = length_self
         else:
             try:
                 # Check for boolean slices.

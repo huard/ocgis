@@ -1,7 +1,9 @@
 import numpy as np
 
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.mpi import OcgMpi, MPI_SIZE, MPI_RANK
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
+from ocgis.test.base import attr
 
 
 class TestDimension(AbstractTestNewInterface):
@@ -77,6 +79,26 @@ class TestDimension(AbstractTestNewInterface):
         lhs = self.get_dimension()
         rhs = self.get_dimension()
         self.assertEqual(lhs, rhs)
+
+    @attr('mpi')
+    def test_get_distributed_slice(self):
+        dist = OcgMpi()
+        dim = dist.create_dimension('five', 5, dist=True, src_idx='auto')
+        dist.update_dimension_bounds()
+
+        self.assertEqual(dim.bounds_global, (0, 5))
+        sub = dim.get_distributed_slice(slice(1, 3))
+        if not dim.is_empty:
+            self.assertIsNotNone(dim._src_idx)
+        else:
+            self.assertTrue(MPI_RANK + 1 >= len(dim))
+        self.assertEqual(sub.bounds_global, (0, 5))
+
+        if MPI_SIZE == 2:
+            desired_emptiness = {0: False, 1: True}[MPI_RANK]
+            self.assertEqual(sub.is_empty, desired_emptiness)
+        if MPI_SIZE == 5 and 0 < MPI_RANK > 2:
+            self.assertTrue(sub.is_empty)
 
     def test_getitem(self):
         dim = Dimension('foo', size=50)
