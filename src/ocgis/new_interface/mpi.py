@@ -128,7 +128,7 @@ class OcgMpi(AbstractOcgisObject):
         group = kwargs.pop('group', None)
         dim = Dimension(*args, **kwargs)
         self.add_dimension(dim, group=group)
-        return dim
+        return self.get_dimension(dim.name, group=group)
 
     def create_variable(self, *args, **kwargs):
         from variable import Variable
@@ -251,8 +251,7 @@ class OcgMpi(AbstractOcgisObject):
                 # Fix the global bounds.
                 distributed_dimension.bounds_global = (0, len(distributed_dimension))
                 # Use this to calculate the local bounds for a dimension.
-                omb = MpiBoundsCalculator(nelements=len(distributed_dimension), size=the_size, rank=rank)
-                bounds_local = omb.bounds_local
+                bounds_local = get_rank_bounds(len(distributed_dimension), the_size, rank)
                 if bounds_local is not None:
                     start, stop = bounds_local
                     if distributed_dimension._src_idx is None:
@@ -343,45 +342,6 @@ class OcgMpi(AbstractOcgisObject):
         return ret
 
 
-class MpiBoundsCalculator(AbstractOcgisObject):
-    def __init__(self, nelements, size=MPI_SIZE, rank=MPI_RANK):
-        self.nelements = nelements
-        self.rank = rank
-        self.size = size
-
-    @property
-    def bounds_global(self):
-        return 0, self.nelements
-
-    @property
-    def bounds_local(self):
-        if self.size == 1:
-            ret = self.bounds_global
-        else:
-            ret = self.get_rank_bounds()
-        return ret
-
-    @property
-    def size_global(self):
-        lower, upper = self.bounds_global
-        return upper - lower
-
-    @property
-    def size_local(self):
-        bounds = self.bounds_local
-        if bounds is None:
-            ret = None
-        else:
-            ret = bounds[1] - bounds[0]
-        return ret
-
-    def get_rank_bounds(self, length=None, rank=None):
-        length = length or self.nelements
-        rank = rank or self.rank
-        grb = get_rank_bounds(length, size=self.size, rank=rank)
-        return grb
-
-
 def create_slices(length, size):
     # tdk: optimize: remove np.arange
     r = np.arange(length)
@@ -440,9 +400,9 @@ def dict_get_or_create(ddict, key, default):
     return ret
 
 
-def get_rank_bounds(length, size=None, rank=None, esplit=None):
+def get_rank_bounds(nelements, size, rank, esplit=None):
     """
-    :param int length: Length of the vector containing the bounds.
+    :param nelements: The number of elements in the sequence to split.
     :param size: Processor count. If ``None`` use MPI size.
     :param rank: The process's rank. If ``None`` use the MPI rank.
     :param esplit: The split size. If ``None``, compute this internally.
@@ -450,32 +410,28 @@ def get_rank_bounds(length, size=None, rank=None, esplit=None):
      for the rank. Also returns ``None`` in the case of zero length.
     :rtype: tuple or None
 
-    >>> get_rank_bounds(5, size=4, rank=2, esplit=None)
+    >>> get_rank_bounds(5, 4, 2, esplit=None)
     (3, 4)
     """
-
     # This is the edge case for zero-length.
-    if length == 0:
+    if nelements == 0:
         return
 
     # Set defaults for the rank and size.
-    size = size or MPI_SIZE
-    rank = rank or MPI_RANK
-
     # This is the edge case for ranks outside the size. Possible with an overloaded size not related to the MPI
     # environment.
     if rank >= size:
         return
 
     # Case with more length than size. Do not take this route of a default split is provided.
-    if length > size and esplit is None:
-        length = int(length)
+    if nelements > size and esplit is None:
+        nelements = int(nelements)
         size = int(size)
-        esplit, remainder = divmod(length, size)
+        esplit, remainder = divmod(nelements, size)
 
         if remainder > 0:
             # Find the rank bounds with no remainder.
-            ret = get_rank_bounds(length - remainder, size=size, rank=rank)
+            ret = get_rank_bounds(nelements - remainder, size, rank)
             # Adjust the returned slices accounting for the remainder.
             if rank + 1 <= remainder:
                 ret = (ret[0] + rank, ret[1] + rank + 1)
@@ -483,15 +439,15 @@ def get_rank_bounds(length, size=None, rank=None, esplit=None):
                 ret = (ret[0] + remainder, ret[1] + remainder)
         elif remainder == 0:
             # Provide the default split to compute the bounds and avoid the recursion.
-            ret = get_rank_bounds(length, size=size, rank=rank, esplit=esplit)
+            ret = get_rank_bounds(nelements, size, rank, esplit=esplit)
         else:
             raise NotImplementedError
     # Case with equal length and size or more size than length.
     else:
         if esplit is None:
-            if length < size:
-                esplit = int(np.ceil(float(length) / float(size)))
-            elif length == size:
+            if nelements < size:
+                esplit = int(np.ceil(float(nelements) / float(size)))
+            elif nelements == size:
                 esplit = 1
             else:
                 raise NotImplementedError
@@ -504,8 +460,8 @@ def get_rank_bounds(length, size=None, rank=None, esplit=None):
             lbound = rank * esplit
         ubound = lbound + esplit
 
-        if ubound >= length:
-            ubound = length
+        if ubound >= nelements:
+            ubound = nelements
 
         if lbound >= ubound:
             # The lower bound is outside the vector length

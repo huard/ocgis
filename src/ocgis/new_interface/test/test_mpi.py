@@ -71,7 +71,7 @@ class Test(AbstractTestNewInterface):
             actual = 0
             length = len(arr)
             for pet in range(nproc + 3):
-                bounds = get_rank_bounds(length, size=nproc, rank=pet)
+                bounds = get_rank_bounds(length, nproc, pet)
                 if bounds is None:
                     try:
                         self.assertTrue(pet >= (nproc - length) or (nproc > length and pet >= length))
@@ -100,7 +100,7 @@ class Test(AbstractTestNewInterface):
             _run_(arr, n)
 
         # Test with Nones.
-        res = get_rank_bounds(10)
+        res = get_rank_bounds(10, MPI_SIZE, MPI_RANK)
         self.assertEqual(res, (0, 10))
 
         # Test outside the number of elements.

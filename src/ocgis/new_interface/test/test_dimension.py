@@ -85,19 +85,26 @@ class TestDimension(AbstractTestNewInterface):
         dist = OcgMpi()
         dim = dist.create_dimension('five', 5, dist=True, src_idx='auto')
         dist.update_dimension_bounds()
-
         self.assertEqual(dim.bounds_global, (0, 5))
+
+        if MPI_RANK > 4:
+            self.assertTrue(dim.is_empty)
+        else:
+            self.assertFalse(dim.is_empty)
+
         sub = dim.get_distributed_slice(slice(1, 3))
         if not dim.is_empty:
             self.assertIsNotNone(dim._src_idx)
         else:
             self.assertTrue(MPI_RANK + 1 >= len(dim))
-        self.assertEqual(sub.bounds_global, (0, 5))
+        self.assertEqual(sub.bounds_global, (0, 2))
 
         if MPI_SIZE == 2:
             desired_emptiness = {0: False, 1: True}[MPI_RANK]
+            desired_bounds_local = {0: (0, 2), 1: (0, 0)}[MPI_RANK]
             self.assertEqual(sub.is_empty, desired_emptiness)
-        if MPI_SIZE == 5 and 0 < MPI_RANK > 2:
+            self.assertEqual(sub.bounds_local, desired_bounds_local)
+        if MPI_SIZE >= 5 and 0 < MPI_RANK > 2:
             self.assertTrue(sub.is_empty)
 
     def test_getitem(self):
