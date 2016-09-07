@@ -744,8 +744,11 @@ class Variable(AbstractContainer, Attributes):
         for idx in range(self.ndim):
             new_dimensions[idx] = dimensions[idx].get_distributed_slice(slc[idx], comm=comm)
 
-        if self.is_empty or any([nd.is_empty for nd in new_dimensions]):
+        is_or_will_be_empty = self.is_empty or any([nd.is_empty for nd in new_dimensions])
+
+        if is_or_will_be_empty:
             ret = self.copy()
+            self.log.debug('not slicing!')
         else:
             slc = get_formatted_slice(slc, self.ndim)
             local_slc = [slice(None)] * self.ndim
@@ -754,10 +757,14 @@ class Variable(AbstractContainer, Attributes):
                     local_slc_args = get_global_to_local_slice([slc[idx].start, slc[idx].stop],
                                                                dimensions[idx].bounds_local)
                     local_slc[idx] = slice(*local_slc_args)
+            self.log.debug(['local_slc', local_slc])
             ret = self[local_slc]
 
         # Synchronize the dimensions.
-        ret.dimensions = new_dimensions
+        if is_or_will_be_empty:
+            ret._dimensions = new_dimensions
+        else:
+            ret.dimensions = new_dimensions
 
         return ret
 

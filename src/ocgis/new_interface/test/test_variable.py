@@ -578,6 +578,8 @@ class TestVariable(AbstractTestNewInterface):
         if not var.is_empty:
             var.value[:] = MPI_RANK
 
+            self.log.debug(['var.value.shape', var.value.shape])
+
         sub = var.get_distributed_slice([slice(None), slice(2, 4), slice(3, 4)])
 
         self.log.debug(['sub.shape', sub.shape])
