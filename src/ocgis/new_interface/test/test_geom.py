@@ -118,13 +118,28 @@ class TestGeometryVariable(AbstractTestNewInterface):
         pa = self.get_geometryvariable(value=mp, geom_type='overload')
         self.assertEqual(pa.geom_type, 'overload')
 
+    @attr('mpi')
     def test_get_intersects(self):
-        x = Variable(value=[1, 2, 3, 4, 5], name='x', dimensions=['x'])
-        y = Variable(value=[10, 20, 30, 40, 50], name='y', dimensions=['y'])
+        # tdk: RESUME: finish parallel test
+        dist = OcgMpi()
+        dimx = dist.create_dimension('x', 5, dist=False)
+        dimy = dist.create_dimension('y', 5, dist=True)
+        x = dist.create_variable(name='x', dimensions=[dimx, dimy])
+        y = dist.create_variable(name='y', dimensions=[dimx, dimy])
+        dist.update_dimension_bounds()
+
+        if MPI_RANK == 0:
+            x = Variable(value=[1, 2, 3, 4, 5], name='x', dimensions=['x'])
+            y = Variable(value=[10, 20, 30, 40, 50], name='y', dimensions=['y'])
+
+        x, dist = variable_scatter(x, dist)
+        y, dist = variable_scatter(y, dist)
+
         grid = GridXY(x=x, y=y)
         pa = get_geometry_variable(get_point_geometry_array, grid, name='points', dimensions=['y', 'x'])
         polygon = box(2.5, 15, 4.5, 45)
         sub, slc = pa.get_intersects(polygon, return_slice=True)
+
         self.assertEqual(sub.shape, (3, 2))
         desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
         desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
@@ -176,7 +191,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_get_intersects_masked(self):
-        # tdk: RESUME: finish this parallel geometry test
         poly = wkt.loads(
             'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
         desired_mask = np.array([[True, True, False, True],
