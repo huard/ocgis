@@ -149,49 +149,68 @@ class Dimension(AbstractInterfaceObject):
 
     def convert_to_empty(self):
         self._is_empty = True
-        self.set_size(0)
-        self.bounds_local = (0, 0)
+        self._bounds_local = None
 
     def get_distributed_slice(self, slc, comm=None):
         slc = get_formatted_slice(slc, 1)[0]
         if not isinstance(slc, slice):
             raise ValueError('Slice not recognized: {}'.format(slc))
 
-        local_slc = get_global_to_local_slice((slc.start, slc.stop), self.bounds_local)
-        if local_slc is None:
-            dimension_size = 0
+        # None slices return all dimension elements.
+        if slc == slice(None):
             ret = self.copy()
-            ret.convert_to_empty()
+        # Use standard slicing for non-distributed dimensions.
+        elif not self.dist:
+            ret = self[slc]
         else:
-            ret = self[slice(*local_slc)]
-            dimension_size = len(ret)
+            # Handle empty dimensions. They will have zero size.
+            if self.is_empty:
+                ret = self.copy()
+                dimension_size = 0
+            # Handle non-empty dimension slicing.
+            else:
+                local_slc = get_global_to_local_slice((slc.start, slc.stop), self.bounds_local)
+                # Slice does not overlap local bounds. The dimension is now empty with size 0.
+                if local_slc is None:
+                    dimension_size = 0
+                    ret = self.copy()
+                    ret.convert_to_empty()
+                # Slice overlaps and do a slice on the dimension using the local slice.
+                else:
+                    ret = self[slice(*local_slc)]
+                    dimension_size = len(ret)
 
-        # Find the length of the distributed dimension and update the global dimension information.
-        comm = comm or MPI_COMM
-        dimension_sizes = comm.gather(dimension_size)
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-        if rank == 0:
-            bounds_global = (0, sum(dimension_sizes))
-        else:
-            bounds_global = None
-        bounds_global = comm.bcast(bounds_global)
-        ret.bounds_global = bounds_global
-        # Update the local bounds of the non-empty dimensions.
-        is_not_empty = comm.gather(ret.is_empty)
-        if rank == 0:
-            is_not_empty = np.invert(is_not_empty)
-            nonempty_count = sum(is_not_empty)
-            # Get the maximum rank having a non-empty dimension.
-            select_ranks = np.arange(size)[is_not_empty]
-            min_rank = np.min(select_ranks)
-        else:
-            nonempty_count, min_rank = [None] * 2
-        nonempty_count = comm.bcast(nonempty_count)
-        min_rank = comm.bcast(min_rank)
-        if not ret.is_empty:
-            bounds_local = get_rank_bounds(sum(bounds_global), nonempty_count, rank - min_rank)
-            ret.bounds_local = bounds_local
+            # Find the length of the distributed dimension and update the global dimension information.
+            comm = comm or MPI_COMM
+            rank = comm.Get_rank()
+            size = comm.Get_size()
+
+            # Sum dimension sizes (empties will be zero). This sum is the new global bounds.
+            dimension_sizes = comm.gather(dimension_size)
+            if rank == 0:
+                bounds_global = (0, sum(dimension_sizes))
+            else:
+                bounds_global = None
+            bounds_global = comm.bcast(bounds_global)
+            ret.bounds_global = bounds_global
+
+            # Update the local bounds of the non-empty dimensions.
+            is_not_empty = comm.gather(ret.is_empty)
+            if rank == 0:
+                is_not_empty = np.invert(is_not_empty)
+                nonempty_count = sum(is_not_empty)
+                # Get the maximum rank having a non-empty dimension.
+                select_ranks = np.arange(size)[is_not_empty]
+                min_rank = np.min(select_ranks)
+            else:
+                nonempty_count, min_rank = [None] * 2
+            nonempty_count = comm.bcast(nonempty_count)
+            min_rank = comm.bcast(min_rank)
+
+            # Update the rank bounds for the remaining, non-empty dimensions.
+            if not ret.is_empty:
+                bounds_local = get_rank_bounds(sum(bounds_global), nonempty_count, rank - min_rank)
+                ret.bounds_local = bounds_local
 
         return ret
 

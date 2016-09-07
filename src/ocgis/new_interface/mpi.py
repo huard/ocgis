@@ -147,6 +147,14 @@ class OcgMpi(AbstractOcgisObject):
             kwargs['ranks'] = ranks
 
         var = Variable(*args, **kwargs)
+
+        # Variables with distributed dimensions are always distributed.
+        if var.has_dimensions:
+            for dim in var.dimensions:
+                if dim.dist:
+                    var.dist = MPIDistributionMode.DISTRIBUTED
+                    break
+
         self.add_variable(var, group=group, ranks=ranks, dist=dist)
         return var
 
@@ -370,6 +378,9 @@ def get_global_to_local_slice(start_stop, bounds_local):
     """
     start, stop = start_stop
     lower, upper = bounds_local
+
+    if start is None or stop is None:
+        raise ValueError('Start and/or stop may not be None.')
 
     new_start = start
     if start >= upper:

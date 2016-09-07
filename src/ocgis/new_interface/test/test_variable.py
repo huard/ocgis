@@ -559,6 +559,89 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(ret.masked_value, np.ma.array([3.]))
         self.assertNumpyAll(ret.bounds.masked_value, np.ma.array([[2., 4.]]))
 
+    @attr('mpi')
+    def test_get_distributed_slice(self):
+        if MPI_RANK == 0:
+            path = self.get_temporary_file_path('out.nc')
+        else:
+            path = None
+        path = MPI_COMM.bcast(path)
+
+        dist = OcgMpi()
+        dim1 = dist.create_dimension('time', 10, dist=False, src_idx='auto')
+        dim2 = dist.create_dimension('x', 5, dist=True, src_idx='auto')
+        dim3 = dist.create_dimension('y', 4, dist=False, src_idx='auto')
+        var = dist.create_variable('var', dimensions=[dim1, dim2, dim3])
+        dist.update_dimension_bounds()
+
+        self.log.debug(var.shape)
+        if not var.is_empty:
+            var.value[:] = MPI_RANK
+
+        sub = var.get_distributed_slice([slice(None), slice(2, 4), slice(3, 4)])
+
+        self.log.debug(['sub.shape', sub.shape])
+        self.log.debug(['sub.dimensions.bounds_global', [dim.bounds_global for dim in sub.dimensions]])
+        self.log.debug(['sub.dimensions.bounds_local', [dim.bounds_local for dim in sub.dimensions]])
+
+        if not sub.is_empty:
+            self.log.debug(var.value.tolist())
+
+        vc = VariableCollection(variables=[sub])
+        vc.write(path)
+
+        if MPI_RANK == 0:
+            rd = RequestDataset(path)
+            svar = SourcedVariable('var', request_dataset=rd)
+            self.assertEqual(svar.shape, (10, 2, 1))
+
+        MPI_COMM.Barrier()
+
+    @attr('mpi')
+    def test_get_distributed_slice_simple(self):
+        if MPI_RANK == 0:
+            path = self.get_temporary_file_path('out.nc')
+        else:
+            path = None
+        path = MPI_COMM.bcast(path)
+
+        dist = OcgMpi()
+        dim = dist.create_dimension('x', 5, dist=True, src_idx='auto')
+        var = dist.create_variable('var', dimensions=[dim])
+        dist.update_dimension_bounds()
+
+        if not var.is_empty:
+            var.value[:] = (MPI_RANK + 1) ** 3 * (np.arange(var.shape[0]) + 1)
+
+        sub = var.get_distributed_slice(slice(2, 4))
+        if MPI_SIZE == 3:
+            if MPI_RANK != 1:
+                self.assertTrue(sub.is_empty)
+            else:
+                self.assertFalse(sub.is_empty)
+
+        vc = VariableCollection(variables=[sub])
+        try:
+            vc.write(path)
+        except:
+            self.log.exception('failed write')
+            raise
+
+        if MPI_RANK == 0:
+            rd = RequestDataset(path)
+            svar = SourcedVariable('var', request_dataset=rd)
+            self.assertEqual(svar.shape, (2,))
+            if MPI_SIZE == 1:
+                self.assertEqual(svar.value.tolist(), [3., 4.])
+            elif MPI_SIZE == 2:
+                self.assertEqual(svar.value.tolist(), [3., 8.])
+            elif MPI_SIZE == 3:
+                self.assertEqual(svar.value.tolist(), [8., 16.])
+            elif MPI_SIZE == 8:
+                self.assertEqual(svar.value.tolist(), [27., 64.])
+
+        MPI_COMM.Barrier()
+
     def test_get_mask(self):
         var = Variable(value=[1, 2, 3], mask=[False, True, False])
         assert_equal(var.get_mask(), [False, True, False])

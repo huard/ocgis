@@ -163,6 +163,11 @@ class Test(AbstractTestNewInterface):
         actual = get_global_to_local_slice(start_stop, bounds_local)
         self.assertEqual(actual, desired)
 
+        start_stop = (None, None)
+        bounds_local = (12, 15)
+        with self.assertRaises(ValueError):
+            _ = get_global_to_local_slice(start_stop, bounds_local)
+
     @attr('mpi')
     def test_variable_collection_scatter(self):
         dest_mpi = OcgMpi()

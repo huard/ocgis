@@ -15,7 +15,7 @@ from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import create_nd_slices
+from ocgis.new_interface.mpi import create_nd_slices, get_global_to_local_slice
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
@@ -734,6 +734,30 @@ class Variable(AbstractContainer, Attributes):
         if return_indices:
             indices = np.arange(select.shape[0])
             ret = (ret, indices[select])
+
+        return ret
+
+    def get_distributed_slice(self, slc, comm=None):
+        slc = get_formatted_slice(slc, self.ndim)
+        new_dimensions = [None] * self.ndim
+        dimensions = self.dimensions
+        for idx in range(self.ndim):
+            new_dimensions[idx] = dimensions[idx].get_distributed_slice(slc[idx], comm=comm)
+
+        if self.is_empty or any([nd.is_empty for nd in new_dimensions]):
+            ret = self.copy()
+        else:
+            slc = get_formatted_slice(slc, self.ndim)
+            local_slc = [slice(None)] * self.ndim
+            for idx in range(self.ndim):
+                if slc[idx] != slice(None):
+                    local_slc_args = get_global_to_local_slice([slc[idx].start, slc[idx].stop],
+                                                               dimensions[idx].bounds_local)
+                    local_slc[idx] = slice(*local_slc_args)
+            ret = self[local_slc]
+
+        # Synchronize the dimensions.
+        ret.dimensions = new_dimensions
 
         return ret
 
