@@ -748,7 +748,6 @@ class Variable(AbstractContainer, Attributes):
 
         if is_or_will_be_empty:
             ret = self.copy()
-            self.log.debug('not slicing!')
         else:
             slc = get_formatted_slice(slc, self.ndim)
             local_slc = [slice(None)] * self.ndim
@@ -757,7 +756,6 @@ class Variable(AbstractContainer, Attributes):
                     local_slc_args = get_global_to_local_slice([slc[idx].start, slc[idx].stop],
                                                                dimensions[idx].bounds_local)
                     local_slc[idx] = slice(*local_slc_args)
-            self.log.debug(['local_slc', local_slc])
             ret = self[local_slc]
 
         # Synchronize the dimensions.

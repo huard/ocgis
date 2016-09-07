@@ -574,20 +574,10 @@ class TestVariable(AbstractTestNewInterface):
         var = dist.create_variable('var', dimensions=[dim1, dim2, dim3])
         dist.update_dimension_bounds()
 
-        self.log.debug(var.shape)
         if not var.is_empty:
             var.value[:] = MPI_RANK
 
-            self.log.debug(['var.value.shape', var.value.shape])
-
         sub = var.get_distributed_slice([slice(None), slice(2, 4), slice(3, 4)])
-
-        self.log.debug(['sub.shape', sub.shape])
-        self.log.debug(['sub.dimensions.bounds_global', [dim.bounds_global for dim in sub.dimensions]])
-        self.log.debug(['sub.dimensions.bounds_local', [dim.bounds_local for dim in sub.dimensions]])
-
-        if not sub.is_empty:
-            self.log.debug(var.value.tolist())
 
         vc = VariableCollection(variables=[sub])
         vc.write(path)
