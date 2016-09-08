@@ -591,8 +591,9 @@ def variable_gather(variable, root=0, comm=None):
 
     if rank == root:
         for idx, gv in enumerate(gathered_variables):
-            destination_slice = [slice(*dim.bounds_local) for dim in gv.dimensions]
-            new_variable.__setitem__(destination_slice, gv)
+            if not gv.is_empty:
+                destination_slice = [slice(*dim.bounds_local) for dim in gv.dimensions]
+                new_variable.__setitem__(destination_slice, gv)
 
         new_variable.dist = None
         new_variable.ranks = None

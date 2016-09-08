@@ -10,6 +10,7 @@ from shapely.geometry import Point, box, MultiPoint, LineString, MultiPolygon
 from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
+from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
@@ -142,13 +143,17 @@ class TestGeometryVariable(AbstractTestNewInterface):
         polygon = box(2.5, 15, 4.5, 45)
         self.assertTrue(pa.dimensions[0].dist)
 
-        if MPI_RANK == 0:
-            self.write_fiona_htmp(GeometryVariable(value=polygon), 'polygon')
-        self.write_fiona_htmp(grid.abstraction_geometry, 'grid-{}'.format(MPI_RANK))
+        # if MPI_RANK == 0:
+        #     self.write_fiona_htmp(GeometryVariable(value=polygon), 'polygon')
+        # self.write_fiona_htmp(grid.abstraction_geometry, 'grid-{}'.format(MPI_RANK))
+
+        # Try en empty subset.
+        with self.assertRaises(EmptySubsetError):
+            pa.get_intersects(Point(-8000, 9000))
 
         sub, slc = pa.get_intersects(polygon, return_slice=True)
 
-        self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
+        # self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
 
         if MPI_SIZE == 1:
             self.assertEqual(sub.shape, (3, 2))

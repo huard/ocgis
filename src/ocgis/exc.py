@@ -237,7 +237,7 @@ class EmptySubsetError(SubsetException):
         self.origin = origin
 
     def __str__(self):
-        msg = 'A subset operation on element "{0}" returned empty.'.format(self.origin)
+        msg = 'A subset operation on variable "{0}" returned empty.'.format(self.origin)
         return msg
 
 

@@ -13,6 +13,7 @@ from shapely.prepared import prep
 
 from ocgis import constants
 from ocgis import env
+from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.new_interface.mpi import variable_gather, MPI_COMM
 from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable, Variable
@@ -180,12 +181,13 @@ class GeometryVariable(AbstractSpatialVariable):
 
     def get_intersects(self, *args, **kwargs):
         """
-
         :param bool return_slice: (``='False'``) If ``True``, return the _global_ slice that will guarantee no masked
          elements outside the subset geometry.
         :param comm: (``=None``) If ``None``, use the default MPI communicator.
         :return:
+        :raises: EmptySubsetError
         """
+
         return_slice = kwargs.pop('return_slice', False)
         comm = kwargs.pop('comm', None) or MPI_COMM
         rank = comm.Get_rank()
@@ -199,12 +201,19 @@ class GeometryVariable(AbstractSpatialVariable):
         intersects_mask = Variable(name='mask_gather', value=ret.get_mask(), dimensions=ret.dimensions, dtype=bool)
         intersects_mask = variable_gather(intersects_mask, comm=comm)
 
+        adjust = None
+        raise_empty_subset = False
         if rank == 0:
             assert intersects_mask.dtype == bool
-            _, adjust = get_trimmed_array_by_mask(intersects_mask.value, return_adjustments=True)
-        else:
-            adjust = None
+            if intersects_mask.value.all():
+                raise_empty_subset = True
+            else:
+                _, adjust = get_trimmed_array_by_mask(intersects_mask.value, return_adjustments=True)
         adjust = comm.bcast(adjust)
+        raise_empty_subset = comm.bcast(raise_empty_subset)
+
+        if raise_empty_subset:
+            raise EmptySubsetError(self.name)
 
         if size > 1:
             ret = ret.get_distributed_slice(adjust, comm=comm)
