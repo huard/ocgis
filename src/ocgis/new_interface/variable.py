@@ -634,6 +634,17 @@ class Variable(AbstractContainer, Attributes):
         self.set_mask(self.get_mask())
 
     @property
+    def has_allocated_value(self):
+        if self._value is None:
+            if self.ndim > 0:
+                ret = True
+            else:
+                ret = False
+        else:
+            ret = True
+        return ret
+
+    @property
     def has_bounds(self):
         if self.bounds is not None:
             ret = True

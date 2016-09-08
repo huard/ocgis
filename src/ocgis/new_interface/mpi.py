@@ -545,6 +545,62 @@ def get_template_rank_dict():
     return {None: {'dimensions': {}, 'groups': {}, 'variables': {}}}
 
 
+def variable_gather(variable, root=0, comm=None):
+    comm = comm or MPI_COMM
+    rank = comm.Get_rank()
+
+    new_variable = variable.copy()
+    new_variable.dimensions = None
+    new_variable.value = None
+
+    if rank == root:
+        new_dimensions = [None] * variable.ndim
+    else:
+        new_dimensions = None
+    assert not new_variable.has_allocated_value
+
+    for idx, dim in enumerate(variable.dimensions):
+        if dim.dist:
+            parts = comm.gather(dim, root=root)
+        if rank == root:
+            new_dim = dim.copy()
+            if dim.dist:
+                new_size = 0
+                has_src_idx = False
+                for part in parts:
+                    if not part.is_empty:
+                        has_src_idx = part._src_idx is not None
+                        new_size += len(part)
+                if has_src_idx:
+                    new_src_idx = np.zeros(new_size, dtype=int)
+                    for part in parts:
+                        if not part.is_empty:
+                            new_src_idx[part.bounds_local[0]: part.bounds_local[1]] = part._src_idx
+                else:
+                    new_src_idx = None
+                new_dim = dim.copy()
+                new_dim.set_size(new_size, src_idx=new_src_idx)
+                new_dim.dist = False
+            new_dimensions[idx] = new_dim
+
+    if rank == root:
+        new_variable.dimensions = new_dimensions
+
+    gathered_variables = comm.gather(variable, root=root)
+
+    if rank == root:
+        for idx, gv in enumerate(gathered_variables):
+            destination_slice = [slice(*dim.bounds_local) for dim in gv.dimensions]
+            new_variable.__setitem__(destination_slice, gv)
+
+        new_variable.dist = None
+        new_variable.ranks = None
+
+        return new_variable
+    else:
+        return
+
+
 def variable_scatter(variable, dest_mpi, root=0, comm=None):
     comm = comm or MPI_COMM
     rank = comm.Get_rank()

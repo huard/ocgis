@@ -9,7 +9,7 @@ from ocgis.constants import MPIDistributionMode
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.mpi import MPI_SIZE, MPI_COMM, create_nd_slices, hgather, \
     get_optimal_splits, get_rank_bounds, OcgMpi, get_global_to_local_slice, MPI_RANK, variable_scatter, \
-    variable_collection_scatter
+    variable_collection_scatter, variable_gather
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
@@ -209,6 +209,37 @@ class Test(AbstractTestNewInterface):
             self.assertTrue(actual)
         else:
             self.assertFalse(actual)
+
+    @attr('mpi')
+    def test_variable_gather(self):
+
+        dist = OcgMpi()
+        three = dist.create_dimension('three', 3, src_idx=np.arange(3) * 10)
+        four = dist.create_dimension('four', 4, src_idx='auto', dist=True)
+        dist.create_variable('four', dimensions=[three, four])
+        dist.update_dimension_bounds()
+
+        if MPI_RANK == 0:
+            np.random.seed(1)
+            mask_value = np.random.random(12).reshape(3, 4)
+            mask = Variable('mask', value=mask_value, dimensions=['three', 'four'])
+        else:
+            mask = None
+
+        mask, dist = variable_scatter(mask, dist)
+        mask_gather = variable_gather(mask)
+
+        if MPI_RANK == 0:
+            self.assertNumpyAll(mask_gather.value, mask_value)
+            self.assertNumpyAll(mask_gather.dimensions[0]._src_idx, np.arange(3) * 10)
+            self.assertNumpyAll(mask_gather.dimensions[1]._src_idx, np.arange(4))
+            for dim in mask_gather.dimensions:
+                self.assertFalse(dim.dist)
+            self.assertIsNone(mask_gather.dist)
+            self.assertIsNone(mask_gather.ranks)
+        else:
+            self.assertIsNone(mask_gather)
+
 
     @attr('mpi')
     def test_variable_scatter(self):
