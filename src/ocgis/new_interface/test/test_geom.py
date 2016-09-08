@@ -145,6 +145,9 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         sub, slc = pa.get_intersects(polygon, return_slice=True)
 
+        self.log.debug(['sub.bounds_local=', [dim.bounds_local for dim in sub.dimensions]])
+        self.log.debug(['sub.bounds_global=', [dim.bounds_global for dim in sub.dimensions]])
+
         self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
 
         if MPI_SIZE == 1:
