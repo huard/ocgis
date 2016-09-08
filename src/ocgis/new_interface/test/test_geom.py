@@ -14,7 +14,7 @@ from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
-from ocgis.new_interface.mpi import OcgMpi, MPI_RANK, variable_scatter
+from ocgis.new_interface.mpi import OcgMpi, MPI_RANK, variable_scatter, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import attr
@@ -138,9 +138,23 @@ class TestGeometryVariable(AbstractTestNewInterface):
         grid = GridXY(x=x, y=y)
         pa = get_geometry_variable(get_point_geometry_array, grid, name='points', dimensions=['y', 'x'])
         polygon = box(2.5, 15, 4.5, 45)
+
+        if MPI_RANK == 0:
+            self.write_fiona_htmp(GeometryVariable(value=polygon), 'polygon')
+        self.write_fiona_htmp(grid.abstraction_geometry, 'grid-{}'.format(MPI_RANK))
+
         sub, slc = pa.get_intersects(polygon, return_slice=True)
 
-        self.assertEqual(sub.shape, (3, 2))
+        self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
+
+        if MPI_SIZE == 1:
+            self.assertEqual(sub.shape, (3, 2))
+        else:
+            # This is the non-distributed dimension.
+            self.assertEqual(sub.shape[1], 2)
+            # This is the distributed dimension.
+            self.assertNotEqual(sub.shape[0], 3)
+
         desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
         desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
         desired_points_slc = pa[slc].value.flat
