@@ -13,9 +13,7 @@ from shapely.prepared import prep
 
 from ocgis import constants
 from ocgis import env
-from ocgis.exc import EmptySubsetError
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
@@ -238,41 +236,15 @@ class GeometryVariable(AbstractSpatialVariable):
             ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
         return ret
 
-    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None,
-                                 allow_empty_subset=True, comm=None):
-        comm = comm or MPI_COMM
-        rank = comm.Get_rank()
-
-        # Empty variables return themselves. They should also be considered an empty subset in the event empty subsets
-        # not allowed.
+    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None):
+        # Empty variables return an empty array.
         if self.is_empty:
-            ret = self
-            is_empty_subset = True
+            ret = np.array([], dtype=bool)
         else:
             ret = geometryvariable_get_mask_from_intersects(self, geometry,
                                                             use_spatial_index=use_spatial_index,
                                                             keep_touches=keep_touches,
                                                             original_mask=original_mask)
-
-            # If everything is masked, this is an empty subset.
-            if not allow_empty_subset and ret.all():
-                is_empty_subset = True
-            else:
-                is_empty_subset = False
-
-        if not allow_empty_subset:
-            empty_subsets = comm.gather(is_empty_subset)
-            if rank == 0:
-                if all(empty_subsets):
-                    raise_empty_subset = True
-                else:
-                    raise_empty_subset = False
-            else:
-                raise_empty_subset = None
-            raise_empty_subset = comm.bcast(raise_empty_subset)
-            if raise_empty_subset:
-                raise EmptySubsetError(self.name)
-
         return ret
 
     def get_intersection_masked(self, *args, **kwargs):

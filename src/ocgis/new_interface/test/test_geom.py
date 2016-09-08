@@ -10,7 +10,6 @@ from shapely.geometry import Point, box, MultiPoint, LineString, MultiPolygon
 from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
-from ocgis.exc import EmptySubsetError
 from ocgis.interface.base.crs import WGS84
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
@@ -230,7 +229,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
             pa = None
         pa, dist = variable_scatter(pa, dist)
 
-        keywords = dict(use_spatial_index=[True, False], allow_empty_subset=[True, False])
+        keywords = dict(use_spatial_index=[True, False])
         for k in self.iter_product_keywords(keywords):
             ret = pa.get_intersects_masked(poly, use_spatial_index=k.use_spatial_index)
             desired_mask_local = desired_mask[slice(*ydim.bounds_local), slice(*xdim.bounds_local)]
@@ -240,15 +239,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
                 self.assertNumpyAll(desired_mask_local, ret.get_mask())
                 for element in ret.value.flat:
                     self.assertIsInstance(element, Point)
-
-            # Do an empty subset, ensuring the appropriate exception is raised.
-            try:
-                _ = pa.get_intersects_masked(Point(-8000, -9000), use_spatial_index=k.use_spatial_index,
-                                             allow_empty_subset=k.allow_empty_subset)
-            except EmptySubsetError:
-                self.assertFalse(k.allow_empty_subset)
-            else:
-                self.assertTrue(k.allow_empty_subset)
 
             # This does not test a parallel operation.
             if MPI_RANK == 0:
