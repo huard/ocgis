@@ -550,6 +550,7 @@ def variable_gather(variable, root=0, comm=None):
     rank = comm.Get_rank()
 
     new_variable = variable.copy()
+    new_variable.dtype = variable.dtype
     new_variable.dimensions = None
     new_variable.value = None
 

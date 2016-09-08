@@ -119,7 +119,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_get_intersects(self):
-        # tdk: RESUME: finish parallel test
+        # tdk: RESUME: test empty subsets
         dist = OcgMpi()
         dimx = dist.create_dimension('x', 5, dist=False)
         dimy = dist.create_dimension('y', 5, dist=True)
@@ -134,9 +134,13 @@ class TestGeometryVariable(AbstractTestNewInterface):
         x, dist = variable_scatter(x, dist)
         y, dist = variable_scatter(y, dist)
 
+        self.assertTrue(y.dimensions[0].dist)
+
         grid = GridXY(x=x, y=y)
+        self.assertTrue(grid.dimensions[0].dist)
         pa = get_geometry_variable(get_point_geometry_array, grid, name='points', dimensions=['y', 'x'])
         polygon = box(2.5, 15, 4.5, 45)
+        self.assertTrue(pa.dimensions[0].dist)
 
         if MPI_RANK == 0:
             self.write_fiona_htmp(GeometryVariable(value=polygon), 'polygon')
@@ -144,22 +148,23 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         sub, slc = pa.get_intersects(polygon, return_slice=True)
 
-        self.log.debug(['sub.bounds_local=', [dim.bounds_local for dim in sub.dimensions]])
-        self.log.debug(['sub.bounds_global=', [dim.bounds_global for dim in sub.dimensions]])
-
         self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
 
         if MPI_SIZE == 1:
             self.assertEqual(sub.shape, (3, 2))
         else:
             # This is the non-distributed dimension.
-            self.assertEqual(sub.shape[1], 2)
+            if MPI_SIZE == 2:
+                self.assertEqual(sub.shape[1], 2)
             # This is the distributed dimension.
-            self.assertNotEqual(sub.shape[0], 3)
+            if MPI_RANK < 5:
+                self.assertNotEqual(sub.shape[0], 3)
+            else:
+                self.assertTrue(sub.is_empty)
 
         desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
         desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
-        desired_points_slc = pa[slc].value.flat
+        desired_points_slc = pa.get_distributed_slice(slc).value.flat
         for desired_points in [desired_points_manual, desired_points_slc]:
             for pt in desired_points:
                 found = False
@@ -169,6 +174,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
                         break
                 self.assertTrue(found)
 
+    def test_tdk(self):
         # Test w/out an associated grid.
         pa = self.get_geometryvariable()
         polygon = box(0.5, 1.5, 1.5, 2.5)

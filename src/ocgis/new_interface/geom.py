@@ -14,9 +14,10 @@ from shapely.prepared import prep
 from ocgis import constants
 from ocgis import env
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable
+from ocgis.new_interface.mpi import variable_gather, MPI_COMM
+from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable, Variable
 from ocgis.util.environment import ogr
-from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask, get_added_slice
+from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -178,26 +179,46 @@ class GeometryVariable(AbstractSpatialVariable):
         variable.attrs['ocgis'] = constants.DEFAULT_ATTRIBUTE_VALUE_FOR_GEOMETRY_UNIQUE_IDENTIFIER
 
     def get_intersects(self, *args, **kwargs):
+        """
+
+        :param bool return_slice: (``='False'``) If ``True``, return the _global_ slice that will guarantee no masked
+         elements outside the subset geometry.
+        :param comm: (``=None``) If ``None``, use the default MPI communicator.
+        :return:
+        """
         return_slice = kwargs.pop('return_slice', False)
-        slc = [slice(None)] * self.ndim
+        comm = kwargs.pop('comm', None) or MPI_COMM
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        if size > 1 and not self.has_dimensions:
+            raise ValueError('Dimensions are required for a distributed intersects operation.')
+
         ret = self.get_intersects_masked(*args, **kwargs)
 
-        if self.ndim == 1:
-            # For one-dimensional data, assume it is unstructured and compress the returned data.
-            adjust = np.where(np.invert(ret.get_mask()))
-            ret_slc = adjust
-        else:
-            # Barbed and circular geometries may result in rows and or columns being entirely masked. These rows and
-            # columns should be trimmed.
-            _, adjust = get_trimmed_array_by_mask(ret.get_mask(), return_adjustments=True)
-            # Adjust the return indices to account for the possible mask trimming.
-            ret_slc = tuple([get_added_slice(s, a) for s, a in zip(slc, adjust)])
+        intersects_mask = Variable(name='mask_gather', value=ret.get_mask(), dimensions=ret.dimensions, dtype=bool)
+        intersects_mask = variable_gather(intersects_mask, comm=comm)
 
-        # Use the adjustments to trim the returned data object.
-        ret = ret.__getitem__(adjust)
+        if rank == 0:
+            assert intersects_mask.dtype == bool
+            _, adjust = get_trimmed_array_by_mask(intersects_mask.value, return_adjustments=True)
+        else:
+            adjust = None
+        adjust = comm.bcast(adjust)
+
+        if size > 1:
+            ret = ret.get_distributed_slice(adjust, comm=comm)
+        else:
+            ret = ret.__getitem__(adjust)
+
+        # tdk: need to implement fancy index-based slicing for the one-dimensional unstructured case
+        # if self.ndim == 1:
+        #     # For one-dimensional data, assume it is unstructured and compress the returned data.
+        #     adjust = np.where(np.invert(ret.get_mask()))
+        #     ret_slc = adjust
 
         if return_slice:
-            ret = (ret, ret_slc)
+            ret = (ret, adjust)
 
         return ret
 

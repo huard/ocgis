@@ -480,9 +480,7 @@ def get_point_geometry_array(grid, fill):
     return fill
 
 
-@log_entry_exit
 def get_geometry_variable(func, grid, **kwargs):
-    kwargs = kwargs.copy()
     alloc_only = kwargs.pop('alloc_only', False)
     value = get_geometry_fill(grid.shape, grid.get_mask())
     if not alloc_only:
@@ -490,6 +488,7 @@ def get_geometry_variable(func, grid, **kwargs):
     kwargs['value'] = value
     kwargs['crs'] = grid.crs
     kwargs['parent'] = grid.parent
+    kwargs['dimensions'] = grid.dimensions
     return GeometryVariable(**kwargs)
 
 
@@ -507,7 +506,6 @@ def get_arr_intersects_bounds(arr, lower, upper, keep_touches=True):
     return ret
 
 
-@log_entry_exit
 def grid_get_intersects(grid, subset, keep_touches=True, use_bounds=True, mpi_comm=None,
                         use_spatial_index=True):
     # Get local communicator attributes.
