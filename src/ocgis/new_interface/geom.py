@@ -150,7 +150,7 @@ class GeometryVariable(AbstractSpatialVariable):
     def area(self):
         r_value = self.masked_value
         fill = np.ones(r_value.shape, dtype=env.NP_FLOAT)
-        fill = np.ma.array(fill, mask=self.get_mask())
+        fill = np.ma.array(fill, mask=self.get_mask().copy())
         for slc, geom in iter_array(r_value, return_value=True):
             fill[slc] = geom.area
         return fill

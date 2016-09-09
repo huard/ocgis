@@ -11,7 +11,7 @@ from shapely.geometry.multilinestring import MultiLineString
 
 from ocgis import env, CoordinateReferenceSystem
 from ocgis.exc import EmptySubsetError
-from ocgis.interface.base.crs import WGS84
+from ocgis.interface.base.crs import WGS84, Spherical
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_point_geometry_array, get_polygon_geometry_array
 from ocgis.new_interface.mpi import OcgMpi, MPI_RANK, variable_scatter, MPI_SIZE
@@ -179,7 +179,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
                         break
                 self.assertTrue(found)
 
-    def test_tdk(self):
         # Test w/out an associated grid.
         pa = self.get_geometryvariable()
         polygon = box(0.5, 1.5, 1.5, 2.5)
@@ -293,7 +292,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_unwrap(self):
         geom = box(195, -40, 225, -30)
-        gvar = GeometryVariable(value=geom)
+        gvar = GeometryVariable(name='geoms', value=geom, crs=Spherical(), dimensions='geoms')
         gvar.wrap()
         self.assertEqual(gvar.value[0].bounds, (-165.0, -40.0, -135.0, -30.0))
         gvar.unwrap()
@@ -318,7 +317,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_wrap(self):
         geom = box(195, -40, 225, -30)
-        gvar = GeometryVariable(value=geom)
+        gvar = GeometryVariable(name='geoms', value=geom, crs=Spherical(), dimensions='geoms')
         gvar.wrap()
         self.assertEqual(gvar.value[0].bounds, (-165.0, -40.0, -135.0, -30.0))
 

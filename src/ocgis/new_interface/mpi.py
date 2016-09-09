@@ -548,6 +548,11 @@ def get_template_rank_dict():
 def variable_gather(variable, root=0, comm=None):
     comm = comm or MPI_COMM
     rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    # Don't go through the whole mess if this is a single processor.
+    if size == 1:
+        return variable
 
     new_variable = variable.copy()
     new_variable.dtype = variable.dtype
