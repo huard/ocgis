@@ -13,6 +13,7 @@ from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection, \
     get_slice_sequence_using_local_bounds
 from ocgis.util.helpers import itersubclasses, get_iter, get_formatted_slice, get_by_key_list
@@ -141,7 +142,7 @@ class DriverNetcdf(AbstractDriver):
 
         # Do not fill values on file_only calls. Also, only fill values for variables with dimension greater than zero.
         if not file_only and var.ndim > 0 and not var.is_empty:
-            if isinstance(var.dtype, ObjectType):
+            if isinstance(var.dtype, ObjectType) and not isinstance(var, TemporalVariable):
                 bounds_local = var.dimensions[0].bounds_local
                 for idx in range(bounds_local[0], bounds_local[1]):
                     ncvar[idx] = np.array(var.value[idx - bounds_local[0]])
