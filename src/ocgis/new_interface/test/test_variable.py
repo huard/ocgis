@@ -365,6 +365,15 @@ class TestVariable(AbstractTestNewInterface):
         # Parents on bounds are not added.
         self.assertEqual(var.parent.keys(), ['remember', 'the_bounds', 'host'])
 
+    def test_bounds(self):
+        # Test adding/removing bounds.
+        var = Variable('bounded', value=[5], dimensions='one')
+        self.assertNotIn('bounds', var.attrs)
+        var.bounds = Variable('bds', value=[[6, 7]], dimensions=['one', 'bounds'])
+        self.assertEqual(var.attrs['bounds'], 'bds')
+        var.bounds = None
+        self.assertNotIn('bounds', var.attrs)
+
     @attr('cfunits')
     def test_cfunits(self):
         var = self.get_variable(return_original_data=False)

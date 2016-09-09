@@ -9,11 +9,11 @@ from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseMultipartGeometry
 
 from ocgis import constants
-from ocgis.constants import MPIWriteMode, WrappedState
-from ocgis.exc import SpatialWrappingError, ProjectionCoordinateNotFound, ProjectionDoesNotMatch
+from ocgis.constants import MPIWriteMode, WrappedState, WrapAction
+from ocgis.exc import ProjectionCoordinateNotFound, ProjectionDoesNotMatch
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import osr
-from ocgis.util.helpers import iter_array
+from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 SpatialReference = osr.SpatialReference
 
@@ -186,22 +186,19 @@ class WrappableCoordinateReferenceSystem(object):
         return ret
 
     @classmethod
-    def get_wrapped_state(cls, sdim):
+    def get_wrapped_state(cls, field):
         """
-        :param sdim: The spatial dimension used to determine the wrapped state. This function only checks grid centroids
-         and geometry exteriors. Bounds/corners on the grid are excluded.
-        :type sdim: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
+        :param field: Return the wrapped state of a field. This function only checks grid centroids and geometry
+         exteriors. Bounds/corners on the grid are excluded.
+        :type field: :class:`ocgis.new_interface.field.OcgField`
         """
 
-        if sdim.grid is not None:
-            ret = cls._get_wrapped_state_from_array_(sdim.grid.value[1].data)
+        if field.grid is not None:
+            ret = cls._get_wrapped_state_from_array_(field.grid.x.value)
         else:
             stops = (WrappedState.WRAPPED, WrappedState.UNWRAPPED)
             ret = WrappedState.UNKNOWN
-            if sdim.geom.polygon is not None:
-                geoms = sdim.geom.polygon.value.data.flat
-            else:
-                geoms = sdim.geom.point.value.data.flat
+            geoms = field.geom.flat
             for geom in geoms:
                 flag = cls._get_wrapped_state_from_geometry_(geom)
                 if flag in stops:
@@ -209,101 +206,36 @@ class WrappableCoordinateReferenceSystem(object):
                     break
         return ret
 
-    def unwrap(self, spatial):
-        """
-        :type spatial: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
-        """
+    def wrap_or_unwrap(self, action, target):
+        from ocgis.new_interface.geom import GeometryVariable
+        from ocgis.new_interface.grid import GridXY
 
-        if self.get_wrapped_state(spatial) == WrappedState.WRAPPED:
-            # unwrap the geometries
-            unwrap = GeometryWrapper().unwrap
-            to_wrap = self._get_to_wrap_(spatial)
-            for tw in to_wrap:
-                if tw is not None:
-                    geom = tw.value.data
-                    for (ii, jj), to_wrap in iter_array(geom, return_value=True, use_mask=False):
-                        geom[ii, jj] = unwrap(to_wrap)
-            if spatial._grid is not None:
-                ref = spatial.grid.value.data[1, :, :]
-                select = ref < 0
-                ref[select] += 360
-                if spatial.grid.col is not None:
-                    ref = spatial.grid.col.value
-                    select = ref < 0
-                    ref[select] += 360
-                    if spatial.grid.col.bounds is not None:
-                        ref = spatial.grid.col.bounds
-                        select = ref < 0
-                        ref[select] += 360
+        if action not in (WrapAction.WRAP, WrapAction.UNWRAP):
+            raise ValueError('"action" not recognized: {}'.format(action))
 
-                # attempt to to unwrap the grid corners if they exist
-                if spatial.grid.corners is not None:
-                    select = spatial.grid.corners[1] < 0
-                    spatial.grid.corners[1][select] += 360
-
+        if action == WrapAction.WRAP:
+            attr = 'wrap'
         else:
-            raise SpatialWrappingError('Data does not need to be unwrapped.')
+            attr = 'unwrap'
 
-    def wrap(self, spatial):
-        """
-        Wrap ``spatial`` properties using a 180 degree prime meridian. If bounds _contain_ the prime meridian, the
-        object may not be appropriately wrapped and bounds are removed.
-
-        :param spatial: The object to wrap inplace.
-        :type spatial: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
-        """
-
-        if self.get_wrapped_state(spatial) == WrappedState.UNWRAPPED:
-            # wrap the geometries if they are available
-            wrap = GeometryWrapper().wrap
-            to_wrap = self._get_to_wrap_(spatial)
-            for tw in to_wrap:
-                if tw is not None:
-                    geom = tw.value.data
-                    for (ii, jj), to_wrap in iter_array(geom, return_value=True, use_mask=False):
-                        geom[ii, jj] = wrap(to_wrap)
-
-            # if there is a grid present, wrap its associated elements
-            if spatial.grid is not None:
-                bounds_cross_meridian = False
-                ref = spatial.grid.value.data[1, :, :]
-                select = ref > 180
-                ref[select] -= 360
-                if spatial.grid.col is not None:
-                    ref = spatial.grid.col.value
-                    select = ref > 180
-                    ref[select] -= 360
-                    if spatial.grid.col.bounds is not None:
-                        ref = spatial.grid.col.bounds
-                        select = ref > 180
-                        ref[select] -= 360
-
-                # attempt to wrap the grid corners if they exist
-                if spatial.grid.corners is not None:
-                    ref = spatial.grid.corners.data
-                    if bounds_cross_meridian:
-                        spatial.grid._corners = None
-                    else:
-                        bounds_min = np.min(ref[1], axis=2)
-                        bounds_max = np.max(ref[1], axis=2)
-                        select_min = bounds_min <= 180
-                        select_max = bounds_max > 180
-                        select_cross = np.logical_and(select_min, select_max)
-                        if np.any(select_cross):
-                            spatial.grid._corners = None
-                        else:
-                            select = ref[1] > 180
-                            ref[1][select] -= 360
+        if isinstance(target, GeometryVariable):
+            size = target.size
+            value = target.value
+            w = GeometryWrapper()
+            func = getattr(w, attr)
+            for idx in range(size):
+                value[idx] = func(value[idx])
+        elif isinstance(target, GridXY):
+            ca = CoordinateArrayWrapper()
+            func = getattr(ca, attr)
+            func(target.x.value)
+            target.remove_bounds()
+            if target.has_initialized_point:
+                getattr(target.point, attr)()
+            if target.has_initialized_polygon:
+                getattr(target.polygon, attr)()
         else:
-            raise SpatialWrappingError('Data does not need to be wrapped.')
-
-    @staticmethod
-    def _get_to_wrap_(spatial):
-        ret = []
-        ret.append(spatial.geom.point)
-        if spatial.geom.polygon is not None:
-            ret.append(spatial.geom.polygon)
-        return ret
+            raise NotImplementedError(target)
 
     @classmethod
     def _get_wrapped_state_from_array_(cls, arr):

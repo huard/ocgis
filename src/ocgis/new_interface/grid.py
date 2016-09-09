@@ -94,25 +94,25 @@ class GridXY(AbstractSpatialContainer):
         return ret
 
     @property
-    def has_allocated_point(self):
+    def has_initialized_point(self):
         if self._point_name in self.parent:
             return True
         else:
             return False
 
     @property
-    def has_allocated_polygon(self):
+    def has_initialized_polygon(self):
         if self._polygon_name in self.parent:
             return True
         else:
             return False
 
     @property
-    def has_allocated_abstraction_geometry(self):
+    def has_initialized_abstraction_geometry(self):
         if self.abstraction == 'point':
-            return self.has_allocated_point
+            return self.has_initialized_point
         elif self.abstraction == 'polygon':
-            return self.has_allocated_polygon
+            return self.has_initialized_polygon
         else:
             raise NotImplementedError(self.abstraction)
 
@@ -398,6 +398,10 @@ class GridXY(AbstractSpatialContainer):
 
     def iter_records(self, *args, **kwargs):
         return self.abstraction_geometry.iter_records(self, *args, **kwargs)
+
+    def remove_bounds(self):
+        self.x.bounds = None
+        self.y.bounds = None
 
     def write_fiona(self, *args, **kwargs):
         return self.abstraction_geometry.write_fiona(*args, **kwargs)

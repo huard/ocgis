@@ -252,6 +252,7 @@ class Variable(AbstractContainer, Attributes):
         if value is None:
             if self._bounds_name is not None:
                 self.parent.pop(self._bounds_name)
+                self.attrs.pop('bounds', None)
             self._bounds_name = None
         else:
             assert value.name != self.name

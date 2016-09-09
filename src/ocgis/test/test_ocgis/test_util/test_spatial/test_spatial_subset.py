@@ -156,23 +156,23 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('data')
     def test_get_should_wrap(self):
-        # a 360 dataset
+        # A 360 dataset.
         field_360 = self.test_data.get_rd('cancm4_tas').get()
         ss = SpatialSubsetOperation(field_360, wrap=True)
-        self.assertTrue(ss._get_should_wrap_(ss.target))
+        self.assertTrue(ss._get_should_wrap_(ss.field))
         ss = SpatialSubsetOperation(field_360, wrap=False)
-        self.assertFalse(ss._get_should_wrap_(ss.target))
+        self.assertFalse(ss._get_should_wrap_(ss.field))
         ss = SpatialSubsetOperation(field_360, wrap=None)
-        self.assertFalse(ss._get_should_wrap_(ss.target))
+        self.assertFalse(ss._get_should_wrap_(ss.field))
 
-        # wrapped dataset
-        field_360.spatial.wrap()
+        # A wrapped dataset.
+        field_360.wrap()
         ss = SpatialSubsetOperation(field_360, wrap=True)
-        self.assertFalse(ss._get_should_wrap_(ss.target))
+        self.assertFalse(ss._get_should_wrap_(ss.field))
         ss = SpatialSubsetOperation(field_360, wrap=False)
-        self.assertFalse(ss._get_should_wrap_(ss.target))
+        self.assertFalse(ss._get_should_wrap_(ss.field))
         ss = SpatialSubsetOperation(field_360, wrap=None)
-        self.assertFalse(ss._get_should_wrap_(ss.target))
+        self.assertFalse(ss._get_should_wrap_(ss.field))
 
     @attr('slow')
     def test_get_spatial_subset(self):

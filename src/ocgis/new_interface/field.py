@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from copy import deepcopy
 
+from ocgis.constants import DimensionMapKeys, WrapAction
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import renamed_dimensions_on_variables
 from ocgis.new_interface.grid import GridXY
@@ -67,6 +68,14 @@ class OcgField(VariableCollection):
         return ret
 
     @property
+    def wrapped_state(self):
+        try:
+            ret = self.crs.get_wrapped_state(self)
+        except AttributeError:
+            ret = None
+        return ret
+
+    @property
     def level(self):
         return get_field_property(self, 'level')
 
@@ -126,6 +135,12 @@ class OcgField(VariableCollection):
         ret = tuple([self[n] for n in names])
         return ret
 
+    def unwrap(self):
+        wrap_or_unwrap(self, WrapAction.UNWRAP)
+
+    def wrap(self):
+        wrap_or_unwrap(self, WrapAction.WRAP)
+
     def write(self, *args, **kwargs):
         # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
         # ensure proper attributes are applied to dimension variables before writing.
@@ -163,3 +178,25 @@ def get_merged_dimension_map(dimension_map):
                 else:
                     dimension_map_template[k][k2] = v2
     return dimension_map_template
+
+
+def wrap_or_unwrap(field, action):
+    if action not in (WrapAction.WRAP, WrapAction.UNWRAP):
+        raise ValueError('"action" not recognized: {}'.format(action))
+
+    if field.grid is not None:
+        if action == WrapAction.WRAP:
+            field.grid.wrap()
+        else:
+            field.grid.unwrap()
+    elif field.geom is not None:
+        if action == WrapAction.WRAP:
+            field.geom.wrap()
+        else:
+            field.geom.unwrap()
+    else:
+        raise ValueError('No grid or geometry to wrap/unwrap.')
+
+    # Bounds are not handled by wrap/unwrap operations. They should be removed from the dimension map if present.
+    for key in [DimensionMapKeys.X, DimensionMapKeys.Y]:
+        field.dimension_map[key][DimensionMapKeys.BOUNDS] = None
