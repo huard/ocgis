@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point, box
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
-from ocgis.new_interface.mpi import MPI_RANK, get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
+from ocgis.new_interface.mpi import get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log, log_entry_exit
 from ocgis.new_interface.variable import VariableCollection, get_dslice, get_dimension_lengths
 from ocgis.util.environment import ogr
@@ -267,28 +267,31 @@ class GridXY(AbstractSpatialContainer):
             record[name_x] = value_x[idx]
             yield idx, record
 
-    def get_intersects(self, bounds_or_geometry, return_slice=False, use_bounds='auto', use_spatial_index=True,
-                       cascade=False):
+    def get_intersects(self, *args, **kwargs):
+        use_bounds = kwargs.pop('use_bounds', 'auto')
+        return_slice = kwargs.get('return_slice', False)
+
         if use_bounds == 'auto':
             if self.abstraction == 'polygon':
                 use_bounds = True
             else:
                 use_bounds = False
 
-        ret, slc = grid_get_intersects(self, bounds_or_geometry, use_bounds=use_bounds,
-                                       use_spatial_index=use_spatial_index)
-
-        if cascade:
-            grid_set_mask_cascade(ret)
-
-        if MPI_RANK == 0:
-            if return_slice:
-                ret = (ret, slc)
+        if use_bounds:
+            intersects_return = self.polygon.get_intersects(*args, **kwargs)
         else:
-            if return_slice:
-                ret = None, None
-            else:
-                ret = None
+            intersects_return = self.point.get_intersects(*args, **kwargs)
+
+        if return_slice:
+            gvar, the_return_slice = intersects_return
+        else:
+            gvar = intersects_return
+
+        ret = self.copy()
+        ret.parent = gvar.parent
+
+        if return_slice:
+            ret = (ret, the_return_slice)
 
         return ret
 

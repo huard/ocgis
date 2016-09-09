@@ -460,10 +460,10 @@ class TestGridXY(AbstractTestNewInterface):
         desired_manual = np.array(desired_manual)
 
         grid = self.get_gridxy()
-        self.write_fiona_htmp(grid, 'grid')
-        self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+        # self.write_fiona_htmp(grid, 'grid')
+        # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
         sub, sub_slc = grid.get_intersects(subset, return_slice=True)
-        self.write_fiona_htmp(sub, 'sub')
+        # self.write_fiona_htmp(sub, 'sub')
         self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
         self.assertNumpyAll(sub.value_stacked, desired_manual)
 

@@ -75,14 +75,14 @@ class AbstractContainer(AbstractInterfaceObject):
             ret.reverse()
         return ret
 
-    def allocate_parent(self):
-        self.parent = VariableCollection()
-        self.parent.add_variable(self)
-
     @abstractmethod
     def get_mask(self):
         """:rtype: :class:`numpy.ndarray`"""
         raise NotImplementedError
+
+    def initialize_parent(self):
+        self.parent = VariableCollection()
+        self.parent.add_variable(self)
 
     @abstractmethod
     def set_mask(self, mask):
@@ -549,6 +549,10 @@ class Variable(AbstractContainer, Attributes):
     def copy(self):
         ret = AbstractContainer.copy(self)
         ret.attrs = ret.attrs.copy()
+
+        if ret.parent is not None:
+            ret.parent.add_variable(ret, force=True)
+
         return ret
 
     def cfunits_conform(self, to_units, from_units=None):
@@ -682,7 +686,6 @@ class Variable(AbstractContainer, Attributes):
 
         assert mask.shape == self.shape
         self._mask = mask
-
         if cascade and self.parent is not None:
             self.parent.set_mask(self)
         else:

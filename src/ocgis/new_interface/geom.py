@@ -211,7 +211,6 @@ class GeometryVariable(AbstractSpatialVariable):
             raise ValueError('Dimensions are required for a distributed intersects operation.')
 
         ret = self.get_intersects_masked(*args, **kwargs)
-
         intersects_mask = Variable(name='mask_gather', value=ret.get_mask(), dimensions=ret.dimensions, dtype=bool)
         intersects_mask = variable_gather(intersects_mask, comm=comm)
 
@@ -277,15 +276,21 @@ class GeometryVariable(AbstractSpatialVariable):
             original_mask = ret.get_mask().copy()
         fill = self.get_mask_from_intersects(*args, **kwargs)
         if not self.is_empty:
-            ret.set_mask(np.logical_or(fill, original_mask), cascade=cascade)
+            set_mask_value = np.logical_or(fill, original_mask)
+            ret.set_mask(set_mask_value, cascade=cascade)
         return ret
 
-    def get_mask_from_intersects(self, geometry, use_spatial_index=True, keep_touches=False, original_mask=None):
+    def get_mask_from_intersects(self, geometry_or_bounds, use_spatial_index=True, keep_touches=False,
+                                 original_mask=None):
+        # Transform bounds sequence to a geometry.
+        if not isinstance(geometry_or_bounds, BaseGeometry):
+            geometry_or_bounds = box(*geometry_or_bounds)
+
         # Empty variables return an empty array.
         if self.is_empty:
             ret = np.array([], dtype=bool)
         else:
-            ret = geometryvariable_get_mask_from_intersects(self, geometry,
+            ret = geometryvariable_get_mask_from_intersects(self, geometry_or_bounds,
                                                             use_spatial_index=use_spatial_index,
                                                             keep_touches=keep_touches,
                                                             original_mask=original_mask)
