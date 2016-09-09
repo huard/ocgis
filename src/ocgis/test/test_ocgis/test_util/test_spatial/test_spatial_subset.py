@@ -114,17 +114,6 @@ class TestSpatialSubsetOperation(TestBase):
                 if isinstance(k.target, Field):
                     self.assertEqual(ss.sdim.crs, k.target.spatial.crs)
 
-    @attr('data')
-    def test_field(self):
-        for ss, k in self:
-            try:
-                self.assertIsInstance(ss.field, Field)
-            except AttributeError:
-                if isinstance(k.target, SpatialDimension):
-                    continue
-                else:
-                    raise
-
     def test_get_buffered_subset_sdim(self):
         proj4 = '+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs'
         buffer_crs_list = [None, CoordinateReferenceSystem(proj4=proj4)]
@@ -314,11 +303,6 @@ class TestSpatialSubsetOperation(TestBase):
         ss = SpatialSubsetOperation(field)
         prepared = ss._prepare_subset_sdim_(nebraska)
         self.assertEqual(prepared.wrapped_state, WrappedState.UNWRAPPED)
-
-    @attr('data')
-    def test_sdim(self):
-        for ss, k in self:
-            self.assertIsInstance(ss.sdim, SpatialDimension)
 
     @attr('data')
     def test_should_update_crs(self):
