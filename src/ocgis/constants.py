@@ -1,6 +1,6 @@
 import numpy as np
 
-from ocgis.util.enum import Enum
+from ocgis.util.enum import Enum, IntEnum
 
 OCGIS_BOUNDS = 'bounds'
 
@@ -148,10 +148,30 @@ NAME_UID_FIELD = 'fid'
 # calculation dictionary key defaults
 CALC_KEY_KEYWORDS = 'kwds'
 CALC_KEY_CLASS_REFERENCE = 'ref'
-NAME_UID_FIELD = 'fid'
 
 # Default unique identifier start value.
 DEFAULT_UID_START = 1
+
+
+# Enumerations for wrapped states and actions. #########################################################################
+
+class WrappedState(IntEnum):
+    # Data is wrapped -180 to 180.
+    WRAPPED = 1
+    # Data is unwrapped 0 to 360.
+    UNWRAPPED = 2
+    # The wrapped state is unknown due to coordinate values only in the range 0 to 180.
+    UNKNOWN = 3
+
+
+class WrapAction(IntEnum):
+    # Wrap the data to -180 to 180.
+    WRAP = 1
+    # Unwrap the data 0 to 360.
+    UNWRAP = 2
+
+
+########################################################################################################################
 
 # Default name for the geometry dimensions.
 NAME_GEOMETRY_DIMENSION = 'ocgis_geom'
