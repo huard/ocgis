@@ -1,16 +1,16 @@
 import numpy as np
-from shapely.geometry.multipolygon import MultiPolygon
-from shapely.geometry.polygon import Polygon
-from shapely.geometry.point import Point
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multipoint import MultiPoint
+from shapely.geometry.multipolygon import MultiPolygon
+from shapely.geometry.point import Point
+from shapely.geometry.polygon import Polygon
 
 from ocgis.util.helpers import make_poly
 
 
 class Wrapper(object):
     """
-    Wraps and unwraps WGS84 geometry objects.
+    Wraps and unwraps lat/lon geometry objects.
 
     :param axis: The longitude value for the center axis.
     :type axis: float

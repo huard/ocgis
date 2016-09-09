@@ -19,6 +19,7 @@ from ocgis.new_interface.mpi import variable_gather, MPI_COMM
 from ocgis.new_interface.variable import VariableCollection, AbstractContainer, SourcedVariable, Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_none_or_slice, get_trimmed_array_by_mask
+from ocgis.util.spatial.wrap import Wrapper
 
 CreateGeometryFromWkb, Geometry, wkbGeometryCollection, wkbPoint = ogr.CreateGeometryFromWkb, ogr.Geometry, \
                                                                    ogr.wkbGeometryCollection, ogr.wkbPoint
@@ -335,6 +336,13 @@ class GeometryVariable(AbstractSpatialVariable):
         ret._value = fill
         return ret
 
+    def unwrap(self, *args, **kwargs):
+        size = self.size
+        value = self.value
+        w = Wrapper(*args, **kwargs)
+        for idx in range(size):
+            value[idx] = w.unwrap(value[idx])
+
     def update_crs(self, to_crs):
         # Be sure and project masked geometries to maintain underlying geometries.
         r_value = self.value.reshape(-1)
@@ -362,6 +370,13 @@ class GeometryVariable(AbstractSpatialVariable):
                 geom = r_geom_class([geom])
             feature = {'properties': {}, 'geometry': mapping(geom)}
             yield feature
+
+    def wrap(self, *args, **kwargs):
+        size = self.size
+        value = self.value
+        w = Wrapper(*args, **kwargs)
+        for idx in range(size):
+            value[idx] = w.wrap(value[idx])
 
     def write_fiona(self, path, driver='ESRI Shapefile', use_mask=True):
         if self.crs is None:

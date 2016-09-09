@@ -445,6 +445,16 @@ class Variable(AbstractContainer, Attributes):
     def shape(self):
         return self._get_shape_()
 
+    @property
+    def size(self):
+        ret = 1
+        if len(self.shape) == 0:
+            ret = 0
+        else:
+            for s in self.shape:
+                ret *= s
+        return ret
+
     def _get_shape_(self):
         return get_shape_from_variable(self)
 

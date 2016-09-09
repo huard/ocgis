@@ -291,6 +291,14 @@ class TestGeometryVariable(AbstractTestNewInterface):
         actual = MultiPoint([[1.0, 2.0], [3.0, 4.0]])
         self.assertEqual(u.value[0], actual)
 
+    def test_unwrap(self):
+        geom = box(195, -40, 225, -30)
+        gvar = GeometryVariable(value=geom)
+        gvar.wrap()
+        self.assertEqual(gvar.value[0].bounds, (-165.0, -40.0, -135.0, -30.0))
+        gvar.unwrap()
+        self.assertEqual(gvar.value[0].bounds, (195.0, -40.0, 225.0, -30.0))
+
     def test_update_crs(self):
         pa = self.get_geometryvariable(crs=WGS84(), name='g', dimensions='gg')
         to_crs = CoordinateReferenceSystem(epsg=2136)
@@ -307,6 +315,12 @@ class TestGeometryVariable(AbstractTestNewInterface):
         value = np.ma.array(value, mask=mask, dtype=object)
         pa = self.get_geometryvariable(value=value)
         self.assertNumpyAll(pa.weights, np.ma.array([1, 1, 1], mask=mask, dtype=env.NP_FLOAT))
+
+    def test_wrap(self):
+        geom = box(195, -40, 225, -30)
+        gvar = GeometryVariable(value=geom)
+        gvar.wrap()
+        self.assertEqual(gvar.value[0].bounds, (-165.0, -40.0, -135.0, -30.0))
 
     def test_write_fiona(self):
         pa = self.get_geometryvariable(crs=WGS84(), name='g', dimensions='gg')
