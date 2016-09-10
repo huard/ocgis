@@ -5,6 +5,7 @@ import sys
 import tempfile
 from collections import OrderedDict
 from copy import deepcopy
+from pprint import pprint
 from tempfile import mkdtemp
 
 import fiona
@@ -765,6 +766,20 @@ def locate(pattern, root=os.curdir, followlinks=True):
     for path, dirs, files in os.walk(os.path.abspath(root), followlinks=followlinks):
         for filename in filter(lambda x: x == pattern, files):
             yield os.path.join(path, filename)
+
+
+def pprint_dict(target):
+    def _convert_(input):
+        ret = input
+        if isinstance(ret, dict):
+            ret = dict(input)
+            for k, v in ret.items():
+                ret[k] = _convert_(v)
+        return ret
+
+    to_print = _convert_(target)
+    print ''
+    pprint(to_print)
 
 
 def project_shapely_geometry(geom, from_sr, to_sr):

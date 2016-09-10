@@ -98,12 +98,9 @@ class TestSpatialSubsetOperation(TestBase):
 
         # 5: standard input field - geographic coordinate system, wrapped
         field_wrapped = rd_standard.get()
-        field_wrapped.spatial.wrap()
+        field_wrapped.wrap()
 
-        # 6: spatial dimension - standard geographic coordinate system
-        sdim = field_standard.spatial
-
-        ret = [rd_standard, field_standard, field_rotated_pole, field_lambert, field_wrapped, sdim]
+        ret = [field_standard, field_rotated_pole, field_lambert, field_wrapped]
 
         return ret
 

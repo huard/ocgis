@@ -1,6 +1,7 @@
 import logging
 from collections import OrderedDict
 from copy import deepcopy
+from warnings import warn
 
 import netCDF4 as nc
 import numpy as np
@@ -9,7 +10,7 @@ from netCDF4._netCDF4 import VLType
 from ocgis import env
 from ocgis.api.request.driver.base import AbstractDriver, get_group, driver_scope
 from ocgis.constants import MPIWriteMode, MPIDistributionMode, DimensionMapKeys
-from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError
+from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError, OcgWarning
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import Dimension
@@ -563,11 +564,15 @@ def get_dimension_map_entry(axis, variables, dimensions):
         vattrs = variable['attributes']
         if vattrs.get('axis') == axis:
             axis_vars.append(variable['name'])
-    assert len(axis_vars) <= 1
     if len(axis_vars) == 1:
         var_name = axis_vars[0]
-
         ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
+    elif len(axis_vars) > 1:
+        msg = 'Multiple axis attributes with value "{}" found on variables "{}". Use a dimension map to specify the ' \
+              'appropriate coordinate dimensions'
+        w = OcgWarning(msg.format(axis, axis_vars))
+        warn(w)
+        ret = None
     else:
         ret = None
     return ret

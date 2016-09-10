@@ -27,7 +27,7 @@ from ocgis.interface.base.dimension.temporal import TemporalDimension
 from ocgis.interface.base.field import Field
 from ocgis.interface.base.variable import Variable
 from ocgis.util.geom_cabinet import GeomCabinet
-from ocgis.util.helpers import get_iter
+from ocgis.util.helpers import get_iter, pprint_dict
 from ocgis.util.itester import itr_products_keywords
 from ocgis.util.logging_ocgis import ocgis_lh
 
@@ -691,6 +691,9 @@ class TestBase(unittest.TestCase):
     def pprint(self, *args, **kwargs):
         print('')
         pprint(*args, **kwargs)
+
+    def pprint_dict(self, target):
+        pprint_dict(target)
 
     def print_scope(self):
         return print_scope()

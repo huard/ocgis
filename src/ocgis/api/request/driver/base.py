@@ -554,6 +554,15 @@ def driver_scope(ocgis_driver, opened_or_path=None, mode='r', **kwargs):
             ocgis_driver.close(opened_or_path)
 
 
+def find_variable_by_attribute(variables_metadata, attribute_name, attribute_value):
+    ret = []
+    for variable_name, variable_metadata in variables_metadata.items():
+        for k, v in variable_metadata['attributes'].items():
+            if k == attribute_name and v == attribute_value:
+                ret.append(variable_name)
+    return ret
+
+
 def format_attribute_for_dump_report(attr_value):
     if isinstance(attr_value, basestring):
         ret = '"{}"'.format(attr_value)
