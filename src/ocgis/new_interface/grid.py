@@ -311,7 +311,8 @@ class GridXY(AbstractSpatialContainer):
         :type to_crs: :class:`ocgis.interface.base.crs.CoordinateReferenceSystem`
         """
 
-        assert self.crs is not None
+        super(GridXY, self).update_crs(to_crs)
+
         src_sr = self.crs.sr
         to_sr = to_crs.sr
 

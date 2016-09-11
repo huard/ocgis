@@ -569,7 +569,7 @@ def get_dimension_map_entry(axis, variables, dimensions):
         ret = {'variable': var_name, 'names': list(variables[var_name]['dimensions'])}
     elif len(axis_vars) > 1:
         msg = 'Multiple axis attributes with value "{}" found on variables "{}". Use a dimension map to specify the ' \
-              'appropriate coordinate dimensions'
+              'appropriate coordinate dimensions.'
         w = OcgWarning(msg.format(axis, axis_vars))
         warn(w)
         ret = None

@@ -195,6 +195,69 @@ class AbstractDriver(object):
             lines.append('}')
         return lines
 
+    def get_field(self, *args, **kwargs):
+        # tdk: test dimension map overloading
+        vc = kwargs.pop('vc', None)
+        if vc is None:
+            # Get the raw variable collection from source.
+            vc = self.get_variable_collection()
+
+        # Get the appropriate metadata for the collection.
+        group_metadata = self.get_group_metadata(vc.group, self.metadata_source)
+        # Always pull the dimension map from the request dataset. This allows it to be overloaded.
+        dimension_map = self.get_group_metadata(vc.group, self.rd.dimension_map)
+
+        # # If there is a group index, extract the appropriate child for the target field.
+        # field_group = self.rd.field_group
+        # if field_group is not None:
+        #     for fg in field_group:
+        #         vc = vc.children[fg]
+
+        # Modify the coordinate system variable. If it is overloaded on the request dataset, then the variable
+        # collection needs to be updated to hold the variable and any alternative coordinate systems needs to be
+        # removed.
+        to_remove = None
+        to_add = None
+        crs = self.get_crs(group_metadata)
+        if self.rd._crs is not None and self.rd._crs != 'auto':
+            to_add = self.rd._crs
+            if crs is not None:
+                to_remove = crs.name
+        elif crs is not None:
+            to_add = crs
+        if to_remove is not None:
+            vc.pop(to_remove, None)
+        if to_add is not None:
+            vc.add_variable(to_add, force=True)
+
+        # Convert the raw variable collection to a field.
+        kwargs['dimension_map'] = dimension_map
+        field = OcgField.from_variable_collection(vc, *args, **kwargs)
+
+        # If this is a source grid for regridding, ensure the flag is updated.
+        if self.rd.regrid_source:
+            field._should_regrid = True
+        # Update the assigned coordinate system flag.
+        if self.rd._has_assigned_coordinate_system:
+            field._has_assigned_coordinate_system = True
+
+        # tdk: incorporate spatial subset
+        # Apply any requested subsets.
+        if self.rd.time_range is not None:
+            field = field.time.get_between(*self.rd.time_range).parent
+        if self.rd.time_region is not None:
+            field = field.time.get_time_region(self.rd.time_region).parent
+        if self.rd.time_subset_func is not None:
+            field = field.time.get_subset_by_function(self.rd.time_subset_func).parent
+        if self.rd.level_range is not None:
+            field = field.level.get_between(*self.rd.level_range).parent
+
+        for child in field.children.values():
+            kwargs['vc'] = child
+            field.children[child.name] = self.get_field(*args, **kwargs)
+
+        return field
+
     @staticmethod
     def get_group_metadata(group_index, metadata, has_root=False):
         return get_group(metadata, group_index, has_root=has_root)
@@ -293,69 +356,6 @@ class AbstractDriver(object):
             ret = cls.get_variable_for_writing(variable).masked_value
         return ret
 
-    def get_field(self, *args, **kwargs):
-        # tdk: test dimension map overloading
-        vc = kwargs.pop('vc', None)
-        if vc is None:
-            # Get the raw variable collection from source.
-            vc = self.get_variable_collection()
-
-        # Get the appropriate metadata for the collection.
-        group_metadata = self.get_group_metadata(vc.group, self.metadata_source)
-        # Always pull the dimension map from the request dataset. This allows it to be overloaded.
-        dimension_map = self.get_group_metadata(vc.group, self.rd.dimension_map)
-
-        # # If there is a group index, extract the appropriate child for the target field.
-        # field_group = self.rd.field_group
-        # if field_group is not None:
-        #     for fg in field_group:
-        #         vc = vc.children[fg]
-
-        # Modify the coordinate system variable. If it is overloaded on the request dataset, then the variable
-        # collection needs to be updated to hold the variable and any alternative coordinate systems needs to be
-        # removed.
-        to_remove = None
-        to_add = None
-        crs = self.get_crs(group_metadata)
-        if self.rd._crs is not None and self.rd._crs != 'auto':
-            to_add = self.rd._crs
-            if crs is not None:
-                to_remove = crs.name
-        elif crs is not None:
-            to_add = crs
-        if to_remove is not None:
-            vc.pop(to_remove, None)
-        if to_add is not None:
-            vc.add_variable(to_add, force=True)
-
-        # Convert the raw variable collection to a field.
-        kwargs['dimension_map'] = dimension_map
-        field = OcgField.from_variable_collection(vc, *args, **kwargs)
-
-        # If this is a source grid for regridding, ensure the flag is updated.
-        if self.rd.regrid_source:
-            field._should_regrid = True
-        # Update the assigned coordinate system flag.
-        if self.rd._has_assigned_coordinate_system:
-            field._has_assigned_coordinate_system = True
-
-        # tdk: incorporate spatial subset
-        # Apply any requested subsets.
-        if self.rd.time_range is not None:
-            field = field.time.get_between(*self.rd.time_range).parent
-        if self.rd.time_region is not None:
-            field = field.time.get_time_region(self.rd.time_region).parent
-        if self.rd.time_subset_func is not None:
-            field = field.time.get_subset_by_function(self.rd.time_subset_func).parent
-        if self.rd.level_range is not None:
-            field = field.level.get_between(*self.rd.level_range).parent
-
-        for child in field.children.values():
-            kwargs['vc'] = child
-            field.children[child.name] = self.get_field(*args, **kwargs)
-
-        return field
-
     def init_variable_from_source(self, variable):
         variable_metadata = self.get_variable_metadata(variable)
 
@@ -420,6 +420,9 @@ class AbstractDriver(object):
                 uri = rd.uri
             ret = cls._open_(uri, mode=mode, **kwargs)
         return ret
+
+    def validate_field(self, field):
+        pass
 
     @classmethod
     def validate_ops(cls, ops):

@@ -3,13 +3,13 @@ from copy import deepcopy
 import numpy as np
 from shapely import wkt
 
-from ocgis import CoordinateReferenceSystem, RequestDataset
+from ocgis import CoordinateReferenceSystem
 from ocgis import env
 from ocgis.constants import WrappedState
-from ocgis.exc import EmptySubsetError
-from ocgis.interface.base.crs import CFWGS84, CFRotatedPole
+from ocgis.interface.base.crs import CFWGS84, CFRotatedPole, WGS84
 from ocgis.interface.base.dimension.spatial import SpatialDimension
 from ocgis.interface.base.field import Field
+from ocgis.new_interface.field import OcgField
 from ocgis.test.base import TestBase, attr
 from ocgis.test.strings import GERMANY_WKT, NEBRASKA_WKT
 from ocgis.test.test_ocgis.test_api.test_parms.test_definition import TestGeom
@@ -68,18 +68,10 @@ class TestSpatialSubsetOperation(TestBase):
         ret = ['input', crs_wgs84]
         return ret
 
-    def get_subset_sdim(self):
-
-        # 1: nebraska
+    def get_subset_geometries(self):
         nebraska = self.nebraska
-
-        # 2: germany
         germany = self.germany
-
-        # 3: nebraska and germany
-
-        ret = [SpatialDimension.from_records(d) for d in [[nebraska], [germany], [nebraska, germany]]]
-
+        ret = [nebraska, germany]
         return ret
 
     def get_target(self):
@@ -100,7 +92,7 @@ class TestSpatialSubsetOperation(TestBase):
         field_wrapped = rd_standard.get()
         field_wrapped.wrap()
 
-        ret = [field_standard, field_rotated_pole, field_lambert, field_wrapped]
+        ret = [field_standard, field_lambert, field_wrapped, field_rotated_pole]
 
         return ret
 
@@ -124,7 +116,7 @@ class TestSpatialSubsetOperation(TestBase):
             else:
                 buffer_value = 10
 
-            ret = SpatialSubsetOperation._get_buffered_subset_sdim_(subset_sdim, buffer_value, buffer_crs=buffer_crs)
+            ret = SpatialSubsetOperation._get_buffered_geometry_(subset_sdim, buffer_value, buffer_crs=buffer_crs)
             ref = ret.geom.polygon.value[0, 0]
 
             if buffer_crs is None:
@@ -162,42 +154,31 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('slow')
     def test_get_spatial_subset(self):
+        from ocgis.new_interface.ocgis_logging import log
         ctr_test = 0
         ctr = 0
         for ss, k in self:
-            for subset_sdim in self.get_subset_sdim():
+
+            for var in k.target.values():
+                if not isinstance(var, CoordinateReferenceSystem):
+                    log.debug(var._request_dataset.uri)
+                    break
+            log.debug(k)
+
+            for geometry_record in self.get_subset_geometries():
                 for operation in ['intersects', 'clip', 'foo']:
-
-                    use_subset_sdim = deepcopy(subset_sdim)
+                    use_geometry = deepcopy(geometry_record['geom'])
                     use_ss = deepcopy(ss)
-
-                    # ctr += 1
-                    # print ctr
-                    # if ctr != 73:
-                    #     continue
-                    # else:
-
                     try:
-                        ret = use_ss.get_spatial_subset(operation, use_subset_sdim, use_spatial_index=True,
-                                                        select_nearest=False, buffer_value=None, buffer_crs=None)
+                        ret = use_ss.get_spatial_subset(operation, use_geometry, use_spatial_index=True,
+                                                        buffer_value=None, buffer_crs=None, geom_crs=WGS84())
                     except ValueError:
                         # 'foo' is not a valid type of subset operation.
                         if operation == 'foo':
                             continue
-                        # only one polygon for a spatial operation
-                        elif use_subset_sdim.shape != (1, 1):
-                            continue
                         else:
                             raise
-                    except EmptySubsetError:
-                        # subset tests occur on the spatial dimension operations
-                        continue
-                    try:
-                        self.assertIsInstance(ret, type(use_ss.target))
-                    except AssertionError:
-                        # if the target is a request datasets, then the output should be a field
-                        if isinstance(use_ss.target, RequestDataset):
-                            self.assertIsInstance(ret, Field)
+                    self.assertIsInstance(ret, OcgField)
                     ctr_test += 1
         self.assertGreater(ctr_test, 5)
 
@@ -279,10 +260,10 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('data')
     def test_prepare_subset_sdim(self):
-        for subset_sdim in self.get_subset_sdim():
+        for subset_sdim in self.get_subset_geometries():
             for ss, k in self:
                 try:
-                    prepared = ss._prepare_subset_sdim_(subset_sdim)
+                    prepared = ss._prepare_geometry_(subset_sdim)
                     # check that a deepcopy has occurred
                     self.assertFalse(np.may_share_memory(prepared.uid, subset_sdim.uid))
                 except KeyError:
@@ -298,7 +279,7 @@ class TestSpatialSubsetOperation(TestBase):
         nebraska = SpatialDimension.from_records([self.nebraska])
         field = self.test_data.get_rd('cancm4_tas').get()
         ss = SpatialSubsetOperation(field)
-        prepared = ss._prepare_subset_sdim_(nebraska)
+        prepared = ss._prepare_geometry_(nebraska)
         self.assertEqual(prepared.wrapped_state, WrappedState.UNWRAPPED)
 
     @attr('data')

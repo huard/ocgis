@@ -50,9 +50,17 @@ class AbstractSpatialObject(AbstractInterfaceObject):
                 self._crs_name = None
         else:
             if self.parent is None:
-                self.allocate_parent()
+                self.initialize_parent()
             self.parent.add_variable(value, force=True)
             self._crs_name = value.name
+
+    @property
+    def wrapped_state(self):
+        if isinstance(self.crs, WrappableCoordinateReferenceSystem):
+            ret = self.crs.get_wrapped_state(self)
+        else:
+            ret = None
+        return ret
 
     def unwrap(self):
         if not isinstance(self.crs, WrappableCoordinateReferenceSystem):
@@ -81,6 +89,10 @@ class AbstractOperationsSpatialObject(AbstractSpatialObject):
     @abstractmethod
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
+
+        if self.crs is None:
+            msg = 'The current CRS is None and cannot be updated.'
+            raise ValueError(msg)
 
     @abstractmethod
     def _get_extent_(self):
@@ -355,6 +367,7 @@ class GeometryVariable(AbstractSpatialVariable):
         return ret
 
     def update_crs(self, to_crs):
+        super(GeometryVariable, self).update_crs(to_crs)
         # Be sure and project masked geometries to maintain underlying geometries.
         r_value = self.value.reshape(-1)
         r_loads = wkb.loads

@@ -186,19 +186,27 @@ class WrappableCoordinateReferenceSystem(object):
         return ret
 
     @classmethod
-    def get_wrapped_state(cls, field):
+    def get_wrapped_state(cls, target):
         """
         :param field: Return the wrapped state of a field. This function only checks grid centroids and geometry
          exteriors. Bounds/corners on the grid are excluded.
         :type field: :class:`ocgis.new_interface.field.OcgField`
         """
+        from ocgis.new_interface.field import OcgField
+        from ocgis.new_interface.grid import GridXY
 
-        if field.grid is not None:
-            ret = cls._get_wrapped_state_from_array_(field.grid.x.value)
+        if isinstance(target, OcgField):
+            if target.grid is not None:
+                target = target.grid
+            else:
+                target = target.geom
+
+        if isinstance(target, GridXY):
+            ret = cls._get_wrapped_state_from_array_(target.x.value)
         else:
             stops = (WrappedState.WRAPPED, WrappedState.UNWRAPPED)
             ret = WrappedState.UNKNOWN
-            geoms = field.geom.flat
+            geoms = target.value.flat
             for geom in geoms:
                 flag = cls._get_wrapped_state_from_geometry_(geom)
                 if flag in stops:

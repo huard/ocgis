@@ -3,6 +3,7 @@ from copy import deepcopy, copy
 from ocgis.constants import WrappedState
 from ocgis.interface.base.crs import CFRotatedPole, CFWGS84
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.geom import GeometryVariable
 
 
 class SpatialSubsetOperation(object):
@@ -38,20 +39,20 @@ class SpatialSubsetOperation(object):
 
         if self.output_crs == 'input':
             ret = False
-        elif self.output_crs != self.sdim.crs:
+        elif self.output_crs != self.field.crs:
             ret = True
         else:
             ret = False
         return ret
 
-    def get_spatial_subset(self, operation, subset_sdim, use_spatial_index=True, select_nearest=False,
-                           buffer_value=None, buffer_crs=None):
+    def get_spatial_subset(self, operation, geom, use_spatial_index=True, buffer_value=None, buffer_crs=None,
+                           geom_crs=None):
         """
         Perform a spatial subset operation on ``target``.
 
         :param str operation: Either 'intersects' or 'clip'.
-        :param subset_sdim: The input object to use for subsetting of ``target``.
-        :type subset_sdim: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
+        :param geom: The input geometry object to use for subsetting of ``target``.
+        :type geom: :class:`shapely.geometry.base.BaseGeometry`
         :param bool use_spatial_index: If ``True``, use an ``rtree`` spatial index.
         :param bool select_nearest: If ``True``, select the geometry nearest ``polygon`` using
          :meth:`shapely.geometry.base.BaseGeometry.distance`.
@@ -64,36 +65,31 @@ class SpatialSubsetOperation(object):
         :raises: ValueError
         """
 
-        if subset_sdim.geom.polygon.shape != (1, 1):
-            msg = 'Only one Polygon/MultiPolygon for a spatial operation.'
+        if not isinstance(geom, GeometryVariable):
+            geom = GeometryVariable(value=geom, name='geom', dimensions='one', crs=geom_crs)
+        if geom.value.flatten().shape != (1,):
+            msg = 'Only one subset geometry allowed. The shape of the geometry variable is {}.'.format(geom.shape)
             raise ValueError(msg)
 
-        # buffer the subset if a buffer value is provided
+        # Buffer the subset if a buffer value is provided.
         if buffer_value is not None:
-            subset_sdim = self._get_buffered_subset_sdim_(subset_sdim, buffer_value, buffer_crs=buffer_crs)
+            geom = self._get_buffered_geometry_(geom, buffer_value, buffer_crs=buffer_crs)
 
         if operation == 'clip':
-            try:
-                method = self.field.get_clip
-            except AttributeError:
-                # target is likely a spatial dimension
-                method = self.sdim.get_clip
+            method = self.field.geom.get_intersection
         elif operation == 'intersects':
-            try:
-                method = self.field.get_intersects
-            except AttributeError:
-                # target is likely a spatial dimension
-                method = self.sdim.get_intersects
+            method = self.field.geom.get_intersects
         else:
             msg = 'The spatial operation "{0}" is not supported.'.format(operation)
             raise ValueError(msg)
 
         self._prepare_target_()
-        prepared = self._prepare_subset_sdim_(subset_sdim)
-        polygon = prepared.geom.polygon.value[0, 0]
+
+        prepared = self._prepare_geometry_(geom)
+        base_geometry = prepared.value.flatten()[0]
 
         # execute the spatial operation
-        ret = method(polygon, use_spatial_index=use_spatial_index, select_nearest=select_nearest)
+        ret = method(base_geometry, use_spatial_index=use_spatial_index, cascade=True).parent
 
         # check for rotated pole and convert back to default CRS
         if self._original_rotated_pole_state is not None and self.output_crs == 'input':
@@ -122,10 +118,10 @@ class SpatialSubsetOperation(object):
         return ret
 
     @staticmethod
-    def _get_buffered_subset_sdim_(subset_sdim, buffer_value, buffer_crs=None):
+    def _get_buffered_geometry_(geom, buffer_value, buffer_crs=None):
         """
         Buffer a spatial dimension. If ``buffer_crs`` is provided, then ``buffer_value`` are in units of ``buffer_crs``
-        and the coordinate system of ``subset_sdim`` may need to be updated.
+        and the coordinate system of ``geom`` may need to be updated.
 
         :param subset_sdim: The spatial dimension object to buffer.
         :type subset_sdim: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
@@ -136,15 +132,13 @@ class SpatialSubsetOperation(object):
         :rtype: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         """
 
-        subset_sdim = deepcopy(subset_sdim)
+        to_buffer = deepcopy(geom)
         if buffer_crs is not None:
-            original_crs = deepcopy(subset_sdim.crs)
-            subset_sdim.update_crs(buffer_crs)
-        ref = subset_sdim.geom.polygon.value[0, 0]
-        subset_sdim.geom.polygon.value[0, 0] = ref.buffer(buffer_value, cap_style=3)
+            to_buffer.update_crs(buffer_crs)
+        to_buffer.value[0] = to_buffer.value[0].buffer(buffer_value, cap_style=3)
         if buffer_crs is not None:
-            subset_sdim.update_crs(original_crs)
-        return subset_sdim
+            to_buffer.update_crs(geom.crs)
+        return to_buffer
 
     def _get_should_wrap_(self, field):
         """
@@ -163,7 +157,7 @@ class SpatialSubsetOperation(object):
 
         return ret
 
-    def _prepare_subset_sdim_(self, subset_sdim):
+    def _prepare_geometry_(self, geom):
         """
         Compare ``subset_sdim`` geographic state with ``target`` and perform any necessary transformations to ensure a
         smooth subset operation.
@@ -173,13 +167,15 @@ class SpatialSubsetOperation(object):
         :rtype: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         """
 
-        prepared = deepcopy(subset_sdim)
-        prepared.update_crs(self.sdim.crs)
-        if self.sdim.wrapped_state == WrappedState.UNWRAPPED:
-            if prepared.wrapped_state == WrappedState.WRAPPED:
+        prepared = deepcopy(geom)
+        prepared.update_crs(self.field.crs)
+        field_wrapped_state = self.field.wrapped_state
+        prepared_wrapped_state = prepared.wrapped_state
+        if field_wrapped_state == WrappedState.UNWRAPPED:
+            if prepared_wrapped_state == WrappedState.WRAPPED:
                 prepared.unwrap()
-        elif self.sdim.wrapped_state == WrappedState.WRAPPED:
-            if prepared.wrapped_state == WrappedState.UNWRAPPED:
+        elif field_wrapped_state == WrappedState.WRAPPED:
+            if prepared_wrapped_state == WrappedState.UNWRAPPED:
                 prepared.wrap()
 
         return prepared
@@ -189,6 +185,6 @@ class SpatialSubsetOperation(object):
         Perform any transformations on ``target`` in preparation for spatial subsetting.
         """
 
-        if isinstance(self.sdim.crs, CFRotatedPole):
-            self._original_rotated_pole_state = copy(self.sdim.crs)
-            self.sdim.update_crs(self._rotated_pole_destination_crs())
+        if isinstance(self.field.crs, CFRotatedPole):
+            self._original_rotated_pole_state = copy(self.field.crs)
+            self.field.update_crs(self._rotated_pole_destination_crs())
