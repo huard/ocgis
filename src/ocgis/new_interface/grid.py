@@ -163,6 +163,8 @@ class GridXY(AbstractSpatialContainer):
         if value is not None:
             self.parent[value.name] = value
             self._point_name = value.name
+        else:
+            self.parent.pop(self._point_name, None)
 
     @property
     def polygon(self):
@@ -180,6 +182,8 @@ class GridXY(AbstractSpatialContainer):
         if value is not None:
             self.parent[value.name] = value
             self._polygon_name = value.name
+        else:
+            self.parent.pop(self._polygon_name, None)
 
     @property
     def x(self):
@@ -323,13 +327,21 @@ class GridXY(AbstractSpatialContainer):
         value_row = y.value.reshape(-1)
         value_col = x.value.reshape(-1)
         update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
+        y.value = value_row.reshape(self.shape)
+        x.value = value_col.reshape(self.shape)
 
-        if y.bounds is not None:
+        if self.has_bounds:
             corner_row = y.bounds.value.reshape(-1)
             corner_col = x.bounds.value.reshape(-1)
             update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
+            y.bounds.value = corner_row.reshape(y.bounds.shape)
+            x.bounds.value = corner_col.reshape(x.bounds.shape)
 
         self.crs = to_crs
+
+        # Regenerate geometries.
+        self.point = None
+        self.polygon = None
 
         self.is_vectorized = False
 
@@ -353,7 +365,7 @@ class GridXY(AbstractSpatialContainer):
         else:
             row = self.y[:, 0]
             col = self.x[0, :]
-            if row.bounds is None:
+            if not self.has_bounds:
                 minx = col.value.min()
                 miny = row.value.min()
                 maxx = col.value.max()

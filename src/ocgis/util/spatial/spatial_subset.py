@@ -101,19 +101,11 @@ class SpatialSubsetOperation(object):
 
         # wrap the data...
         if self._get_should_wrap_(ret):
-            try:
-                ret.spatial.wrap()
-            except AttributeError:
-                # likely a spatial dimension
-                ret.wrap()
+            ret.wrap()
 
         # convert the coordinate system if requested...
         if self.should_update_crs:
-            try:
-                ret.spatial.update_crs(self.output_crs)
-            except AttributeError:
-                # likely a spatial dimension
-                ret.update_crs(self.output_crs)
+            ret.update_crs(self.output_crs)
 
         return ret
 

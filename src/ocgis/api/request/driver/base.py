@@ -28,6 +28,7 @@ class AbstractDriver(object):
         self.rd = rd
         self._metadata_raw = None
         self._dist = None
+        self._dimension_map_raw = None
 
     def __eq__(self, other):
         return self.key == other.key
@@ -40,10 +41,11 @@ class AbstractDriver(object):
     def crs(self):
         raise NotImplementedError
 
-    # tdk: remove me
     @property
-    def dimension_map(self):
-        raise NotImplementedError
+    def dimension_map_raw(self):
+        if self._dimension_map_raw is None:
+            self._dimension_map_raw = get_dimension_map_raw(self, self.metadata_raw)
+        return self._dimension_map_raw
 
     @property
     def dist(self):
@@ -137,7 +139,7 @@ class AbstractDriver(object):
 
             # Configure the default distribution.
             if self.rd.use_default_dist:
-                dimension_map = group_meta['dimension_map']
+                dimension_map = get_group(self.rd.dimension_map, group_index, has_root=False)
                 distributed_dimension_name = self.get_distributed_dimension_name(dimension_map,
                                                                                  group_meta['dimensions'])
                 # Allow no distributed dimensions to be returned.
@@ -262,20 +264,12 @@ class AbstractDriver(object):
     def get_group_metadata(group_index, metadata, has_root=False):
         return get_group(metadata, group_index, has_root=has_root)
 
-    def get_metadata(self, group_metadata=None):
+    def get_metadata(self):
         """
         :rtype: dict
         """
 
-        if group_metadata is None:
-            group_metadata = self._get_metadata_main_()
-        group_metadata['dimension_map'] = self.get_dimension_map(group_metadata)
-
-        # Allow metadata to not have groups.
-        if 'groups' in group_metadata:
-            for next_group in group_metadata['groups'].values():
-                self.get_metadata(group_metadata=next_group)
-        return group_metadata
+        return self._get_metadata_main_()
 
     def get_source_metadata_as_json(self):
         # tdk: test
@@ -572,6 +566,21 @@ def format_attribute_for_dump_report(attr_value):
     else:
         ret = attr_value
     return ret
+
+
+def get_dimension_map_raw(driver, group_metadata, group_name=None, update_target=None):
+    dimension_map = driver.get_dimension_map(group_metadata)
+    if update_target is None:
+        update_target = dimension_map
+    if 'groups' not in dimension_map:
+        dimension_map['groups'] = {}
+    if group_name is not None:
+        update_target['groups'][group_name] = dimension_map
+    if 'groups' in group_metadata:
+        for group_name, sub_group_metadata in group_metadata['groups'].items():
+            get_dimension_map_raw(driver, sub_group_metadata, group_name=group_name,
+                                  update_target=update_target['groups'])
+    return update_target
 
 
 def get_dump_report_for_group(group, global_attributes_name='global', indent=0):

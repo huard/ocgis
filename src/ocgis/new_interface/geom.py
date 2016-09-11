@@ -51,6 +51,8 @@ class AbstractSpatialObject(AbstractInterfaceObject):
         else:
             if self.parent is None:
                 self.initialize_parent()
+            if self._crs_name is not None:
+                self.parent.pop(self._crs_name)
             self.parent.add_variable(value, force=True)
             self._crs_name = value.name
 

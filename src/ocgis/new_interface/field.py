@@ -138,6 +138,13 @@ class OcgField(VariableCollection):
     def unwrap(self):
         wrap_or_unwrap(self, WrapAction.UNWRAP)
 
+    def update_crs(self, to_crs):
+        if self.grid is not None:
+            self.grid.update_crs(to_crs)
+        else:
+            self.geom.update_crs(to_crs)
+        self.dimension_map[DimensionMapKeys.CRS]['variable'] = to_crs.name
+
     def wrap(self):
         wrap_or_unwrap(self, WrapAction.WRAP)
 

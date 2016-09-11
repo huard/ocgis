@@ -13,6 +13,7 @@ from ocgis.constants import MPIWriteMode, WrappedState, WrapAction
 from ocgis.exc import ProjectionCoordinateNotFound, ProjectionDoesNotMatch
 from ocgis.new_interface.base import AbstractInterfaceObject
 from ocgis.util.environment import osr
+from ocgis.util.helpers import iter_array
 from ocgis.util.spatial.wrap import GeometryWrapper, CoordinateArrayWrapper
 
 SpatialReference = osr.SpatialReference
@@ -227,12 +228,10 @@ class WrappableCoordinateReferenceSystem(object):
             attr = 'unwrap'
 
         if isinstance(target, GeometryVariable):
-            size = target.size
-            value = target.value
             w = GeometryWrapper()
             func = getattr(w, attr)
-            for idx in range(size):
-                value[idx] = func(value[idx])
+            for idx, target_geom in iter_array(target.value, use_mask=False, return_value=True):
+                target.value.__setitem__(idx, func(target_geom))
         elif isinstance(target, GridXY):
             ca = CoordinateArrayWrapper()
             func = getattr(ca, attr)

@@ -246,7 +246,7 @@ class GeometryWrapper(AbstractWrapper):
                 ret = MultiPolygon(list(polygons))
             return ret
 
-        try:
+        if isinstance(geom, (Polygon, MultiPolygon)):
             bounds = np.array(geom.bounds)
             # If the polygon column bounds are both greater than 180 degrees shift the coordinates of the entire
             # polygon.
@@ -267,14 +267,14 @@ class GeometryWrapper(AbstractWrapper):
             else:
                 new_geom = geom
         # Likely a point type object.
-        except (AttributeError, TypeError):
-            try:
+        else:
+            if isinstance(geom, Point):
                 if geom.x > 180:
                     new_geom = Point(geom.x - 360, geom.y)
                 else:
                     new_geom = geom
             # Likely a MultiPoint.
-            except AttributeError:
+            elif isinstance(geom, MultiPoint):
                 points = [None] * len(geom)
                 for ii, point in enumerate(geom):
                     if point.x > 180:
@@ -283,6 +283,8 @@ class GeometryWrapper(AbstractWrapper):
                         new_point = point
                     points[ii] = new_point
                 new_geom = MultiPoint(points)
+            else:
+                raise NotImplementedError(geom)
 
         return new_geom
 
