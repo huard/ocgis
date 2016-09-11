@@ -214,11 +214,10 @@ class TestSpatialSubsetOperation(TestBase):
         proj4 = '+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs'
         output_crs = CoordinateReferenceSystem(proj4=proj4)
         rd = self.test_data.get_rd('cancm4_tas')
-        ss = SpatialSubsetOperation(rd.get(), output_crs=output_crs)
+        ss = SpatialSubsetOperation(rd.get())  # , output_crs=output_crs)
         ret = ss.get_spatial_subset('intersects', self.nebraska['geom'], geom_crs=WGS84())
+        print ret.grid.value_stacked
         self.assertEqual(ret.crs, output_crs)
-        import ipdb;
-        ipdb.set_trace()
         self.assertAlmostEqual(ret.grid.value_stacked.mean(), -35065.750850951554)
 
         # test with an input rotated pole coordinate system
