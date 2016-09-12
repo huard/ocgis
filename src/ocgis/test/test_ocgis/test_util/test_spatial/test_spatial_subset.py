@@ -303,3 +303,4 @@ class TestSpatialSubsetOperation(TestBase):
         # same output crs as input
         ss = SpatialSubsetOperation(target, output_crs=ss.field.crs)
         self.assertFalse(ss.should_update_crs)
+
