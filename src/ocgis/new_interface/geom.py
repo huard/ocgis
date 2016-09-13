@@ -222,7 +222,6 @@ class GeometryVariable(AbstractSpatialVariable):
         :return:
         :raises: EmptySubsetError
         """
-
         return_slice = kwargs.pop('return_slice', False)
         comm = kwargs.pop('comm', None) or MPI_COMM
         rank = comm.Get_rank()
@@ -340,14 +339,23 @@ class GeometryVariable(AbstractSpatialVariable):
 
         return ret
 
-    def get_spatial_index(self):
+    def get_spatial_index(self, target=None):
+        """
+        Return a spatial index for the geometry variable.
+        :param target: If this is a boolean array, use this as the add target. Otherwise, use the compressed masked
+         values.
+        :return:
+        """
         # "rtree" is an optional dependency.
         from ocgis.util.spatial.index import SpatialIndex
         # Fill the spatial index with unmasked values only.
         si = SpatialIndex()
-        r_add = si.add
+        # Use compressed masked values if target is not available.
+        if target is None:
+            target = self.masked_value.compressed()
         # Add the geometries to the index.
-        for idx, geom in iter_array(self.masked_value.compressed(), return_value=True):
+        r_add = si.add
+        for idx, geom in iter_array(target, return_value=True):
             r_add(idx[0], geom)
 
         return si
@@ -497,19 +505,25 @@ def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=
     fill = original_mask.copy()
     fill.fill(True)
     ref_fill_mask = fill.reshape(-1)
+
     # Track global indices because spatial operations only occur on non-masked values.
-    global_index = np.arange(reduce(lambda x, y: x * y, original_mask.shape))
+    global_index = np.arange(original_mask.size)
     global_index = np.ma.array(global_index, mask=original_mask).compressed()
+
+    # Select the geometry targets. If an original mask is provided, use this. It may be modified to limit the search
+    # area for intersects operations. Useful for speeding up grid subsetting operations.
+    geometry_target = np.ma.array(gvar.value, mask=original_mask).compressed()
+
     if use_spatial_index:
-        si = gvar.get_spatial_index()
+        si = gvar.get_spatial_index(target=geometry_target)
         # Return the indices of the geometries intersecting the target geometry, and update the mask accordingly.
-        for idx in si.iter_intersects(geometry, gvar.masked_value.compressed(), keep_touches=keep_touches):
+        for idx in si.iter_intersects(geometry, geometry_target, keep_touches=keep_touches):
             ref_fill_mask[global_index[idx]] = False
     else:
         # Prepare the polygon for faster spatial operations.
         prepared = prep(geometry)
         # We are not keeping touches at this point. Remember the mask is an inverse.
-        for idx, geom in iter_array(gvar.masked_value.compressed(), return_value=True):
+        for idx, geom in iter_array(geometry_target, return_value=True):
             bool_value = False
             if prepared.intersects(geom):
                 if not keep_touches and geometry.touches(geom):

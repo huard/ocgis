@@ -165,7 +165,7 @@ class TestSpatialSubsetOperation(TestBase):
 
             # for var in k.target.values()[0].values():
             #     if not isinstance(var, CoordinateReferenceSystem):
-            #         log.debug(var._request_dataset.uri)
+            #         print(var._request_dataset.uri)
             #         break
 
             for geometry_record in self.get_subset_geometries():

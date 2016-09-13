@@ -81,11 +81,19 @@ class SpatialSubsetOperation(object):
 
         # execute the spatial operation
         if operation == 'intersects':
-            ret = self.field.geom.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
-                                                 cascade=True).parent
+            if self.field.grid is None:
+                ret = self.field.geom.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
+                                                     cascade=True).parent
+            else:
+                ret = self.field.grid.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
+                                                     cascade=True).parent
         elif operation in ('clip', 'intersection'):
-            ret = self.field.geom.get_intersection(base_geometry, use_spatial_index=use_spatial_index,
-                                                   cascade=True).parent
+            if self.field.grid is None:
+                ret = self.field.geom.get_intersection(base_geometry, use_spatial_index=use_spatial_index,
+                                                       cascade=True).parent
+            else:
+                ret = self.field.grid.get_intersection(base_geometry, use_spatial_index=use_spatial_index,
+                                                       cascade=True).parent
         else:
             msg = 'The spatial operation "{0}" is not supported.'.format(operation)
             raise ValueError(msg)

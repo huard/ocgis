@@ -4,6 +4,7 @@ from copy import deepcopy
 import numpy as np
 from pyproj import Proj, transform
 from shapely.geometry import Polygon, Point, box
+from shapely.geometry.base import BaseGeometry
 
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
@@ -276,12 +277,22 @@ class GridXY(AbstractSpatialContainer):
     def get_intersects(self, *args, **kwargs):
         use_bounds = kwargs.pop('use_bounds', 'auto')
         return_slice = kwargs.get('return_slice', False)
+        original_mask = kwargs.get('original_mask')
 
         if use_bounds == 'auto':
             if self.abstraction == 'polygon':
                 use_bounds = True
             else:
                 use_bounds = False
+
+        if original_mask is None:
+            subset_target = args[0]
+            if not isinstance(subset_target, BaseGeometry):
+                subset_target = box(*subset_target)
+            subset_target = subset_target.buffer(1.25 * self.resolution)
+            original_mask = get_hint_mask_from_geometry_bounds(self, subset_target)
+            original_mask = np.logical_or(self.get_mask(), original_mask)
+        kwargs['original_mask'] = original_mask
 
         if use_bounds:
             intersects_return = self.polygon.get_intersects(*args, **kwargs)
@@ -732,6 +743,18 @@ def get_coordinate_boolean_array(grid_target, keep_touches, max_target, min_targ
     res_target = res_target.reshape(-1)
 
     return res_target
+
+
+def get_hint_mask_from_geometry_bounds(grid, geometry):
+    minx, miny, maxx, maxy = geometry.bounds
+    grid_x = grid.x.value
+    grid_y = grid.y.value
+
+    select_x = np.logical_and(grid_x >= minx, grid_x <= maxx)
+    select_y = np.logical_and(grid_y >= miny, grid_y <= maxy)
+    select = np.logical_and(select_x, select_y)
+
+    return np.invert(select)
 
 
 def grid_set_geometry_variable_on_parent(func, grid, name, alloc_only=False):
