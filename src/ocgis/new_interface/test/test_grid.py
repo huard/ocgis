@@ -411,6 +411,36 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertFalse(np.any(mask))
         self.assertTrue(grid.is_vectorized)
 
+    def test_get_intersects(self):
+        subset = box(100.7, 39.71, 102.30, 42.30)
+        desired_manual = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]],
+                          [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
+        desired_manual = np.array(desired_manual)
+
+        grid = self.get_gridxy()
+        # self.write_fiona_htmp(grid, 'grid')
+        # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+        sub, sub_slc = grid.get_intersects(subset, return_slice=True)
+        # self.write_fiona_htmp(sub, 'sub')
+        self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
+        self.assertNumpyAll(sub.value_stacked, desired_manual)
+
+        # Test masks are updated.
+        grid = self.get_gridxy(with_xy_bounds=True, with_parent=True)
+        for t in ['xbounds', 'ybounds']:
+            self.assertIn(t, grid.parent)
+        subset = 'Polygon ((100.81193771626298883 42.17577854671281301, 101.13166089965399408 42.21211072664360842, 101.34965397923876651 41.18754325259516236, 103.68944636678200766 41.34013840830451159, 103.63858131487890546 41.22387543252595776, 100.77560553633219342 41.08581314878893664, 100.81193771626298883 42.17577854671281301))'
+        subset = wkt.loads(subset)
+        sub = grid.get_intersects(subset, cascade=True)
+        self.assertTrue(sub.get_mask().any())
+        self.assertTrue(sub.abstraction_geometry.get_mask().any())
+        mask_slice = {'ydim': slice(1, 2), 'xdim': slice(1, 3)}
+        for v in sub.parent.values():
+            self.assertTrue(v.get_mask().any())
+            self.assertFalse(v.get_mask().all())
+            actual = v[mask_slice].get_mask()
+            self.assertTrue(np.all(actual))
+
     @attr('mpi')
     def test_get_intersects_bounds_sequence(self):
         keywords = dict(bounds=[True, False], use_bounds=[True, False])
@@ -452,36 +482,6 @@ class TestGridXY(AbstractTestNewInterface):
             new_mask.fill(True)
             sub.set_mask(new_mask)
             self.assertEqual(grid.get_mask().sum(), 4)
-
-    def test_get_intersects(self):
-        subset = box(100.7, 39.71, 102.30, 42.30)
-        desired_manual = [[[40.0, 40.0], [41.0, 41.0], [42.0, 42.0]],
-                          [[101.0, 102.0], [101.0, 102.0], [101.0, 102.0]]]
-        desired_manual = np.array(desired_manual)
-
-        grid = self.get_gridxy()
-        # self.write_fiona_htmp(grid, 'grid')
-        # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
-        sub, sub_slc = grid.get_intersects(subset, return_slice=True)
-        # self.write_fiona_htmp(sub, 'sub')
-        self.assertEqual(sub_slc, (slice(0, 3, None), slice(0, 2, None)))
-        self.assertNumpyAll(sub.value_stacked, desired_manual)
-
-        # Test masks are updated.
-        grid = self.get_gridxy(with_xy_bounds=True, with_parent=True)
-        for t in ['xbounds', 'ybounds']:
-            self.assertIn(t, grid.parent)
-        subset = 'Polygon ((100.81193771626298883 42.17577854671281301, 101.13166089965399408 42.21211072664360842, 101.34965397923876651 41.18754325259516236, 103.68944636678200766 41.34013840830451159, 103.63858131487890546 41.22387543252595776, 100.77560553633219342 41.08581314878893664, 100.81193771626298883 42.17577854671281301))'
-        subset = wkt.loads(subset)
-        sub = grid.get_intersects(subset, cascade=True)
-        self.assertTrue(sub.get_mask().any())
-        self.assertTrue(sub.abstraction_geometry.get_mask().any())
-        mask_slice = {'ydim': slice(1, 2), 'xdim': slice(1, 3)}
-        for v in sub.parent.values():
-            self.assertTrue(v.get_mask().any())
-            self.assertFalse(v.get_mask().all())
-            actual = v[mask_slice].get_mask()
-            self.assertTrue(np.all(actual))
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
