@@ -275,6 +275,19 @@ class GridXY(AbstractSpatialContainer):
             yield idx, record
 
     def get_intersects(self, *args, **kwargs):
+        args = list(args)
+        args.insert(0, 'intersects')
+        return self.get_spatial_operation(*args, **kwargs)
+
+    def get_intersection(self, *args, **kwargs):
+        args = list(args)
+        args.insert(0, 'intersection')
+        return self.get_spatial_operation(*args, **kwargs)
+
+    def get_spatial_operation(self, *args, **kwargs):
+        spatial_op, original_subset_target = args
+        args = (original_subset_target,)
+
         use_bounds = kwargs.pop('use_bounds', 'auto')
         return_slice = kwargs.get('return_slice', False)
         original_mask = kwargs.get('original_mask')
@@ -286,23 +299,30 @@ class GridXY(AbstractSpatialContainer):
                 use_bounds = False
 
         if original_mask is None:
-            subset_target = args[0]
-            if not isinstance(subset_target, BaseGeometry):
-                subset_target = box(*subset_target)
+            if not isinstance(original_subset_target, BaseGeometry):
+                subset_target = box(*original_subset_target)
+            else:
+                subset_target = original_subset_target
             subset_target = subset_target.buffer(1.25 * self.resolution)
             original_mask = get_hint_mask_from_geometry_bounds(self, subset_target)
             original_mask = np.logical_or(self.get_mask(), original_mask)
         kwargs['original_mask'] = original_mask
 
         if use_bounds:
-            intersects_return = self.polygon.get_intersects(*args, **kwargs)
+            if spatial_op == 'intersects':
+                spatial_op_return = self.polygon.get_intersects(*args, **kwargs)
+            else:
+                spatial_op_return = self.polygon.get_intersection(*args, **kwargs)
         else:
-            intersects_return = self.point.get_intersects(*args, **kwargs)
+            if spatial_op == 'intersects':
+                spatial_op_return = self.point.get_intersects(*args, **kwargs)
+            else:
+                spatial_op_return = self.point.get_intersection(*args, **kwargs)
 
         if return_slice:
-            gvar, the_return_slice = intersects_return
+            gvar, the_return_slice = spatial_op_return
         else:
-            gvar = intersects_return
+            gvar = spatial_op_return
 
         ret = self.copy()
         ret.parent = gvar.parent

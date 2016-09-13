@@ -293,11 +293,9 @@ class GeometryVariable(AbstractSpatialVariable):
             ret, original_mask = self, None
         else:
             ret = self.copy()
-            original_mask = ret.get_mask().copy()
         fill = self.get_mask_from_intersects(*args, **kwargs)
         if not self.is_empty:
-            set_mask_value = np.logical_or(fill, original_mask)
-            ret.set_mask(set_mask_value, cascade=cascade)
+            ret.set_mask(fill, cascade=cascade)
         return ret
 
     def get_mask_from_intersects(self, geometry_or_bounds, use_spatial_index=True, keep_touches=False,
@@ -509,7 +507,6 @@ def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=
     # Track global indices because spatial operations only occur on non-masked values.
     global_index = np.arange(original_mask.size)
     global_index = np.ma.array(global_index, mask=original_mask).compressed()
-
     # Select the geometry targets. If an original mask is provided, use this. It may be modified to limit the search
     # area for intersects operations. Useful for speeding up grid subsetting operations.
     geometry_target = np.ma.array(gvar.value, mask=original_mask).compressed()

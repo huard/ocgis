@@ -163,10 +163,10 @@ class TestSpatialSubsetOperation(TestBase):
         ctr_test = 0
         for ss, k in self:
 
-            # for var in k.target.values()[0].values():
-            #     if not isinstance(var, CoordinateReferenceSystem):
-            #         print(var._request_dataset.uri)
-            #         break
+            for var in k.target.values()[0].values():
+                if not isinstance(var, CoordinateReferenceSystem):
+                    print(var._request_dataset.uri)
+                    break
 
             for geometry_record in self.get_subset_geometries():
                 for operation in ['intersects', 'clip', 'foo']:
