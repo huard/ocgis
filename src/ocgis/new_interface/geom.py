@@ -147,12 +147,19 @@ class AbstractSpatialVariable(SourcedVariable, AbstractOperationsSpatialObject):
         SourcedVariable.__init__(self, **kwargs)
         AbstractOperationsSpatialObject.__init__(self, crs=crs)
 
+    def deepcopy(self, eager=False):
+        ret = super(AbstractSpatialVariable, self).deepcopy(eager)
+        ret.crs = ret.crs.deepcopy()
+        return ret
+
 
 class GeometryVariable(AbstractSpatialVariable):
     def __init__(self, *args, **kwargs):
         self._name_uid = None
-
         self._geom_type = kwargs.pop('geom_type', 'auto')
+
+        if kwargs.get('name') is None:
+            kwargs['name'] = 'geom'
         super(GeometryVariable, self).__init__(*args, **kwargs)
 
     def __add_to_collection_finalize__(self, vc):

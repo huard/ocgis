@@ -81,6 +81,8 @@ class SpatialSubsetOperation(object):
 
         # execute the spatial operation
         # ret = method(base_geometry, use_spatial_index=use_spatial_index, cascade=True).parent
+        import ipdb;
+        ipdb.set_trace()
         if operation == 'intersects':
             ret = self.field.geom.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
                                                  cascade=True).parent
@@ -154,9 +156,17 @@ class SpatialSubsetOperation(object):
         :type subset_sdim: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         :rtype: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         """
+        assert isinstance(geom, GeometryVariable)
 
-        prepared = deepcopy(geom)
-        prepared.update_crs(self.field.crs)
+        prepared = geom.deepcopy()
+
+        if geom.crs is not None:
+            assert prepared.crs is not None
+
+        if isinstance(self.field.crs, CFRotatedPole):
+            prepared.update_crs(CFSpherical())
+        else:
+            prepared.update_crs(self.field.crs)
         field_wrapped_state = self.field.wrapped_state
         prepared_wrapped_state = prepared.wrapped_state
         if field_wrapped_state == WrappedState.UNWRAPPED:

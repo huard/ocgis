@@ -465,6 +465,16 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsNotNone(var.dimensions)
         self.assertEqual(len(var.dimensions), 1)
 
+    def test_deepcopy(self):
+        var = Variable(value=[5], dimensions='one', name='o')
+        var.bounds = Variable(value=[[4, 6]], dimensions=['one', 'bnds'], name='bounds')
+        misc = Variable(value=np.arange(8), dimensions='eight', name='dont_touch_me')
+        var.parent.add_variable(misc)
+
+        dvar = var.deepcopy()
+        self.assertFalse(np.may_share_memory(var.value, dvar.value))
+        self.assertFalse(np.may_share_memory(var.bounds.value, dvar.bounds.value))
+
     def test_dimensions(self):
         # Test dimensions on bounds variables are updated when the dimensions on the parent variable are updated.
         aa = Dimension('aa', 4, src_idx=np.array([11, 12, 13, 14]))

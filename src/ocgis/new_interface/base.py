@@ -1,6 +1,6 @@
 from abc import ABCMeta
 from contextlib import contextmanager
-from copy import copy
+from copy import copy, deepcopy
 
 from ocgis.new_interface.ocgis_logging import log
 
@@ -15,6 +15,10 @@ class AbstractInterfaceObject(object):
     def copy(self):
         """Return a shallow copy of self."""
         return copy(self)
+
+    def deepcopy(self):
+        """Return a deep copy of self."""
+        return deepcopy(self)
 
 
 def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop=False):
@@ -34,12 +38,13 @@ def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop
 
 
 @contextmanager
-def orphaned(parent, target):
+def orphaned(target):
+    original_parent = target.parent
     target.parent = None
     try:
         yield target
     finally:
-        target.parent = parent
+        target.parent = original_parent
 
 
 @contextmanager

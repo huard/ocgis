@@ -1,6 +1,7 @@
 import itertools
 from abc import ABCMeta, abstractproperty, abstractmethod
 from collections import OrderedDict
+from copy import deepcopy
 from itertools import izip
 
 import numpy as np
@@ -551,9 +552,27 @@ class Variable(AbstractContainer, Attributes):
         ret.attrs = ret.attrs.copy()
 
         if ret.parent is not None:
+            ret.parent = ret.parent.copy()
+
+        if ret.parent is not None:
             ret.parent.add_variable(ret, force=True)
 
         return ret
+
+    def deepcopy(self, eager=False):
+        deepcopied = self.copy()
+
+        if eager:
+            raise NotImplementedError
+        else:
+            with orphaned(deepcopied):
+                deepcopied.__dict__ = deepcopy(deepcopied.__dict__)
+            if deepcopied.parent is not None:
+                deepcopied.parent.add_variable(deepcopied, force=True)
+            if deepcopied.has_bounds:
+                deepcopied.bounds = deepcopied.bounds.deepcopy()
+
+        return deepcopied
 
     def cfunits_conform(self, to_units, from_units=None):
         """
@@ -999,8 +1018,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     def copy(self):
         ret = AbstractCollection.copy(self)
         for v in ret.values():
-            v = v.copy()
-            v.parent = ret
+            with orphaned(v):
+                v_copied = v.copy()
+            v_copied.parent = ret
         ret.children = ret.children.copy()
         return ret
 

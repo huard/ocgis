@@ -80,6 +80,15 @@ class TestGeometryVariable(AbstractTestNewInterface):
         vc = VariableCollection(variables=gvar)
         self.assertIn(crs.name, vc)
 
+    def test_deepcopy(self):
+        gvar = GeometryVariable(value=Point(1, 2), crs=Spherical(), dimensions='d')
+        self.assertEqual(gvar.crs, Spherical())
+        d = gvar.deepcopy()
+        d.crs = WGS84()
+        self.assertEqual(gvar.crs, Spherical())
+        self.assertFalse(np.may_share_memory(gvar.value, d.value))
+        self.assertIsNotNone(d.crs)
+
     def test_getitem(self):
         gridxy = self.get_gridxy()
         pa = get_geometry_variable(get_point_geometry_array, gridxy, name='point_array', dimensions=['x', 'y'])
