@@ -1,7 +1,7 @@
 import abc
 import itertools
 import tempfile
-from copy import copy, deepcopy
+from copy import copy
 
 import numpy as np
 from fiona.crs import from_string, to_string
@@ -559,46 +559,57 @@ class CFRotatedPole(CFCoordinateReferenceSystem):
         # holds metadata and previous state information for inverse transformations
         self._inverse_state = {}
 
-    def get_rotated_pole_transformation(self, spatial, inverse=False):
+    def update_with_rotated_pole_transformation(self, grid, inverse=False):
         """
         :type spatial: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         :param bool inverse: If ``True``, this is an inverse transformation.
         :rtype: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         """
+        # new_spatial = copy(spatial)
+        # new_spatial._geom = None
+        assert isinstance(grid.crs, (WrappableCoordinateReferenceSystem, CFRotatedPole))
 
-        new_spatial = copy(spatial)
-        new_spatial._geom = None
+        grid.remove_bounds()
 
-        try:
-            rc_original = {'row': {'name': spatial.grid.row.name,
-                                   'meta': spatial.grid.row.meta,
-                                   'attrs': spatial.grid.row.attrs},
-                           'col': {'name': spatial.grid.col.name,
-                                   'meta': spatial.grid.col.meta,
-                                   'attrs': spatial.grid.col.attrs}}
-        # A previously transformed rotated pole spatial dimension will not have row and columns. these should be
-        # available in the state dictionary.
-        except AttributeError:
-            rc_original = self._inverse_state['rc_original']
+        rlon, rlat = get_lonlat_rotated_pole_transform(grid.x.value.flatten(), grid.y.value.flatten(),
+                                                       self._trans_proj, inverse=inverse)
+        grid.x.value = rlon.reshape(*grid.shape)
+        grid.y.value = rlat.reshape(*grid.shape)
 
-        # If this metadata information is not stored, put in the state dictionary to use for inverse transformations.
-        if 'rc_original' not in self._inverse_state:
-            self._inverse_state['rc_original'] = rc_original
+        # grid.crs = CFSpherical()
 
-        new_spatial.grid = self._get_rotated_pole_transformation_for_grid_(new_spatial.grid, inverse=inverse,
-                                                                           rc_original=rc_original)
+        # return new_grid
 
-        # Ensure masks are updated appropriately.
-        new_spatial.grid.value.mask = spatial.grid.value.mask.copy()
-        new_spatial.grid.uid.mask = spatial.grid.uid.mask.copy()
+        # try:
+        #     rc_original = {'row': {'name': spatial.grid.row.name,
+        #                            'meta': spatial.grid.row.meta,
+        #                            'attrs': spatial.grid.row.attrs},
+        #                    'col': {'name': spatial.grid.col.name,
+        #                            'meta': spatial.grid.col.meta,
+        #                            'attrs': spatial.grid.col.attrs}}
+        # # A previously transformed rotated pole spatial dimension will not have row and columns. these should be
+        # # available in the state dictionary.
+        # except AttributeError:
+        #     rc_original = self._inverse_state['rc_original']
+        #
+        # # If this metadata information is not stored, put in the state dictionary to use for inverse transformations.
+        # if 'rc_original' not in self._inverse_state:
+        #     self._inverse_state['rc_original'] = rc_original
+        #
+        # new_spatial.grid = self._get_rotated_pole_transformation_for_grid_(new_spatial.grid, inverse=inverse,
+        #                                                                    rc_original=rc_original)
 
-        # The CRS has been transformed, so update accordingly.
-        if inverse:
-            new_spatial.crs = deepcopy(self)
-        else:
-            new_spatial.crs = CFWGS84()
-
-        return new_spatial
+        # # Ensure masks are updated appropriately.
+        # new_spatial.grid.value.mask = spatial.grid.value.mask.copy()
+        # new_spatial.grid.uid.mask = spatial.grid.uid.mask.copy()
+        #
+        # # The CRS has been transformed, so update accordingly.
+        # if inverse:
+        #     new_spatial.crs = deepcopy(self)
+        # else:
+        #     new_spatial.crs = CFWGS84()
+        #
+        # return new_spatial
 
     def write_to_rootgrp(self, rootgrp):
         """
@@ -731,3 +742,64 @@ class CFRotatedPole(CFCoordinateReferenceSystem):
             else:
                 raise
         return {'meta': meta, 'name': name, 'attrs': attrs}
+
+
+def get_lonlat_rotated_pole_transform(lon, lat, transform, inverse=False):
+    """
+    Transform longitude and latitude coordinates to/from their rotated pole representation.
+
+    :param lon: Vector of longitude coordinates.
+    :param lat: Vector of latitude coordinates.
+    :param str transform: The PROJ.4 transform string.
+    :param inverse: If ``True``, coordinates are in spherical longitude/latitude and should be transformed to rotated
+     pole.
+    :return: A tuple with the first element being transformed longitude and the second element being transformed
+     latitude.
+    :rtype: tuple
+    """
+
+    import csv
+    import subprocess
+
+    class ProjDialect(csv.excel):
+        lineterminator = '\n'
+        delimiter = '\t'
+
+    f = tempfile.NamedTemporaryFile()
+    try:
+        writer = csv.writer(f, dialect=ProjDialect)
+        for idx in range(lon.shape[0]):
+            writer.writerow([lon[idx], lat[idx]])
+        f.flush()
+        cmd = transform.split(' ')
+        cmd.append(f.name)
+        if inverse:
+            program = 'invproj'
+        else:
+            program = 'proj'
+        cmd = [program, '-f', '"%.6f"', '-m', '57.2957795130823'] + cmd
+        capture = subprocess.check_output(cmd)
+    finally:
+        f.close()
+
+    coords = capture.split('\n')
+    new_coords = []
+
+    for ii, coord in enumerate(coords):
+        coord = coord.replace('"', '')
+        coord = coord.split('\t')
+        try:
+            coord = map(float, coord)
+        # likely empty string
+        except ValueError:
+            if coord[0] == '':
+                continue
+            else:
+                raise
+        new_coords.append(coord)
+
+    rlon_rlat = np.array(new_coords)
+    rlon = rlon_rlat[:, 0]
+    rlat = rlon_rlat[:, 1]
+
+    return rlon, rlat

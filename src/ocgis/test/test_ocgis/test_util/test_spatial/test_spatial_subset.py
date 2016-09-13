@@ -230,11 +230,10 @@ class TestSpatialSubsetOperation(TestBase):
         """Test input has rotated pole with now output CRS."""
 
         rd = self.rd_rotated_pole
-        ss = SpatialSubsetOperation(rd)
-        subset_sdim = SpatialDimension.from_records([self.germany])
-        ret = ss.get_spatial_subset('intersects', subset_sdim)
-        self.assertEqual(ret.spatial.crs, rd.get().spatial.crs)
-        self.assertAlmostEqual(ret.spatial.grid.value.data.mean(), -2.0600000000000009)
+        ss = SpatialSubsetOperation(rd.get())
+        ret = ss.get_spatial_subset('intersects', self.germany['geom'], geom_crs=WGS84())
+        self.assertEqual(ret.crs, rd.get().crs)
+        self.assertAlmostEqual(ret.grid.value_stacked.mean(), -2.0600000000000009)
 
     @attr('data')
     def test_get_spatial_subset_wrap(self):

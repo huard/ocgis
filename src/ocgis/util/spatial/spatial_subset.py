@@ -1,7 +1,7 @@
 from copy import deepcopy, copy
 
 from ocgis.constants import WrappedState
-from ocgis.interface.base.crs import CFRotatedPole, CFWGS84
+from ocgis.interface.base.crs import CFRotatedPole, CFSpherical
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 
@@ -21,7 +21,7 @@ class SpatialSubsetOperation(object):
     :type wrap: bool
     """
 
-    _rotated_pole_destination_crs = CFWGS84
+    _rotated_pole_destination_crs = CFSpherical
 
     def __init__(self, field, output_crs='input', wrap=None):
         if not isinstance(field, OcgField):
@@ -75,29 +75,25 @@ class SpatialSubsetOperation(object):
         if buffer_value is not None:
             geom = self._get_buffered_geometry_(geom, buffer_value, buffer_crs=buffer_crs)
 
-        if operation == 'clip':
-            method = self.field.geom.get_intersection
-        elif operation == 'intersects':
-            method = self.field.geom.get_intersects
-        else:
-            msg = 'The spatial operation "{0}" is not supported.'.format(operation)
-            raise ValueError(msg)
-
         self._prepare_target_()
-
         prepared = self._prepare_geometry_(geom)
         base_geometry = prepared.value.flatten()[0]
 
         # execute the spatial operation
-        ret = method(base_geometry, use_spatial_index=use_spatial_index, cascade=True).parent
+        # ret = method(base_geometry, use_spatial_index=use_spatial_index, cascade=True).parent
+        if operation == 'intersects':
+            ret = self.field.geom.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
+                                                 cascade=True).parent
+        elif operation in ('clip', 'intersection'):
+            ret = self.field.geom.get_intersection(base_geometry, use_spatial_index=use_spatial_index,
+                                                   cascade=True).parent
+        else:
+            msg = 'The spatial operation "{0}" is not supported.'.format(operation)
+            raise ValueError(msg)
 
         # check for rotated pole and convert back to default CRS
         if self._original_rotated_pole_state is not None and self.output_crs == 'input':
-            try:
-                ret.spatial.update_crs(self._original_rotated_pole_state)
-            except AttributeError:
-                # like a spatial dimension
-                ret.update_crs(self._original_rotated_pole_state)
+            ret.update_crs(self._original_rotated_pole_state)
 
         # wrap the data...
         if self._get_should_wrap_(ret):

@@ -2,10 +2,12 @@ import itertools
 from copy import deepcopy
 
 import numpy as np
+from pyproj import Proj, transform
 from shapely.geometry import Polygon, Point, box
 
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
+from ocgis.interface.base.crs import CFRotatedPole
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log, log_entry_exit
@@ -317,25 +319,57 @@ class GridXY(AbstractSpatialContainer):
 
         super(GridXY, self).update_crs(to_crs)
 
-        src_sr = self.crs.sr
-        to_sr = to_crs.sr
+        if isinstance(self.crs, CFRotatedPole):
+            self.crs.update_with_rotated_pole_transformation(self, inverse=False)
+        elif isinstance(to_crs, CFRotatedPole):
+            to_crs.update_with_rotated_pole_transformation(self, inverse=True)
+        else:
+            src_proj4 = self.crs.proj4
+            dst_proj4 = to_crs.proj4
 
-        # Transforming the coordinate system will result in a non-vectorized grid (i.e. cannot be representated as row
-        # and column vectors).
-        y = self.y
-        x = self.x
-        value_row = y.value.reshape(-1)
-        value_col = x.value.reshape(-1)
-        update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
-        y.value = value_row.reshape(self.shape)
-        x.value = value_col.reshape(self.shape)
+            src_proj4 = Proj(src_proj4)
+            dst_proj4 = Proj(dst_proj4)
 
-        if self.has_bounds:
-            corner_row = y.bounds.value.reshape(-1)
-            corner_col = x.bounds.value.reshape(-1)
-            update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
-            y.bounds.value = corner_row.reshape(y.bounds.shape)
-            x.bounds.value = corner_col.reshape(x.bounds.shape)
+            y = self.y
+            x = self.x
+
+            value_row = self.y.value.reshape(-1)
+            value_col = self.x.value.reshape(-1)
+
+            tvalue_col, tvalue_row = transform(src_proj4, dst_proj4, value_col, value_row)
+
+            self.x.value = tvalue_col.reshape(self.shape)
+            self.y.value = tvalue_row.reshape(self.shape)
+
+            if self.has_bounds:
+                corner_row = y.bounds.value.reshape(-1)
+                corner_col = x.bounds.value.reshape(-1)
+                # update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
+                tvalue_col, tvalue_row = transform(src_proj4, dst_proj4, corner_col, corner_row)
+                y.bounds.value = tvalue_row.reshape(y.bounds.shape)
+                x.bounds.value = tvalue_col.reshape(x.bounds.shape)
+
+        # import ipdb;
+        # ipdb.set_trace()
+        # src_sr = self.crs.sr
+        # to_sr = to_crs.sr
+        #
+        # # Transforming the coordinate system will result in a non-vectorized grid (i.e. cannot be representated as row
+        # # and column vectors).
+        # y = self.y
+        # x = self.x
+        # value_row = y.value.reshape(-1)
+        # value_col = x.value.reshape(-1)
+        # update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
+        # y.value = value_row.reshape(self.shape)
+        # x.value = value_col.reshape(self.shape)
+        #
+        # if self.has_bounds:
+        #     corner_row = y.bounds.value.reshape(-1)
+        #     corner_col = x.bounds.value.reshape(-1)
+        #     update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
+        #     y.bounds.value = corner_row.reshape(y.bounds.shape)
+        #     x.bounds.value = corner_col.reshape(x.bounds.shape)
 
         self.crs = to_crs
 

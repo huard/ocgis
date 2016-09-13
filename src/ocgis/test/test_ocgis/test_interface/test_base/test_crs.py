@@ -1,7 +1,7 @@
-import netCDF4 as nc
 import os
 from copy import deepcopy
 
+import netCDF4 as nc
 import numpy as np
 from shapely.geometry import Point, MultiPoint
 from shapely.geometry.multipolygon import MultiPolygon
@@ -11,7 +11,7 @@ from ocgis import constants
 from ocgis.exc import SpatialWrappingError
 from ocgis.interface.base.crs import CoordinateReferenceSystem, WGS84,\
     CFAlbersEqualArea, CFLambertConformal, CFRotatedPole, CFWGS84, Spherical, WrappableCoordinateReferenceSystem, \
-    CFCoordinateReferenceSystem
+    CFCoordinateReferenceSystem, CFSpherical
 from ocgis.interface.base.dimension.base import VectorDimension
 from ocgis.interface.base.dimension.spatial import SpatialGridDimension,\
     SpatialDimension
@@ -428,7 +428,7 @@ class TestCFRotatedPole(TestBase):
     def test_equal(self):
         rd = self.test_data.get_rd('rotated_pole_ichec')
         rd2 = deepcopy(rd)
-        self.assertEqual(rd.get().spatial.crs, rd2.get().spatial.crs)
+        self.assertEqual(rd.get().crs, rd2.get().crs)
 
     @attr('data')
     def test_get_rotated_pole_transformation(self):
@@ -436,51 +436,14 @@ class TestCFRotatedPole(TestBase):
 
         rd = self.test_data.get_rd('rotated_pole_ichec')
         field = rd.get()
-        field = field[:, 10:20, :, 40:55, 55:65]
-        spatial = field.spatial
-        self.assertIsNotNone(spatial._grid)
 
-        # modify the mask to ensure it is appropriately updated and copied during the transformations
-        spatial.grid.value.mask[:, 5, 6] = True
-        spatial.grid.uid.mask[5, 6] = True
-        spatial.assert_uniform_mask()
+        original_coordinate_values = field.grid.value_stacked.copy()
+        field.update_crs(CFSpherical())
+        self.assertEqual(field.crs, CFSpherical())
 
-        self.assertIsNone(spatial._geom._polygon)
-        self.assertIsNone(spatial._geom._point)
-        spatial.geom
-        self.assertIsNotNone(spatial._geom.point)
-        new_spatial = field.spatial.crs.get_rotated_pole_transformation(spatial)
-        original_crs = deepcopy(field.spatial.crs)
-        self.assertIsInstance(new_spatial.crs, CFWGS84)
-        self.assertIsNone(new_spatial._geom)
-        new_spatial.geom
-        self.assertIsNotNone(new_spatial._geom)
-
-        self.assertNumpyNotAllClose(spatial.grid.value, new_spatial.grid.value)
-
-        field_copy = deepcopy(field)
-        self.assertIsNone(field_copy.variables['tas']._value)
-        field_copy.spatial = new_spatial
-        value = field_copy.variables['tas'].value
-        self.assertIsNotNone(field_copy.variables['tas']._value)
-        self.assertIsNone(field.variables['tas']._value)
-
-        self.assertNumpyAll(field.variables['tas'].value, field_copy.variables['tas'].value)
-
-        inverse_spatial = original_crs.get_rotated_pole_transformation(new_spatial, inverse=True)
-        for attr in ['row', 'col']:
-            target = getattr(inverse_spatial.grid, attr)
-            target_actual = getattr(spatial.grid, attr)
-            self.assertDictEqual(target.attrs, target_actual.attrs)
-        inverse_spatial.assert_uniform_mask()
-
-        self.assertNumpyAll(inverse_spatial.uid, spatial.uid)
-        self.assertNumpyAllClose(inverse_spatial.grid.row.value, spatial.grid.row.value)
-        self.assertNumpyAllClose(inverse_spatial.grid.col.value, spatial.grid.col.value)
-        self.assertDictEqual(spatial.grid.row.meta, inverse_spatial.grid.row.meta)
-        self.assertEqual(spatial.grid.row.name, inverse_spatial.grid.row.name)
-        self.assertDictEqual(spatial.grid.col.meta, inverse_spatial.grid.col.meta)
-        self.assertEqual(spatial.grid.col.name, inverse_spatial.grid.col.name)
+        field.update_crs(rd.get().crs)
+        back_to_original_coordinate_values = field.grid.value_stacked.copy()
+        self.assertNumpyAllClose(original_coordinate_values, back_to_original_coordinate_values)
 
     @attr('data')
     def test_in_operations(self):
