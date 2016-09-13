@@ -160,21 +160,17 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('slow')
     def test_get_spatial_subset(self):
-        from ocgis.new_interface.ocgis_logging import log
         ctr_test = 0
         for ss, k in self:
 
-            for var in k.target.values()[0].values():
-                if not isinstance(var, CoordinateReferenceSystem):
-                    log.debug(var._request_dataset.uri)
-                    break
+            # for var in k.target.values()[0].values():
+            #     if not isinstance(var, CoordinateReferenceSystem):
+            #         log.debug(var._request_dataset.uri)
+            #         break
 
             for geometry_record in self.get_subset_geometries():
                 for operation in ['intersects', 'clip', 'foo']:
-                    log.debug(ctr_test)
-                    if ctr_test != 36:
-                        ctr_test += 1
-                        continue
+                    ctr_test += 1
                     use_geometry = deepcopy(geometry_record['geom'])
                     use_ss = deepcopy(ss)
                     try:
@@ -187,8 +183,12 @@ class TestSpatialSubsetOperation(TestBase):
                         else:
                             raise
                     except EmptySubsetError:
-                        self.assertEqual(k.target.keys()[0], 'lambert')
-                        self.assertEqual(geometry_record['properties']['DESC'], 'Germany')
+                        try:
+                            self.assertEqual(k.target.keys()[0], 'lambert')
+                            self.assertEqual(geometry_record['properties']['DESC'], 'Germany')
+                        except AssertionError:
+                            self.assertEqual(k.target.keys()[0], 'rotated_pole')
+                            self.assertEqual(geometry_record['properties']['DESC'], 'Nebraska')
                         continue
                     self.assertIsInstance(ret, OcgField)
 

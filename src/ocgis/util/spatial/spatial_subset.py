@@ -80,9 +80,6 @@ class SpatialSubsetOperation(object):
         base_geometry = prepared.value.flatten()[0]
 
         # execute the spatial operation
-        # ret = method(base_geometry, use_spatial_index=use_spatial_index, cascade=True).parent
-        import ipdb;
-        ipdb.set_trace()
         if operation == 'intersects':
             ret = self.field.geom.get_intersects(base_geometry, use_spatial_index=use_spatial_index,
                                                  cascade=True).parent
