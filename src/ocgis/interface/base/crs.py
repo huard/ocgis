@@ -1,7 +1,5 @@
 import abc
-import itertools
 import tempfile
-from copy import copy
 
 import numpy as np
 from fiona.crs import from_string, to_string
@@ -556,17 +554,12 @@ class CFRotatedPole(CFCoordinateReferenceSystem):
                                                  lat_pole=kwds['grid_north_pole_latitude'],
                                                  ellps=constants.PROJ4_ROTATED_POLE_ELLPS)
 
-        # holds metadata and previous state information for inverse transformations
-        self._inverse_state = {}
-
     def update_with_rotated_pole_transformation(self, grid, inverse=False):
         """
         :type spatial: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         :param bool inverse: If ``True``, this is an inverse transformation.
         :rtype: :class:`ocgis.interface.base.dimension.spatial.SpatialDimension`
         """
-        # new_spatial = copy(spatial)
-        # new_spatial._geom = None
         assert isinstance(grid.crs, (WrappableCoordinateReferenceSystem, CFRotatedPole))
 
         grid.remove_bounds()
@@ -575,41 +568,6 @@ class CFRotatedPole(CFCoordinateReferenceSystem):
                                                        self._trans_proj, inverse=inverse)
         grid.x.value = rlon.reshape(*grid.shape)
         grid.y.value = rlat.reshape(*grid.shape)
-
-        # grid.crs = CFSpherical()
-
-        # return new_grid
-
-        # try:
-        #     rc_original = {'row': {'name': spatial.grid.row.name,
-        #                            'meta': spatial.grid.row.meta,
-        #                            'attrs': spatial.grid.row.attrs},
-        #                    'col': {'name': spatial.grid.col.name,
-        #                            'meta': spatial.grid.col.meta,
-        #                            'attrs': spatial.grid.col.attrs}}
-        # # A previously transformed rotated pole spatial dimension will not have row and columns. these should be
-        # # available in the state dictionary.
-        # except AttributeError:
-        #     rc_original = self._inverse_state['rc_original']
-        #
-        # # If this metadata information is not stored, put in the state dictionary to use for inverse transformations.
-        # if 'rc_original' not in self._inverse_state:
-        #     self._inverse_state['rc_original'] = rc_original
-        #
-        # new_spatial.grid = self._get_rotated_pole_transformation_for_grid_(new_spatial.grid, inverse=inverse,
-        #                                                                    rc_original=rc_original)
-
-        # # Ensure masks are updated appropriately.
-        # new_spatial.grid.value.mask = spatial.grid.value.mask.copy()
-        # new_spatial.grid.uid.mask = spatial.grid.uid.mask.copy()
-        #
-        # # The CRS has been transformed, so update accordingly.
-        # if inverse:
-        #     new_spatial.crs = deepcopy(self)
-        # else:
-        #     new_spatial.crs = CFWGS84()
-        #
-        # return new_spatial
 
     def write_to_rootgrp(self, rootgrp):
         """
@@ -620,128 +578,6 @@ class CFRotatedPole(CFCoordinateReferenceSystem):
         variable.proj4 = ''
         variable.proj4_transform = self._trans_proj
         return variable
-
-    def _get_rotated_pole_transformation_for_grid_(self, grid, inverse=False, rc_original=None):
-        """
-        http://osgeo-org.1560.x6.nabble.com/Rotated-pole-coordinate-system-a-howto-td3885700.html
-
-        :param :class:`ocgis.interface.base.dimension.spatial.SpatialGridDimension` grid:
-        :param bool inverse: If ``True``, this is an inverse transformation.
-        :param dict rc_original: Contains original metadata information for the row and
-         column dimensions.
-        :returns: :class:`ocgis.interface.base.dimension.spatial.SpatialGridDimension`
-        """
-
-        import csv
-        import subprocess
-
-        class ProjDialect(csv.excel):
-            lineterminator = '\n'
-            delimiter = '\t'
-
-        f = tempfile.NamedTemporaryFile()
-        writer = csv.writer(f, dialect=ProjDialect)
-        new_mask = grid.value.mask.copy()
-
-        if inverse:
-            _row = grid.value[0, :, :].data
-            _col = grid.value[1, :, :].data
-            shp = (_row.shape[0], _col.shape[1])
-
-            def _itr_writer_(_row, _col):
-                for row_idx, col_idx in itertools.product(range(_row.shape[0]), range(_row.shape[1])):
-                    yield (_col[row_idx, col_idx], _row[row_idx, col_idx])
-        else:
-            _row = grid.row.value
-            _col = grid.col.value
-            shp = (_row.shape[0], _col.shape[0])
-
-            def _itr_writer_(row, col):
-                for row_idx, col_idx in itertools.product(range(_row.shape[0]), range(_col.shape[0])):
-                    yield (_col[col_idx], _row[row_idx])
-
-        for xy in _itr_writer_(_row, _col):
-            writer.writerow(xy)
-        f.flush()
-        cmd = self._trans_proj.split(' ')
-        cmd.append(f.name)
-
-        if inverse:
-            program = 'invproj'
-        else:
-            program = 'proj'
-
-        cmd = [program, '-f', '"%.6f"', '-m', '57.2957795130823'] + cmd
-        capture = subprocess.check_output(cmd)
-        f.close()
-        coords = capture.split('\n')
-        new_coords = []
-
-        for ii, coord in enumerate(coords):
-            coord = coord.replace('"', '')
-            coord = coord.split('\t')
-            try:
-                coord = map(float, coord)
-            # likely empty string
-            except ValueError:
-                if coord[0] == '':
-                    continue
-                else:
-                    raise
-            new_coords.append(coord)
-
-        new_coords = np.array(new_coords)
-        new_row = new_coords[:, 1].reshape(*shp)
-        new_col = new_coords[:, 0].reshape(*shp)
-
-        new_grid = copy(grid)
-        # reset geometries
-        new_grid._geom = None
-        if inverse:
-            from ocgis.interface.base.dimension.base import VectorDimension
-
-            dict_row = self._get_meta_name_(rc_original, 'row')
-            dict_col = self._get_meta_name_(rc_original, 'col')
-
-            new_row = new_row[:, 0]
-            new_col = new_col[0, :]
-            new_grid.row = VectorDimension(value=new_row, name=dict_row['name'],
-                                           meta=dict_row['meta'],
-                                           attrs=dict_row['attrs'])
-            new_grid.col = VectorDimension(value=new_col, name=dict_col['name'],
-                                           meta=dict_col['meta'],
-                                           attrs=dict_col['attrs'])
-            new_col, new_row = np.meshgrid(new_col, new_row)
-        else:
-            from ocgis.interface.nc.spatial import NcSpatialGridDimension
-
-            assert isinstance(new_grid, NcSpatialGridDimension)
-            new_grid._src_idx = {'row': new_grid.row._src_idx, 'col': new_grid.col._src_idx}
-            new_grid.row = None
-            new_grid.col = None
-
-        new_value = np.zeros([2] + list(new_row.shape))
-        new_value = np.ma.array(new_value, mask=new_mask)
-        new_value[0, :, :] = new_row
-        new_value[1, :, :] = new_col
-        new_grid._value = new_value
-
-        return new_grid
-
-    @staticmethod
-    def _get_meta_name_(rc_original, key):
-        try:
-            meta = rc_original[key]['meta']
-            name = rc_original[key]['name']
-            attrs = rc_original[key]['attrs']
-        except TypeError:
-            if rc_original is None:
-                meta = None
-                name = None
-                attrs = None
-            else:
-                raise
-        return {'meta': meta, 'name': name, 'attrs': attrs}
 
 
 def get_lonlat_rotated_pole_transform(lon, lat, transform, inverse=False):

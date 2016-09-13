@@ -377,7 +377,9 @@ class GridXY(AbstractSpatialContainer):
         self.point = None
         self.polygon = None
 
-        self.is_vectorized = False
+        # Rotated pole transformations maintain grid vectorizations.
+        if not isinstance(self.crs, CFRotatedPole) or not isinstance(to_crs, CFRotatedPole):
+            self.is_vectorized = False
 
     def _get_extent_(self):
         #tdk: test, doc
