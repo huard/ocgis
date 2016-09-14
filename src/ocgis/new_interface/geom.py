@@ -509,3 +509,4 @@ def geometryvariable_get_mask_from_intersects(gvar, geometry, use_spatial_index=
             ref_fill_mask[global_index[idx]] = bool_value
 
     return fill
+
