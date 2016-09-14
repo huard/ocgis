@@ -251,13 +251,13 @@ class GeometryVariable(AbstractSpatialVariable):
 
         if size > 1:
             ret = ret.get_distributed_slice(adjust, comm=comm)
-            ret_mask = intersects_mask.get_distributed_slice(adjust, comm=comm).value
+            ret_mask = intersects_mask.get_distributed_slice(adjust, comm=comm)
         else:
             ret = ret.__getitem__(adjust)
-            ret_mask = intersects_mask.__getitem__(adjust).value
+            ret_mask = intersects_mask.__getitem__(adjust)
 
         if not ret.is_empty:
-            ret.set_mask(ret_mask, cascade=cascade)
+            ret.set_mask(ret_mask.value, cascade=cascade)
 
         # tdk: need to implement fancy index-based slicing for the one-dimensional unstructured case
         # if self.ndim == 1:

@@ -22,10 +22,18 @@ class Test(AbstractTestNewInterface):
         if MPI_SIZE == 1:
             raise SkipTest('MPI only')
         world_group = MPI_COMM.Get_group()
-        sub_group = world_group.Incl([0, 1])
+        sub_group = world_group.Incl([3, 6])
         new_comm = MPI_COMM.Create(sub_group)
         if new_comm != COMM_NULL:
-            log.debug(new_comm.Get_size())
+            log.debug(['size', new_comm.Get_size()])
+            log.debug(['rank', new_comm.Get_rank()])
+            if new_comm.Get_rank() == 0:
+                data = 'what'
+            else:
+                data = None
+            data = new_comm.bcast(data)
+            log.debug(data)
+            new_comm.Barrier()
 
         if new_comm != COMM_NULL:
             sub_group.Free()

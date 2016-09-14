@@ -14,6 +14,7 @@ from ocgis.exc import ProjectionDoesNotMatch, PayloadProtectedError, OcgWarning
 from ocgis.interface.base.crs import CFCoordinateReferenceSystem
 from ocgis.new_interface.base import orphaned
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.mpi import MPI_COMM
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import SourcedVariable, ObjectType, VariableCollection, \
     get_slice_sequence_using_local_bounds
@@ -150,7 +151,7 @@ class DriverNetcdf(AbstractDriver):
             else:
                 fill_slice = get_slice_sequence_using_local_bounds(var)
                 data_value = cls.get_variable_write_value(var)
-                ncvar[fill_slice] = data_value
+                ncvar.__setitem__(fill_slice, data_value)
 
         # Only set variable attributes if this is not a fill operation.
         if write_mode != MPIWriteMode.FILL:
@@ -173,6 +174,8 @@ class DriverNetcdf(AbstractDriver):
         :param kwargs: Extra keyword arguments in addition to ``dimensions`` and ``fill_value`` to pass to
          ``createVariable``. See http://unidata.github.io/netcdf4-python/netCDF4.Dataset-class.html#createVariable
         """
+        from ocgis.new_interface.geom import GeometryVariable
+
         assert write_mode is not None
         dataset_kwargs = kwargs.get('dataset_kwargs', {})
         variable_kwargs = kwargs.get('variable_kwargs', {})
@@ -203,6 +206,8 @@ class DriverNetcdf(AbstractDriver):
                         vc.write_attributes_to_netcdf_object(dataset)
                     # This is the main variable write loop.
                     for variable in vc.values():
+                        if isinstance(variable, GeometryVariable):
+                            continue
                         # For isolated and replicated variables, only write once.
                         if write_mode != MPIWriteMode.TEMPLATE:
                             if variable.dist is not None and variable.dist != MPIDistributionMode.DISTRIBUTED:
@@ -217,7 +222,7 @@ class DriverNetcdf(AbstractDriver):
                         variable.load()
                         # Call the individual variable write method in fill mode. Orphaning is required as a variable
                         # will attempt to write its parent first.
-                        with orphaned(vc, variable):
+                        with orphaned(variable):
                             variable.write(dataset, write_mode=write_mode, **variable_kwargs)
                     # Recurse the children.
                     for child in vc.children.values():
@@ -426,7 +431,11 @@ def init_variable_using_metadata_for_netcdf(driver, variable, metadata):
 
     # Use the distribution to identify if this is an isolated variable. Isolated variables exist on select ranks.
     dist_for_var = driver.dist.get_variable(variable)
-    rank = driver.rd.comm.Get_rank()
+
+    # tdk: understand issues with the null communicator
+    # rank = driver.rd.comm.Get_rank()
+    rank = MPI_COMM.Get_rank()
+
     if dist_for_var['dist'] == MPIDistributionMode.ISOLATED and rank not in dist_for_var['ranks']:
         variable._is_empty = True
 

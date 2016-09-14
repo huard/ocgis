@@ -816,13 +816,15 @@ def expand_grid(grid):
         if y.bounds is not None:
             name_y = y.bounds.name
             name_x = x.bounds.name
+            # tdk: this is overwritten with use of "corners"
             name_dimension = y.bounds.dimensions[1].name
             y.bounds = None
             x.bounds = None
             y.dimensions = new_dimensions
             x.dimensions = new_dimensions
             # tdk: this should leverage the bounds already in place on the vectors
-            grid.set_extrapolated_bounds(name_x, name_y, name_dimension)
+            # tdk: consider method to explicityly define corners dimension name
+            grid.set_extrapolated_bounds(name_x, name_y, 'corners')
         else:
             y.dimensions = new_dimensions
             x.dimensions = new_dimensions

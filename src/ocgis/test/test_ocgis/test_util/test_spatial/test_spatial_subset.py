@@ -11,6 +11,7 @@ from ocgis.interface.base.crs import CFWGS84, CFRotatedPole, WGS84, CFSpherical
 from ocgis.interface.base.field import Field
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
+from ocgis.new_interface.mpi import MPI_COMM, MPI_RANK
 from ocgis.test.base import TestBase, attr
 from ocgis.test.strings import GERMANY_WKT, NEBRASKA_WKT
 from ocgis.test.test_ocgis.test_api.test_parms.test_definition import TestGeom
@@ -160,17 +161,31 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('slow', 'mpi')
     def test_get_spatial_subset(self):
+        from ocgis.new_interface.ocgis_logging import log
         ctr_test = 0
         for ss, k in self:
 
             for var in k.target.values()[0].values():
                 if not isinstance(var, CoordinateReferenceSystem):
-                    print(var._request_dataset.uri)
+                    from ocgis.new_interface.ocgis_logging import log
+                    log.debug(var._request_dataset.uri)
                     break
 
             for geometry_record in self.get_subset_geometries():
                 for operation in ['intersects', 'clip', 'foo']:
-                    ctr_test += 1
+                    log.debug(['ctr_test', ctr_test])
+                    log.debug(['geometry_record', geometry_record])
+                    log.debug(['operation', operation])
+                    if MPI_RANK == 0:
+                        output_path = self.get_temporary_file_path('file-{}.nc'.format(ctr_test))
+                    else:
+                        output_path = None
+                    output_path = MPI_COMM.bcast(output_path)
+
+                    if ctr_test != 3:
+                        ctr_test += 1
+                        continue
+
                     use_geometry = deepcopy(geometry_record['geom'])
                     use_ss = deepcopy(ss)
                     try:
@@ -190,7 +205,11 @@ class TestSpatialSubsetOperation(TestBase):
                             self.assertEqual(k.target.keys()[0], 'rotated_pole')
                             self.assertEqual(geometry_record['properties']['DESC'], 'Nebraska')
                         continue
-                    self.assertIsInstance(ret, OcgField)
+                    else:
+                        self.assertIsInstance(ret, OcgField)
+                        from ocgis.new_interface.ocgis_logging import log
+                        log.debug(ret.shapes)
+                        ret.write(output_path)
 
         self.assertGreater(ctr_test, 5)
 
