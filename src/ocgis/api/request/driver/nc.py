@@ -585,4 +585,3 @@ def get_dimension_map_entry(axis, variables, dimensions):
     else:
         ret = None
     return ret
-
