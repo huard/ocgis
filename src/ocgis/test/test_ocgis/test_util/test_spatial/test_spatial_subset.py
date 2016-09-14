@@ -161,30 +161,29 @@ class TestSpatialSubsetOperation(TestBase):
 
     @attr('slow', 'mpi')
     def test_get_spatial_subset(self):
-        from ocgis.new_interface.ocgis_logging import log
         ctr_test = 0
         for ss, k in self:
 
-            for var in k.target.values()[0].values():
-                if not isinstance(var, CoordinateReferenceSystem):
-                    from ocgis.new_interface.ocgis_logging import log
-                    log.debug(var._request_dataset.uri)
-                    break
+            # for var in k.target.values()[0].values():
+            #     if not isinstance(var, CoordinateReferenceSystem):
+            #         from ocgis.new_interface.ocgis_logging import log
+            #         log.debug(var._request_dataset.uri)
+            #         break
 
             for geometry_record in self.get_subset_geometries():
                 for operation in ['intersects', 'clip', 'foo']:
-                    log.debug(['ctr_test', ctr_test])
-                    log.debug(['geometry_record', geometry_record])
-                    log.debug(['operation', operation])
+                    # log.debug(['ctr_test', ctr_test])
+                    # log.debug(['geometry_record', geometry_record])
+                    # log.debug(['operation', operation])
                     if MPI_RANK == 0:
                         output_path = self.get_temporary_file_path('file-{}.nc'.format(ctr_test))
                     else:
                         output_path = None
                     output_path = MPI_COMM.bcast(output_path)
 
-                    if ctr_test != 3:
-                        ctr_test += 1
-                        continue
+                    # if ctr_test != 3:
+                    ctr_test += 1
+                    #     continue
 
                     use_geometry = deepcopy(geometry_record['geom'])
                     use_ss = deepcopy(ss)
@@ -207,8 +206,8 @@ class TestSpatialSubsetOperation(TestBase):
                         continue
                     else:
                         self.assertIsInstance(ret, OcgField)
-                        from ocgis.new_interface.ocgis_logging import log
-                        log.debug(ret.shapes)
+                        # from ocgis.new_interface.ocgis_logging import log
+                        # log.debug(ret.shapes)
                         ret.write(output_path)
 
         self.assertGreater(ctr_test, 5)

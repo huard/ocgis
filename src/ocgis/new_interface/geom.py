@@ -258,6 +258,10 @@ class GeometryVariable(AbstractSpatialVariable):
 
         if not ret.is_empty:
             ret.set_mask(ret_mask.value, cascade=cascade)
+        else:
+            if ret.parent is not None:
+                for var in ret.parent.values():
+                    assert var.is_empty
 
         # tdk: need to implement fancy index-based slicing for the one-dimensional unstructured case
         # if self.ndim == 1:

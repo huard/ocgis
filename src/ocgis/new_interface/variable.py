@@ -804,7 +804,11 @@ class Variable(AbstractContainer, Attributes):
 
         # Synchronize the dimensions.
         if is_or_will_be_empty:
-            ret._dimensions = new_dimensions
+            ret._dimensions = tuple(new_dimensions)
+            # Ensure all variables in shared collection are also considered empty.
+            if ret.parent is not None:
+                for var in ret.parent.values():
+                    var._is_empty = True
         else:
             ret.dimensions = new_dimensions
 

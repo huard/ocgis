@@ -40,6 +40,7 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         self.has_bounds = False
         self.dist = None
         self.ranks = None
+        self._is_empty = False
 
         # Add a special check for init keys in value dictionary.
         if value is not None:
@@ -98,6 +99,10 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
 
     def __str__(self):
         return str(self.value)
+
+    @property
+    def is_empty(self):
+        return self._is_empty
 
     @property
     def proj4(self):
