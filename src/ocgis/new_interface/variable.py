@@ -326,8 +326,11 @@ class Variable(AbstractContainer, Attributes):
         # Only update the bounds dimensions if this is not part of the variable initialization process. Bounds are
         # configured normally during initialization.
         if not self._is_init and self.has_bounds:
-            bounds_dimensions = list(self.bounds.dimensions)
-            bounds_dimensions[0:len(self.dimensions)] = self.dimensions
+            if dimensions is None:
+                bounds_dimensions = None
+            else:
+                bounds_dimensions = list(self.bounds.dimensions)
+                bounds_dimensions[0:len(self.dimensions)] = self.dimensions
             self.bounds.dimensions = bounds_dimensions
 
     @property

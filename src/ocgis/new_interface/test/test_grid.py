@@ -641,12 +641,16 @@ class TestGridXY(AbstractTestNewInterface):
             var = ds.variables['y']
             self.assertNumpyAll(var[:], grid.y.value)
 
+        # Test writing a vectorized grid with corners.
         grid = self.get_gridxy()
         self.assertIsNotNone(grid.dimensions)
+        self.assertFalse(grid.has_bounds)
+        grid.set_extrapolated_bounds('xbnds', 'ybnds', 'corners')
         self.assertTrue(grid.is_vectorized)
         path = self.get_temporary_file_path('out.nc')
         with self.nc_scope(path, 'w') as ds:
             grid.write(ds)
+        # self.ncdump(path)
         with self.nc_scope(path, 'r') as ds:
             self.assertEqual(['ydim'], [d for d in ds.variables['y'].dimensions])
             self.assertEqual(['xdim'], [d for d in ds.variables['x'].dimensions])

@@ -54,6 +54,11 @@ class GridXY(AbstractSpatialContainer):
 
         self.is_vectorized = is_vectorized
 
+        if self.has_bounds:
+            self._original_bounds_dimension_name = self._archetype.bounds.dimensions[0].name
+        else:
+            self._original_bounds_dimension_name = 'bounds'
+
     def __getitem__(self, slc):
         """
         :param slc: The slice sequence with indices corresponding to:
@@ -814,6 +819,7 @@ def expand_grid(grid):
         assert x.ndim == 2
 
         if y.bounds is not None:
+            grid._original_bounds_dimension_name = y.bounds.dimensions[1].name
             name_y = y.bounds.name
             name_x = x.bounds.name
             # tdk: this is overwritten with use of "corners"

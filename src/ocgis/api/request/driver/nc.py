@@ -41,36 +41,44 @@ class DriverNetcdf(AbstractDriver):
 
     @staticmethod
     def write_gridxy(gridxy, dataset, **kwargs):
-        popped = []
-        for target in [gridxy._point_name, gridxy._polygon_name]:
-            popped.append(gridxy.parent.pop(target, None))
+        from ocgis.new_interface.variable import Variable
+
+        has_bounds = gridxy.has_bounds
         if gridxy.is_vectorized:
-            original_dimensions = deepcopy(gridxy.dimensions)
-            original_x = gridxy.x.copy()
-            original_y = gridxy.y.copy()
+            to_write = gridxy.parent.copy()
 
-            gridxy.x = gridxy.x[0, :]
-            gridxy.y = gridxy.y[:, 0]
-            x, y = gridxy.x, gridxy.y
+            y = Variable(name=gridxy.y.name, value=gridxy.y.value[:, 0].reshape(-1), dimensions=gridxy.dimensions[0],
+                         attrs=gridxy.y.attrs)
+            x = Variable(name=gridxy.x.name, value=gridxy.x.value[0, :].reshape(-1), dimensions=gridxy.dimensions[1],
+                         attrs=gridxy.x.attrs)
 
-            x.dimensions = None
-            x.value = x.value.reshape(-1)
-            x._mask = None
-            x.dimensions = original_dimensions[1]
+            if has_bounds:
+                x_bounds = np.squeeze(gridxy.x.bounds.value[0, :, :])
+                x_bounds_fill = np.zeros((x.shape[0], 2), dtype=x.dtype)
+                x_bounds_fill[:, 0] = np.min(x_bounds, axis=1)
+                x_bounds_fill[:, 1] = np.max(x_bounds, axis=1)
 
-            y.dimensions = None
-            y.value = y.value.reshape(-1)
-            y._mask = None
-            y.dimensions = original_dimensions[0]
-        try:
-            gridxy.parent.write(dataset, **kwargs)
-        finally:
-            for p in popped:
-                if p is not None:
-                    gridxy.parent[p.name] = p
-            if gridxy.is_vectorized:
-                gridxy.x = original_x
-                gridxy.y = original_y
+                y_bounds = np.squeeze(gridxy.y.bounds.value[:, 0, :])
+                y_bounds_fill = np.zeros((y.shape[0], 2), dtype=y.dtype)
+                y_bounds_fill[:, 0] = np.min(y_bounds, axis=1)
+                y_bounds_fill[:, 1] = np.max(y_bounds, axis=1)
+
+                y_bounds_dimensions = [y.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
+                x_bounds_dimensions = [x.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
+                x_bounds_var = Variable(name=gridxy.x.bounds.name, value=x_bounds_fill,
+                                        dimensions=x_bounds_dimensions)
+                y_bounds_var = Variable(name=gridxy.y.bounds.name, value=y_bounds_fill,
+                                        dimensions=y_bounds_dimensions)
+                x.bounds = x_bounds_var
+                y.bounds = y_bounds_var
+
+            to_write.add_variable(x, force=True)
+            to_write.add_variable(y, force=True)
+
+        else:
+            to_write = gridxy.parent
+
+        to_write.write(dataset, **kwargs)
 
     @classmethod
     def write_variable(cls, var, dataset, write_mode=MPIWriteMode.NORMAL, **kwargs):
