@@ -98,17 +98,18 @@ class SpatialSubsetOperation(object):
             msg = 'The spatial operation "{0}" is not supported.'.format(operation)
             raise ValueError(msg)
 
-        # check for rotated pole and convert back to default CRS
-        if self._original_rotated_pole_state is not None and self.output_crs == 'input':
-            ret.update_crs(self._original_rotated_pole_state)
+        if not any([v.is_empty for v in ret.iter_data_variables()]):
+            # check for rotated pole and convert back to default CRS
+            if self._original_rotated_pole_state is not None and self.output_crs == 'input':
+                ret.update_crs(self._original_rotated_pole_state)
 
-        # wrap the data...
-        if self._get_should_wrap_(ret):
-            ret.wrap()
+            # wrap the data...
+            if self._get_should_wrap_(ret):
+                ret.wrap()
 
-        # convert the coordinate system if requested...
-        if self.should_update_crs:
-            ret.update_crs(self.output_crs)
+            # convert the coordinate system if requested...
+            if self.should_update_crs:
+                ret.update_crs(self.output_crs)
 
         return ret
 
