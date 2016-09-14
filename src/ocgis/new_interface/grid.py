@@ -154,6 +154,14 @@ class GridXY(AbstractSpatialContainer):
         return self._archetype.has_bounds
 
     @property
+    def is_empty(self):
+        if self.x.is_empty or self.y.is_empty:
+            ret = True
+        else:
+            ret = False
+        return ret
+
+    @property
     def point(self):
         try:
             ret = self.parent[self._point_name]

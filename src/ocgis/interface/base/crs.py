@@ -214,6 +214,9 @@ class WrappableCoordinateReferenceSystem(object):
         return ret
 
     def wrap_or_unwrap(self, action, target):
+        if target.is_empty:
+            return
+
         from ocgis.new_interface.geom import GeometryVariable
         from ocgis.new_interface.grid import GridXY
 

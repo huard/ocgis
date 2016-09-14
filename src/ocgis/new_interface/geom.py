@@ -92,6 +92,9 @@ class AbstractOperationsSpatialObject(AbstractSpatialObject):
     def update_crs(self, to_crs):
         """Update coordinate system in-place."""
 
+        if self.is_empty:
+            return self
+
         if self.crs is None:
             msg = 'The current CRS is None and cannot be updated.'
             raise ValueError(msg)
