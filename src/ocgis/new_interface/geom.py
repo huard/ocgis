@@ -108,10 +108,6 @@ class AbstractOperationsSpatialObject(AbstractSpatialObject):
         """Perform an intersects operations."""
 
     @abstractmethod
-    def get_intersects_masked(self, geometry, use_spatial_index=True, keep_touches=False):
-        """Perform an intersects operation and mask non-intersecting elements."""
-
-    @abstractmethod
     def get_nearest(self, target, return_indices=False):
         """Get nearest element to target geometry."""
 
@@ -223,6 +219,7 @@ class GeometryVariable(AbstractSpatialVariable):
         :raises: EmptySubsetError
         """
         return_slice = kwargs.pop('return_slice', False)
+        cascade = kwargs.pop('cascade', False)
         comm = kwargs.pop('comm', None) or MPI_COMM
         rank = comm.Get_rank()
         size = comm.Get_size()
@@ -230,18 +227,19 @@ class GeometryVariable(AbstractSpatialVariable):
         if size > 1 and not self.has_dimensions:
             raise ValueError('Dimensions are required for a distributed intersects operation.')
 
-        ret = self.get_intersects_masked(*args, **kwargs)
-        intersects_mask = Variable(name='mask_gather', value=ret.get_mask(), dimensions=ret.dimensions, dtype=bool)
-        intersects_mask = variable_gather(intersects_mask, comm=comm)
+        ret = self.copy()
+        intersects_mask = ret.get_mask_from_intersects(*args, **kwargs)
+        intersects_mask = Variable(name='mask_gather', value=intersects_mask, dimensions=ret.dimensions, dtype=bool)
+        gathered_mask = variable_gather(intersects_mask, comm=comm)
 
         adjust = None
         raise_empty_subset = False
         if rank == 0:
-            assert intersects_mask.dtype == bool
-            if intersects_mask.value.all():
+            assert gathered_mask.dtype == bool
+            if gathered_mask.value.all():
                 raise_empty_subset = True
             else:
-                _, adjust = get_trimmed_array_by_mask(intersects_mask.value, return_adjustments=True)
+                _, adjust = get_trimmed_array_by_mask(gathered_mask.value, return_adjustments=True)
         adjust = comm.bcast(adjust)
         raise_empty_subset = comm.bcast(raise_empty_subset)
 
@@ -250,8 +248,12 @@ class GeometryVariable(AbstractSpatialVariable):
 
         if size > 1:
             ret = ret.get_distributed_slice(adjust, comm=comm)
+            ret_mask = intersects_mask.get_distributed_slice(adjust, comm=comm).value
         else:
             ret = ret.__getitem__(adjust)
+            ret_mask = intersects_mask.__getitem__(adjust).value
+
+        ret.set_mask(ret_mask, cascade=cascade)
 
         # tdk: need to implement fancy index-based slicing for the one-dimensional unstructured case
         # if self.ndim == 1:
@@ -273,29 +275,6 @@ class GeometryVariable(AbstractSpatialVariable):
             obj = ret
         for idx, geom in iter_array(obj.value, return_value=True):
             obj.value[idx] = geom.intersection(args[0])
-        return ret
-
-    def get_intersects_masked(self, *args, **kwargs):
-        """
-        :param geometry: The Shapely geometry to use for subsetting.
-        :type geometry: :class:`shapely.geometry.BaseGeometry'
-        :param bool use_spatial_index: If ``False``, do not use the :class:`rtree.index.Index` for spatial subsetting.
-         If the geometric case is simple, it may marginally improve execution times to turn this off. However, turning
-         this off for a complex case will negatively impact (significantly) spatial operation execution times.
-        :raises: NotImplementedError, EmptySubsetError
-        :rtype: :class:`~ocgis.new_interface.geom.AbstractSpatialVariable`
-        :returns: A spatial variable the same geometry type.
-        """
-        # tdk: doc keep_touches
-        cascade = kwargs.pop('cascade', False)
-
-        if self.is_empty:
-            ret, original_mask = self, None
-        else:
-            ret = self.copy()
-        fill = self.get_mask_from_intersects(*args, **kwargs)
-        if not self.is_empty:
-            ret.set_mask(fill, cascade=cascade)
         return ret
 
     def get_mask_from_intersects(self, geometry_or_bounds, use_spatial_index=True, keep_touches=False,
