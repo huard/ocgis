@@ -188,6 +188,7 @@ class DimensionMapKeys(object):
     REALIZATION = 'realization'
     CRS = 'crs'
     BOUNDS = 'bounds'
+    VARIABLE = 'variable'
 
 
 # MPI Distribution flags.

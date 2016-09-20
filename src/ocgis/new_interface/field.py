@@ -26,13 +26,32 @@ class OcgField(VariableCollection):
         dimension_map = deepcopy(kwargs.pop('dimension_map', None))
         self.dimension_map = get_merged_dimension_map(dimension_map)
 
+        # Add grid variable metadata to dimension map.
+        grid = kwargs.pop('grid', None)
+        if grid is not None:
+            dmap_x = self.dimension_map[DimensionMapKeys.X]
+            dmap_y = self.dimension_map[DimensionMapKeys.Y]
+            dmap_x[DimensionMapKeys.VARIABLE] = grid.x.name
+            dmap_y[DimensionMapKeys.VARIABLE] = grid.y.name
+            if grid.has_bounds:
+                dmap_x[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.x.bounds.name
+                dmap_y[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.y.bounds.name
+
         self.field_name = kwargs.pop('field_name', None)
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
-        self.grid_is_vectorized = kwargs.pop('grid_is_vectorized', 'auto')
+        if grid is None:
+            self.grid_is_vectorized = kwargs.pop('grid_is_vectorized', 'auto')
+        else:
+            self.grid_is_vectorized = grid.is_vectorized
         self.format_time = kwargs.pop('format_time', True)
         self.tags = kwargs.pop('tags', None)
 
         VariableCollection.__init__(self, *args, **kwargs)
+
+        # Add grid variables to the variable collection.
+        if grid is not None:
+            for var in grid.parent.values():
+                self.add_variable(var, force=True)
 
     # tdk: order
     def get_field_slice(self, dslice):
@@ -149,12 +168,18 @@ class OcgField(VariableCollection):
         wrap_or_unwrap(self, WrapAction.WRAP)
 
     def write(self, *args, **kwargs):
+        from ocgis.api.request.driver.nc import DriverNetcdfCF
+
         # Attempt to load all instrumented dimensions once. Do not do this for the geometry variable. This is done to
         # ensure proper attributes are applied to dimension variables before writing.
         for k in self.dimension_map.keys():
             if k != 'geom':
                 getattr(self, k)
-        return super(OcgField, self).write(*args, **kwargs)
+
+        driver = kwargs.pop('driver', DriverNetcdfCF)
+        args = list(args)
+        args.insert(0, self)
+        return driver.write_field(*args, **kwargs)
 
 
 def get_field_property(field, name):

@@ -39,47 +39,6 @@ class DriverNetcdf(AbstractDriver):
     def get_variable_value(self, variable):
         return get_value_from_request_dataset(variable)
 
-    @staticmethod
-    def write_gridxy(gridxy, dataset, **kwargs):
-        from ocgis.new_interface.variable import Variable
-
-        has_bounds = gridxy.has_bounds
-        if gridxy.is_vectorized:
-            to_write = gridxy.parent.copy()
-
-            y = Variable(name=gridxy.y.name, value=gridxy.y.value[:, 0].reshape(-1), dimensions=gridxy.dimensions[0],
-                         attrs=gridxy.y.attrs)
-            x = Variable(name=gridxy.x.name, value=gridxy.x.value[0, :].reshape(-1), dimensions=gridxy.dimensions[1],
-                         attrs=gridxy.x.attrs)
-
-            if has_bounds:
-                x_bounds = np.squeeze(gridxy.x.bounds.value[0, :, :])
-                x_bounds_fill = np.zeros((x.shape[0], 2), dtype=x.dtype)
-                x_bounds_fill[:, 0] = np.min(x_bounds, axis=1)
-                x_bounds_fill[:, 1] = np.max(x_bounds, axis=1)
-
-                y_bounds = np.squeeze(gridxy.y.bounds.value[:, 0, :])
-                y_bounds_fill = np.zeros((y.shape[0], 2), dtype=y.dtype)
-                y_bounds_fill[:, 0] = np.min(y_bounds, axis=1)
-                y_bounds_fill[:, 1] = np.max(y_bounds, axis=1)
-
-                y_bounds_dimensions = [y.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
-                x_bounds_dimensions = [x.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
-                x_bounds_var = Variable(name=gridxy.x.bounds.name, value=x_bounds_fill,
-                                        dimensions=x_bounds_dimensions)
-                y_bounds_var = Variable(name=gridxy.y.bounds.name, value=y_bounds_fill,
-                                        dimensions=y_bounds_dimensions)
-                x.bounds = x_bounds_var
-                y.bounds = y_bounds_var
-
-            to_write.add_variable(x, force=True)
-            to_write.add_variable(y, force=True)
-
-        else:
-            to_write = gridxy.parent
-
-        to_write.write(dataset, **kwargs)
-
     @classmethod
     def write_variable(cls, var, dataset, write_mode=MPIWriteMode.NORMAL, **kwargs):
         """
@@ -252,6 +211,54 @@ class DriverNetcdf(AbstractDriver):
         with driver_scope(self) as ds:
             ret = parse_metadata(ds)
         return ret
+
+    @classmethod
+    def _get_variable_collection_write_target_(cls, field):
+        from ocgis.new_interface.variable import Variable
+
+        if field.grid is not None:
+            gridxy = field.grid
+            has_bounds = gridxy.has_bounds
+            if gridxy.is_vectorized:
+                to_write = gridxy.parent.copy()
+
+                y = Variable(name=gridxy.y.name, value=gridxy.y.value[:, 0].reshape(-1),
+                             dimensions=gridxy.dimensions[0], attrs=gridxy.y.attrs, dist=gridxy.y.dist,
+                             ranks=gridxy.y.ranks)
+                x = Variable(name=gridxy.x.name, value=gridxy.x.value[0, :].reshape(-1),
+                             dimensions=gridxy.dimensions[1], attrs=gridxy.x.attrs, dist=gridxy.x.dist,
+                             ranks=gridxy.x.ranks)
+
+                if has_bounds:
+                    x_bounds = np.squeeze(gridxy.x.bounds.value[0, :, :])
+                    x_bounds_fill = np.zeros((x.shape[0], 2), dtype=x.dtype)
+                    x_bounds_fill[:, 0] = np.min(x_bounds, axis=1)
+                    x_bounds_fill[:, 1] = np.max(x_bounds, axis=1)
+
+                    y_bounds = np.squeeze(gridxy.y.bounds.value[:, 0, :])
+                    y_bounds_fill = np.zeros((y.shape[0], 2), dtype=y.dtype)
+                    y_bounds_fill[:, 0] = np.min(y_bounds, axis=1)
+                    y_bounds_fill[:, 1] = np.max(y_bounds, axis=1)
+
+                    y_bounds_dimensions = [y.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
+                    x_bounds_dimensions = [x.dimensions[0], Dimension(gridxy._original_bounds_dimension_name, 2)]
+                    x_bounds_var = Variable(name=gridxy.x.bounds.name, value=x_bounds_fill,
+                                            dimensions=x_bounds_dimensions, dist=gridxy.x.bounds.dist,
+                                            ranks=gridxy.x.bounds.ranks)
+                    y_bounds_var = Variable(name=gridxy.y.bounds.name, value=y_bounds_fill,
+                                            dimensions=y_bounds_dimensions, dist=gridxy.y.bounds.dist,
+                                            ranks=gridxy.y.bounds.ranks)
+                    x.bounds = x_bounds_var
+                    y.bounds = y_bounds_var
+
+                to_write.add_variable(x, force=True)
+                to_write.add_variable(y, force=True)
+            else:
+                to_write = field
+        else:
+            to_write = field
+
+        return to_write
 
     def _init_variable_from_source_main_(self, variable, variable_object):
         init_variable_using_metadata_for_netcdf(self, variable, self.rd.metadata)

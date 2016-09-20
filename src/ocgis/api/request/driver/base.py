@@ -431,13 +431,14 @@ class AbstractDriver(object):
                 msg = 'Output format not supported for driver "{0}". Supported output formats are: {1}'.format(cls.key, cls.output_formats)
                 ocgis_lh(logger='driver', exc=DefinitionValidationError('output_format', msg))
 
-    def write_gridxy(self, *args, **kwargs):
-        """Write a grid."""
-        raise NotImplementedError
-
     def write_variable(self, *args, **kwargs):
         """Write a variable. Not applicable for tabular formats."""
         raise NotImplementedError
+
+    @classmethod
+    def write_field(cls, field, opened_or_path, **kwargs):
+        vc_to_write = cls._get_variable_collection_write_target_(field)
+        cls.write_variable_collection(vc_to_write, opened_or_path, **kwargs)
 
     @classmethod
     def write_variable_collection(cls, vc, opened_or_path, **kwargs):
@@ -461,7 +462,6 @@ class AbstractDriver(object):
 
         for write_mode in write_modes:
             cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
-            # MPI_COMM.Barrier()
 
     def _get_crs_main_(self, group_metadata):
         """Return the coordinate system variable or None if not found."""
@@ -486,6 +486,10 @@ class AbstractDriver(object):
 
         :rtype: dict
         """
+
+    @classmethod
+    def _get_variable_collection_write_target_(cls, field):
+        return field
 
     @staticmethod
     def _close_(obj):
