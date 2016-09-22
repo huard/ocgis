@@ -222,7 +222,7 @@ class GeometryVariable(AbstractSpatialVariable):
         :raises: EmptySubsetError
         """
         return_slice = kwargs.pop('return_slice', False)
-        cascade = kwargs.pop('cascade', False)
+        cascade = kwargs.pop('cascade', True)
         comm = kwargs.pop('comm', None) or MPI_COMM
         rank = comm.Get_rank()
         size = comm.Get_size()

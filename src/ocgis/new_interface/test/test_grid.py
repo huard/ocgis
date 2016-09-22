@@ -16,7 +16,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects, get_geometry_fill, \
     expand_grid
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection, SourcedVariable
@@ -40,145 +40,6 @@ class Test(AbstractTestNewInterface):
         expand_grid(grid)
         for variable in [vx, vy]:
             self.assertEqual(grid.parent[variable.name].ndim, 2)
-
-    @attr('mpi')
-    def test_grid_get_intersects(self):
-        # Test with an empty subset.
-        bounds_sequence = (1000., 1000., 1100., 1100.)
-
-        grid = self.get_gridxy()
-
-        with self.assertRaises(EmptySubsetError):
-            grid_get_intersects(grid, bounds_sequence)
-
-        # Test combinations.
-        bounds_sequence = (101.5, 40.5, 102.5, 42.)
-        bounds_sequence_geometry = box(*bounds_sequence)
-
-        keywords = dict(is_vectorized=[True, False], has_bounds=[False, True], use_bounds=[False, True],
-                        keep_touches=[True, False], bounds_sequence=[bounds_sequence, bounds_sequence_geometry])
-
-        for k in self.iter_product_keywords(keywords):
-            if MPI_RANK == 0:
-                log.debug(k)
-
-            grid = self.get_gridxy()
-            if k.has_bounds:
-                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
-                self.assertTrue(grid.has_bounds)
-
-            grid_sub, slc = grid_get_intersects(grid, bounds_sequence, keep_touches=k.keep_touches,
-                                                use_bounds=k.use_bounds)
-
-            if k.has_bounds:
-                self.assertTrue(grid.has_bounds)
-
-            log.info('asserts')
-            if MPI_RANK == 0:
-                # Test geometries are filled appropriately after allocation.
-                for t in grid_sub.abstraction_geometry.value.flat:
-                    self.assertIsInstance(t, BaseGeometry)
-                self.assertIsInstance(grid_sub, GridXY)
-                if k.keep_touches:
-                    if k.has_bounds and k.use_bounds:
-                        desired = (slice(0, 3, None), slice(0, 3, None))
-                    else:
-                        desired = (slice(1, 3, None), slice(1, 2, None))
-                else:
-                    if k.has_bounds and k.use_bounds:
-                        desired = (slice(1, 3, None), slice(1, 2, None))
-                    else:
-                        desired = (slice(1, 2, None), slice(1, 2, None))
-                self.assertEqual(grid.has_bounds, k.has_bounds)
-                self.assertTrue(grid.is_vectorized)
-                self.assertEqual(slc, desired)
-            else:
-                self.assertIsNone(grid_sub)
-                self.assertIsNone(slc)
-            log.info('asserts end')
-
-        # Test against a file. #########################################################################################
-        bounds_sequence = (101.5, 40.5, 102.5, 42.)
-
-        if MPI_RANK == 0:
-            path_grid = self.get_temporary_file_path('grid.nc')
-            grid_to_write = self.get_gridxy()
-            grid_to_write.write(path_grid)
-            rd = RequestDataset(uri=path_grid)
-        else:
-            rd = None
-
-        rd = MPI_COMM.bcast(rd, root=0)
-        x = SourcedVariable(name='x', request_dataset=rd)
-        self.assertIsNone(x._value)
-        y = SourcedVariable(name='y', request_dataset=rd)
-        self.assertIsNone(x._value)
-        self.assertIsNone(y._value)
-
-        grid = GridXY(x, y)
-
-        for target in [grid._y_name, grid._x_name]:
-            self.assertIsNone(grid.parent[target]._value)
-        self.assertTrue(grid.is_vectorized)
-
-        sub, slc = grid_get_intersects(grid, bounds_sequence, mpi_comm=MPI_COMM)
-
-        if MPI_RANK == 0:
-            self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
-            self.assertIsInstance(sub, GridXY)
-        else:
-            self.assertIsNone(slc)
-            self.assertIsNone(sub)
-
-        # The file may be deleted before other ranks open.
-        MPI_COMM.Barrier()
-
-    @attr('mpi')
-    def test_grid_get_intersects2(self):
-        log.info('hello world')
-        subset1 = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
-        subset1 = wkt.loads(subset1)
-        subset2 = 'Polygon ((102.82100076148078927 43.17027003280225017, 103.26183018978443329 43.19503573102155514, 103.47481519447048015 42.70467490627928697, 101.38459026476100178 42.53131501874414511, 102.81604762183692969 42.86317537488285012, 102.82100076148078927 43.17027003280225017))'
-        subset2 = wkt.loads(subset2)
-
-        ################################################################################################################
-
-        # Test with a single polygon.
-        subset = subset1
-
-        grid = self.get_gridxy()
-
-        res = grid_get_intersects(grid, subset)
-
-        if MPI_RANK == 0:
-            grid_sub, slc = res
-
-            mask_grid_sub = grid_sub.get_mask()
-            self.assertEqual(grid_sub.shape, (2, 2))
-            self.assertTrue(np.any(mask_grid_sub))
-            self.assertTrue(mask_grid_sub[1, 0])
-            self.assertEqual(mask_grid_sub.sum(), 1)
-        else:
-            self.assertEqual(res, (None, None))
-
-        ################################################################################################################
-
-        # Test with a multi-polygon.
-
-        subset = MultiPolygon([subset1, subset2])
-        grid = self.get_gridxy()
-
-        res = grid_get_intersects(grid, subset)
-
-        if MPI_RANK == 0:
-            grid_sub, slc = res
-            mask_grid_sub = grid_sub.get_mask()
-            desired_mask = np.array([[False, False, True], [True, False, True], [True, True, False]])
-            self.assertNumpyAll(mask_grid_sub, desired_mask)
-        else:
-            self.assertEqual(res, (None, None))
-
-        log.info('success')
 
     @attr('mpi')
     def test_grid_get_intersects3(self):
@@ -424,6 +285,46 @@ class TestGridXY(AbstractTestNewInterface):
             actual = v[mask_slice].get_mask()
             self.assertTrue(np.all(actual))
 
+    def test_grid_get_intersects_barbed_geometry(self):
+        subset1 = 'Polygon ((100.79558316115701189 41.18854700413223213, 100.79558316115701189 40.80036157024792942, 102.13212035123964938 40.82493026859503971, 102.27953254132229688 41.47354390495867449, 103.62589721074378701 41.55707747933884377, 102.28444628099171609 41.66517975206611624, 102.06332799586775195 42.18112241735536827, 101.72919369834708903 42.13198502066115481, 101.72919369834708903 41.2671668388429751, 100.79558316115701189 41.18854700413223213))'
+        subset1 = wkt.loads(subset1)
+        subset2 = 'Polygon ((102.82100076148078927 43.17027003280225017, 103.26183018978443329 43.19503573102155514, 103.47481519447048015 42.70467490627928697, 101.38459026476100178 42.53131501874414511, 102.81604762183692969 42.86317537488285012, 102.82100076148078927 43.17027003280225017))'
+        subset2 = wkt.loads(subset2)
+
+        ################################################################################################################
+
+        # Test with a single polygon.
+        subset = subset1
+
+        grid = self.get_gridxy()
+        self.assertEqual(grid.abstraction, 'point')
+        # self.write_fiona_htmp(grid, 'grid')
+        # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset')
+        res = grid.get_intersects(subset, return_slice=True)
+
+        grid_sub, slc = res
+
+        mask_grid_sub = grid_sub.get_mask()
+        self.assertEqual(grid_sub.shape, (2, 2))
+        # self.log.debug(mask_grid_sub)
+        self.assertTrue(np.any(mask_grid_sub))
+        self.assertTrue(mask_grid_sub[1, 0])
+        self.assertEqual(mask_grid_sub.sum(), 1)
+
+        ################################################################################################################
+
+        # Test with a multi-polygon.
+
+        subset = MultiPolygon([subset1, subset2])
+        grid = self.get_gridxy()
+
+        res = grid.get_intersects(subset, return_slice=True)
+
+        grid_sub, slc = res
+        mask_grid_sub = grid_sub.get_mask()
+        desired_mask = np.array([[False, False, True], [True, False, True], [True, True, False]])
+        self.assertNumpyAll(mask_grid_sub, desired_mask)
+
     def test_get_intersects_bounds_sequence(self):
         keywords = dict(bounds=[True, False], use_bounds=[True, False])
 
@@ -468,6 +369,101 @@ class TestGridXY(AbstractTestNewInterface):
         new_mask.fill(True)
         sub.set_mask(new_mask)
         self.assertEqual(grid.get_mask().sum(), 4)
+
+    @attr('mpi')
+    def test_get_intersects_parallel(self):
+        if MPI_SIZE > 1:
+            self.fail('Need to scrub for appropriate parallelism.')
+
+        # Test with an empty subset.
+        bounds_sequence = (1000., 1000., 1100., 1100.)
+
+        grid = self.get_gridxy()
+
+        with self.assertRaises(EmptySubsetError):
+            grid.get_intersects(bounds_sequence)
+
+        # Test combinations.
+        bounds_sequence = (101.5, 40.5, 102.5, 42.)
+        bounds_sequence_geometry = box(*bounds_sequence)
+
+        keywords = dict(is_vectorized=[True, False], has_bounds=[False, True], use_bounds=[False, True],
+                        keep_touches=[True, False], bounds_sequence=[bounds_sequence, bounds_sequence_geometry])
+
+        for k in self.iter_product_keywords(keywords):
+
+            grid = self.get_gridxy()
+            if k.has_bounds:
+                grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
+                self.assertTrue(grid.has_bounds)
+
+            # Cannot use bounds with a point grid abstraction.
+            if k.use_bounds and grid.abstraction == 'point':
+                continue
+
+            grid_sub, slc = grid.get_intersects(bounds_sequence, keep_touches=k.keep_touches, use_bounds=k.use_bounds,
+                                                return_slice=True)
+
+            if k.has_bounds:
+                self.assertTrue(grid.has_bounds)
+
+            if MPI_RANK == 0:
+                # Test geometries are filled appropriately after allocation.
+                for t in grid_sub.abstraction_geometry.value.flat:
+                    self.assertIsInstance(t, BaseGeometry)
+                self.assertIsInstance(grid_sub, GridXY)
+                if k.keep_touches:
+                    if k.has_bounds and k.use_bounds:
+                        desired = (slice(0, 3, None), slice(0, 3, None))
+                    else:
+                        desired = (slice(1, 3, None), slice(1, 2, None))
+                else:
+                    if k.has_bounds and k.use_bounds:
+                        desired = (slice(1, 3, None), slice(1, 2, None))
+                    else:
+                        desired = (slice(1, 2, None), slice(1, 2, None))
+                self.assertEqual(grid.has_bounds, k.has_bounds)
+                self.assertTrue(grid.is_vectorized)
+                self.assertEqual(slc, desired)
+            else:
+                self.assertIsNone(grid_sub)
+                self.assertIsNone(slc)
+
+        # Test against a file. #########################################################################################
+        bounds_sequence = (101.5, 40.5, 102.5, 42.)
+
+        if MPI_RANK == 0:
+            path_grid = self.get_temporary_file_path('grid.nc')
+            grid_to_write = self.get_gridxy()
+            grid_to_write.write(path_grid)
+            rd = RequestDataset(uri=path_grid)
+        else:
+            rd = None
+
+        rd = MPI_COMM.bcast(rd, root=0)
+        x = SourcedVariable(name='x', request_dataset=rd)
+        self.assertIsNone(x._value)
+        y = SourcedVariable(name='y', request_dataset=rd)
+        self.assertIsNone(x._value)
+        self.assertIsNone(y._value)
+
+        grid = GridXY(x, y)
+
+        for target in [grid._y_name, grid._x_name]:
+            self.assertIsNone(grid.parent[target]._value)
+        self.assertTrue(grid.is_vectorized)
+
+        sub, slc = grid.get_intersects(bounds_sequence, comm=MPI_COMM, return_slice=True)
+
+        if MPI_RANK == 0:
+            self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
+            self.assertIsInstance(sub, GridXY)
+        else:
+            self.assertIsNone(slc)
+            self.assertIsNone(sub)
+
+        # The file may be deleted before other ranks open.
+        MPI_COMM.Barrier()
 
     def test_get_intersects_small(self):
         """Test with a subset inside of one of the cells."""
