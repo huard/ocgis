@@ -14,10 +14,9 @@ from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, grid_get_intersects, get_geometry_fill, \
+from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, get_geometry_fill, \
     expand_grid
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
-from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection, SourcedVariable
 from ocgis.test.base import attr
@@ -40,48 +39,6 @@ class Test(AbstractTestNewInterface):
         expand_grid(grid)
         for variable in [vx, vy]:
             self.assertEqual(grid.parent[variable.name].ndim, 2)
-
-    @attr('mpi')
-    def test_grid_get_intersects3(self):
-        if MPI_RANK == 0:
-            path_shp = self.path_state_boundaries
-            geoms = []
-            with fiona.open(path_shp) as source:
-                for record in source:
-                    geom = shape(record['geometry'])
-                    geoms.append(geom)
-
-            gvar = GeometryVariable(value=geoms)
-            gvar_sub = gvar.get_unioned()
-
-            subset = gvar_sub.value.flatten()[0]
-        else:
-            subset = None
-
-        subset = MPI_COMM.bcast(subset, root=0)
-
-        resolution = 1.0
-
-        for with_bounds in [False, True]:
-            grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
-
-            res = grid_get_intersects(grid, subset)
-
-            if MPI_RANK == 0:
-                grid_sub, slc = res
-
-                if with_bounds:
-                    self.assertEqual(grid_sub.get_mask().sum(), 4595)
-                    self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
-                    self.assertEqual(grid_sub.shape, (53, 112))
-                else:
-                    self.assertEqual(grid_sub.get_mask().sum(), 3506)
-                    self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
-                    self.assertEqual(grid_sub.shape, (46, 100))
-            else:
-                self.assertEqual(res, (None, None))
-
-        log.info('success')
 
 
 class TestGridXY(AbstractTestNewInterface):
@@ -481,6 +438,49 @@ class TestGridXY(AbstractTestNewInterface):
             sub, slc = grid.get_intersects(the_subset, return_slice=True)
             self.assertEqual(sub.shape, (1, 1))
             self.assertEqual(sub.get_mask().sum(), 0)
+
+    @attr('mpi')
+    def test_get_intersects_state_boundaries(self):
+        if MPI_SIZE > 1:
+            self.fail('Need to ensure full parallel test.')
+
+        if MPI_RANK == 0:
+            path_shp = self.path_state_boundaries
+            geoms = []
+            with fiona.open(path_shp) as source:
+                for record in source:
+                    geom = shape(record['geometry'])
+                    geoms.append(geom)
+
+            gvar = GeometryVariable(value=geoms)
+            gvar_sub = gvar.get_unioned()
+
+            subset = gvar_sub.value.flatten()[0]
+        else:
+            subset = None
+
+        subset = MPI_COMM.bcast(subset, root=0)
+
+        resolution = 1.0
+
+        for with_bounds in [False, True]:
+            grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
+
+            res = grid.get_intersects(subset, return_slice=True)
+
+            if MPI_RANK == 0:
+                grid_sub, slc = res
+
+                if with_bounds:
+                    self.assertEqual(grid_sub.get_mask().sum(), 4595)
+                    self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
+                    self.assertEqual(grid_sub.shape, (53, 112))
+                else:
+                    self.assertEqual(grid_sub.get_mask().sum(), 3506)
+                    self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
+                    self.assertEqual(grid_sub.shape, (46, 100))
+            else:
+                self.assertEqual(res, (None, None))
 
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
