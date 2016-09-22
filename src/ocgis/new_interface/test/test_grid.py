@@ -424,18 +424,23 @@ class TestGridXY(AbstractTestNewInterface):
             actual = v[mask_slice].get_mask()
             self.assertTrue(np.all(actual))
 
-    @attr('mpi')
     def test_get_intersects_bounds_sequence(self):
         keywords = dict(bounds=[True, False], use_bounds=[True, False])
 
-        for k in self.iter_product_keywords(keywords):
+        for ctr, k in enumerate(self.iter_product_keywords(keywords)):
+            # self.log.debug([ctr, k])
+            # if ctr != 1: continue
+            # Bounds may not be used if they are not present.
+            if k.use_bounds and not k.bounds:
+                continue
+
             y = self.get_variable_y(bounds=k.bounds)
             x = self.get_variable_x(bounds=k.bounds)
             grid = GridXY(x, y)
+
             bounds_sequence = (-99, 39, -98, 39)
             bg = grid.get_intersects(bounds_sequence)
-            if MPI_RANK == 0:
-                self.assertNotEqual(grid.shape, bg.shape)
+            self.assertNotEqual(grid.shape, bg.shape)
             self.assertTrue(bg.is_vectorized)
 
             with self.assertRaises(EmptySubsetError):
@@ -445,11 +450,10 @@ class TestGridXY(AbstractTestNewInterface):
             bounds_sequence = (-99999, 1, 1, 1000)
             bg2 = grid.get_intersects(bounds_sequence, use_bounds=k.use_bounds)
 
-            if MPI_RANK == 0:
-                for target in ['x', 'y']:
-                    original = getattr(grid, target).value
-                    sub = getattr(bg2, target).value
-                    self.assertNumpyAll(original, sub)
+            for target in ['x', 'y']:
+                original = getattr(grid, target).value
+                sub = getattr(bg2, target).value
+                self.assertNumpyAll(original, sub)
 
         # Test mask is not shared with subsetted grid.
         grid = self.get_gridxy()
@@ -460,11 +464,10 @@ class TestGridXY(AbstractTestNewInterface):
 
         bounds_sequence = (101.5, 40.5, 103.5, 42.5)
         sub = grid.get_intersects(bounds_sequence, use_bounds=False)
-        if MPI_RANK == 0:
-            new_mask = sub.get_mask()
-            new_mask.fill(True)
-            sub.set_mask(new_mask)
-            self.assertEqual(grid.get_mask().sum(), 4)
+        new_mask = sub.get_mask()
+        new_mask.fill(True)
+        sub.set_mask(new_mask)
+        self.assertEqual(grid.get_mask().sum(), 4)
 
     def test_get_intersects_small(self):
         """Test with a subset inside of one of the cells."""

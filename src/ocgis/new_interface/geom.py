@@ -231,8 +231,9 @@ class GeometryVariable(AbstractSpatialVariable):
             raise ValueError('Dimensions are required for a distributed intersects operation.')
 
         ret = self.copy()
-        intersects_mask = ret.get_mask_from_intersects(*args, **kwargs)
-        intersects_mask = Variable(name='mask_gather', value=intersects_mask, dimensions=ret.dimensions, dtype=bool)
+        intersects_mask_value = ret.get_mask_from_intersects(*args, **kwargs)
+        intersects_mask = Variable(name='mask_gather', value=intersects_mask_value, dimensions=ret.dimensions,
+                                   dtype=bool)
         gathered_mask = variable_gather(intersects_mask, comm=comm)
 
         adjust = None

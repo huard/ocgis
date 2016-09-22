@@ -304,12 +304,25 @@ class GridXY(AbstractSpatialContainer):
         use_bounds = kwargs.pop('use_bounds', 'auto')
         return_slice = kwargs.get('return_slice', False)
         original_mask = kwargs.get('original_mask')
+        keep_touches = kwargs.get('keep_touches', 'auto')
+
+        if use_bounds is True and self.abstraction == 'point':
+            msg = '"use_bounds" is True and grid abstraction is "point". Only a polygon abstraction may use bounds ' \
+                  'during a spatial subset operation.'
+            raise ValueError(msg)
 
         if use_bounds == 'auto':
             if self.abstraction == 'polygon':
                 use_bounds = True
             else:
                 use_bounds = False
+
+        if keep_touches == 'auto':
+            if self.abstraction == 'point' or not use_bounds:
+                keep_touches = True
+            else:
+                keep_touches = False
+            kwargs['keep_touches'] = keep_touches
 
         if original_mask is None:
             if not isinstance(original_subset_target, BaseGeometry):
