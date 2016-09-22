@@ -576,14 +576,14 @@ def get_dimension_map_raw(driver, group_metadata, group_name=None, update_target
     dimension_map = driver.get_dimension_map(group_metadata)
     if update_target is None:
         update_target = dimension_map
-    if 'groups' not in dimension_map:
-        dimension_map['groups'] = {}
+    if 'groups' not in update_target:
+        update_target['groups'] = {}
     if group_name is not None:
         update_target['groups'][group_name] = dimension_map
     if 'groups' in group_metadata:
         for group_name, sub_group_metadata in group_metadata['groups'].items():
             get_dimension_map_raw(driver, sub_group_metadata, group_name=group_name,
-                                  update_target=update_target['groups'])
+                                  update_target=update_target)
     return update_target
 
 

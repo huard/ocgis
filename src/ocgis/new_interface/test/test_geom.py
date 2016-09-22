@@ -189,7 +189,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
                 self.assertTrue(found)
 
         # Test w/out an associated grid.
-        pa = self.get_geometryvariable()
+        pa = self.get_geometryvariable(dimensions='ngeom')
         polygon = box(0.5, 1.5, 1.5, 2.5)
         sub = pa.get_intersects(polygon)
         self.assertEqual(sub.shape, (1,))
@@ -213,7 +213,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     def test_get_intersection(self):
         for return_indices in [True, False]:
-            pa = self.get_geometryvariable()
+            pa = self.get_geometryvariable(dimensions='ngeom')
             polygon = box(0.9, 1.9, 1.5, 2.5)
             lhs = pa.get_intersection(polygon, return_slice=return_indices)
             if return_indices:
@@ -225,7 +225,7 @@ class TestGeometryVariable(AbstractTestNewInterface):
                 self.assertEqual(pa.value[slc][0], Point(1, 2))
 
     @attr('mpi')
-    def test_get_intersects_masked(self):
+    def test_get_mask_from_intersects(self):
         poly = wkt.loads(
             'POLYGON((-98.26574367088608142 40.19952531645570559,-98.71764240506330168 39.54825949367089066,-99.26257911392406186 39.16281645569620906,-99.43536392405064817 38.64446202531645724,-98.78409810126584034 38.33876582278481493,-98.23916139240508016 37.71408227848101546,-97.77397151898735217 37.67420886075949937,-97.62776898734178133 38.15268987341772799,-98.39865506329114453 38.52484177215190186,-98.23916139240508016 39.33560126582278826,-97.73409810126582897 39.58813291139241386,-97.52143987341773368 40.27927215189873777,-97.52143987341773368 40.27927215189873777,-98.26574367088608142 40.19952531645570559))')
         desired_mask = np.array([[True, True, False, True],
@@ -250,14 +250,12 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         keywords = dict(use_spatial_index=[True, False])
         for k in self.iter_product_keywords(keywords):
-            ret = pa.get_intersects_masked(poly, use_spatial_index=k.use_spatial_index)
+            ret = pa.get_mask_from_intersects(poly, use_spatial_index=k.use_spatial_index)
             desired_mask_local = desired_mask[slice(*ydim.bounds_local), slice(*xdim.bounds_local)]
             if MPI_RANK > 3:
-                self.assertTrue(pa.is_empty)
+                self.assertEqual(ret.shape, tuple())
             else:
-                self.assertNumpyAll(desired_mask_local, ret.get_mask())
-                for element in ret.value.flat:
-                    self.assertIsInstance(element, Point)
+                self.assertNumpyAll(desired_mask_local, ret)
 
             # This does not test a parallel operation.
             if MPI_RANK == 0:
@@ -266,14 +264,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
                 value = np.ma.array(value, mask=[False, True, False], dtype=object)
                 pa2 = GeometryVariable(value=value)
                 b = box(0, 0, 5, 5)
-                res = pa2.get_intersects_masked(b, use_spatial_index=k.use_spatial_index)
-                self.assertNumpyAll(res.get_mask(), value.mask)
-
-    def test_get_intersection_masked(self):
-        pa = self.get_geometryvariable()
-        polygon = box(0.9, 1.9, 1.5, 2.5)
-        lhs = pa.get_intersection_masked(polygon)
-        self.assertTrue(lhs.get_mask()[1])
+                res = pa2.get_mask_from_intersects(b, use_spatial_index=k.use_spatial_index)
+                self.assertNumpyAll(res, value.mask)
 
     def test_get_nearest(self):
         target1 = Point(0.5, 0.75)

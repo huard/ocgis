@@ -229,7 +229,7 @@ class Variable(AbstractContainer, Attributes):
             names_src = [d.name for d in self.dimensions]
             names_dst = [d.name for d in self.bounds.dimensions]
             slc = get_mapped_slice(slc, names_src, names_dst)
-            with orphaned(self.parent, self.bounds):
+            with orphaned(self.bounds):
                 self.bounds[slc] = variable.bounds
 
         self.set_mask(new_mask)
