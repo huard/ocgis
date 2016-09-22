@@ -497,10 +497,11 @@ class GridXY(AbstractSpatialContainer):
 
     def write(self, *args, **kwargs):
         from ocgis.api.request.driver.nc import DriverNetcdf
-        driver = kwargs.pop('driver', DriverNetcdf)
-        args = list(args)
-        args.insert(0, self)
-        driver.write_gridxy(*args, **kwargs)
+        from ocgis.new_interface.field import OcgField
+
+        kwargs['driver'] = kwargs.pop('driver', DriverNetcdf)
+        field_to_write = OcgField(grid=self)
+        field_to_write.write(*args, **kwargs)
 
 
 def update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col):
