@@ -400,9 +400,6 @@ class TestOcgMpi(AbstractTestNewInterface):
             for dim in dimensions:
                 if MPI_RANK > 4:
                     if dim.name == 'd1':
-                        from ocgis.new_interface.ocgis_logging import log
-                        log.debug(ompi.mapping)
-                        log.debug(dim.__dict__)
                         self.assertTrue(dim.is_empty)
                     else:
                         self.assertFalse(dim.is_empty)
