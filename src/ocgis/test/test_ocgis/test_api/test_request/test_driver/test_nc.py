@@ -415,7 +415,6 @@ class TestDriverNetcdfCF(TestBase):
             self.assertNcEqual(path_out, rd.uri, ignore_variables=['latitude_longitude'],
                                ignore_attributes=ignore_attributes)
 
-
     def test_get_dimension_map(self):
         d = self.get_drivernetcdf()
         dmap = d.get_dimension_map(d.metadata_source)

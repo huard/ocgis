@@ -9,10 +9,11 @@ from shapely.geometry.base import BaseGeometry
 from ocgis import constants
 from ocgis.exc import GridDeficientError, EmptySubsetError, AllElementsMaskedError
 from ocgis.interface.base.crs import CFRotatedPole
+from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable, AbstractSpatialContainer
 from ocgis.new_interface.mpi import get_optimal_splits, create_nd_slices, MPI_SIZE, MPI_COMM
 from ocgis.new_interface.ocgis_logging import log, log_entry_exit
-from ocgis.new_interface.variable import VariableCollection, get_dslice, get_dimension_lengths
+from ocgis.new_interface.variable import VariableCollection, get_dslice, get_dimension_lengths, Variable
 from ocgis.util.environment import ogr
 from ocgis.util.helpers import iter_array, get_trimmed_array_by_mask, get_formatted_slice
 
@@ -813,9 +814,7 @@ def grid_set_mask_cascade(grid):
 
 
 def expand_grid(grid):
-    # y = grid.y
     y = grid.parent[grid._y_name]
-    # x = grid.x
     x = grid.parent[grid._x_name]
     if y.ndim == 1:
         new_x_value, new_y_value = np.meshgrid(x.value, y.value)
@@ -831,20 +830,34 @@ def expand_grid(grid):
 
         assert y.ndim == 2
         assert x.ndim == 2
-
         if y.bounds is not None:
             grid._original_bounds_dimension_name = y.bounds.dimensions[1].name
             name_y = y.bounds.name
             name_x = x.bounds.name
-            # tdk: this is overwritten with use of "corners"
-            name_dimension = y.bounds.dimensions[1].name
+
+            original_y_bounds = y.bounds.value
+            original_x_bounds = x.bounds.value
+            new_y_bounds = np.zeros((original_y_bounds.shape[0], original_x_bounds.shape[0], 4),
+                                    dtype=original_y_bounds.dtype)
+            new_x_bounds = new_y_bounds.copy()
+            for idx_y, idx_x in itertools.product(range(original_y_bounds.shape[0]), range(original_x_bounds.shape[0])):
+                new_y_bounds[idx_y, idx_x, 0:2] = original_y_bounds[idx_y, 1]
+                new_y_bounds[idx_y, idx_x, 2:4] = original_y_bounds[idx_y, 0]
+
+                new_x_bounds[idx_y, idx_x, 0] = original_x_bounds[idx_x, 0]
+                new_x_bounds[idx_y, idx_x, 1] = original_x_bounds[idx_x, 1]
+                new_x_bounds[idx_y, idx_x, 2] = original_x_bounds[idx_x, 0]
+                new_x_bounds[idx_y, idx_x, 3] = original_x_bounds[idx_x, 1]
+
             y.bounds = None
             x.bounds = None
             y.dimensions = new_dimensions
             x.dimensions = new_dimensions
-            # tdk: this should leverage the bounds already in place on the vectors
-            # tdk: consider method to explicityly define corners dimension name
-            grid.set_extrapolated_bounds(name_x, name_y, 'corners')
+            new_bounds_dimensions = new_dimensions + [Dimension('corners', size=4)]
+            y.bounds = Variable(name=name_y, value=new_y_bounds, dimensions=new_bounds_dimensions, dist=y.dist,
+                                ranks=y.ranks)
+            x.bounds = Variable(name=name_x, value=new_x_bounds, dimensions=new_bounds_dimensions, dist=x.dist,
+                                ranks=x.ranks)
         else:
             y.dimensions = new_dimensions
             x.dimensions = new_dimensions

@@ -63,8 +63,15 @@ class DriverCSV(AbstractDriver):
                     with driver_scope(cls, opened_or_path, mode='a') as opened:
                         writer = csv.DictWriter(opened, fieldnames)
                         for idx in range(vc[fieldnames[0]].shape[0]):
-                            row = {fn: cls.get_variable_write_value(vc[fn])[idx] for fn in fieldnames}
-                            writer.writerow(row)
+                            row = {}
+                            for fn in fieldnames:
+                                target_variable = vc[fn]
+                                # Only write data from a variable if it is not empty.
+                                if not target_variable.is_empty:
+                                    row[fn] = cls.get_variable_write_value(target_variable)[idx]
+                            # Do not write empty rows.
+                            if len(row) > 0:
+                                writer.writerow(row)
                 comm.Barrier()
 
     def _init_variable_from_source_main_(self, *args, **kwargs):

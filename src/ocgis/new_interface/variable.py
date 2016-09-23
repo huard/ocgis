@@ -353,19 +353,6 @@ class Variable(AbstractContainer, Attributes):
         return self._fill_value
 
     @property
-    def has_allocated_value(self):
-        """
-        :return: ``True`` if the value has been allocated.
-        :rtype: bool
-        """
-
-        if self._value is None:
-            ret = False
-        else:
-            ret = True
-        return ret
-
-    @property
     def has_dimensions(self):
         """
         :return: ``True`` if the variable has dimensions.
@@ -673,10 +660,7 @@ class Variable(AbstractContainer, Attributes):
     @property
     def has_allocated_value(self):
         if self._value is None:
-            if self.ndim > 0:
-                ret = True
-            else:
-                ret = False
+            ret = False
         else:
             ret = True
         return ret
