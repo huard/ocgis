@@ -58,14 +58,16 @@ class OcgMpi(AbstractOcgisObject):
             raise ValueError('"dim" must be a "Dimension" object.')
 
         for rank in range(self.size):
-            if rank > 0:
-                dim = dim.copy()
-            the_group = self._create_or_get_group_(group, rank=rank)
-            if not force and dim.name in the_group['dimensions']:
-                raise ValueError('Dimension with name "{}" already in group "{}" and "force=False".'.format(dim.name,
-                                                                                                            group))
+            if rank != MPI_RANK:
+                to_add_dim = dim.copy()
             else:
-                the_group['dimensions'][dim.name] = dim
+                to_add_dim = dim
+            the_group = self._create_or_get_group_(group, rank=rank)
+            if not force and to_add_dim.name in the_group['dimensions']:
+                msg = 'Dimension with name "{}" already in group "{}" and "force=False".'
+                raise ValueError(msg.format(to_add_dim.name, group))
+            else:
+                the_group['dimensions'][to_add_dim.name] = to_add_dim
 
     def add_dimensions(self, dims, **kwargs):
         for dim in dims:

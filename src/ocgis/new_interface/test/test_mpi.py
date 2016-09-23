@@ -399,7 +399,13 @@ class TestOcgMpi(AbstractTestNewInterface):
                 self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
             for dim in dimensions:
                 if MPI_RANK > 4:
-                    self.assertTrue(dim.is_empty)
+                    if dim.name == 'd1':
+                        from ocgis.new_interface.ocgis_logging import log
+                        log.debug(ompi.mapping)
+                        log.debug(dim.__dict__)
+                        self.assertTrue(dim.is_empty)
+                    else:
+                        self.assertFalse(dim.is_empty)
                 else:
                     self.assertFalse(dim.is_empty)
 
@@ -474,7 +480,6 @@ class TestOcgMpi(AbstractTestNewInterface):
         ompi.update_dimension_bounds()
         self.assertEqual(dim.bounds_global, (0, 5))
         if MPI_SIZE > 1:
-            self.assertNotEqual(dim.bounds_local, dim.bounds_global)
             if MPI_SIZE == 2:
                 if MPI_RANK == 0:
                     self.assertEqual(dim.bounds_local, (0, 3))
@@ -508,3 +513,15 @@ class TestOcgMpi(AbstractTestNewInterface):
                     self.assertEqual(lon.bounds_local, (0, 64))
                 else:
                     self.assertEqual(lon.bounds_local, (64, 128))
+
+    @attr('mpi')
+    def test_update_dimension_bounds_single_simple_dimension(self):
+        if MPI_SIZE != 2:
+            raise SkipTest('MPI-2 only')
+        ompi = OcgMpi()
+        d1 = ompi.create_dimension('d1', 1, dist=True)
+        ompi.update_dimension_bounds()
+        if MPI_RANK == 0:
+            self.assertFalse(d1.is_empty)
+        else:
+            self.assertTrue(d1.is_empty)
