@@ -107,9 +107,15 @@ class AbstractDriver(object):
         """:rtype: dict"""
         return {}
 
-    def get_dimensioned_variables(self, dimension_map, metadata):
-        """:rtype: tuple(str, ...)"""
-        return None
+    @staticmethod
+    def get_dimensioned_variables(field):
+        """
+
+        :param field:
+        :type field: :class:`ocgis.new_interface.field.OcgField`
+        :return:
+        """
+        return tuple(field.iter_data_variables())
 
     def get_dist(self):
         """

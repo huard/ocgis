@@ -29,6 +29,7 @@ from ocgis.interface.metadata import NcMetadata
 from ocgis.interface.nc.spatial import NcSpatialGridDimension
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
+from ocgis.new_interface.grid import GridXY
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, OcgMpi, variable_scatter, MPI_SIZE
 from ocgis.new_interface.temporal import TemporalVariable
 from ocgis.new_interface.variable import Variable, ObjectType, VariableCollection
@@ -500,6 +501,18 @@ class TestDriverNetcdfCF(TestBase):
         self.assertEqual(rd.crs, env.DEFAULT_COORDSYS)
         self.assertEqual(driver.get_crs(driver.rd.metadata), env.DEFAULT_COORDSYS)
         self.assertEqual(driver.get_field().crs, env.DEFAULT_COORDSYS)
+
+    def test_get_variable_collection_write_target(self):
+        x = Variable('x', dimensions='x')
+        y = Variable('y', dimensions='y')
+        t = Variable('t', dimensions='t')
+        d = Variable('data', dimensions=['t', 'y', 'x'])
+        grid = GridXY(x, y)
+        field = OcgField(grid=grid, time=t)
+        field.add_variable(d)
+        dvars = DriverNetcdfCF.get_dimensioned_variables(field)
+        import ipdb;
+        ipdb.set_trace()
 
     def test_metadata_raw(self):
         d = self.get_drivernetcdf()

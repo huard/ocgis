@@ -36,6 +36,13 @@ class OcgField(VariableCollection):
             if grid.has_bounds:
                 dmap_x[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.x.bounds.name
                 dmap_y[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.y.bounds.name
+        # Add time variable metadata to dimension map.
+        tvar = kwargs.pop('time', None)
+        if tvar is not None:
+            dmap_t = self.dimension_map[DimensionMapKeys.TIME]
+            dmap_t[DimensionMapKeys.VARIABLE] = tvar.name
+            if tvar.has_bounds:
+                dmap_t[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = tvar.bounds.name
 
         self.field_name = kwargs.pop('field_name', None)
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')

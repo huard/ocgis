@@ -331,17 +331,20 @@ class DriverNetcdfCF(DriverNetcdf):
 
         return ret
 
-    def get_dimensioned_variables(self, group_dimension_map, group_metadata):
+    @staticmethod
+    def get_dimensioned_variables(field):
         axes_needed = ['time', 'x', 'y']
         dvars = []
+        group_dimension_map = field.dimension_map
 
-        for vname, v in group_metadata['variables'].items():
+        for v in field.iter_data_variables():
+            vname = v.name
             found_axis = []
             for a in axes_needed:
                 to_append = False
                 d = group_dimension_map.get(a)
                 if d is not None:
-                    for dname in v['dimensions']:
+                    for dname in (d.name for d in v.dimensions):
                         if dname in d['names']:
                             to_append = True
                             break
@@ -349,7 +352,7 @@ class DriverNetcdfCF(DriverNetcdf):
             if all(found_axis):
                 dvars.append(vname)
 
-        return dvars
+        return tuple(dvars)
 
     def get_distributed_dimension_name(self, dimension_map, dimensions_metadata):
         if DimensionMapKeys.X in dimension_map and DimensionMapKeys.Y in dimension_map:

@@ -65,9 +65,6 @@ class DriverVector(AbstractDriver):
             ret['crs'] = {'variable': crs.name}
         return ret
 
-    def get_dimensioned_variables(self):
-        return self.rd.metadata['variables'].keys()
-
     def get_source_metadata_as_json(self):
         # tdk: test on vector and netcdf
         raise NotImplementedError
