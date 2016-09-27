@@ -510,10 +510,10 @@ class GridXY(AbstractSpatialContainer):
         return self.abstraction_geometry.write_fiona(*args, **kwargs)
 
     def write(self, *args, **kwargs):
-        from ocgis.api.request.driver.nc import DriverNetcdf
+        from ocgis.api.request.driver.nc import DriverNetcdfCF
         from ocgis.new_interface.field import OcgField
 
-        kwargs['driver'] = kwargs.pop('driver', DriverNetcdf)
+        kwargs['driver'] = kwargs.pop('driver', DriverNetcdfCF)
         field_to_write = OcgField(grid=self)
         field_to_write.write(*args, **kwargs)
 
