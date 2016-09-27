@@ -840,6 +840,8 @@ def expand_grid(grid):
             new_y_bounds = np.zeros((original_y_bounds.shape[0], original_x_bounds.shape[0], 4),
                                     dtype=original_y_bounds.dtype)
             new_x_bounds = new_y_bounds.copy()
+            import ipdb;
+            ipdb.set_trace()
             for idx_y, idx_x in itertools.product(range(original_y_bounds.shape[0]), range(original_x_bounds.shape[0])):
                 new_y_bounds[idx_y, idx_x, 0:2] = original_y_bounds[idx_y, 1]
                 new_y_bounds[idx_y, idx_x, 2:4] = original_y_bounds[idx_y, 0]
@@ -848,7 +850,8 @@ def expand_grid(grid):
                 new_x_bounds[idx_y, idx_x, 1] = original_x_bounds[idx_x, 1]
                 new_x_bounds[idx_y, idx_x, 2] = original_x_bounds[idx_x, 0]
                 new_x_bounds[idx_y, idx_x, 3] = original_x_bounds[idx_x, 1]
-
+            import ipdb;
+            ipdb.set_trace()
             y.bounds = None
             x.bounds = None
             y.dimensions = new_dimensions

@@ -10,9 +10,11 @@ from shapely.geometry import Point, box, MultiPolygon, shape
 from shapely.geometry.base import BaseGeometry
 
 from ocgis.api.request.base import RequestDataset
+from ocgis.api.request.driver.nc import DriverNetcdfCF
 from ocgis.exc import EmptySubsetError, BoundsAlreadyAvailableError
 from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
+from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, get_geometry_fill, \
     expand_grid
@@ -392,7 +394,8 @@ class TestGridXY(AbstractTestNewInterface):
         if MPI_RANK == 0:
             path_grid = self.get_temporary_file_path('grid.nc')
             grid_to_write = self.get_gridxy()
-            grid_to_write.write(path_grid)
+            field = OcgField(grid=grid_to_write)
+            field.write(path_grid, driver=DriverNetcdfCF)
             rd = RequestDataset(uri=path_grid)
         else:
             rd = None
@@ -487,12 +490,16 @@ class TestGridXY(AbstractTestNewInterface):
 
         keywords = dict(with_bounds=[False, True])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
+            if not k.with_bounds: continue
             grid = self.get_polygon_array_grid(with_bounds=k.with_bounds)
             self.assertTrue(grid.is_vectorized)
             if not k.with_bounds:
                 grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
-            # tdk: rename this
             actual = self.polygon_value
+            for ageom, gridgeom in zip(actual.flat, grid.abstraction_geometry.value.flat):
+                self.assertEqual(ageom.bounds, gridgeom.bounds)
+                self.assertEqual(ageom.area, gridgeom.area)
+                self.assertEqual(type(ageom), type(gridgeom))
             fill = get_geometry_fill(grid.shape, grid.get_mask())
             poly = GeometryVariable(value=get_polygon_geometry_array(grid, fill))
             self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
