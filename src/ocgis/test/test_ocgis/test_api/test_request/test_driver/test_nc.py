@@ -503,16 +503,20 @@ class TestDriverNetcdfCF(TestBase):
         self.assertEqual(driver.get_field().crs, env.DEFAULT_COORDSYS)
 
     def test_get_variable_collection_write_target(self):
-        x = Variable('x', dimensions='x')
-        y = Variable('y', dimensions='y')
-        t = Variable('t', dimensions='t')
-        d = Variable('data', dimensions=['t', 'y', 'x'])
+        # Test coordinate system names are added to attributes of dimensioned variables.
+        x = Variable('x', dimensions='x', value=[1])
+        y = Variable('y', dimensions='y', value=[2])
+        t = Variable('t', dimensions='t', value=[3])
+        crs = CFWGS84()
+        d = Variable('data', dimensions=['t', 'y', 'x'], value=[[[1]]])
         grid = GridXY(x, y)
-        field = OcgField(grid=grid, time=t)
+        field = OcgField(grid=grid, time=t, crs=crs)
         field.add_variable(d)
         dvars = DriverNetcdfCF.get_dimensioned_variables(field)
-        import ipdb;
-        ipdb.set_trace()
+        self.assertEqual(dvars[0], d.name)
+
+        target = DriverNetcdfCF._get_variable_collection_write_target_(field)
+        self.assertEqual(target[d.name].attrs['grid_mapping_name'], crs.name)
 
     def test_metadata_raw(self):
         d = self.get_drivernetcdf()

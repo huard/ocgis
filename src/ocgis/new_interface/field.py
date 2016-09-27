@@ -29,20 +29,16 @@ class OcgField(VariableCollection):
         # Add grid variable metadata to dimension map.
         grid = kwargs.pop('grid', None)
         if grid is not None:
-            dmap_x = self.dimension_map[DimensionMapKeys.X]
-            dmap_y = self.dimension_map[DimensionMapKeys.Y]
-            dmap_x[DimensionMapKeys.VARIABLE] = grid.x.name
-            dmap_y[DimensionMapKeys.VARIABLE] = grid.y.name
-            if grid.has_bounds:
-                dmap_x[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.x.bounds.name
-                dmap_y[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = grid.y.bounds.name
+            update_dimension_map_with_variable(self.dimension_map, DimensionMapKeys.X, grid.x)
+            update_dimension_map_with_variable(self.dimension_map, DimensionMapKeys.Y, grid.y)
         # Add time variable metadata to dimension map.
         tvar = kwargs.pop('time', None)
         if tvar is not None:
-            dmap_t = self.dimension_map[DimensionMapKeys.TIME]
-            dmap_t[DimensionMapKeys.VARIABLE] = tvar.name
-            if tvar.has_bounds:
-                dmap_t[DimensionMapKeys.VARIABLE][DimensionMapKeys.BOUNDS] = tvar.bounds.name
+            update_dimension_map_with_variable(self.dimension_map, DimensionMapKeys.TIME, tvar)
+        # Add the coordinate system.
+        crs = kwargs.pop('crs', None)
+        if crs is not None:
+            update_dimension_map_with_variable(self.dimension_map, DimensionMapKeys.CRS, crs)
 
         self.field_name = kwargs.pop('field_name', None)
         self.grid_abstraction = kwargs.pop('grid_abstraction', 'auto')
@@ -59,6 +55,10 @@ class OcgField(VariableCollection):
         if grid is not None:
             for var in grid.parent.values():
                 self.add_variable(var, force=True)
+        if tvar is not None:
+            self.add_variable(tvar, force=True)
+        if crs is not None:
+            self.add_variable(crs, force=True)
 
     # tdk: order
     def get_field_slice(self, dslice):
@@ -217,6 +217,15 @@ def get_merged_dimension_map(dimension_map):
                 else:
                     dimension_map_template[k][k2] = v2
     return dimension_map_template
+
+
+def update_dimension_map_with_variable(dimension_map, key, variable):
+    r = dimension_map[key]
+    r[DimensionMapKeys.VARIABLE] = variable.name
+    if variable.has_bounds:
+        r[DimensionMapKeys.BOUNDS] = variable.bounds.name
+    for dim in variable.dimensions:
+        r[DimensionMapKeys.NAMES].append(dim.name)
 
 
 def wrap_or_unwrap(field, action):

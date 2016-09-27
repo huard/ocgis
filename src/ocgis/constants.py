@@ -189,6 +189,7 @@ class DimensionMapKeys(object):
     CRS = 'crs'
     BOUNDS = 'bounds'
     VARIABLE = 'variable'
+    NAMES = 'names'
 
 
 # MPI Distribution flags.
