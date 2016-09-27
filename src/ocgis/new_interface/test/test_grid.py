@@ -16,8 +16,7 @@ from ocgis.interface.base.crs import WGS84, CoordinateReferenceSystem
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
-from ocgis.new_interface.grid import GridXY, get_polygon_geometry_array, get_geometry_fill, \
-    expand_grid
+from ocgis.new_interface.grid import GridXY, expand_grid
 from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection, SourcedVariable
@@ -490,7 +489,6 @@ class TestGridXY(AbstractTestNewInterface):
 
         keywords = dict(with_bounds=[False, True])
         for k in self.iter_product_keywords(keywords, as_namedtuple=True):
-            if not k.with_bounds: continue
             grid = self.get_polygon_array_grid(with_bounds=k.with_bounds)
             self.assertTrue(grid.is_vectorized)
             if not k.with_bounds:
@@ -500,9 +498,9 @@ class TestGridXY(AbstractTestNewInterface):
                 self.assertEqual(ageom.bounds, gridgeom.bounds)
                 self.assertEqual(ageom.area, gridgeom.area)
                 self.assertEqual(type(ageom), type(gridgeom))
-            fill = get_geometry_fill(grid.shape, grid.get_mask())
-            poly = GeometryVariable(value=get_polygon_geometry_array(grid, fill))
-            self.assertGeometriesAlmostEquals(poly, GeometryVariable(value=actual))
+                self.assertEqual(ageom.centroid, gridgeom.centroid)
+                self.assertAsSetEqual(np.array(ageom.exterior).flatten().tolist(),
+                                      np.array(gridgeom.exterior).flatten().tolist())
             self.assertTrue(grid.is_vectorized)
 
     def test_resolution(self):
