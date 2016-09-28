@@ -161,7 +161,9 @@ class GridXY(AbstractSpatialContainer):
 
     @property
     def is_empty(self):
-        if self.x.is_empty or self.y.is_empty:
+        x = self.parent[self._x_name]
+        y = self.parent[self._y_name]
+        if x.is_empty or y.is_empty:
             ret = True
         else:
             ret = False
@@ -330,9 +332,10 @@ class GridXY(AbstractSpatialContainer):
                 subset_target = box(*original_subset_target)
             else:
                 subset_target = original_subset_target
-            subset_target = subset_target.buffer(1.25 * self.resolution)
-            original_mask = get_hint_mask_from_geometry_bounds(self, subset_target)
-            original_mask = np.logical_or(self.get_mask(), original_mask)
+            if not self.is_empty:
+                subset_target = subset_target.buffer(1.25 * self.resolution)
+                original_mask = get_hint_mask_from_geometry_bounds(self, subset_target)
+                original_mask = np.logical_or(self.get_mask(), original_mask)
         kwargs['original_mask'] = original_mask
 
         if use_bounds:
@@ -590,9 +593,12 @@ def get_point_geometry_array(grid, fill):
 
 def get_geometry_variable(func, grid, **kwargs):
     alloc_only = kwargs.pop('alloc_only', False)
-    value = get_geometry_fill(grid.shape, grid.get_mask())
-    if not alloc_only:
-        value = func(grid, value)
+    if grid.is_empty:
+        value = None
+    else:
+        value = get_geometry_fill(grid.shape, grid.get_mask())
+        if not alloc_only:
+            value = func(grid, value)
     kwargs['value'] = value
     kwargs['crs'] = grid.crs
     kwargs['parent'] = grid.parent

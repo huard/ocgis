@@ -292,9 +292,9 @@ class GeometryVariable(AbstractSpatialVariable):
         if not isinstance(geometry_or_bounds, BaseGeometry):
             geometry_or_bounds = box(*geometry_or_bounds)
 
-        # Empty variables return an empty array.
+        # Handle empty variables.
         if self.is_empty:
-            ret = np.array([], dtype=bool)
+            ret = None
         else:
             ret = geometryvariable_get_mask_from_intersects(self, geometry_or_bounds,
                                                             use_spatial_index=use_spatial_index,

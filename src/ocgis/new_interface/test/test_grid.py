@@ -330,9 +330,6 @@ class TestGridXY(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_get_intersects_parallel(self):
-        if MPI_SIZE > 1:
-            self.fail('Need to scrub for appropriate parallelism.')
-
         # Test with an empty subset.
         bounds_sequence = (1000., 1000., 1100., 1100.)
 
@@ -365,41 +362,39 @@ class TestGridXY(AbstractTestNewInterface):
             if k.has_bounds:
                 self.assertTrue(grid.has_bounds)
 
-            if MPI_RANK == 0:
-                # Test geometries are filled appropriately after allocation.
+            # Test geometries are filled appropriately after allocation.
+            if not grid_sub.is_empty:
                 for t in grid_sub.abstraction_geometry.value.flat:
                     self.assertIsInstance(t, BaseGeometry)
-                self.assertIsInstance(grid_sub, GridXY)
-                if k.keep_touches:
-                    if k.has_bounds and k.use_bounds:
-                        desired = (slice(0, 3, None), slice(0, 3, None))
-                    else:
-                        desired = (slice(1, 3, None), slice(1, 2, None))
+            self.assertIsInstance(grid_sub, GridXY)
+            if k.keep_touches:
+                if k.has_bounds and k.use_bounds:
+                    desired = (slice(0, 3, None), slice(0, 3, None))
                 else:
-                    if k.has_bounds and k.use_bounds:
-                        desired = (slice(1, 3, None), slice(1, 2, None))
-                    else:
-                        desired = (slice(1, 2, None), slice(1, 2, None))
-                self.assertEqual(grid.has_bounds, k.has_bounds)
-                self.assertTrue(grid.is_vectorized)
-                self.assertEqual(slc, desired)
+                    desired = (slice(1, 3, None), slice(1, 2, None))
             else:
-                self.assertIsNone(grid_sub)
-                self.assertIsNone(slc)
+                if k.has_bounds and k.use_bounds:
+                    desired = (slice(1, 3, None), slice(1, 2, None))
+                else:
+                    desired = (slice(1, 2, None), slice(1, 2, None))
+            self.assertEqual(grid.has_bounds, k.has_bounds)
+            self.assertTrue(grid.is_vectorized)
+            self.assertEqual(slc, desired)
 
         # Test against a file. #########################################################################################
         bounds_sequence = (101.5, 40.5, 102.5, 42.)
 
         if MPI_RANK == 0:
             path_grid = self.get_temporary_file_path('grid.nc')
-            grid_to_write = self.get_gridxy()
-            field = OcgField(grid=grid_to_write)
-            field.write(path_grid, driver=DriverNetcdfCF)
-            rd = RequestDataset(uri=path_grid)
         else:
-            rd = None
+            path_grid = None
+        path_grid = MPI_COMM.bcast(path_grid)
 
-        rd = MPI_COMM.bcast(rd, root=0)
+        grid_to_write = self.get_gridxy()
+        field = OcgField(grid=grid_to_write)
+        field.write(path_grid, driver=DriverNetcdfCF)
+
+        rd = RequestDataset(uri=path_grid)
         x = SourcedVariable(name='x', request_dataset=rd)
         self.assertIsNone(x._value)
         y = SourcedVariable(name='y', request_dataset=rd)
@@ -414,12 +409,8 @@ class TestGridXY(AbstractTestNewInterface):
 
         sub, slc = grid.get_intersects(bounds_sequence, comm=MPI_COMM, return_slice=True)
 
-        if MPI_RANK == 0:
-            self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
-            self.assertIsInstance(sub, GridXY)
-        else:
-            self.assertIsNone(slc)
-            self.assertIsNone(sub)
+        self.assertEqual(slc, (slice(1, 3, None), slice(1, 2, None)))
+        self.assertIsInstance(sub, GridXY)
 
         # The file may be deleted before other ranks open.
         MPI_COMM.Barrier()

@@ -9,6 +9,7 @@ from shapely.geometry import Point
 from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, get_geometry_variable, get_polygon_geometry_array
+from ocgis.new_interface.mpi import MPI_RANK, variable_collection_scatter, OcgMpi, variable_scatter
 from ocgis.new_interface.ocgis_logging import log
 from ocgis.new_interface.variable import Variable, VariableCollection
 from ocgis.test.base import TestBase
@@ -52,46 +53,65 @@ class AbstractTestNewInterface(TestBase):
     def get_gridxy(self, with_2d_variables=False, crs=None, with_xy_bounds=False, with_value_mask=False,
                    with_parent=False):
 
-        x = [101, 102, 103]
-        y = [40, 41, 42, 43]
-
-        x_dim = Dimension('xdim', size=len(x))
-        y_dim = Dimension('ydim', size=len(y))
+        dest_mpi = OcgMpi()
+        dest_mpi.create_dimension('xdim', 3)
+        dest_mpi.create_dimension('ydim', 4, dist=True)
+        dest_mpi.update_dimension_bounds()
 
         kwds = {'crs': crs}
 
-        if with_2d_variables:
-            x_value, y_value = np.meshgrid(x, y)
-            x_dims = (y_dim, x_dim)
-            y_dims = x_dims
+        if MPI_RANK == 0:
+            x = [101, 102, 103]
+            y = [40, 41, 42, 43]
+
+            x_dim = Dimension('xdim', size=len(x))
+            y_dim = Dimension('ydim', size=len(y))
+
+            if with_2d_variables:
+                x_value, y_value = np.meshgrid(x, y)
+                x_dims = (y_dim, x_dim)
+                y_dims = x_dims
+            else:
+                x_value, y_value = x, y
+                x_dims = (x_dim,)
+                y_dims = (y_dim,)
+
+            if with_value_mask:
+                x_value = np.ma.array(x_value, mask=[False, True, False])
+                y_value = np.ma.array(y_value, mask=[True, False, True, False])
+
+            vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
+            vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
+            if with_xy_bounds:
+                vx.set_extrapolated_bounds('xbounds', 'bounds')
+                vy.set_extrapolated_bounds('ybounds', 'bounds')
+
+            if with_parent:
+                np.random.seed(1)
+                tas = np.random.rand(10, 3, 4)
+                tas = Variable(name='tas', value=tas)
+                tas.create_dimensions(names=['time', 'xdim', 'ydim'])
+
+                rhs = np.random.rand(4, 3, 10) * 100
+                rhs = Variable(name='rhs', value=rhs)
+                rhs.create_dimensions(names=['ydim', 'xdim', 'time'])
+
+                parent = VariableCollection(variables=[tas, rhs])
+            else:
+                parent = None
+
         else:
-            x_value, y_value = x, y
-            x_dims = (x_dim,)
-            y_dims = (y_dim,)
+            vx, vy, parent = [None] * 3
 
-        if with_value_mask:
-            x_value = np.ma.array(x_value, mask=[False, True, False])
-            y_value = np.ma.array(y_value, mask=[True, False, True, False])
-
-        vx = Variable('x', value=x_value, dtype=float, dimensions=x_dims)
-        vy = Variable('y', value=y_value, dtype=float, dimensions=y_dims)
-        if with_xy_bounds:
-            vx.set_extrapolated_bounds('xbounds', 'bounds')
-            vy.set_extrapolated_bounds('ybounds', 'bounds')
+        svx, _ = variable_scatter(vx, dest_mpi)
+        svy, _ = variable_scatter(vy, dest_mpi)
 
         if with_parent:
-            np.random.seed(1)
-            tas = np.random.rand(10, 3, 4)
-            tas = Variable(name='tas', value=tas)
-            tas.create_dimensions(names=['time', 'xdim', 'ydim'])
+            parent, _ = variable_collection_scatter(parent, dest_mpi)
+            kwds['parent'] = parent
 
-            rhs = np.random.rand(4, 3, 10) * 100
-            rhs = Variable(name='rhs', value=rhs)
-            rhs.create_dimensions(names=['ydim', 'xdim', 'time'])
+        grid = GridXY(svx, svy, **kwds)
 
-            kwds['parent'] = VariableCollection(variables=[tas, rhs])
-
-        grid = GridXY(vx, vy, **kwds)
         return grid
 
     def get_gridxy_global(self, resolution=1.0, with_bounds=True):

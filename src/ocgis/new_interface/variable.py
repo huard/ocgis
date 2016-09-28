@@ -641,21 +641,27 @@ class Variable(AbstractContainer, Attributes):
         if self.dimensions is None:
             raise DimensionsRequiredError('Dimensions are required on the bounded variable.')
 
+        bounds_value = None
         if self.ndim == 1:
-            bounds_value = get_bounds_from_1d(self.value)
+            if not self.is_empty:
+                bounds_value = get_bounds_from_1d(self.value)
+            bounds_dimension_size = 2
         else:
             # tdk: consider renaming this functions to get_bounds_from_2d
-            bounds_value = get_extrapolated_corners_esmf(self.value)
-            bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
+            if not self.is_empty:
+                bounds_value = get_extrapolated_corners_esmf(self.value)
+                bounds_value = get_ocgis_corners_from_esmf_corners(bounds_value)
+            bounds_dimension_size = 4
 
         dimensions = list(self.dimensions)
-        dimensions.append(Dimension(name=name_dimension, size=bounds_value.shape[-1]))
+        dimensions.append(Dimension(name=name_dimension, size=bounds_dimension_size))
 
         var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
         self.bounds = var
 
         # This will synchronize the bounds mask with the variable's mask.
-        self.set_mask(self.get_mask())
+        if not self.is_empty:
+            self.set_mask(self.get_mask())
 
     @property
     def has_allocated_value(self):

@@ -223,13 +223,16 @@ class OcgMpi(AbstractOcgisObject):
             group_data = get_group(mapping, group_key)
             yield group_key, group_data
 
-    def update_dimension_bounds(self, rank='all'):
+    def update_dimension_bounds(self, rank='all', min_elements=2):
         """
         :param rank: If ``'all'``, update across all ranks. Otherwise, update for the integer rank provided.
         :type rank: str/int
+        :param int min_elements: The minimum number of elements per rank. It must be >= 2.
         """
         if self.has_updated_dimensions:
             raise ValueError('Dimensions already updated.')
+        if min_elements < 1:
+            raise ValueError('"min_elements" must be >= 1.')
 
         if rank == 'all':
             ranks = range(self.size)
@@ -257,6 +260,10 @@ class OcgMpi(AbstractOcgisObject):
                 the_size = self.size
                 if len(distributed_dimension) < the_size:
                     the_size = len(distributed_dimension)
+                # Use the minimum number of elements per rank to potentially adjust the size.
+                min_size = int(np.floor(len(distributed_dimension) / float(min_elements)))
+                if self.size > 1 and min_size < the_size:
+                    the_size = min_size
 
                 # Fix the global bounds.
                 distributed_dimension.bounds_global = (0, len(distributed_dimension))
@@ -441,7 +448,6 @@ def get_rank_bounds(nelements, size, rank, esplit=None):
         nelements = int(nelements)
         size = int(size)
         esplit, remainder = divmod(nelements, size)
-
         if remainder > 0:
             # Find the rank bounds with no remainder.
             ret = get_rank_bounds(nelements - remainder, size, rank)
