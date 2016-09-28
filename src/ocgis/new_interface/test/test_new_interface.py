@@ -56,6 +56,7 @@ class AbstractTestNewInterface(TestBase):
         dest_mpi = OcgMpi()
         dest_mpi.create_dimension('xdim', 3)
         dest_mpi.create_dimension('ydim', 4, dist=True)
+        dest_mpi.create_dimension('time', 10)
         dest_mpi.update_dimension_bounds()
 
         kwds = {'crs': crs}

@@ -104,7 +104,8 @@ class TestGridXY(AbstractTestNewInterface):
         self.assertIn('x', grid.parent)
         self.assertIn('y', grid.parent)
         self.assertEqual(grid.crs, crs)
-        self.assertEqual(grid.dimensions, (Dimension(name='ydim', size=4), Dimension(name='xdim', size=3)))
+        self.assertEqual([dim.name for dim in grid.dimensions], ['ydim', 'xdim'])
+        self.assertEqual(grid.shape, (4, 3))
 
         # Test with different variable names.
         x = Variable(name='col', value=[1], dimensions='col')
