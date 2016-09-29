@@ -118,7 +118,6 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def _initialize_parent_(self):
         self._parent = VariableCollection()
-        self._parent.add_variable(self)
 
 
 class ObjectType(object):
@@ -160,6 +159,10 @@ class Variable(AbstractContainer, Attributes):
             self._bounds_name = None
 
         AbstractContainer.__init__(self, name, parent=parent)
+
+        if self.name is None:
+            self._name = 'var_{}_{}'.format(self.parent.name, self.parent._variable_name_ctr)
+            self.parent._variable_name_ctr += 1
 
         # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
         # units here.
@@ -435,7 +438,7 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def ndim(self):
-        return len(self.shape)
+        return len(self._dimensions)
 
     @property
     def resolution(self):
@@ -950,13 +953,15 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 ret.dimensions[dimension_name] = self.dimensions[dimension_name].__getitem__(slc)
             names = set(item_or_slc.keys())
             for k, v in ret.items():
-                if v.ndim > 0:
-                    v_dimension_names = set(v.dimension_names)
-                    if len(v_dimension_names.intersection(names)) > 0:
-                        mapped_slc = [item_or_slc[d] for d in v.dimension_names]
-                        with orphaned(v):
-                            v_sub = v.__getitem__(item_or_slc)
-                        ret.add_variable(v_sub, force=True)
+                with orphaned(v):
+                    if v.ndim > 0:
+                        v_dimension_names = set(v.dimension_names)
+                        if len(v_dimension_names.intersection(names)) > 0:
+                            mapped_slc = [item_or_slc[d] for d in v.dimension_names]
+                            v_sub = v.__getitem__(mapped_slc)
+                    else:
+                        v_sub = v.copy()
+                ret.add_variable(v_sub, force=True)
         return ret
 
     # tdk: dimensions and group can be removed with inheritance from abstractcontainer
@@ -1002,22 +1007,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         """
         :param :class:`ocgis.interface.base.variable.Variable`
         """
-
-        if variable.name is None:
-            variable._name = 'var_{}_{}'.format(self.name, self._variable_name_ctr)
-            self._variable_name_ctr += 1
-
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
-        if variable.ndim > 0:
-            if variable.dimensions is None:
-                new_dimension_names = []
-                for _ in range(variable.ndim):
-                    new_dimension_names.append('dim_{}_{}'.format(self.name, self._dimension_ctr))
-                    self._dimension_ctr += 1
-                variable.create_dimensions(new_dimension_names)
-            variable._dimensions = tuple([dim.name for dim in variable.dimensions])
         self[variable.name] = variable
+        for dimension in variable.dimensions:
+            self.add_dimension(dimension, force=force)
 
         # Allow variables to optionally overload how they are added to the collection.
         try:

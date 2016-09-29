@@ -45,6 +45,7 @@ class TestVariable(AbstractTestNewInterface):
     def test_init(self):
         # Test an empty variable.
         var = Variable()
+        self.assertIsNotNone(var.name)
         self.assertEqual(var.shape, tuple())
         self.assertEqual(var.dimensions, tuple())
         self.assertEqual(var.value, None)
