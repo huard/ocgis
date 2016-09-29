@@ -38,7 +38,7 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def __init__(self, name, parent=None):
         self._name = name
-        self.parent = parent
+        self._parent = parent
 
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
@@ -51,10 +51,6 @@ class AbstractContainer(AbstractInterfaceObject):
             new_parent = ret.parent[slc]
             ret = new_parent[self.name]
         return ret
-
-    @property
-    def name(self):
-        return self._name
 
     @abstractproperty
     def dimensions(self):
@@ -76,14 +72,27 @@ class AbstractContainer(AbstractInterfaceObject):
             ret.reverse()
         return ret
 
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def parent(self):
+        if self._parent is None:
+            self._parent = VariableCollection()
+            self._parent.add_variable(self)
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        if value is not None:
+            assert isinstance(value, VariableCollection)
+        self._parent = value
+
     @abstractmethod
     def get_mask(self):
         """:rtype: :class:`numpy.ndarray`"""
         raise NotImplementedError
-
-    def initialize_parent(self):
-        self.parent = VariableCollection()
-        self.parent.add_variable(self)
 
     @abstractmethod
     def set_mask(self, mask):
@@ -292,9 +301,7 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def dimensions(self):
-        if self._dimensions is None:
-            self._dimensions = self._get_dimensions_()
-        return self._dimensions
+        return self._get_dimensions_()
 
     @dimensions.setter
     def dimensions(self, value):
@@ -316,13 +323,28 @@ class Variable(AbstractContainer, Attributes):
         return [d.name for d in self.dimensions]
 
     def _get_dimensions_(self):
-        return self._dimensions
+        if self._dimensions is None:
+            ret = tuple()
+        else:
+            ret = tuple([self.parent.dimensions[name] for name in self._dimensions])
+        return ret
 
     def _set_dimensions_(self, dimensions):
         if dimensions is not None:
-            dimensions = tuple(get_iter(dimensions, dtype=Dimension))
-        self._dimensions = dimensions
-        update_unlimited_dimension_length(self._value, dimensions)
+            dimensions = list(get_iter(dimensions, dtype=(Dimension, basestring)))
+            dimension_names = [None] * len(dimensions)
+            for idx, dimension in enumerate(dimensions):
+                try:
+                    dimension_name = dimension.name
+                    self.parent.add_dimension(dimension)
+                except AttributeError:
+                    dimension_name = dimension
+                assert dimension_name in self.parent.dimensions
+                dimension_names[idx] = dimension_name
+            self._dimensions = tuple(dimension_names)
+        else:
+            self._dimensions = dimensions
+        update_unlimited_dimension_length(self._value, self.dimensions)
         # Only update the bounds dimensions if this is not part of the variable initialization process. Bounds are
         # configured normally during initialization.
         if not self._is_init and self.has_bounds:
@@ -914,6 +936,9 @@ class SourcedVariable(Variable):
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     def __init__(self, name=None, variables=None, attrs=None, parent=None, children=None):
         self._dimensions = OrderedDict()
+        self._dimension_ctr = 0
+        self._variable_name_ctr = 0
+
         self.name = name
         self.children = children or OrderedDict()
         self.parent = parent
@@ -974,26 +999,35 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         child.parent = self
         self.children[child.name] = child
 
+    def add_dimension(self, dimension, force=False):
+        existing_dim = self.dimensions.get(dimension.name)
+        if existing_dim is not None and not force:
+            if existing_dim != dimension:
+                raise DimensionMismatchError(dimension.name, self.name)
+        else:
+            self.dimensions[dimension.name] = dimension
+
     def add_variable(self, variable, force=False):
         """
         :param :class:`ocgis.interface.base.variable.Variable`
         """
 
         if variable.name is None:
-            raise ValueError('A "name" is required to enter a collection.')
-        if variable.dimensions is None and variable.ndim > 0:
-            raise ValueError('"dimensions" are required to enter a collection.')
+            variable._name = 'var_{}_{}'.format(self.name, self._variable_name_ctr)
+            self._variable_name_ctr += 1
 
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
         if variable.ndim > 0:
+            if variable.dimensions is None:
+                new_dimension_names = []
+                for _ in range(variable.ndim):
+                    new_dimension_names.append('dim_{}_{}'.format(self.name, self._dimension_ctr))
+                    self._dimension_ctr += 1
+                variable.create_dimensions(new_dimension_names)
             for dim in variable.dimensions:
-                existing_dim = self.dimensions.get(dim.name)
-                if existing_dim is not None and not force:
-                    if existing_dim != dim:
-                        raise DimensionMismatchError(dim.name, self.name)
-                else:
-                    self.dimensions[dim.name] = dim
+                self.add_dimension(dim, force=force)
+            variable._dimensions = tuple([dim.name for dim in variable.dimensions])
         self[variable.name] = variable
 
         # Allow variables to optionally overload how they are added to the collection.
@@ -1112,14 +1146,15 @@ def get_mapping_for_slice(names_source, names_destination):
 def get_shape_from_variable(variable):
     dimensions = variable._dimensions
     value = variable._value
-    try:
-        shape = get_dimension_lengths(dimensions)
-    except TypeError:
-        try:
-            shape = value.shape
-        except AttributeError:
-            shape = tuple()
-    return shape
+    if dimensions is None and value is None:
+        ret = tuple()
+    elif dimensions is not None:
+        ret = get_dimension_lengths(variable.dimensions)
+    elif value is not None:
+        ret = value.shape
+    else:
+        raise NotImplementedError()
+    return ret
 
 
 def get_slice_sequence_using_local_bounds(variable):

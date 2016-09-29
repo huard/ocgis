@@ -46,12 +46,14 @@ class TestVariable(AbstractTestNewInterface):
         # Test an empty variable.
         var = Variable()
         self.assertEqual(var.shape, tuple())
-        self.assertEqual(var.dimensions, None)
+        self.assertEqual(var.dimensions, tuple())
         self.assertEqual(var.value, None)
         self.assertEqual(var.get_mask(), None)
+        self.assertIsNotNone(var.parent)
         # Test setting the dimensions.
         var.dimensions = Dimension('five', 5)
         self.assertEqual(var.shape, (5,))
+        self.assertEqual(var._dimensions, ('five',))
 
         # Test an empty variable setting the value.
         var = Variable()
@@ -81,7 +83,6 @@ class TestVariable(AbstractTestNewInterface):
 
         # Test a value with no dimensions.
         v = Variable(value=[[1, 2, 3], [4, 5, 6]])
-        self.assertIsNone(v._dimensions)
         self.assertEqual(v.shape, (2, 3))
         v.create_dimensions(['one', 'two'])
         self.assertEqual(v.shape, (2, 3))
