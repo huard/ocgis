@@ -288,14 +288,14 @@ class Variable(AbstractContainer, Attributes):
                 ret = tuple([self.parent.dimensions[name] for name in self._dimensions])
         return ret
 
-    def set_dimensions(self, dimensions):
+    def set_dimensions(self, dimensions, force=False):
         if dimensions is not None:
             dimensions = list(get_iter(dimensions, dtype=(Dimension, basestring)))
             dimension_names = [None] * len(dimensions)
             for idx, dimension in enumerate(dimensions):
                 try:
                     dimension_name = dimension.name
-                    self.parent.add_dimension(dimension)
+                    self.parent.add_dimension(dimension, force=force)
                 except AttributeError:
                     dimension_name = dimension
                 if dimension_name not in self.parent.dimensions:
@@ -774,7 +774,7 @@ class Variable(AbstractContainer, Attributes):
                 for var in ret.parent.values():
                     var._is_empty = True
         else:
-            ret.dimensions = new_dimensions
+            ret.set_dimensions(new_dimensions, force=True)
 
         return ret
 
