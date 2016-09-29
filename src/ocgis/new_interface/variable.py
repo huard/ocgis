@@ -2,7 +2,6 @@ import itertools
 from abc import ABCMeta, abstractproperty, abstractmethod
 from collections import OrderedDict
 from copy import deepcopy
-from itertools import izip
 
 import numpy as np
 from numpy.core.multiarray import ndarray
@@ -40,16 +39,19 @@ class AbstractContainer(AbstractInterfaceObject):
         self._name = name
         self._parent = parent
 
+        if parent is None:
+            self._initialize_parent_()
+
     def __getitem__(self, slc):
         ret, slc = self._getitem_initialize_(slc)
-        if ret.parent is None:
+        if self._parent is None:
             self._getitem_main_(ret, slc)
             self._getitem_finalize_(ret, slc)
         else:
             if not isinstance(slc, dict):
                 slc = get_dslice(self.dimensions, slc)
             new_parent = ret.parent[slc]
-            ret = new_parent[self.name]
+            ret = new_parent[ret.name]
         return ret
 
     @abstractproperty
@@ -79,8 +81,7 @@ class AbstractContainer(AbstractInterfaceObject):
     @property
     def parent(self):
         if self._parent is None:
-            self._parent = VariableCollection()
-            self._parent.add_variable(self)
+            self._initialize_parent_()
         return self._parent
 
     @parent.setter
@@ -107,15 +108,17 @@ class AbstractContainer(AbstractInterfaceObject):
                 slc = {k: get_formatted_slice(v, 1)[0] for k, v in slc.items()}
             except:
                 raise e
-
-        ret = self.copy()
-        return ret, slc
+        return self, slc
 
     def _getitem_main_(self, ret, slc):
         """Perform major slicing operations in-place."""
 
     def _getitem_finalize_(self, ret, slc):
         """Finalize the returned sliced object in-place."""
+
+    def _initialize_parent_(self):
+        self._parent = VariableCollection()
+        self._parent.add_variable(self)
 
 
 class ObjectType(object):
@@ -163,23 +166,29 @@ class Variable(AbstractContainer, Attributes):
         if str(units) != 'auto':
             self.units = units
 
-        create_dimensions = False
-        if dimensions is not None:
-            if isinstance(list(get_iter(dimensions, dtype=(basestring, Dimension)))[0], basestring):
-                create_dimensions = True
-            else:
-                self.dimensions = dimensions
+        # create_dimensions = False
+        # if dimensions is not None:
+        #     if isinstance(list(get_iter(dimensions, dtype=(basestring, Dimension)))[0], basestring):
+        #         create_dimensions = True
+        #     else:
+        #         self.dimensions = dimensions
 
-        self.value = value
-        if create_dimensions:
-            self.create_dimensions(names=dimensions)
+        self.set_value(value)
+        if value is not None and dimensions is None:
+            self.create_dimensions(shape=self.value.shape)
+        else:
+            self.set_dimensions(dimensions)
+        if value is not None:
+            update_unlimited_dimension_length(self.value, self.dimensions)
+        # if create_dimensions:
+        #     self.create_dimensions(names=dimensions)
 
         if bounds is not None:
             self.bounds = bounds
 
-        # Add to the parent.
-        if self.parent is not None:
-            self.parent.add_variable(self, force=True)
+        # # Add to the parent.
+        # if self.parent is not None:
+        #     self.parent.add_variable(self, force=True)
 
         if mask is not None:
             self.set_mask(mask)
@@ -268,8 +277,6 @@ class Variable(AbstractContainer, Attributes):
             assert value.name != self.name
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
-            if self.parent is None:
-                self.parent = VariableCollection(variables=[self])
             self.parent.add_variable(value, force=True)
             value.units = self.units
 
@@ -303,24 +310,16 @@ class Variable(AbstractContainer, Attributes):
     def dimensions(self):
         return self._get_dimensions_()
 
-    @dimensions.setter
-    def dimensions(self, value):
-        self._set_dimensions_(value)
-
     @property
     def dimensions_dict(self):
         ret = OrderedDict()
-        try:
-            for d in self.dimensions:
-                ret[d.name] = d
-        except TypeError:
-            # Assume None.
-            pass
+        for d in self.dimensions:
+            ret[d.name] = d
         return ret
 
     @property
-    def dimensions_names(self):
-        return [d.name for d in self.dimensions]
+    def dimension_names(self):
+        return self._dimensions
 
     def _get_dimensions_(self):
         if self._dimensions is None:
@@ -329,7 +328,7 @@ class Variable(AbstractContainer, Attributes):
             ret = tuple([self.parent.dimensions[name] for name in self._dimensions])
         return ret
 
-    def _set_dimensions_(self, dimensions):
+    def set_dimensions(self, dimensions):
         if dimensions is not None:
             dimensions = list(get_iter(dimensions, dtype=(Dimension, basestring)))
             dimension_names = [None] * len(dimensions)
@@ -496,10 +495,6 @@ class Variable(AbstractContainer, Attributes):
             self._value = self._get_value_()
         return self._value
 
-    @value.setter
-    def value(self, value):
-        self._set_value_(value)
-
     @property
     def masked_value(self):
         if isinstance(self.dtype, ObjectType):
@@ -513,8 +508,8 @@ class Variable(AbstractContainer, Attributes):
         if self.is_empty:
             ret = None
         else:
-            dimensions = self._dimensions
-            if dimensions is None or len(dimensions) == 0:
+            dimensions = self.dimensions
+            if len(dimensions) == 0:
                 ret = None
             else:
                 if has_unlimited_dimension(dimensions):
@@ -524,7 +519,7 @@ class Variable(AbstractContainer, Attributes):
                     ret = variable_get_zeros(dimensions, self.dtype)
         return ret
 
-    def _set_value_(self, value):
+    def set_value(self, value):
         if value is not None:
             if isinstance(value, MaskedArray):
                 self._fill_value = value.fill_value
@@ -555,20 +550,17 @@ class Variable(AbstractContainer, Attributes):
                 except TypeError:
                     value = value.astype(desired_dtype)
 
-        update_unlimited_dimension_length(value, self._dimensions)
+        if not self._is_init:
+            update_unlimited_dimension_length(value, self.dimensions)
 
         self._value = value
 
     def copy(self):
-        ret = AbstractContainer.copy(self)
-        ret.attrs = ret.attrs.copy()
-
-        if ret.parent is not None:
-            ret.parent = ret.parent.copy()
-
-        if ret.parent is not None:
-            ret.parent.add_variable(ret, force=True)
-
+        if self._parent is None:
+            ret = AbstractContainer.copy(self)
+            ret.attrs = ret.attrs.copy()
+        else:
+            ret = self.parent.copy()[self.name]
         return ret
 
     def deepcopy(self, eager=False):
@@ -622,25 +614,22 @@ class Variable(AbstractContainer, Attributes):
         if self.has_bounds:
             self.bounds.cfunits_conform(to_units, from_units=from_units)
 
-    def create_dimensions(self, names=None):
-        if names is None and self.name is None:
-            msg = 'Variable "name" is required when no "names" provided to "create_dimensions".'
-            raise ValueError(msg)
-
-        names = tuple(get_iter(names or self.name))
-
-        value = self._value
-        if value is None:
-            new_dimensions = ()
+    def create_dimensions(self, names=None, shape=None):
+        if shape is None:
+            shape = self._value.shape
+        if names is None:
+            names = [None] * len(shape)
+            for idx in range(len(names)):
+                names[idx] = 'dim_{}_{}'.format(self.parent.name, self.parent._dimension_name_ctr)
+                self.parent._dimension_name_ctr += 1
         else:
-            new_dimensions = []
-            if len(names) != value.ndim:
-                msg = "The number of dimension 'names' must equal the number of dimensions (ndim)."
-                raise ValueError(msg)
-            for name, shp in izip(names, value.shape):
-                new_dimension = Dimension(name, size=shp)
-                new_dimensions.append(new_dimension)
-        self.dimensions = new_dimensions
+            names = tuple(get_iter(names))
+
+        new_dimensions = []
+        for name, shp in zip(names, shape):
+            new_dimension = Dimension(name, size=shp)
+            new_dimensions.append(new_dimension)
+        self.set_dimensions(new_dimensions)
 
     def reshape(self, *args, **kwargs):
         assert not self.has_bounds
@@ -936,7 +925,7 @@ class SourcedVariable(Variable):
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     def __init__(self, name=None, variables=None, attrs=None, parent=None, children=None):
         self._dimensions = OrderedDict()
-        self._dimension_ctr = 0
+        self._dimension_name_ctr = 0
         self._variable_name_ctr = 0
 
         self.name = name
@@ -951,21 +940,23 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for variable in get_iter(variables, dtype=Variable):
                 self.add_variable(variable)
 
-    def __getitem__(self, item):
-        if not isinstance(item, dict):
-            ret = AbstractCollection.__getitem__(self, item)
+    def __getitem__(self, item_or_slc):
+        if not isinstance(item_or_slc, dict):
+            ret = AbstractCollection.__getitem__(self, item_or_slc)
         else:
             # Assume a dictionary slice.
             ret = self.copy()
-            names = set(item.keys())
+            for dimension_name, slc in item_or_slc.items():
+                ret.dimensions[dimension_name] = self.dimensions[dimension_name].__getitem__(slc)
+            names = set(item_or_slc.keys())
             for k, v in ret.items():
-                v = v.copy()
-                v.parent = None
                 if v.ndim > 0:
-                    v_dimension_names = set([d.name for d in v.dimensions])
+                    v_dimension_names = set(v.dimension_names)
                     if len(v_dimension_names.intersection(names)) > 0:
-                        v = v.__getitem__(item)
-                ret.add_variable(v, force=True)
+                        mapped_slc = [item_or_slc[d] for d in v.dimension_names]
+                        with orphaned(v):
+                            v_sub = v.__getitem__(item_or_slc)
+                        ret.add_variable(v_sub, force=True)
         return ret
 
     # tdk: dimensions and group can be removed with inheritance from abstractcontainer
@@ -1025,8 +1016,6 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                     new_dimension_names.append('dim_{}_{}'.format(self.name, self._dimension_ctr))
                     self._dimension_ctr += 1
                 variable.create_dimensions(new_dimension_names)
-            for dim in variable.dimensions:
-                self.add_dimension(dim, force=force)
             variable._dimensions = tuple([dim.name for dim in variable.dimensions])
         self[variable.name] = variable
 
@@ -1041,10 +1030,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
     def copy(self):
         ret = AbstractCollection.copy(self)
+        ret._dimensions = ret._dimensions.copy()
         for v in ret.values():
             with orphaned(v):
-                v_copied = v.copy()
-            v_copied.parent = ret
+                ret[v.name] = v.copy()
+            ret[v.name].parent = ret
         ret.children = ret.children.copy()
         return ret
 

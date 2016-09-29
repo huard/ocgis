@@ -50,27 +50,26 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var.value, None)
         self.assertEqual(var.get_mask(), None)
         self.assertIsNotNone(var.parent)
-        # Test setting the dimensions.
-        var.dimensions = Dimension('five', 5)
-        self.assertEqual(var.shape, (5,))
-        self.assertEqual(var._dimensions, ('five',))
 
-        # Test an empty variable setting the value.
-        var = Variable()
-        var.value = [[2, 3, 4], [4, 5, 6]]
-        self.assertIsNone(var.dimensions)
+        # Test with a single dimension.
+        var = Variable(dimensions=Dimension('five', 5))
+        self.assertEqual(var._dimensions, ('five',))
+        self.assertEqual(var.shape, (5,))
+
+        # Test with a value and no dimensions.
+        var = Variable(value=[[2, 3, 4], [4, 5, 6]])
+        self.assertIsNotNone(var.dimensions)
         self.assertEqual(var.shape, (2, 3))
+        self.assertEqual(var.shape, tuple([len(dim) for dim in var.dimensions]))
         self.assertEqual(var.ndim, 2)
-        var.value = np.random.rand(10, 11)
-        self.assertEqual(var.shape, (10, 11))
-        var.create_dimensions(('ten', 'eleven'))
+        # Variable and dimension shapes must be equal.
         with self.assertRaises(ValueError):
-            var.value = np.random.rand(4)
+            var.set_value(np.random.rand(10, 11))
         with self.assertRaises(ValueError):
-            var.dimensions = Dimension('a', None)
-        var.dimensions = [Dimension('aa', 10), Dimension('bb')]
-        self.assertEqual(var.dimensions[1].size_current, 11)
-        self.assertEqual(var.shape, (10, 11))
+            var.set_dimensions(Dimension('a', None))
+        var.set_dimensions([Dimension('aa', 2), Dimension('bb')])
+        self.assertEqual(var.dimensions[1].size_current, 3)
+        self.assertEqual(var.shape, (2, 3))
 
         # Test a scalar variable.
         v = Variable(value=2.0)
@@ -78,7 +77,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertIsInstance(v.value, ndarray)
         self.assertEqual(v.shape, tuple())
         self.assertEqual(v.value.dtype, np.float)
-        self.assertEqual(v.dimensions, None)
+        self.assertEqual(v.dimensions, tuple())
         self.assertEqual(v.ndim, 0)
 
         # Test a value with no dimensions.
@@ -102,13 +101,14 @@ class TestVariable(AbstractTestNewInterface):
         desired = np.array(value, dtype=np.int8)
         var = Variable(value=value, dtype=np.int8, fill_value=4)
         self.assertNumpyAll(var.value, desired)
-        var.value = None
-        var.value = np.array(value)
+        var._value = None
+        var.set_value(np.array(value))
         self.assertNumpyAll(var.value, desired)
-        var.value = None
-        var.value = desired
+        var._value = None
+        var.set_value(desired)
         assert_equal(var.get_mask(), [True, False, False])
 
+    def test_tdk(self):
         time, value, var = self.get_variable()
 
         self.assertEqual(var.dimensions, (time,))
@@ -438,24 +438,22 @@ class TestVariable(AbstractTestNewInterface):
         self.assertNumpyAll(var.masked_value, desired)
 
     def test_copy(self):
-        var = self.get_variable(return_original_data=False)
-        var2 = var.copy()
-        var2._name = 'foobar'
-        var2.dimensions[0]._name = 'new_time'
-        self.assertEqual(var.name, 'time_value')
-        self.assertNumpyMayShareMemory(var.value, var2.value)
-        var2.value[:] = 100
-        self.assertNumpyAll(var.value.mean(), var2.value.mean())
-        var3 = var2[2:4]
-        var3.value[:] = 200
-        new_mask = var3.get_mask()
-        new_mask.fill(True)
-        var3.set_mask(new_mask)
-        self.assertAlmostEqual(var.value.mean(), 133.33333333)
-        self.assertFalse(var.get_mask().any())
-        var2.attrs['way'] = 'out'
-        self.assertEqual(len(var.attrs), 1)
-        self.assertEqual(len(var3.attrs), 1)
+        var = Variable(value=[5])
+        cvar = var.copy()
+        self.assertNotEqual(id(var), id(cvar))
+        self.assertNotEqual(id(var.parent), id(cvar.parent))
+        cvar.set_value([10])
+        self.assertNotEqual(var.value[0], cvar.value[0])
+        cvar.attrs['new_attr'] = 'new'
+        self.assertNotIn('new_attr', var.attrs)
+        cvar.set_dimensions(Dimension('overload', 1))
+        self.assertNotIn('overload', var.parent.dimensions)
+
+        # Test this is not a deepcopy.
+        var = Variable(value=[10, 11, 12], dimensions=Dimension('three', 3, src_idx='auto'))
+        cvar = var.copy()
+        self.assertNumpyMayShareMemory(var.value, cvar.value)
+        self.assertNumpyMayShareMemory(var.dimensions[0]._src_idx, cvar.dimensions[0]._src_idx)
 
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
