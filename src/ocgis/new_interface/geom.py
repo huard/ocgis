@@ -161,11 +161,6 @@ class GeometryVariable(AbstractSpatialVariable):
             kwargs['name'] = 'geom'
         super(GeometryVariable, self).__init__(*args, **kwargs)
 
-    def __add_to_collection_finalize__(self, vc):
-        super(GeometryVariable, self).__add_to_collection_finalize__(vc)
-        if self.crs is not None:
-            vc.add_variable(self.crs, force=True)
-
     @property
     def area(self):
         r_value = self.masked_value

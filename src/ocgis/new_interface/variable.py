@@ -60,18 +60,15 @@ class AbstractContainer(AbstractInterfaceObject):
 
     @property
     def group(self):
-        if self.parent is None:
-            ret = None
-        else:
-            curr = self.parent
-            ret = [curr.name]
-            while True:
-                if curr.parent is None:
-                    break
-                else:
-                    curr = curr.parent
-                    ret.append(curr.name)
-            ret.reverse()
+        curr = self.parent
+        ret = [curr.name]
+        while True:
+            if curr.parent is None:
+                break
+            else:
+                curr = curr.parent
+                ret.append(curr.name)
+        ret.reverse()
         return ret
 
     @property
@@ -118,6 +115,7 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def _initialize_parent_(self):
         self._parent = VariableCollection()
+        self._parent.add_variable(self)
 
 
 class ObjectType(object):
@@ -147,34 +145,20 @@ class Variable(AbstractContainer, Attributes):
         self._dtype = None
         self._mask = None
         self._is_empty = is_empty
+        self._bounds_name = None
 
         self.dist = dist
         self.ranks = ranks
         self.dtype = dtype
 
         self._fill_value = fill_value
-        if bounds is not None:
-            self._bounds_name = bounds.name
-        else:
-            self._bounds_name = None
 
         AbstractContainer.__init__(self, name, parent=parent)
-
-        if self.name is None:
-            self._name = 'var_{}_{}'.format(self.parent.name, self.parent._variable_name_ctr)
-            self.parent._variable_name_ctr += 1
 
         # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
         # units here.
         if str(units) != 'auto':
             self.units = units
-
-        # create_dimensions = False
-        # if dimensions is not None:
-        #     if isinstance(list(get_iter(dimensions, dtype=(basestring, Dimension)))[0], basestring):
-        #         create_dimensions = True
-        #     else:
-        #         self.dimensions = dimensions
 
         self.set_value(value)
         if value is not None and dimensions is None:
@@ -183,61 +167,26 @@ class Variable(AbstractContainer, Attributes):
             self.set_dimensions(dimensions)
         if value is not None:
             update_unlimited_dimension_length(self.value, self.dimensions)
-        # if create_dimensions:
-        #     self.create_dimensions(names=dimensions)
-
-        if bounds is not None:
-            self.bounds = bounds
-
-        # # Add to the parent.
-        # if self.parent is not None:
-        #     self.parent.add_variable(self, force=True)
+        self.set_bounds(bounds)
 
         if mask is not None:
             self.set_mask(mask)
 
         self._is_init = False
 
-    def __add_to_collection_finalize__(self, vc):
-        """
-        Finalize adding the variable to the collection.
-
-        :param vc: :class:`ocgis.VariableCollection`
-        """
-        if self.has_bounds:
-            vc.add_variable(self.bounds, force=True)
-
     def _getitem_main_(self, ret, slc):
-        dimensions = ret.dimensions
+        new_value = None
+        new_mask = None
 
-        if isinstance(slc, dict):
-            if dimensions is None:
-                msg = 'Dimensions are required for dictionary slices.'
-                raise DimensionsRequiredError(msg)
-            else:
-                names_src, new_slc = slc.keys(), slc.values()
-                names_dst = [d.name for d in dimensions]
-                new_slc = get_mapped_slice(new_slc, names_src, names_dst)
-                self._getitem_main_(ret, new_slc)
-        else:
-            new_dimensions = None
-            new_value = None
-            new_mask = None
+        if ret._value is not None:
+            new_value = ret.value.__getitem__(slc)
+        if ret._mask is not None:
+            new_mask = ret._mask.__getitem__(slc)
 
-            if dimensions is not None:
-                new_dimensions = [d[s] for d, s in zip(dimensions, slc)]
-            if ret._value is not None:
-                new_value = ret.value.__getitem__(slc)
-            if ret._mask is not None:
-                new_mask = ret._mask.__getitem__(slc)
-
-            ret.dimensions = None
-            ret.value = None
-
-            ret.dimensions = new_dimensions
-            ret.value = new_value
-            if new_mask is not None:
-                ret.set_mask(new_mask)
+        if new_value is not None:
+            ret._value = new_value
+        if new_mask is not None:
+            ret._mask = new_mask
 
     def __setitem__(self, slc, variable):
         # tdk: order
@@ -260,27 +209,22 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def bounds(self):
-        if self._bounds_name is None or self.parent is None:
+        if self._bounds_name is None:
             ret = None
         else:
             ret = self.parent[self._bounds_name]
         return ret
 
-    @bounds.setter
-    def bounds(self, value):
-        self._set_bounds_(value)
-
-    def _set_bounds_(self, value):
+    def set_bounds(self, value):
         if value is None:
             if self._bounds_name is not None:
                 self.parent.pop(self._bounds_name)
                 self.attrs.pop('bounds', None)
             self._bounds_name = None
         else:
-            assert value.name != self.name
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
-            self.parent.add_variable(value, force=True)
+            self.parent.add_variable(value)
             value.units = self.units
 
     @property
@@ -341,7 +285,8 @@ class Variable(AbstractContainer, Attributes):
                     self.parent.add_dimension(dimension)
                 except AttributeError:
                     dimension_name = dimension
-                assert dimension_name in self.parent.dimensions
+                if dimension_name not in self.parent.dimensions:
+                    self.parent.add_dimension(Dimension(dimension_name, self.shape[idx]))
                 dimension_names[idx] = dimension_name
             self._dimensions = tuple(dimension_names)
         else:
@@ -355,7 +300,7 @@ class Variable(AbstractContainer, Attributes):
             else:
                 bounds_dimensions = list(self.bounds.dimensions)
                 bounds_dimensions[0:len(self.dimensions)] = self.dimensions
-            self.bounds.dimensions = bounds_dimensions
+            self.bounds.set_dimensions(bounds_dimensions)
 
     @property
     def extent(self):
@@ -671,7 +616,7 @@ class Variable(AbstractContainer, Attributes):
         dimensions.append(Dimension(name=name_dimension, size=bounds_dimension_size))
 
         var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
-        self.bounds = var
+        self.set_bounds(var)
 
         # This will synchronize the bounds mask with the variable's mask.
         if not self.is_empty:
@@ -712,7 +657,7 @@ class Variable(AbstractContainer, Attributes):
 
         assert mask.shape == self.shape
         self._mask = mask
-        if cascade and self.parent is not None:
+        if cascade:
             self.parent.set_mask(self)
         else:
             # Bounds will be updated if there is a parent. Otherwise, update the bounds directly.
@@ -959,6 +904,8 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                         if len(v_dimension_names.intersection(names)) > 0:
                             mapped_slc = [item_or_slc[d] for d in v.dimension_names]
                             v_sub = v.__getitem__(mapped_slc)
+                        else:
+                            v_sub = v.copy()
                     else:
                         v_sub = v.copy()
                 ret.add_variable(v_sub, force=True)
@@ -1009,6 +956,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         """
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
+
+        if variable.name is None:
+            variable._name = 'var_{}_{}'.format(self.name, self._variable_name_ctr)
+            self._variable_name_ctr += 1
+
         self[variable.name] = variable
         for dimension in variable.dimensions:
             self.add_dimension(dimension, force=force)

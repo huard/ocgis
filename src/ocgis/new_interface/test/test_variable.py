@@ -57,6 +57,14 @@ class TestVariable(AbstractTestNewInterface):
         self.assertEqual(var._dimensions, ('five',))
         self.assertEqual(var.shape, (5,))
 
+        # Test with a single dimension (name only).
+        var = Variable(value=[1, 2, 3], dimensions='three')
+        self.assertEqual(var.dimensions[0], Dimension('three', 3))
+
+        # Test dimension name only with no shape.
+        with self.assertRaises(IndexError):
+            Variable(dimensions='what')
+
         # Test with a value and no dimensions.
         var = Variable(value=[[2, 3, 4], [4, 5, 6]])
         self.assertIsNotNone(var.dimensions)
@@ -109,9 +117,8 @@ class TestVariable(AbstractTestNewInterface):
         var.set_value(desired)
         assert_equal(var.get_mask(), [True, False, False])
 
-    def test_tdk(self):
+        # Test with a slice.
         time, value, var = self.get_variable()
-
         self.assertEqual(var.dimensions, (time,))
         self.assertEqual(id(time), id(var.dimensions[0]))
         self.assertEqual(var.name, 'time_value')
@@ -120,7 +127,10 @@ class TestVariable(AbstractTestNewInterface):
         sub = var[2:4]
         self.assertIsInstance(sub, Variable)
         self.assertEqual(sub.shape, (2,))
+        self.assertNumpyAll(sub.value, var.value[2:4])
+        self.assertNotEqual(id(var), id(sub))
 
+        # Test conforming data types.
         dtype = np.float32
         fill_value = 33.0
         var = Variable('foo', value=value, dimensions=time, dtype=dtype, fill_value=fill_value)
@@ -371,9 +381,9 @@ class TestVariable(AbstractTestNewInterface):
         # Test adding/removing bounds.
         var = Variable('bounded', value=[5], dimensions='one')
         self.assertNotIn('bounds', var.attrs)
-        var.bounds = Variable('bds', value=[[6, 7]], dimensions=['one', 'bounds'])
+        var.set_bounds(Variable('bds', value=[[6, 7]], dimensions=['one', 'bounds']))
         self.assertEqual(var.attrs['bounds'], 'bds')
-        var.bounds = None
+        var.set_bounds(None)
         self.assertNotIn('bounds', var.attrs)
 
     @attr('cfunits')
@@ -458,8 +468,8 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_create_dimensions(self):
         var = Variable('tas', value=[4, 5, 6], dtype=float)
-        var.create_dimensions()
-        self.assertEqual(var.dimensions[0], Dimension('tas', size=3, ))
+        var.create_dimensions('created')
+        self.assertEqual(var.dimensions[0], Dimension('created', size=3, ))
         self.assertEqual(len(var.dimensions), 1)
         var.create_dimensions('time')
         self.assertIsNotNone(var.dimensions)
@@ -480,7 +490,7 @@ class TestVariable(AbstractTestNewInterface):
         aa = Dimension('aa', 4, src_idx=np.array([11, 12, 13, 14]))
         var = Variable('bounded', value=[1, 2, 3, 4], dimensions=aa)
         var.set_extrapolated_bounds('aa_bounds', 'aabnds')
-        var.dimensions = Dimension('bb', 4)
+        var.set_dimensions(Dimension('bb', 4))
         self.assertEqual(var.dimensions[0], var.bounds.dimensions[0])
 
     def test_get_between(self):
@@ -705,7 +715,7 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_group(self):
         var = Variable()
-        self.assertIsNone(var.group)
+        self.assertEqual(var.group, [None])
 
         vc1 = VariableCollection(name='one')
         vc2 = VariableCollection(name='two', parent=vc1)
