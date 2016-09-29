@@ -11,7 +11,7 @@ from numpy.ma import MaskedArray
 from ocgis import constants
 from ocgis.api.collection import AbstractCollection
 from ocgis.exc import VariableInCollectionError, BoundsAlreadyAvailableError, EmptySubsetError, \
-    ResolutionError, NoUnitsError, DimensionsRequiredError
+    ResolutionError, NoUnitsError, DimensionsRequiredError, DimensionMismatchError
 from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
@@ -913,6 +913,7 @@ class SourcedVariable(Variable):
 # tdk: variable collection should inherit from abstract container
 class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes):
     def __init__(self, name=None, variables=None, attrs=None, parent=None, children=None):
+        self._dimensions = OrderedDict()
         self.name = name
         self.children = children or OrderedDict()
         self.parent = parent
@@ -945,19 +946,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
     # tdk: dimensions and group can be removed with inheritance from abstractcontainer
     @property
     def dimensions(self):
-        ret = {}
-        for variable in self.itervalues():
-            try:
-                dimensions = variable.dimensions
-            except AttributeError:
-                # Assume an object like a coordinate reference system or other.
-                continue
-            for d in dimensions:
-                if d not in ret:
-                    ret[d.name] = d
-                else:
-                    assert d.length == ret[d.name].length
-        return ret
+        return self._dimensions
 
     @property
     def group(self):
@@ -992,15 +981,19 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
         if variable.name is None:
             raise ValueError('A "name" is required to enter a collection.')
-        try:
-            if variable.dimensions is None and variable.ndim > 0:
-                raise ValueError('"dimensions" are required to enter a collection.')
-        except AttributeError:
-            if not isinstance(variable, CoordinateReferenceSystem):
-                raise
+        if variable.dimensions is None and variable.ndim > 0:
+            raise ValueError('"dimensions" are required to enter a collection.')
 
         if not force and variable.name in self:
             raise VariableInCollectionError(variable)
+        if variable.ndim > 0:
+            for dim in variable.dimensions:
+                existing_dim = self.dimensions.get(dim.name)
+                if existing_dim is not None and not force:
+                    if existing_dim != dim:
+                        raise DimensionMismatchError(dim.name, self.name)
+                else:
+                    self.dimensions[dim.name] = dim
         self[variable.name] = variable
 
         # Allow variables to optionally overload how they are added to the collection.

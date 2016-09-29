@@ -344,6 +344,21 @@ class GridDeficientError(OcgException):
     """Raised when a grid is missing parameters necessary to create a geometry array."""
 
 
+class DimensionMismatchError(OcgException):
+    """Raised when a variable's dimensions do not match those in the existing collection."""
+
+    def __init__(self, dim_name, vc_name, message=None):
+        self.dim_name = dim_name
+        self.vc_name = vc_name
+
+        super(DimensionMismatchError, self).__init__(message)
+
+    def __str__(self):
+        msg = 'The dimension "{}" does not match the dimension in variable collection "{}".'.format(self.dim_name,
+                                                                                                    self.vc_name)
+        return msg
+
+
 class DimensionsRequiredError(OcgException):
     """Raised when a variable requires dimensions."""
 
