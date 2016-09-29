@@ -38,13 +38,17 @@ def get_keyword_arguments_from_template_keys(kwargs, keys, ignore_self=True, pop
 
 
 @contextmanager
-def orphaned(target):
+def orphaned(target, keep_dimensions=False):
     original_parent = target.parent
+    if keep_dimensions:
+        target._dimensions_cache = target.dimensions
     target.parent = None
     try:
         yield target
     finally:
         target.parent = original_parent
+        if keep_dimensions:
+            target._dimensions_cache = None
 
 
 @contextmanager
