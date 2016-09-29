@@ -46,6 +46,7 @@ class TestVariable(AbstractTestNewInterface):
         # Test an empty variable.
         var = Variable()
         self.assertIsNotNone(var.name)
+        self.assertIn(var.name, var.parent)
         self.assertEqual(var.shape, tuple())
         self.assertEqual(var.dimensions, tuple())
         self.assertEqual(var.value, None)
@@ -374,8 +375,7 @@ class TestVariable(AbstractTestNewInterface):
         extra2 = Variable(value=7.0, name='remember')
         parent = VariableCollection(variables=extra2)
         var = Variable(name='host', value=[1.5, 3.5], dimensions='a', bounds=bounds, parent=parent)
-        # Parents on bounds are not added.
-        self.assertEqual(var.parent.keys(), ['remember', 'the_bounds', 'host'])
+        self.assertEqual(var.parent.keys(), ['remember', 'host', 'time_value', 'the_bounds'])
 
     def test_bounds(self):
         # Test adding/removing bounds.
@@ -746,12 +746,10 @@ class TestVariable(AbstractTestNewInterface):
     def test_set_extrapolated_bounds(self):
         bv = self.get_boundedvariable(mask=[False, True, False])
         self.assertIsNotNone(bv.bounds)
-        bv.bounds = None
-        bv.dimensions = None
+        bv.set_bounds(None)
         self.assertIsNone(bv.bounds)
-        self.assertIsNone(bv.dimensions)
-        bv.create_dimensions('x')
         bv.set_extrapolated_bounds('x_bounds', 'bounds')
+        self.assertIn('x_bounds', bv.parent)
         self.assertEqual(bv.bounds.name, 'x_bounds')
         self.assertEqual(bv.bounds.ndim, 2)
         bounds_mask = bv.bounds.get_mask()
@@ -760,7 +758,7 @@ class TestVariable(AbstractTestNewInterface):
 
         # Test extrapolating bounds on 2d variable.
         bv = self.get_boundedvariable_2d()
-        bv.bounds = None
+        bv.set_bounds(None)
         self.assertIsNone(bv.bounds)
         bv.set_extrapolated_bounds('two_dee_bounds', 'bounds_dimension')
         bounds_value = bv.bounds.masked_value
@@ -1164,6 +1162,24 @@ class TestVariableCollection(AbstractTestNewInterface):
             self.assertEqual(sub_vc['how_far'].shape, (4,))
             self.assertNumpyAll(sub_vc['lower'].value, sub.value)
             self.assertIn('coordinate_system', sub_vc)
+
+    def test_add_variable(self):
+        vc = VariableCollection()
+        var = Variable(name='bounded', value=[2, 3, 4], dtype=float)
+        self.assertIn(var.name, var.parent)
+        var.set_extrapolated_bounds('the_bounds', 'bnds')
+        self.assertIn('the_bounds', var.parent)
+        vc.add_variable(var)
+        self.assertIn('the_bounds', vc)
+
+        var1 = Variable('var1', value=np.random.rand(2, 3), dimensions=['two', 'three'])
+        var2 = Variable('var2', value=[3, 4, 5, 6, 7], dimensions=['five'])
+        vc = VariableCollection(variables=[var1, var2])
+        for v in [var1, var2]:
+            self.assertIsNotNone(v.dimensions)
+            self.assertEqual(id(v.parent), id(vc))
+            self.assertIn(v.name, var1.parent)
+            self.assertIn(v.name, var2.parent)
 
     def test_copy(self):
         # Test children added to copied variable collection are not added to the copy source.

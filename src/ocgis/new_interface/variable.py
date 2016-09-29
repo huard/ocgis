@@ -115,7 +115,6 @@ class AbstractContainer(AbstractInterfaceObject):
 
     def _initialize_parent_(self):
         self._parent = VariableCollection()
-        self._parent.add_variable(self)
 
 
 class ObjectType(object):
@@ -154,6 +153,12 @@ class Variable(AbstractContainer, Attributes):
         self._fill_value = fill_value
 
         AbstractContainer.__init__(self, name, parent=parent)
+
+        # The variable will always be a member of the parent.
+        if name is None:
+            name = self.parent.generate_variable_name()
+            self._name = name
+        self.parent[self.name] = self
 
         # Units on sourced variables may check for the presence of a parent. Units may be used by bounds, so set the
         # units here.
@@ -226,6 +231,10 @@ class Variable(AbstractContainer, Attributes):
             self.attrs['bounds'] = value.name
             self.parent.add_variable(value)
             value.units = self.units
+
+            # This will synchronize the bounds mask with the variable's mask.
+            if not self.is_empty:
+                self.set_mask(self.get_mask())
 
     @property
     def cfunits(self):
@@ -380,6 +389,10 @@ class Variable(AbstractContainer, Attributes):
         else:
             ret = self._is_empty
         return ret
+
+    @property
+    def is_orphaned(self):
+        return self._parent is None
 
     @property
     def ndim(self):
@@ -617,10 +630,6 @@ class Variable(AbstractContainer, Attributes):
 
         var = Variable(name=name_variable, value=bounds_value, dimensions=dimensions, units=self.units)
         self.set_bounds(var)
-
-        # This will synchronize the bounds mask with the variable's mask.
-        if not self.is_empty:
-            self.set_mask(self.get_mask())
 
     @property
     def has_allocated_value(self):
@@ -954,25 +963,20 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         """
         :param :class:`ocgis.interface.base.variable.Variable`
         """
-        if not force and variable.name in self:
-            raise VariableInCollectionError(variable)
 
-        if variable.name is None:
-            variable._name = 'var_{}_{}'.format(self.name, self._variable_name_ctr)
-            self._variable_name_ctr += 1
-
-        self[variable.name] = variable
-        for dimension in variable.dimensions:
-            self.add_dimension(dimension, force=force)
-
-        # Allow variables to optionally overload how they are added to the collection.
-        try:
-            variable.__add_to_collection_finalize__(self)
-        except AttributeError:
-            # It is okay that is not overloaded. The variable is simply added without special operations.
-            pass
-
-        variable.parent = self
+        if variable.is_orphaned:
+            if variable.name is None:
+                variable._name = self.generate_variable_name()
+            if not force and variable.name in self:
+                raise VariableInCollectionError(variable)
+            self[variable.name] = variable
+            variable.parent = self
+        else:
+            for dimension in variable.parent.dimensions.values():
+                self.add_dimension(dimension, force=force)
+            for var in variable.parent.values():
+                var.parent = None
+                self.add_variable(var, force=force)
 
     def copy(self):
         ret = AbstractCollection.copy(self)
@@ -982,6 +986,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                 ret[v.name] = v.copy()
             ret[v.name].parent = ret
         ret.children = ret.children.copy()
+        return ret
+
+    def generate_variable_name(self):
+        ret = 'var_{}_{}'.format(self.name, self._variable_name_ctr)
+        self._variable_name_ctr += 1
         return ret
 
     def load(self):
