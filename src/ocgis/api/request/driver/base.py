@@ -367,7 +367,7 @@ class AbstractDriver(object):
             for d in desired_dimensions:
                 to_append = dist.get_dimension(d, group=variable.group)
                 new_dimensions.append(to_append)
-            super(SourcedVariable, variable)._set_dimensions_(new_dimensions)
+            super(SourcedVariable, variable).set_dimensions(new_dimensions)
 
         # Call the subclass variable initialization routine.
         self._init_variable_from_source_main_(variable, variable_metadata)
@@ -378,7 +378,7 @@ class AbstractDriver(object):
         """Set the variable value from source data conforming units in the process."""
 
         value = self.get_variable_value(variable)
-        variable._set_value_(value)
+        variable.set_value(value)
         # Conform the units if requested. Need to check if this variable is inside a group to find the appropriate
         # metadata.
         meta = get_variable_metadata_from_request_dataset(self, variable)

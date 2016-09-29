@@ -27,10 +27,10 @@ class DriverVector(AbstractDriver):
         value = self.get_variable_value(variable)
 
         if variable.parent is None:
-            variable._set_value_(value.values()[0])
+            variable.set_value(value.values()[0])
         else:
             for k, v in value.items():
-                variable.parent[k]._set_value_(v)
+                variable.parent[k].set_value(v)
 
         # Conform the units if requested.
         for k in value.keys():
@@ -110,9 +110,13 @@ class DriverVector(AbstractDriver):
                         ret[v.name] = np.zeros(v.shape, dtype=v.dtype)
                 # Fill those arrays.
                 for idx, row in enumerate(g):
-                    for dv in self.get_dimensioned_variables():
+                    for dv in variable.parent.iter_data_variables():
+                        dv = dv.name
                         ret[dv][idx] = row['properties'][dv]
-                    ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+                    try:
+                        ret[constants.NAME_GEOMETRY_DIMENSION][idx] = row['geom']
+                    except KeyError:
+                        pass
         return ret
 
     @staticmethod

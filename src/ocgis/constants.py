@@ -2,6 +2,7 @@ import numpy as np
 
 from ocgis.util.enum import Enum, IntEnum
 
+UNINITIALIZED = -999
 OCGIS_BOUNDS = 'bounds'
 
 #: Default netCDF4 output file type

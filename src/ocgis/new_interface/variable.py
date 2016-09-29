@@ -140,6 +140,8 @@ class Variable(AbstractContainer, Attributes):
         Attributes.__init__(self, attrs=attrs)
 
         self._dimensions = None
+        # Use to keep a copy of the dimensions if the variable is orphaned.
+        self._dimensions_cache = constants.UNINITIALIZED
         self._value = None
         self._dtype = None
         self._mask = None
@@ -280,7 +282,10 @@ class Variable(AbstractContainer, Attributes):
         if self._dimensions is None:
             ret = tuple()
         else:
-            ret = tuple([self.parent.dimensions[name] for name in self._dimensions])
+            if self.is_orphaned and self._dimensions_cache != constants.UNINITIALIZED:
+                ret = self._dimensions_cache
+            else:
+                ret = tuple([self.parent.dimensions[name] for name in self._dimensions])
         return ret
 
     def set_dimensions(self, dimensions):
@@ -869,11 +874,11 @@ class SourcedVariable(Variable):
             ret = super(SourcedVariable, self)._get_value_()
         return ret
 
-    def _set_value_(self, value):
+    def set_value(self, value):
         # Allow value to be set to None. This will remove dimensions.
         if self._has_initialized_value and value is None:
             self._dimensions = None
-        super(SourcedVariable, self)._set_value_(value)
+        super(SourcedVariable, self).set_value(value)
 
 
 # tdk: variable collection should inherit from abstract container

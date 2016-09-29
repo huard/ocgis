@@ -50,20 +50,20 @@ class DriverNetcdf(AbstractDriver):
         :keyword bool file_only: (``=False``) If ``True``, do not write the value to the output file. Create an empty
          netCDF file.
         :keyword bool unlimited_to_fixedsize: (``=False``) If ``True``, convert the unlimited dimension to a fixed size.
-        :keyword bool is_global_write: (``=False``) If ``True``, consider this a global write and create variables
-         using dimension global bounds. Setting to ``True``, will set ``file_only`` to ``True`` by default.
         """
+
         assert isinstance(dataset, nc.Dataset)
+
+        # Write the parent collection if available on the variable.
+        if not var.is_orphaned:
+            return var.parent.write(dataset, variable_kwargs=kwargs)
+
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
 
         # No data should be written during a global write. Data will be filled in during the append process.
         if write_mode == MPIWriteMode.TEMPLATE:
             file_only = True
-
-        # Write the parent collection if available on the variable.
-        if not var.is_orphaned:
-            return var.parent.write(dataset, **kwargs)
 
         if var.name is None:
             msg = 'A variable "name" is required.'
@@ -185,7 +185,7 @@ class DriverNetcdf(AbstractDriver):
                         variable.load()
                         # Call the individual variable write method in fill mode. Orphaning is required as a variable
                         # will attempt to write its parent first.
-                        with orphaned(variable):
+                        with orphaned(variable, keep_dimensions=True):
                             variable.write(dataset, write_mode=write_mode, **variable_kwargs)
                     # Recurse the children.
                     for child in vc.children.values():

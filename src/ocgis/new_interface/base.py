@@ -2,6 +2,7 @@ from abc import ABCMeta
 from contextlib import contextmanager
 from copy import copy, deepcopy
 
+from ocgis import constants
 from ocgis.new_interface.ocgis_logging import log
 
 
@@ -48,7 +49,7 @@ def orphaned(target, keep_dimensions=False):
     finally:
         target.parent = original_parent
         if keep_dimensions:
-            target._dimensions_cache = None
+            target._dimensions_cache = constants.UNINITIALIZED
 
 
 @contextmanager
