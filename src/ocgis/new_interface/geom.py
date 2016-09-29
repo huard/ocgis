@@ -245,6 +245,7 @@ class GeometryVariable(AbstractSpatialVariable):
             else:
                 _, adjust = get_trimmed_array_by_mask(gathered_mask.value, return_adjustments=True)
         adjust = comm.bcast(adjust)
+
         raise_empty_subset = comm.bcast(raise_empty_subset)
 
         if raise_empty_subset:

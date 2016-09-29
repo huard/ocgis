@@ -255,6 +255,10 @@ class OcgMpi(AbstractOcgisObject):
                 for k, v in lengths.items():
                     if v == max_length:
                         distributed_dimension = dimdict[k]
+                # Ensure only the distributed dimension remains distributed.
+                for dim in dimdict.values():
+                    if dim.name != distributed_dimension.name:
+                        dim.dist = False
                 # Adjust the MPI distributed size if the length of the longest dimension is less than the rank count.
                 # Dimensions on higher ranks will be considered empty.
                 the_size = self.size
@@ -571,13 +575,14 @@ def variable_gather(variable, root=0, comm=None):
     for idx, dim in enumerate(variable.dimensions):
         if dim.dist:
             parts = comm.gather(dim, root=root)
+            variable_is_empty = comm.gather(variable.is_empty, root=root)
         if rank == root:
             new_dim = dim.copy()
             if dim.dist:
                 new_size = 0
                 has_src_idx = False
-                for part in parts:
-                    if not part.is_empty:
+                for vempty, part in zip(variable_is_empty, parts):
+                    if not part.is_empty and not vempty:
                         has_src_idx = part._src_idx is not None
                         new_size += len(part)
                 if has_src_idx:

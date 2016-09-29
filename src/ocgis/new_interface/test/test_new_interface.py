@@ -118,11 +118,24 @@ class AbstractTestNewInterface(TestBase):
     def get_gridxy_global(self, resolution=1.0, with_bounds=True):
         y = np.arange(-90.0 + resolution, 91.0 - resolution, resolution)
         x = np.arange(-180.0 + resolution, 181.0 - resolution, resolution)
-        x = Variable(name='x', value=x, dimensions='x')
-        y = Variable(name='y', value=y, dimensions='y')
+
+        ompi = OcgMpi()
+        ompi.create_dimension('x', x.shape[0], dist=True)
+        ompi.create_dimension('y', y.shape[0], dist=True)
+        ompi.update_dimension_bounds()
+
+        if MPI_RANK == 0:
+            x = Variable(name='x', value=x, dimensions='x')
+            y = Variable(name='y', value=y, dimensions='y')
+        else:
+            x, y = [None] * 2
+        x, _ = variable_scatter(x, ompi)
+        y, _ = variable_scatter(y, ompi)
+
         grid = GridXY(x, y)
         if with_bounds:
             grid.set_extrapolated_bounds('xbounds', 'ybounds', 'bounds')
+
         return grid
 
     def get_geometryvariable(self, **kwargs):

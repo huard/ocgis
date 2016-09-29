@@ -1,17 +1,29 @@
 import functools
 import sys
+import time
 from logging import DEBUG
 
 from logbook import Logger, StreamHandler, FileHandler
 
 from ocgis.new_interface.mpi import MPI_RANK
 
+
+def formatter(record, handler):
+    msg = '[{} {}]: {} (rank={}, time={}): {}'.format(record.channel, record.time, record.level_name, MPI_RANK,
+                                                      time.time(), record.message)
+    if record.level_name == 'ERROR':
+        msg += '\n' + record.formatted_exception
+    return msg
+
+
 sh = StreamHandler(sys.stdout, bubble=True)
-sh.format_string += ' (rank={})'.format(MPI_RANK)
+# sh.format_string += ' (rank={})'.format(MPI_RANK)
+sh.formatter = formatter
 # sh.push_application()
 
 fh = FileHandler('/home/benkoziol/htmp/ocgis-rank-{}.log'.format(MPI_RANK), bubble=True, mode='w')
-fh.format_string += ' (rank={})'.format(MPI_RANK)
+# fh.format_string += ' (rank={})'.format(MPI_RANK)
+fh.formatter = formatter
 # fh.push_application()
 
 log = Logger('ocgis', level=DEBUG)
