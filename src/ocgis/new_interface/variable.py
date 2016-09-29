@@ -204,8 +204,7 @@ class Variable(AbstractContainer, Attributes):
             names_src = [d.name for d in self.dimensions]
             names_dst = [d.name for d in self.bounds.dimensions]
             slc = get_mapped_slice(slc, names_src, names_dst)
-            with orphaned(self.bounds):
-                self.bounds[slc] = variable.bounds
+            self.bounds[slc] = variable.bounds
 
         self.set_mask(new_mask)
 
@@ -220,7 +219,7 @@ class Variable(AbstractContainer, Attributes):
             ret = self.parent[self._bounds_name]
         return ret
 
-    def set_bounds(self, value):
+    def set_bounds(self, value, force=False):
         if value is None:
             if self._bounds_name is not None:
                 self.parent.pop(self._bounds_name)
@@ -229,7 +228,7 @@ class Variable(AbstractContainer, Attributes):
         else:
             self._bounds_name = value.name
             self.attrs['bounds'] = value.name
-            self.parent.add_variable(value)
+            self.parent.add_variable(value, force=force)
             value.units = self.units
 
             # This will synchronize the bounds mask with the variable's mask.
@@ -532,10 +531,9 @@ class Variable(AbstractContainer, Attributes):
         else:
             with orphaned(deepcopied):
                 deepcopied.__dict__ = deepcopy(deepcopied.__dict__)
-            if deepcopied.parent is not None:
-                deepcopied.parent.add_variable(deepcopied, force=True)
+            deepcopied.parent.add_variable(deepcopied, force=True)
             if deepcopied.has_bounds:
-                deepcopied.bounds = deepcopied.bounds.deepcopy()
+                deepcopied.set_bounds(deepcopied.bounds.deepcopy(), force=True)
 
         return deepcopied
 
@@ -829,7 +827,7 @@ class Variable(AbstractContainer, Attributes):
         return self.masked_value
 
     def _set_to_conform_value_(self, value):
-        self.value = value
+        self.set_value(value)
 
 
 class SourcedVariable(Variable):
@@ -911,7 +909,9 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
                     if v.ndim > 0:
                         v_dimension_names = set(v.dimension_names)
                         if len(v_dimension_names.intersection(names)) > 0:
-                            mapped_slc = [item_or_slc[d] for d in v.dimension_names]
+                            mapped_slc = [None] * len(v_dimension_names)
+                            for idx, dname in enumerate(v.dimension_names):
+                                mapped_slc[idx] = item_or_slc.get(dname, slice(None))
                             v_sub = v.__getitem__(mapped_slc)
                         else:
                             v_sub = v.copy()

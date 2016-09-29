@@ -62,7 +62,7 @@ class DriverNetcdf(AbstractDriver):
             file_only = True
 
         # Write the parent collection if available on the variable.
-        if var.parent is not None:
+        if not var.is_orphaned:
             return var.parent.write(dataset, **kwargs)
 
         if var.name is None:
@@ -72,10 +72,6 @@ class DriverNetcdf(AbstractDriver):
         # Dimension creation should not occur during a fill operation. The dimensions and variables have already been
         # created.
         if write_mode != MPIWriteMode.FILL:
-            if var.dimensions is None:
-                new_names = ['dim_ocgis_{}_{}'.format(var.name, ctr) for ctr in range(var.ndim)]
-                var.create_dimensions(new_names)
-
             dimensions = var.dimensions
 
             dtype = cls.get_variable_write_dtype(var)

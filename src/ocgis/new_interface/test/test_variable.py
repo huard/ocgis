@@ -477,7 +477,7 @@ class TestVariable(AbstractTestNewInterface):
 
     def test_deepcopy(self):
         var = Variable(value=[5], dimensions='one', name='o')
-        var.bounds = Variable(value=[[4, 6]], dimensions=['one', 'bnds'], name='bounds')
+        var.set_bounds(Variable(value=[[4, 6]], dimensions=['one', 'bnds'], name='bounds'))
         misc = Variable(value=np.arange(8), dimensions='eight', name='dont_touch_me')
         var.parent.add_variable(misc)
 
