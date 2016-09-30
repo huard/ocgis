@@ -149,8 +149,9 @@ class Dimension(AbstractInterfaceObject):
         self.__src_idx__ = value
 
     def convert_to_empty(self):
-        self._is_empty = True
+        self.set_size(0)
         self._bounds_local = None
+        self._is_empty = True
 
     def get_distributed_slice(self, slc, comm=None):
         slc = get_formatted_slice(slc, 1)[0]

@@ -373,9 +373,8 @@ class TestOcgMpi(AbstractTestNewInterface):
                 self.assertEqual(dim.bounds_local, (3, 5))
                 self.assertEqual(dim._src_idx.tolist(), [5, 6])
         elif ompi.size == 8:
-            if MPI_RANK <= 4:
-                self.assertEqual(len(dim), 1)
-                self.assertEqual(dim._src_idx[0], src_idx[MPI_RANK])
+            if MPI_RANK <= 1:
+                self.assertTrue(len(dim) >= 2)
             else:
                 self.assertTrue(dim.is_empty)
 
@@ -396,9 +395,9 @@ class TestOcgMpi(AbstractTestNewInterface):
             self.assertAsSetEqual(bounds_local, desired[(ompi.size, MPI_RANK)])
         else:
             if MPI_RANK <= 1:
-                self.assertTrue(dimensions[0]._src_idx.shape[0] <= 2)
+                self.assertTrue(dimensions[0]._src_idx.shape[0] <= 3)
             for dim in dimensions:
-                if MPI_RANK > 4:
+                if MPI_RANK >= 2:
                     if dim.name == 'd1':
                         self.assertTrue(dim.is_empty)
                     else:
@@ -470,6 +469,13 @@ class TestOcgMpi(AbstractTestNewInterface):
         else:
             self.assertIsNone(actual)
 
+    def test_get_empty_ranks(self):
+        ompi = OcgMpi(size=5)
+        ompi.create_dimension('four', 4, dist=True)
+        ompi.update_dimension_bounds()
+        self.assertEqual(ompi.get_empty_ranks(), (2, 3, 4))
+        self.assertEqual(ompi.get_empty_ranks(inverse=True), (0, 1))
+
     @attr('mpi')
     def test_update_dimension_bounds(self):
         ompi = OcgMpi()
@@ -516,7 +522,7 @@ class TestOcgMpi(AbstractTestNewInterface):
         if MPI_SIZE != 2:
             raise SkipTest('MPI-2 only')
         ompi = OcgMpi()
-        d1 = ompi.create_dimension('d1', 1, dist=True)
+        d1 = ompi.create_dimension('d1', 2, dist=True)
         ompi.update_dimension_bounds()
         if MPI_RANK == 0:
             self.assertFalse(d1.is_empty)

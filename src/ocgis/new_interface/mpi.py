@@ -195,13 +195,17 @@ class OcgMpi(AbstractOcgisObject):
         ret = [self.get_dimension(name, **kwargs) for name in names]
         return ret
 
-    def get_empty_ranks(self, group=None):
-        empty_ranks = []
+    def get_empty_ranks(self, group=None, inverse=False):
+        ret = []
         for rank in range(self.size):
             the_group = self.get_group(group, rank=rank)
             if any([dim.is_empty for dim in the_group['dimensions'].values()]):
-                empty_ranks.append(rank)
-        return tuple(empty_ranks)
+                ret.append(rank)
+        if inverse:
+            ret = set(range(self.size)) - set(ret)
+            ret = list(ret)
+            ret.sort()
+        return tuple(ret)
 
     def get_variable(self, name_or_variable, group=None, rank=MPI_RANK):
         if group is None:
@@ -708,6 +712,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
 def variable_collection_scatter(variable_collection, dest_mpi, root=0, comm=None):
     comm = comm or MPI_COMM
     rank = comm.Get_rank()
+
     if rank == root:
         scattered_variable_collection = variable_collection.copy()
         scattered_variable_collection.strip()

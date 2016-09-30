@@ -1046,6 +1046,7 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
 
     def strip(self):
         self._storage = OrderedDict()
+        self._dimensions = OrderedDict()
         self.children = OrderedDict()
 
     def write(self, *args, **kwargs):
