@@ -685,7 +685,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
                 # current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
                 current_dimensions = dest_mpi.get_group(group=group, rank=current_rank)['dimensions'].values()
                 slices[current_rank] = {dim.name: slice(*dim.bounds_local) for dim in current_dimensions if
-                                        dim in variable.parent.dimensions}
+                                        dim.name in variable.parent.dimensions}
                 # slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
 
         # Slice the variables. These sliced variables are the scatter targets.
@@ -702,7 +702,8 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
     # Update the scattered variable dimensions with the destination dimensions on the process. Everything should align
     # shape-wise. If they don't, an exception will be raised.
-    scattered_variable.set_dimensions(dest_dimensions, force=True)
+    if not scattered_variable.is_empty:
+        scattered_variable.set_dimensions(dest_dimensions, force=True)
     # The variable is now distributed.
     if scattered_variable.has_distributed_dimension:
         scattered_variable.dist = MPIDistributionMode.DISTRIBUTED

@@ -603,6 +603,7 @@ def get_geometry_variable(func, grid, **kwargs):
     kwargs['crs'] = grid.crs
     kwargs['parent'] = grid.parent
     kwargs['dimensions'] = grid.dimensions
+    kwargs['is_empty'] = grid.is_empty
     return GeometryVariable(**kwargs)
 
 
