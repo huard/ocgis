@@ -647,7 +647,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     # Synchronize distribution across processors.
     dest_mpi = comm.bcast(dest_mpi, root=root)
 
-    # No use worrying about slicing the variable has no dimensions. Scatter the variable and be done with it.
+    # No use worrying about slicing if the variable has no dimensions. Scatter the variable and be done with it.
     if not has_dimensions:
         scattered_variable = comm.bcast(variable, root=root)
         scattered_variable.dist = MPIDistributionMode.REPLICATED
@@ -682,8 +682,10 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             if current_rank in empty_ranks:
                 slices[current_rank] = None
             else:
-                current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
-                slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
+                # current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
+                current_dimensions = dest_mpi.get_group(group=group, rank=current_rank)['dimensions'].values()
+                slices[current_rank] = {dim.name: slice(*dim.bounds_local) for dim in current_dimensions}
+                # slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
 
         # Slice the variables. These sliced variables are the scatter targets.
         variables_to_scatter = [None] * size
@@ -691,7 +693,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             if slc is None:
                 variables_to_scatter[idx] = empty_variable
             else:
-                variables_to_scatter[idx] = variable[slc]
+                variables_to_scatter[idx] = variable.parent[slc][variable.name]
     else:
         variables_to_scatter = None
 
