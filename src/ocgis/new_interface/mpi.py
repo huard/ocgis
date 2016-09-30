@@ -195,6 +195,14 @@ class OcgMpi(AbstractOcgisObject):
         ret = [self.get_dimension(name, **kwargs) for name in names]
         return ret
 
+    def get_empty_ranks(self, group=None):
+        empty_ranks = []
+        for rank in range(self.size):
+            the_group = self.get_group(group, rank=rank)
+            if any([dim.is_empty for dim in the_group['dimensions'].values()]):
+                empty_ranks.append(rank)
+        return tuple(empty_ranks)
+
     def get_variable(self, name_or_variable, group=None, rank=MPI_RANK):
         if group is None:
             try:
@@ -563,8 +571,10 @@ def variable_gather(variable, root=0, comm=None):
 
     new_variable = variable.copy()
     new_variable.dtype = variable.dtype
-    new_variable.dimensions = None
-    new_variable.value = None
+    # new_variable.dimensions = None
+    new_variable.set_value(None)
+    new_variable.set_dimensions(None)
+    # new_variable.value = None
 
     if rank == root:
         new_dimensions = [None] * variable.ndim
@@ -598,7 +608,7 @@ def variable_gather(variable, root=0, comm=None):
             new_dimensions[idx] = new_dim
 
     if rank == root:
-        new_variable.dimensions = new_dimensions
+        new_variable.set_dimensions(new_dimensions, force=True)
 
     gathered_variables = comm.gather(variable, root=root)
 
@@ -661,14 +671,23 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
         slices = [None] * size
 
         # Get the slices need to scatter the variables. These are essentially the local bounds on each dimension.
+        empty_ranks = dest_mpi.get_empty_ranks()
+        empty_variable = variable.copy()
+        empty_variable.convert_to_empty()
         for current_rank in range(size):
-            current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
-            slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
-        variables_to_scatter = [None] * size
+            if current_rank in empty_ranks:
+                slices[current_rank] = None
+            else:
+                current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
+                slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
 
         # Slice the variables. These sliced variables are the scatter targets.
+        variables_to_scatter = [None] * size
         for idx, slc in enumerate(slices):
-            variables_to_scatter[idx] = variable[slc]
+            if slc is None:
+                variables_to_scatter[idx] = empty_variable
+            else:
+                variables_to_scatter[idx] = variable[slc]
     else:
         variables_to_scatter = None
 

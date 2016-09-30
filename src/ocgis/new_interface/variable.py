@@ -587,6 +587,14 @@ class Variable(AbstractContainer, Attributes):
         if self.has_bounds:
             self.bounds.cfunits_conform(to_units, from_units=from_units)
 
+    def convert_to_empty(self):
+        self.set_bounds(None)
+        self.set_mask(None)
+        self.set_value(None)
+        self.set_dimensions(None)
+        self._parent = None
+        self._is_empty = True
+
     def create_dimensions(self, names=None, shape=None):
         if shape is None:
             shape = self._value.shape
@@ -674,9 +682,9 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     def set_mask(self, mask, cascade=False):
-        mask = np.array(mask, dtype=bool)
-
-        assert mask.shape == self.shape
+        if mask is not None:
+            mask = np.array(mask, dtype=bool)
+            assert mask.shape == self.shape
         self._mask = mask
         if cascade:
             self.parent.set_mask(self)
@@ -686,7 +694,7 @@ class Variable(AbstractContainer, Attributes):
                 set_mask_by_variable(self, self.bounds)
 
     def allocate_value(self):
-        self.value = variable_get_zeros(self.dimensions, self.dtype)
+        self.set_value(variable_get_zeros(self.dimensions, self.dtype))
 
     def get_between(self, lower, upper, return_indices=False, closed=False, use_bounds=True):
         # tdk: refactor to function

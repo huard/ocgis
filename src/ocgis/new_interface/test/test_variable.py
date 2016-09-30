@@ -448,6 +448,14 @@ class TestVariable(AbstractTestNewInterface):
         desired = np.ma.array([278.15, 278.15, 278.15], mask=[False, True, False], fill_value=var.fill_value)
         self.assertNumpyAll(var.masked_value, desired)
 
+    def test_convert_to_empty(self):
+        var = Variable(value=[1, 2, 3], mask=[True, False, True], dimensions='alpha')
+        var.convert_to_empty()
+        self.assertTrue(var.is_empty)
+        self.assertIsNone(var.value)
+        self.assertIsNone(var.get_mask())
+        self.assertEqual(var.dimensions, tuple())
+
     def test_copy(self):
         var = Variable(value=[5])
         cvar = var.copy()

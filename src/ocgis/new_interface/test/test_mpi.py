@@ -273,7 +273,8 @@ class Test(AbstractTestNewInterface):
         var_bounds_value = MPI_COMM.bcast(var_bounds_value)
         dim_src_idx = MPI_COMM.bcast(dim_src_idx)
 
-        if MPI_RANK > 4:
+        if MPI_RANK > 1:
+            self.assertIsNone(svar.value)
             self.assertTrue(svar.is_empty)
         else:
             dest_dim = dest_mpi.get_dimension('five')
