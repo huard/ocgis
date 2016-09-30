@@ -589,7 +589,6 @@ class Variable(AbstractContainer, Attributes):
 
     def convert_to_empty(self):
         if self.is_orphaned:
-            self.set_bounds(None)
             self.set_mask(None)
             self.set_value(None)
             self.set_dimensions(None)
@@ -663,7 +662,7 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def has_bounds(self):
-        if self.bounds is not None:
+        if not self.is_orphaned and self.bounds is not None:
             ret = True
         else:
             ret = False
