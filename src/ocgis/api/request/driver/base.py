@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from copy import deepcopy
 from warnings import warn
 
+import numpy as np
+
 from ocgis.constants import MPIDistributionMode, MPIWriteMode
 from ocgis.exc import DefinitionValidationError, OcgMpiError
 from ocgis.new_interface.dimension import Dimension
@@ -454,9 +456,17 @@ class AbstractDriver(object):
 
         write_mode = kwargs.pop('write_mode', None)
 
+        archetype_rank = 0
         if size > 1:
             if cls.inquire_opened_state(opened_or_path):
                 raise ValueError('Only paths allowed for parallel writes.')
+            if any([v.dist is not None for v in vc.values()]):
+                is_empty = comm.gather(vc.is_empty)
+                if rank == 0:
+                    archetype_rank = int(np.where(np.array(is_empty) == False)[0][0])
+                else:
+                    archetype_rank = None
+                archetype_rank = comm.bcast(archetype_rank)
 
         if write_mode is None:
             if size > 1:
@@ -467,7 +477,8 @@ class AbstractDriver(object):
             write_modes = [write_mode]
 
         for write_mode in write_modes:
-            cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, **kwargs)
+            cls._write_variable_collection_main_(vc, opened_or_path, comm, rank, size, write_mode, archetype_rank,
+                                                 **kwargs)
 
     def _get_crs_main_(self, group_metadata):
         """Return the coordinate system variable or None if not found."""
@@ -519,7 +530,8 @@ class AbstractDriver(object):
 
     @classmethod
     @abc.abstractmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, archetype_rank,
+                                         **kwargs):
         """
         :param vc: :class:`~ocgis.new_interface.variable.VariableCollection`
         :param opened_or_path: Opened file object or path to the file object to open.

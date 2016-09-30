@@ -48,7 +48,8 @@ class DriverCSV(AbstractDriver):
         return meta
 
     @classmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, archetype_rank,
+                                         **kwargs):
 
         fieldnames = [v.name for v in vc.iter_data_variables()]
 

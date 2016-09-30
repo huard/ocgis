@@ -125,7 +125,8 @@ class DriverNetcdf(AbstractDriver):
         dataset.sync()
 
     @classmethod
-    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, **kwargs):
+    def _write_variable_collection_main_(cls, vc, opened_or_path, comm, rank, size, write_mode, archetype_rank,
+                                         **kwargs):
         """
         Write the variable collection to an open netCDF dataset or file path.
 
@@ -159,7 +160,7 @@ class DriverNetcdf(AbstractDriver):
         # Write the data on each rank.
         for rank_to_write in range(size):
             # The template write only occurs on the first rank.
-            if write_mode == MPIWriteMode.TEMPLATE and rank_to_write != 0:
+            if write_mode == MPIWriteMode.TEMPLATE and rank_to_write != archetype_rank:
                 pass
             # If this is not a template write, fill the data.
             elif rank == rank_to_write:

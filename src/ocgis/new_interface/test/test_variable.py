@@ -358,7 +358,7 @@ class TestVariable(AbstractTestNewInterface):
 
         var = Variable('ndist', dimensions=dimensions)
 
-        if MPI_RANK > 4:
+        if MPI_RANK > 1:
             self.assertTrue(var.is_empty)
         else:
             self.assertFalse(var.is_empty)
