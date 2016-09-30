@@ -774,6 +774,7 @@ class Variable(AbstractContainer, Attributes):
 
         if is_or_will_be_empty:
             ret = self.copy()
+            ret.convert_to_empty()
         else:
             slc = get_formatted_slice(slc, self.ndim)
             local_slc = [slice(None)] * self.ndim
@@ -785,13 +786,7 @@ class Variable(AbstractContainer, Attributes):
             ret = self[local_slc]
 
         # Synchronize the dimensions.
-        if is_or_will_be_empty:
-            ret._dimensions = tuple(new_dimensions)
-            # Ensure all variables in shared collection are also considered empty.
-            if ret.parent is not None:
-                for var in ret.parent.values():
-                    var._is_empty = True
-        else:
+        if not ret.is_empty:
             ret.set_dimensions(new_dimensions, force=True)
 
         return ret

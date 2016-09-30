@@ -633,12 +633,13 @@ class TestVariable(AbstractTestNewInterface):
         dist = OcgMpi()
         dim = dist.create_dimension('x', 5, dist=True, src_idx='auto')
         var = dist.create_variable('var', dimensions=[dim])
-        dist.update_dimension_bounds()
+        dist.update_dimension_bounds(min_elements=1)
 
         if not var.is_empty:
             var.value[:] = (MPI_RANK + 1) ** 3 * (np.arange(var.shape[0]) + 1)
 
         sub = var.get_distributed_slice(slice(2, 4))
+
         if MPI_SIZE == 3:
             if MPI_RANK != 1:
                 self.assertTrue(sub.is_empty)
