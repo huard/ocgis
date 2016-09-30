@@ -789,3 +789,4 @@ def vgather(elements):
         fill[start:stop, :] = e
         start = stop
     return fill
+
