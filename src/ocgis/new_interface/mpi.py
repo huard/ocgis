@@ -684,7 +684,8 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             else:
                 # current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
                 current_dimensions = dest_mpi.get_group(group=group, rank=current_rank)['dimensions'].values()
-                slices[current_rank] = {dim.name: slice(*dim.bounds_local) for dim in current_dimensions}
+                slices[current_rank] = {dim.name: slice(*dim.bounds_local) for dim in current_dimensions if
+                                        dim in variable.parent.dimensions}
                 # slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
 
         # Slice the variables. These sliced variables are the scatter targets.

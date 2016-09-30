@@ -823,26 +823,32 @@ def expand_grid(grid):
     y = grid.parent[grid._y_name]
     x = grid.parent[grid._x_name]
     if y.ndim == 1:
+        if y.has_bounds:
+            original_y_bounds = y.bounds.value
+            original_x_bounds = x.bounds.value
+            original_bounds_dimension_name = y.bounds.dimensions[1].name
+            has_bounds = True
+            name_y = y.bounds.name
+            name_x = x.bounds.name
+        else:
+            has_bounds = False
+
         new_x_value, new_y_value = np.meshgrid(x.value, y.value)
         new_dimensions = [y.dimensions[0], x.dimensions[0]]
 
-        x.value = None
-        x._dimensions = None
-        x.value = new_x_value
+        x.set_bounds(None)
+        x.set_value(None)
+        x.set_dimensions(new_dimensions)
+        x.set_value(new_x_value)
 
-        y.value = None
-        y._dimensions = None
-        y.value = new_y_value
+        y.set_bounds(None)
+        y.set_value(None)
+        y.set_dimensions(new_dimensions)
+        y.set_value(new_y_value)
 
-        assert y.ndim == 2
-        assert x.ndim == 2
-        if y.bounds is not None:
-            grid._original_bounds_dimension_name = y.bounds.dimensions[1].name
-            name_y = y.bounds.name
-            name_x = x.bounds.name
+        if has_bounds:
+            grid._original_bounds_dimension_name = original_bounds_dimension_name
 
-            original_y_bounds = y.bounds.value
-            original_x_bounds = x.bounds.value
             new_y_bounds = np.zeros((original_y_bounds.shape[0], original_x_bounds.shape[0], 4),
                                     dtype=original_y_bounds.dtype)
             new_x_bounds = new_y_bounds.copy()
@@ -854,15 +860,12 @@ def expand_grid(grid):
                 new_x_bounds[idx_y, idx_x, 1] = original_x_bounds[idx_x, 1]
                 new_x_bounds[idx_y, idx_x, 2] = original_x_bounds[idx_x, 1]
                 new_x_bounds[idx_y, idx_x, 3] = original_x_bounds[idx_x, 0]
-            y.bounds = None
-            x.bounds = None
-            y.dimensions = new_dimensions
-            x.dimensions = new_dimensions
+
             new_bounds_dimensions = new_dimensions + [Dimension('corners', size=4)]
-            y.bounds = Variable(name=name_y, value=new_y_bounds, dimensions=new_bounds_dimensions, dist=y.dist,
-                                ranks=y.ranks)
-            x.bounds = Variable(name=name_x, value=new_x_bounds, dimensions=new_bounds_dimensions, dist=x.dist,
-                                ranks=x.ranks)
-        else:
-            y.dimensions = new_dimensions
-            x.dimensions = new_dimensions
+            y.set_bounds(Variable(name=name_y, value=new_y_bounds, dimensions=new_bounds_dimensions, dist=y.dist,
+                                  ranks=y.ranks))
+            x.set_bounds(Variable(name=name_x, value=new_x_bounds, dimensions=new_bounds_dimensions, dist=x.dist,
+                                  ranks=x.ranks))
+
+    assert y.ndim == 2
+    assert x.ndim == 2
