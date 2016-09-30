@@ -639,19 +639,19 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             raise ValueError('Only variables with no prior distribution may be scattered.')
         if not dest_mpi.has_updated_dimensions:
             raise ValueError('The destination distribution must have updated dimensions.')
-        has_dimensions = variable.has_dimensions
-    else:
-        has_dimensions = None
-    has_dimensions = comm.bcast(has_dimensions, root=root)
+            # has_dimensions = variable.has_dimensions
+    # else:
+    #     has_dimensions = None
+    # has_dimensions = comm.bcast(has_dimensions, root=root)
 
     # Synchronize distribution across processors.
     dest_mpi = comm.bcast(dest_mpi, root=root)
 
-    # No use worrying about slicing if the variable has no dimensions. Scatter the variable and be done with it.
-    if not has_dimensions:
-        scattered_variable = comm.bcast(variable, root=root)
-        scattered_variable.dist = MPIDistributionMode.REPLICATED
-        return scattered_variable, dest_mpi
+    # # No use worrying about slicing if the variable has no dimensions. Scatter the variable and be done with it.
+    # if not has_dimensions:
+    #     scattered_variable = comm.bcast(variable, root=root)
+    #     scattered_variable.dist = MPIDistributionMode.REPLICATED
+    #     return scattered_variable, dest_mpi
 
     # Find the appropriate group for the dimensions.
     if rank == root:
@@ -716,31 +716,63 @@ def variable_collection_scatter(variable_collection, dest_mpi, root=0, comm=None
     rank = comm.Get_rank()
 
     if rank == root:
-        scattered_variable_collection = variable_collection.copy()
-        scattered_variable_collection.strip()
-        n_variables = len(variable_collection)
-        n_children = len(variable_collection.children)
+        target = variable_collection.first()
     else:
-        scattered_variable_collection, n_variables, n_children = [None] * 3
+        target = None
+    sv, dest_mpi = variable_scatter(target, dest_mpi, root=root, comm=comm)
+    svc = sv.parent
 
-    scattered_variable_collection = comm.bcast(scattered_variable_collection, root=root)
-    n_variables = comm.bcast(n_variables, root=root)
-    n_children = comm.bcast(n_children, root=root)
+    # The variable is now distributed.
+    for scattered_variable in svc.values():
+        if not scattered_variable.is_empty:
+            if scattered_variable.has_distributed_dimension:
+                scattered_variable.dist = MPIDistributionMode.DISTRIBUTED
+            else:
+                scattered_variable.dist = MPIDistributionMode.REPLICATED
 
     if rank == root:
-        variables = variable_collection.values()
+        n_children = len(variable_collection.children)
+    else:
+        n_children = None
+    n_children = comm.bcast(n_children, root=root)
+    if rank == root:
         children = variable_collection.children.values()
     else:
-        variables = [None] * n_variables
         children = [None] * n_children
-
-    for variable in variables:
-        scattered_variable, dest_mpi = variable_scatter(variable, dest_mpi, root=root, comm=comm)
-        scattered_variable_collection.add_variable(scattered_variable, force=True)
     for child in children:
-        scattered_child = variable_collection_scatter(child, dest_mpi, root=root, comm=comm)
-        scattered_variable_collection.add_child(scattered_child, force=True)
-    return scattered_variable_collection, dest_mpi
+        scattered_child = variable_collection_scatter(child, dest_mpi, root=root, comm=comm)[0]
+        svc.add_child(scattered_child, force=True)
+
+    return svc, dest_mpi
+
+
+
+    # if rank == root:
+    #     scattered_variable_collection = variable_collection.copy()
+    #     scattered_variable_collection.strip()
+    #     n_variables = len(variable_collection)
+    #     n_children = len(variable_collection.children)
+    # else:
+    #     scattered_variable_collection, n_variables, n_children = [None] * 3
+    #
+    # scattered_variable_collection = comm.bcast(scattered_variable_collection, root=root)
+    # n_variables = comm.bcast(n_variables, root=root)
+    # n_children = comm.bcast(n_children, root=root)
+    #
+    # if rank == root:
+    #     variables = variable_collection.values()
+    #     children = variable_collection.children.values()
+    # else:
+    #     variables = [None] * n_variables
+    #     children = [None] * n_children
+    #
+    # for variable in variables:
+    #     scattered_variable, dest_mpi = variable_scatter(variable, dest_mpi, root=root, comm=comm)
+    #     scattered_variable_collection.add_variable(scattered_variable, force=True)
+    # for child in children:
+    #     scattered_child = variable_collection_scatter(child, dest_mpi, root=root, comm=comm)
+    #     scattered_variable_collection.add_child(scattered_child, force=True)
+    # return scattered_variable_collection, dest_mpi
 
 
 def vgather(elements):

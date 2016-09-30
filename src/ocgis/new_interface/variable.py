@@ -524,7 +524,7 @@ class Variable(AbstractContainer, Attributes):
                 except TypeError:
                     value = value.astype(desired_dtype)
 
-        if not self._is_init:
+        if not self._is_init and value is not None:
             update_unlimited_dimension_length(value, self.dimensions)
 
         self._value = value
@@ -588,12 +588,14 @@ class Variable(AbstractContainer, Attributes):
             self.bounds.cfunits_conform(to_units, from_units=from_units)
 
     def convert_to_empty(self):
-        self.set_bounds(None)
-        self.set_mask(None)
-        self.set_value(None)
-        self.set_dimensions(None)
-        self._parent = None
-        self._is_empty = True
+        if self.is_orphaned:
+            self.set_bounds(None)
+            self.set_mask(None)
+            self.set_value(None)
+            self.set_dimensions(None)
+            self._is_empty = True
+        else:
+            self.parent.convert_to_empty()
 
     def create_dimensions(self, names=None, shape=None):
         if shape is None:
@@ -964,6 +966,10 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
         return ret
 
     @property
+    def is_empty(self):
+        return any([v.is_empty for v in self.values()])
+
+    @property
     def shapes(self):
         return OrderedDict([[k, v.shape] for k, v in self.items() if not isinstance(v, CoordinateReferenceSystem)])
 
@@ -999,6 +1005,11 @@ class VariableCollection(AbstractInterfaceObject, AbstractCollection, Attributes
             for var in variable.parent.values():
                 var.parent = None
                 self.add_variable(var, force=force)
+
+    def convert_to_empty(self):
+        for v in self.values():
+            with orphaned(v):
+                v.convert_to_empty()
 
     def copy(self):
         ret = AbstractCollection.copy(self)

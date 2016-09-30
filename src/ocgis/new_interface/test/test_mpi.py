@@ -198,11 +198,16 @@ class Test(AbstractTestNewInterface):
 
         self.assertEqual(svc['i_could_be_a_coordinate_system'].attrs['reality'], 'im_not')
 
-        self.assertEqual(svc['all_in'].dist, MPIDistributionMode.REPLICATED)
-        self.assertFalse(svc['all_in'].is_empty)
-        self.assertNumpyAll(svc['all_in'].value, np.arange(10) + 10)
-
-        self.assertFalse(svc['i_could_be_a_coordinate_system'].is_empty)
+        if MPI_RANK < 2:
+            self.assertFalse(svc['all_in'].is_empty)
+            self.assertEqual(svc['all_in'].dist, MPIDistributionMode.REPLICATED)
+            self.assertNumpyAll(svc['all_in'].value, np.arange(10) + 10)
+            self.assertFalse(svc.is_empty)
+            self.assertFalse(svc['i_could_be_a_coordinate_system'].is_empty)
+        else:
+            self.assertTrue(svc['all_in'].is_empty)
+            self.assertTrue(svc.is_empty)
+            self.assertTrue(svc['i_could_be_a_coordinate_system'].is_empty)
 
         if MPI_RANK == 0:
             self.assertNumpyAll(var.value, vc[var.name].value)
@@ -213,7 +218,7 @@ class Test(AbstractTestNewInterface):
             self.assertNumpyAll(actual, desired[MPI_RANK])
 
         actual = svc['holds_five'].is_empty
-        if MPI_RANK > 4:
+        if MPI_RANK > 1:
             self.assertTrue(actual)
         else:
             self.assertFalse(actual)
