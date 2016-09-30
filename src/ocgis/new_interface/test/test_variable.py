@@ -255,12 +255,10 @@ class TestVariable(AbstractTestNewInterface):
             desired_sum = value.sum()
             value = value.reshape(5, 3)
             var = Variable('has_dist_dim', value=value, dimensions=['major', 'minor'])
-            with self.nc_scope(path, 'w') as ds:
-                var.write(ds)
+            var.write(path)
         else:
             path = None
 
-        MPI_COMM.Barrier()
         path = MPI_COMM.bcast(path, root=0)
         self.assertTrue(os.path.exists(path))
 
@@ -292,14 +290,12 @@ class TestVariable(AbstractTestNewInterface):
 
             self.assertTrue(fvar.dimensions[0].dist)
             self.assertFalse(fvar.dimensions[1].dist)
-            if MPI_RANK <= 4:
+            if MPI_RANK <= 1:
                 self.assertFalse(fvar.is_empty)
                 self.assertIsNotNone(fvar.value)
                 self.assertEqual(fvar.shape[1], 3)
                 if MPI_SIZE == 2:
                     self.assertLessEqual(fvar.shape[0], 3)
-                elif MPI_SIZE == 5:
-                    self.assertEqual(fvar.shape[0], 1)
             else:
                 self.assertTrue(fvar.is_empty)
 

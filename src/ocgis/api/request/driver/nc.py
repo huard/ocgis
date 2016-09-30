@@ -52,11 +52,11 @@ class DriverNetcdf(AbstractDriver):
         :keyword bool unlimited_to_fixedsize: (``=False``) If ``True``, convert the unlimited dimension to a fixed size.
         """
 
-        assert isinstance(dataset, nc.Dataset)
-
         # Write the parent collection if available on the variable.
         if not var.is_orphaned:
             return var.parent.write(dataset, variable_kwargs=kwargs)
+
+        assert isinstance(dataset, nc.Dataset)
 
         file_only = kwargs.pop('file_only', False)
         unlimited_to_fixedsize = kwargs.pop('unlimited_to_fixedsize', False)
