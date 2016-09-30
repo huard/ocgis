@@ -88,11 +88,10 @@ class TestDimension(AbstractTestNewInterface):
             self.assertEqual(dim.bounds_global, (0, 5))
 
             if dim.dist:
-                if MPI_RANK > 4:
+                if MPI_RANK > 1:
                     self.assertTrue(dim.is_empty)
                 else:
                     self.assertFalse(dim.is_empty)
-
             sub = dim.get_distributed_slice(slice(1, 3))
 
             if dim.dist:
@@ -114,6 +113,7 @@ class TestDimension(AbstractTestNewInterface):
                 self.assertEqual(dim.bounds_global, (0, 5))
                 self.assertEqual(dim.bounds_local, (0, 5))
 
+    def test_tdk(self):
         dist = OcgMpi()
         dim = dist.create_dimension('five', 5, dist=True, src_idx='auto')
         dist.update_dimension_bounds()

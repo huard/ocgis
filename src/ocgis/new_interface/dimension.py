@@ -150,7 +150,7 @@ class Dimension(AbstractInterfaceObject):
 
     def convert_to_empty(self):
         self.set_size(0)
-        self._bounds_local = None
+        self._bounds_local = (0, 0)
         self._is_empty = True
 
     def get_distributed_slice(self, slc, comm=None):
@@ -195,9 +195,6 @@ class Dimension(AbstractInterfaceObject):
                 bounds_global = None
             bounds_global = comm.bcast(bounds_global)
             ret.bounds_global = bounds_global
-
-            if ret.is_empty:
-                ret.set_size(sum(bounds_global))
 
             # Update the local bounds of the non-empty dimensions.
             is_not_empty = comm.gather(ret.is_empty)
