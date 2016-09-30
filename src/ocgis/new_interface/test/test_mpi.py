@@ -248,7 +248,6 @@ class Test(AbstractTestNewInterface):
         else:
             self.assertIsNone(mask_gather)
 
-
     @attr('mpi')
     def test_variable_scatter(self):
         var_value = np.arange(5, dtype=float) + 50
