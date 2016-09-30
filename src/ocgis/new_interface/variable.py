@@ -143,7 +143,7 @@ class Variable(AbstractContainer, Attributes):
         # Use to keep a copy of the dimensions if the variable is orphaned.
         self._dimensions_cache = constants.UNINITIALIZED
         self._value = None
-        self._dtype = None
+        self._dtype = dtype
         self._mask = None
         self._is_empty = is_empty
         self._bounds_name = None
@@ -235,7 +235,8 @@ class Variable(AbstractContainer, Attributes):
 
             # This will synchronize the bounds mask with the variable's mask.
             if not self.is_empty:
-                self.set_mask(self.get_mask())
+                if self.has_allocated_value:
+                    self.set_mask(self.get_mask())
 
     @property
     def cfunits(self):
@@ -400,7 +401,11 @@ class Variable(AbstractContainer, Attributes):
 
     @property
     def ndim(self):
-        return len(self._dimensions)
+        if self._dimensions is None:
+            ret = 0
+        else:
+            ret = len(self._dimensions)
+        return ret
 
     @property
     def resolution(self):
@@ -504,7 +509,11 @@ class Variable(AbstractContainer, Attributes):
                 array_type = desired_dtype
                 if isinstance(array_type, ObjectType):
                     array_type = object
-                value = np.array(value, dtype=array_type)
+                try:
+                    value = np.array(value, dtype=array_type)
+                except:
+                    import ipdb;
+                    ipdb.set_trace()
                 if isinstance(desired_dtype, ObjectType):
                     if desired_dtype.dtype != object:
                         for idx in range(value.shape[0]):
@@ -849,7 +858,7 @@ class SourcedVariable(Variable):
         init_from_source(self)
 
         if bounds is not None:
-            self.bounds = bounds
+            self.set_bounds(bounds)
 
     def load(self, eager=False):
         """Load all variable data from source.

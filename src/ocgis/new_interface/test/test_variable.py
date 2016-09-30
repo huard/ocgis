@@ -933,8 +933,8 @@ class TestSourcedVariable(AbstractTestNewInterface):
 
         # Test loading from source.
         request_dataset = self.get_request_dataset()
-        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds')
-        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset)
+        bounds = SourcedVariable(request_dataset=request_dataset, name='time_bnds', protected=True)
+        bv = SourcedVariable(bounds=bounds, name='time', request_dataset=request_dataset, protected=True)
         self.assertEqual(len(bv.dimensions), 1)
         self.assertEqual(len(bv.bounds.dimensions), 2)
         self.assertEqual(bv.bounds.ndim, 2)
@@ -1041,7 +1041,7 @@ class TestSourcedVariable(AbstractTestNewInterface):
         sv = self.get_sourcedvariable()
         self.assertIsNone(sv._value)
         self.assertIsNotNone(sv.value)
-        sv.value = None
+        sv.set_value(None)
         self.assertIsNone(sv.value)
 
     def test_load(self):
@@ -1215,7 +1215,7 @@ class TestVariableCollection(AbstractTestNewInterface):
         path4 = self.get_temporary_file_path('foo4.nc')
         with self.nc_scope(path4, 'w') as ds:
             v.write(ds)
-        dname = 'dim_ocgis_hello_1'
+        dname = 'dim_None_1'
         with self.nc_scope(path4) as ds:
             self.assertIn(dname, ds.dimensions)
         desired = Dimension(dname, 4)

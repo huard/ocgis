@@ -159,6 +159,7 @@ class GeometryVariable(AbstractSpatialVariable):
 
         if kwargs.get('name') is None:
             kwargs['name'] = 'geom'
+
         super(GeometryVariable, self).__init__(*args, **kwargs)
 
     @property
@@ -400,7 +401,7 @@ class GeometryVariable(AbstractSpatialVariable):
     def _get_extent_(self):
         raise NotImplementedError
 
-    def _set_value_(self, value):
+    def set_value(self, value):
         if not isinstance(value, ndarray) and value is not None:
             if isinstance(value, BaseGeometry):
                 itr = [value]
@@ -411,7 +412,7 @@ class GeometryVariable(AbstractSpatialVariable):
             value = np.zeros(shape, dtype=self.dtype)
             for idx, element in enumerate(itr):
                 value[idx] = element
-        super(GeometryVariable, self)._set_value_(value)
+        super(GeometryVariable, self).set_value(value)
 
 
 def get_geom_type(data):

@@ -105,6 +105,10 @@ class CoordinateReferenceSystem(AbstractInterfaceObject):
         return self._is_empty
 
     @property
+    def is_orphaned(self):
+        return True
+
+    @property
     def proj4(self):
         return self.sr.ExportToProj4()
 
