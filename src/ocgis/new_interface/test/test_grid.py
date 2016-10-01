@@ -480,12 +480,15 @@ class TestGridXY(AbstractTestNewInterface):
 
             if MPI_RANK == 0:
                 mask_sum = np.invert(mask.value).sum()
+                mask_shape = mask.shape
             else:
                 mask_sum = None
+                mask_shape = None
             mask_sum = MPI_COMM.bcast(mask_sum)
+            mask_shape = MPI_COMM.bcast(mask_shape)
 
-            for dim in grid_sub:
-                self.assertEqual(dim.bounds_global, [(0, 46), (0, 100)])
+            # for dim in grid_sub.dimensions:
+            #     self.assertEqual(dim.bounds_global, [(0, 46), (0, 100)])
 
             #     self.log.debug(mask.shape)
             #
@@ -512,11 +515,11 @@ class TestGridXY(AbstractTestNewInterface):
             #     self.log.debug([d.bounds_global for d in grid_sub.dimensions])
 
             if with_bounds:
-                # self.assertEqual(mask_shape, (53, 112))
+                self.assertEqual(mask_shape, (53, 112))
                 self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
                 self.assertEqual(mask_sum, 1341)
             else:
-                # self.assertEqual(mask_shape, (46, 100))
+                self.assertEqual(mask_shape, (46, 100))
                 self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
                 self.assertEqual(mask_sum, 1094)
 
@@ -560,8 +563,6 @@ class TestGridXY(AbstractTestNewInterface):
         for should_extrapolate in [False, True]:
             y = Variable(name='y', value=value_grid[0], dimensions=['ydim', 'xdim'])
             x = Variable(name='x', value=value_grid[1], dimensions=['ydim', 'xdim'])
-            self.assertIsNone(y.parent)
-            self.assertIsNone(x.parent)
             if should_extrapolate:
                 y.set_extrapolated_bounds('ybounds', 'bounds')
                 x.set_extrapolated_bounds('xbounds', 'bounds')

@@ -450,7 +450,7 @@ class TestVariable(AbstractTestNewInterface):
         self.assertTrue(var.is_empty)
         self.assertIsNone(var.value)
         self.assertIsNone(var.get_mask())
-        self.assertEqual(var.dimensions, tuple())
+        self.assertIsNotNone(var.dimensions)
 
     def test_copy(self):
         var = Variable(value=[5])

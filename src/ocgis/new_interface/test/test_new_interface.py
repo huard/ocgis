@@ -90,12 +90,10 @@ class AbstractTestNewInterface(TestBase):
             if with_parent:
                 np.random.seed(1)
                 tas = np.random.rand(10, 3, 4)
-                tas = Variable(name='tas', value=tas)
-                tas.create_dimensions(names=['time', 'xdim', 'ydim'])
+                tas = Variable(name='tas', value=tas, dimensions=['time', 'xdim', 'ydim'])
 
                 rhs = np.random.rand(4, 3, 10) * 100
-                rhs = Variable(name='rhs', value=rhs)
-                rhs.create_dimensions(names=['ydim', 'xdim', 'time'])
+                rhs = Variable(name='rhs', value=rhs, dimensions=['ydim', 'xdim', 'time'])
 
                 parent = VariableCollection(variables=[tas, rhs])
             else:
