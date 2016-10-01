@@ -149,6 +149,7 @@ class Dimension(AbstractInterfaceObject):
         self.__src_idx__ = value
 
     def convert_to_empty(self):
+        self._bounds_local = (0, 0)
         self._is_empty = True
 
     def get_distributed_slice(self, slc, comm=None):
