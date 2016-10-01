@@ -56,7 +56,7 @@ class GridXY(AbstractSpatialContainer):
         self.is_vectorized = is_vectorized
 
         if self.has_bounds:
-            self._original_bounds_dimension_name = self._archetype.bounds.dimensions[0].name
+            self._original_bounds_dimension_name = self._archetype.bounds.dimensions[-1].name
         else:
             self._original_bounds_dimension_name = 'bounds'
 
@@ -804,7 +804,7 @@ def expand_grid(grid):
         if y.has_bounds:
             original_y_bounds = y.bounds.value
             original_x_bounds = x.bounds.value
-            original_bounds_dimension_name = y.bounds.dimensions[1].name
+            original_bounds_dimension_name = y.bounds.dimensions[-1].name
             has_bounds = True
             name_y = y.bounds.name
             name_x = x.bounds.name

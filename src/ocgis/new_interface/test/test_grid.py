@@ -480,6 +480,14 @@ class TestGridXY(AbstractTestNewInterface):
                 self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
                 self.assertEqual(mask_sum, 1094)
 
+            if MPI_RANK == 0:
+                path = self.get_temporary_file_path('foo.nc')
+            else:
+                path = None
+            path = MPI_COMM.bcast(path)
+            field = OcgField(grid=grid_sub)
+            field.write(path)
+
     def test_get_value_polygons(self):
         """Test ordering of vertices when creating from corners is slightly different."""
 

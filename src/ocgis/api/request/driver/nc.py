@@ -323,6 +323,9 @@ class DriverNetcdfCF(DriverNetcdf):
 
     @classmethod
     def _get_variable_collection_write_target_(cls, field):
+        if field.is_empty:
+            return field
+
         from ocgis.new_interface.variable import Variable
 
         if field.crs is not None:
@@ -361,8 +364,8 @@ class DriverNetcdfCF(DriverNetcdf):
                     y_bounds_var = Variable(name=gridxy.y.bounds.name, value=y_bounds_fill,
                                             dimensions=y_bounds_dimensions, dist=gridxy.y.bounds.dist,
                                             ranks=gridxy.y.bounds.ranks)
-                    x.bounds = x_bounds_var
-                    y.bounds = y_bounds_var
+                    x.set_bounds(x_bounds_var)
+                    y.set_bounds(y_bounds_var)
 
                 to_write.add_variable(x, force=True)
                 to_write.add_variable(y, force=True)

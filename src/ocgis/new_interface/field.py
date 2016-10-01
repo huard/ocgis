@@ -199,7 +199,7 @@ def get_field_property(field, name):
         if not isinstance(ret, CoordinateReferenceSystem):
             ret.attrs.update(field.dimension_map[name]['attrs'])
             if bounds is not None:
-                ret.bounds = field[bounds]
+                ret.set_bounds(field[bounds], force=True)
     return ret
 
 
