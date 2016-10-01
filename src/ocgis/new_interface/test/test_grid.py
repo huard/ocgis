@@ -469,6 +469,7 @@ class TestGridXY(AbstractTestNewInterface):
 
             grid_sub, slc = res
 
+            self.log.debug(['slc', slc])
             # self.log.debug(['grid_sub mask shape', grid_sub.get_mask().shape])
             self.log.debug(['grid_sub bounds global', [dim.bounds_global for dim in grid_sub.dimensions]])
             self.log.debug(['grid_sub bounds local', [dim.bounds_local for dim in grid_sub.dimensions]])

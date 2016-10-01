@@ -150,6 +150,7 @@ class Dimension(AbstractInterfaceObject):
 
     def convert_to_empty(self):
         self._bounds_local = (0, 0)
+        self._src_idx = None
         self._is_empty = True
 
     def get_distributed_slice(self, slc, comm=None):
@@ -168,6 +169,7 @@ class Dimension(AbstractInterfaceObject):
             # Handle empty dimensions. They will have zero size.
             if self.is_empty:
                 ret = self.copy()
+                ret.convert_to_empty()
             # Handle non-empty dimension slicing.
             else:
                 local_slc = get_global_to_local_slice((slc.start, slc.stop), self.bounds_local)

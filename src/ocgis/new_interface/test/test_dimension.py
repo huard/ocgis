@@ -113,13 +113,26 @@ class TestDimension(AbstractTestNewInterface):
                 self.assertEqual(dim.bounds_global, (0, 5))
                 self.assertEqual(dim.bounds_local, (0, 5))
 
-    def test_tdk(self):
         dist = OcgMpi()
         dim = dist.create_dimension('five', 5, dist=True, src_idx='auto')
         dist.update_dimension_bounds()
         sub = dim.get_distributed_slice(slice(2, 4))
         if MPI_SIZE == 3 and MPI_RANK == 2:
             self.assertTrue(sub.is_empty)
+
+    @attr('mpi')
+    def test_get_distributed_slice_uneven_boundary(self):
+        ompi = OcgMpi()
+        dim = ompi.create_dimension('the_dim', 360, dist=True, src_idx='auto')
+        ompi.update_dimension_bounds()
+
+        self.log.debug(dim.bounds_local)
+        sub = dim.get_distributed_slice(slice(12, 112))
+        if not sub.is_empty:
+            self.log.debug(['sub._src_idx.shape', sub._src_idx.shape])
+        self.log.debug(sub.bounds_local)
+
+        self.assertEqual(sub.bounds_global, (0, 100))
 
     def test_getitem(self):
         dim = Dimension('foo', size=50)
