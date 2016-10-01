@@ -129,7 +129,6 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_get_intersects(self):
-        # tdk: RESUME: test empty subsets
         dist = OcgMpi()
         dimx = dist.create_dimension('x', 5, dist=False)
         dimy = dist.create_dimension('y', 5, dist=True)
@@ -163,11 +162,8 @@ class TestGeometryVariable(AbstractTestNewInterface):
 
         # Try an empty subset.
         with self.assertRaises(EmptySubsetError):
-            self.log.debug('before empty intersects')
             pa.get_intersects(Point(-8000, 9000))
-            self.log.debug('after empty intersects')
 
-        self.log.debug('before non-empty intersects')
         sub, slc = pa.get_intersects(polygon, return_slice=True)
 
         # self.write_fiona_htmp(sub, 'sub-{}'.format(MPI_RANK))
@@ -184,17 +180,18 @@ class TestGeometryVariable(AbstractTestNewInterface):
             else:
                 self.assertTrue(sub.is_empty)
 
-        desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
-        desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
-        desired_points_slc = pa.get_distributed_slice(slc).value.flat
-        for desired_points in [desired_points_manual, desired_points_slc]:
-            for pt in desired_points:
-                found = False
-                for pt_actual in sub.value.flat:
-                    if pt_actual.almost_equals(pt):
-                        found = True
-                        break
-                self.assertTrue(found)
+        desired_points_slc = pa.get_distributed_slice(slc).value
+        if not pa.is_empty:
+            desired_points_manual = [Point(x, y) for x, y in itertools.product(grid.x.value.flat, grid.y.value.flat)]
+            desired_points_manual = [pt for pt in desired_points_manual if pt.intersects(polygon)]
+            for desired_points in [desired_points_manual, desired_points_slc.flat]:
+                for pt in desired_points:
+                    found = False
+                    for pt_actual in sub.value.flat:
+                        if pt_actual.almost_equals(pt):
+                            found = True
+                            break
+                    self.assertTrue(found)
 
         # Test w/out an associated grid.
         pa = self.get_geometryvariable(dimensions='ngeom')

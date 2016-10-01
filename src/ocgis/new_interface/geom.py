@@ -228,10 +228,7 @@ class GeometryVariable(AbstractSpatialVariable):
         intersects_mask = Variable(name='mask_gather', value=intersects_mask_value, dimensions=ret.dimensions,
                                    dtype=bool, is_empty=ret.is_empty)
         assert ret.is_empty == intersects_mask.is_empty
-        self.log.debug('before variable gather')
-        # self.log.debug(['intersects_mask_value', intersects_mask_value])
         gathered_mask = variable_gather(intersects_mask, comm=comm)
-        self.log.debug('after variable gather')
 
         adjust = None
         raise_empty_subset = False

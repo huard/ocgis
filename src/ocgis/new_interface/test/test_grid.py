@@ -451,7 +451,7 @@ class TestGridXY(AbstractTestNewInterface):
 
         for with_bounds in [False, True]:
             grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
-            self.write_fiona_htmp(grid, 'grid1-{}'.format(MPI_RANK))
+            # self.write_fiona_htmp(grid, 'grid1-{}'.format(MPI_RANK))
             # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset-{}'.format(MPI_RANK))
             # MPI_COMM.Barrier()
             # if MPI_RANK == 0:
@@ -477,7 +477,7 @@ class TestGridXY(AbstractTestNewInterface):
             # mask_sum = MPI_COMM.bcast(mask_sum)
             # mask_shape = MPI_COMM.bcast(mask_shape)
 
-            self.write_fiona_htmp(grid_sub, 'grid-sub1-{}'.format(MPI_RANK))
+            # self.write_fiona_htmp(grid_sub, 'grid-sub1-{}'.format(MPI_RANK))
             # self.log.debug(['slc', slc])
             if grid_sub.is_empty:
                 mask_sum = 0

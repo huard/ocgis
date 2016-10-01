@@ -149,8 +149,6 @@ class Dimension(AbstractInterfaceObject):
         self.__src_idx__ = value
 
     def convert_to_empty(self):
-        self.set_size(0)
-        self._bounds_local = (0, 0)
         self._is_empty = True
 
     def get_distributed_slice(self, slc, comm=None):
@@ -165,16 +163,15 @@ class Dimension(AbstractInterfaceObject):
         elif not self.dist:
             ret = self[slc]
         else:
+            dimension_size = 0
             # Handle empty dimensions. They will have zero size.
             if self.is_empty:
                 ret = self.copy()
-                dimension_size = 0
             # Handle non-empty dimension slicing.
             else:
                 local_slc = get_global_to_local_slice((slc.start, slc.stop), self.bounds_local)
                 # Slice does not overlap local bounds. The dimension is now empty with size 0.
                 if local_slc is None:
-                    dimension_size = 0
                     ret = self.copy()
                     ret.convert_to_empty()
                 # Slice overlaps and do a slice on the dimension using the local slice.
@@ -188,9 +185,17 @@ class Dimension(AbstractInterfaceObject):
             size = comm.Get_size()
 
             # Sum dimension sizes (empties will be zero). This sum is the new global bounds.
+            assert dimension_size >= 0
             dimension_sizes = comm.gather(dimension_size)
+
             if rank == 0:
-                bounds_global = (0, sum(dimension_sizes))
+                sum_dimension_size = 0
+                for ds in dimension_sizes:
+                    try:
+                        sum_dimension_size += ds
+                    except TypeError:
+                        pass
+                bounds_global = (0, sum_dimension_size)
             else:
                 bounds_global = None
             bounds_global = comm.bcast(bounds_global)

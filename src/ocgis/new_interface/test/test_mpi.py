@@ -255,6 +255,7 @@ class Test(AbstractTestNewInterface):
 
     @attr('mpi')
     def test_variable_scatter(self):
+
         var_value = np.arange(5, dtype=float) + 50
         var_mask = np.array([True, True, False, True, False])
 
@@ -275,6 +276,7 @@ class Test(AbstractTestNewInterface):
             var, src_mpi, dest_mpi, var_bounds_value, dim_src_idx = [None] * 5
 
         svar, dest_mpi = variable_scatter(var, dest_mpi)
+
         var_bounds_value = MPI_COMM.bcast(var_bounds_value)
         dim_src_idx = MPI_COMM.bcast(dim_src_idx)
 

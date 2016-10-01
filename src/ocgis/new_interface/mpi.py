@@ -639,19 +639,9 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             raise ValueError('Only variables with no prior distribution may be scattered.')
         if not dest_mpi.has_updated_dimensions:
             raise ValueError('The destination distribution must have updated dimensions.')
-            # has_dimensions = variable.has_dimensions
-    # else:
-    #     has_dimensions = None
-    # has_dimensions = comm.bcast(has_dimensions, root=root)
 
     # Synchronize distribution across processors.
     dest_mpi = comm.bcast(dest_mpi, root=root)
-
-    # # No use worrying about slicing if the variable has no dimensions. Scatter the variable and be done with it.
-    # if not has_dimensions:
-    #     scattered_variable = comm.bcast(variable, root=root)
-    #     scattered_variable.dist = MPIDistributionMode.REPLICATED
-    #     return scattered_variable, dest_mpi
 
     # Find the appropriate group for the dimensions.
     if rank == root:
@@ -682,11 +672,9 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
             if current_rank in empty_ranks:
                 slices[current_rank] = None
             else:
-                # current_dimensions = dest_mpi.get_dimensions(dimension_names, group=group, rank=current_rank)
                 current_dimensions = dest_mpi.get_group(group=group, rank=current_rank)['dimensions'].values()
                 slices[current_rank] = {dim.name: slice(*dim.bounds_local) for dim in current_dimensions if
                                         dim.name in variable.parent.dimensions}
-                # slices[current_rank] = [slice(d.bounds_local[0], d.bounds_local[1]) for d in current_dimensions]
 
         # Slice the variables. These sliced variables are the scatter targets.
         variables_to_scatter = [None] * size
@@ -702,8 +690,7 @@ def variable_scatter(variable, dest_mpi, root=0, comm=None):
     scattered_variable = comm.scatter(variables_to_scatter, root=root)
     # Update the scattered variable dimensions with the destination dimensions on the process. Everything should align
     # shape-wise. If they don't, an exception will be raised.
-    if not scattered_variable.is_empty:
-        scattered_variable.set_dimensions(dest_dimensions, force=True)
+    scattered_variable.set_dimensions(dest_dimensions, force=True)
     # The variable is now distributed.
     if scattered_variable.has_distributed_dimension:
         scattered_variable.dist = MPIDistributionMode.DISTRIBUTED

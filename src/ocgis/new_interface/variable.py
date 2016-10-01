@@ -591,7 +591,6 @@ class Variable(AbstractContainer, Attributes):
         if self.is_orphaned:
             self.set_mask(None)
             self.set_value(None)
-            self.set_dimensions(None)
             self._is_empty = True
         else:
             self.parent.convert_to_empty()
