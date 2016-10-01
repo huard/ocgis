@@ -545,6 +545,21 @@ def find_dimension_in_sequence(dimension_name, dimensions):
     return ret
 
 
+def get_nonempty_ranks(target, size=MPI_SIZE, comm=None):
+    comm = comm or MPI_COMM
+    size = size or comm.Get_size()
+    rank = comm.Get_rank()
+
+    is_empty = comm.gather(target.is_empty)
+    if rank == 0:
+        select_not_empty = np.invert(is_empty)
+        ret = tuple(np.arange(size)[select_not_empty].tolist())
+    else:
+        ret = None
+    ret = comm.bcast(ret)
+    return ret
+
+
 def get_optimal_splits(size, shape):
     n_elements = reduce(lambda x, y: x * y, shape)
     if size >= n_elements:

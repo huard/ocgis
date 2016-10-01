@@ -1,7 +1,7 @@
 import numpy as np
 
 from ocgis.new_interface.base import AbstractInterfaceObject
-from ocgis.new_interface.mpi import get_global_to_local_slice, MPI_COMM, get_rank_bounds
+from ocgis.new_interface.mpi import get_global_to_local_slice, MPI_COMM, get_nonempty_ranks
 from ocgis.util.helpers import get_formatted_slice
 
 
@@ -204,23 +204,48 @@ class Dimension(AbstractInterfaceObject):
             bounds_global = comm.bcast(bounds_global)
             ret.bounds_global = bounds_global
 
-            # Update the local bounds of the non-empty dimensions.
-            is_not_empty = comm.gather(ret.is_empty)
-            if rank == 0:
-                is_not_empty = np.invert(is_not_empty)
-                nonempty_count = sum(is_not_empty)
-                # Get the maximum rank having a non-empty dimension.
-                select_ranks = np.arange(size)[is_not_empty]
-                min_rank = np.min(select_ranks)
-            else:
-                nonempty_count, min_rank = [None] * 2
-            nonempty_count = comm.bcast(nonempty_count)
-            min_rank = comm.bcast(min_rank)
+            # Normalize the local bounds on live ranks.
+            non_empty_ranks = get_nonempty_ranks(ret, size=size, comm=comm)
 
-            # Update the rank bounds for the remaining, non-empty dimensions.
-            if not ret.is_empty:
-                bounds_local = get_rank_bounds(sum(bounds_global), nonempty_count, rank - min_rank)
-                ret.bounds_local = bounds_local
+            if rank == non_empty_ranks[0]:
+                adjust = len(ret)
+            else:
+                adjust = None
+            adjust = comm.bcast(adjust)
+
+            for current_rank in range(size):
+                if rank == current_rank:
+                    if rank in non_empty_ranks and rank != non_empty_ranks[0]:
+                        ret.bounds_local = [b + adjust for b in ret.bounds_local]
+                        adjust += len(ret)
+                adjust = comm.bcast(adjust)
+
+                # if rank in non_empty_ranks:
+                #     adjust = ret.bounds_local[0]
+                # else:
+                #     adjust = None
+                # adjust = comm.bcast(adjust)
+                #
+                # if not ret.is_empty:
+                #     adjusted_bounds_local = [b - adjust for b in ret.bounds_local]
+                #     ret.bounds_local = adjusted_bounds_local
+
+                # is_not_empty = comm.gather(ret.is_empty)
+                # if rank == 0:
+                #     is_not_empty = np.invert(is_not_empty)
+                #     nonempty_count = sum(is_not_empty)
+                #     # Get the maximum rank having a non-empty dimension.
+                #     select_ranks = np.arange(size)[is_not_empty]
+                #     min_rank = np.min(select_ranks)
+                # else:
+                #     nonempty_count, min_rank = [None] * 2
+                # nonempty_count = comm.bcast(nonempty_count)
+                # min_rank = comm.bcast(min_rank)
+                #
+                # # Update the rank bounds for the remaining, non-empty dimensions.
+                # if not ret.is_empty:
+                #     bounds_local = get_rank_bounds(sum(bounds_global), nonempty_count, rank - min_rank)
+                #     ret.bounds_local = bounds_local
 
         return ret
 

@@ -126,13 +126,18 @@ class TestDimension(AbstractTestNewInterface):
         dim = ompi.create_dimension('the_dim', 360, dist=True, src_idx='auto')
         ompi.update_dimension_bounds()
 
-        self.log.debug(dim.bounds_local)
         sub = dim.get_distributed_slice(slice(12, 112))
-        if not sub.is_empty:
-            self.log.debug(['sub._src_idx.shape', sub._src_idx.shape])
-        self.log.debug(sub.bounds_local)
-
+        if sub.is_empty:
+            self.assertEqual(sub.bounds_local, (0, 0))
+            self.assertIsNone(sub._src_idx)
+        else:
+            self.assertIsNotNone(sub._src_idx)
         self.assertEqual(sub.bounds_global, (0, 100))
+
+        if MPI_SIZE == 4:
+            desired = {0: (0, 78), 1: (78, 100)}
+            desired = desired.get(MPI_RANK, (0, 0))
+            self.assertEqual(sub.bounds_local, desired)
 
     def test_getitem(self):
         dim = Dimension('foo', size=50)
