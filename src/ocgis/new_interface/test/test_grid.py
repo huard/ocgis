@@ -450,12 +450,8 @@ class TestGridXY(AbstractTestNewInterface):
         resolution = 1.0
 
         for with_bounds in [False, True]:
-            self.log.debug(['with_bounds', with_bounds])
             grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
-            self.log.debug(['grid global', [dim.bounds_global for dim in grid.dimensions]])
-            self.log.debug(['grid local', [dim.bounds_local for dim in grid.dimensions]])
             # self.log.debug([grid.x.value.min(), grid.x.value.max()])
-            # self.write_fiona_htmp(grid, 'grid1-{}'.format(MPI_RANK))
             # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset-{}'.format(MPI_RANK))
             # MPI_COMM.Barrier()
             # if MPI_RANK == 0:
@@ -468,11 +464,6 @@ class TestGridXY(AbstractTestNewInterface):
             # MPI_COMM.Barrier()
 
             grid_sub, slc = res
-
-            self.log.debug(['slc', slc])
-            # self.log.debug(['grid_sub mask shape', grid_sub.get_mask().shape])
-            self.log.debug(['grid_sub bounds global', [dim.bounds_global for dim in grid_sub.dimensions]])
-            self.log.debug(['grid_sub bounds local', [dim.bounds_local for dim in grid_sub.dimensions]])
 
             mask = Variable('mask_after_subset', grid_sub.get_mask(),
                             dimensions=grid_sub.abstraction_geometry.dimensions, is_empty=grid_sub.is_empty)
