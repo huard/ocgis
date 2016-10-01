@@ -405,32 +405,9 @@ class GridXY(AbstractSpatialContainer):
             if self.has_bounds:
                 corner_row = y.bounds.value.reshape(-1)
                 corner_col = x.bounds.value.reshape(-1)
-                # update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
                 tvalue_col, tvalue_row = transform(src_proj4, dst_proj4, corner_col, corner_row)
                 y.bounds.set_value(tvalue_row.reshape(y.bounds.shape))
                 x.bounds.set_value(tvalue_col.reshape(x.bounds.shape))
-
-        # import ipdb;
-        # ipdb.set_trace()
-        # src_sr = self.crs.sr
-        # to_sr = to_crs.sr
-        #
-        # # Transforming the coordinate system will result in a non-vectorized grid (i.e. cannot be representated as row
-        # # and column vectors).
-        # y = self.y
-        # x = self.x
-        # value_row = y.value.reshape(-1)
-        # value_col = x.value.reshape(-1)
-        # update_crs_with_geometry_collection(src_sr, to_sr, value_row, value_col)
-        # y.value = value_row.reshape(self.shape)
-        # x.value = value_col.reshape(self.shape)
-        #
-        # if self.has_bounds:
-        #     corner_row = y.bounds.value.reshape(-1)
-        #     corner_col = x.bounds.value.reshape(-1)
-        #     update_crs_with_geometry_collection(src_sr, to_sr, corner_row, corner_col)
-        #     y.bounds.value = corner_row.reshape(y.bounds.shape)
-        #     x.bounds.value = corner_col.reshape(x.bounds.shape)
 
         self.crs = to_crs
 

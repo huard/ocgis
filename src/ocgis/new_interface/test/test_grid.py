@@ -17,7 +17,7 @@ from ocgis.new_interface.dimension import Dimension
 from ocgis.new_interface.field import OcgField
 from ocgis.new_interface.geom import GeometryVariable
 from ocgis.new_interface.grid import GridXY, expand_grid
-from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, variable_gather
+from ocgis.new_interface.mpi import MPI_RANK, MPI_COMM, variable_gather, MPI_SIZE
 from ocgis.new_interface.test.test_new_interface import AbstractTestNewInterface
 from ocgis.new_interface.variable import Variable, VariableCollection, SourcedVariable
 from ocgis.test.base import attr
@@ -451,17 +451,7 @@ class TestGridXY(AbstractTestNewInterface):
 
         for with_bounds in [False, True]:
             grid = self.get_gridxy_global(resolution=resolution, with_bounds=with_bounds)
-            # self.log.debug([grid.x.value.min(), grid.x.value.max()])
-            # self.write_fiona_htmp(GeometryVariable(value=subset), 'subset-{}'.format(MPI_RANK))
-            # MPI_COMM.Barrier()
-            # if MPI_RANK == 0:
-            #     self.log.debug('start get_intersects')
-            # MPI_COMM.Barrier()
             res = grid.get_intersects(subset, return_slice=True)
-            # MPI_COMM.Barrier()
-            # if MPI_RANK == 0:
-            #     self.log.debug('stop get_intersects')
-            # MPI_COMM.Barrier()
 
             grid_sub, slc = res
 
@@ -478,38 +468,14 @@ class TestGridXY(AbstractTestNewInterface):
             mask_sum = MPI_COMM.bcast(mask_sum)
             mask_shape = MPI_COMM.bcast(mask_shape)
 
-            # for dim in grid_sub.dimensions:
-            #     self.assertEqual(dim.bounds_global, [(0, 46), (0, 100)])
-
-            #     self.log.debug(mask.shape)
-            #
-            # if MPI_RANK == 0:
-            #     mask_sum = np.invert(mask.value).sum()
-            #     mask_shape = mask.shape
-            # else:
-            #     mask_sum = None
-            #     mask_shape = None
-            # mask_sum = MPI_COMM.bcast(mask_sum)
-            # mask_shape = MPI_COMM.bcast(mask_shape)
-
-            # self.write_fiona_htmp(grid_sub, 'grid-sub1-{}'.format(MPI_RANK))
-            # self.log.debug(['slc', slc])
-            # if grid_sub.is_empty:
-            #     mask_sum = 0
-            # else:
-            #     mask_sum = np.invert(grid_sub.get_mask()).sum()
-            # mask_sum = MPI_COMM.gather(mask_sum)
-            # if MPI_RANK == 0:
-            #     mask_sum = sum(mask_sum)
-            # mask_sum = MPI_COMM.bcast(mask_sum)
-            # if not grid_sub.is_empty:
-            #     self.log.debug([d.bounds_global for d in grid_sub.dimensions])
-
             if with_bounds:
                 self.assertEqual(mask_shape, (53, 112))
                 self.assertEqual(slc, (slice(108, 161, None), slice(1, 113, None)))
                 self.assertEqual(mask_sum, 1341)
             else:
+                if MPI_SIZE == 2:
+                    grid_bounds_global = [dim.bounds_global for dim in grid_sub.dimensions]
+                    self.assertEqual(grid_bounds_global, [(0, 46), (0, 100)])
                 self.assertEqual(mask_shape, (46, 100))
                 self.assertEqual(slc, (slice(115, 161, None), slice(12, 112, None)))
                 self.assertEqual(mask_sum, 1094)

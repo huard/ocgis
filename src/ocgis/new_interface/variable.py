@@ -15,7 +15,7 @@ from ocgis.interface.base.attributes import Attributes
 from ocgis.interface.base.crs import CoordinateReferenceSystem
 from ocgis.new_interface.base import AbstractInterfaceObject, orphaned
 from ocgis.new_interface.dimension import Dimension
-from ocgis.new_interface.mpi import create_nd_slices, get_global_to_local_slice
+from ocgis.new_interface.mpi import create_nd_slices, get_global_to_local_slice, MPI_COMM
 from ocgis.util.helpers import get_iter, get_formatted_slice, get_bounds_from_1d, get_extrapolated_corners_esmf, \
     get_ocgis_corners_from_esmf_corners, iter_array
 from ocgis.util.units import get_units_object, get_conformed_units
@@ -763,6 +763,8 @@ class Variable(AbstractContainer, Attributes):
         return ret
 
     def get_distributed_slice(self, slc, comm=None):
+        comm = comm or MPI_COMM
+
         slc = get_formatted_slice(slc, self.ndim)
         new_dimensions = [None] * self.ndim
         dimensions = self.dimensions
@@ -786,7 +788,15 @@ class Variable(AbstractContainer, Attributes):
 
         # Synchronize the dimensions.
         if not ret.is_empty:
+            bounds_global = [d.bounds_global for d in new_dimensions]
+        else:
+            bounds_global = None
+        bounds_global = comm.bcast(bounds_global)
+        if not ret.is_empty:
             ret.set_dimensions(new_dimensions, force=True)
+        else:
+            for dim, bg in zip(ret.dimensions, bounds_global):
+                dim.bounds_global = bg
 
         return ret
 
