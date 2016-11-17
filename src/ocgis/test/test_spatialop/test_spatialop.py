@@ -305,10 +305,17 @@ def create_dummy_netcdf(nc_file,nc_format='NETCDF4_CLASSIC',use_time=True,
 @attr('spatialop')
 class TestSpatialOp(TestBase):
 
+    def setUp(self):
+        env.DIR_GEOMCABINET = os.path.abspath(os.path.dirname(__file__))
+        env.OVERWRITE = True
+
+    def tearDown(self):
+        pass
+
     def test_ocgis_spatialop_01(self):
         # Trivial case: regular grid, polygon is a square that exactly overlaps
         # the grid tiles.
-    
+
         # Create a temporary shapefile
         save_structure = os.path.join(
             os.path.abspath(os.path.dirname(__file__)),'polygon_tmp')
