@@ -16,7 +16,7 @@ class RunOcgis(nose.plugins.Plugin):
         self.attrs = kwargs.pop('attrs', self._attrs_standard)
         self.verbose = kwargs.pop('verbose', True)
 
-        dir_shpcabinet = kwargs.pop('dir_shpcabinet', '~/data/ocgis_test_data/shp')
+        dir_shpcabinet = kwargs.pop('dir_shpcabinet', os.path.abspath(os.path.dirname(__file__)))
         dir_test_data = kwargs.pop('dir_test_data', '~/data/ocgis_test_data')
         os.environ['OCGIS_DIR_GEOMCABINET'] = os.path.expanduser(dir_shpcabinet)
         os.environ['OCGIS_DIR_TEST_DATA'] = os.path.expanduser(dir_test_data)
@@ -67,6 +67,16 @@ class RunSimple(RunOcgis):
         path = os.path.join(path, 'test', 'test_simple')
         return path
 
+class RunSpatialop(RunOcgis):
+    _attrs_standard = 'spatialop,!optional'
+
+    @property
+    def target(self):
+        path = os.path.realpath(ocgis.__file__)
+        path = os.path.split(path)[0]
+        path = os.path.join(path, 'test', 'test_spatialop')
+        return path
+
 
 def _run_tests_(nose_plugin):
     result = nose.run(addplugins=[nose_plugin], argv=nose_plugin.get_argv())
@@ -86,4 +96,8 @@ def run_no_esmf(**kwargs):
 
 def run_simple(**kwargs):
     nose_plugin = RunSimple(**kwargs)
+    _run_tests_(nose_plugin)
+
+def run_spatialop(**kwargs):
+    nose_plugin = RunSpatialop(**kwargs)
     _run_tests_(nose_plugin)
