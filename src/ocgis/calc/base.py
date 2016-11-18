@@ -694,7 +694,12 @@ class AbstractMultivariateFunction(AbstractFunction):
             parms = {k: self.get_variable_value(self.field.variables[self.parms[k]]) for k in self.required_variables}
         # try again without the parms dictionary
         except KeyError:
-            parms = {k: self.get_variable_value(self.field.variables[k]) for k in self.required_variables}
+            try:
+                parms = {k: self.get_variable_value(self.field.variables[k]) for k in self.required_variables}
+            # try again by iterating over self.parms.values
+            except KeyError:
+                parms = {k: [self.get_variable_value(self.field.variables[ki]) for ki in self.parms[k]] for k in
+                         self.required_variables}
 
         for k, v in self.parms.iteritems():
             if k not in self.required_variables:
@@ -747,7 +752,7 @@ class AbstractMultivariateFunction(AbstractFunction):
                 # ensure the mapped aliases exist
                 for xx in cls.required_variables:
                     to_check = kwds[xx]
-                    if to_check not in ops.dataset:
+                    if to_check not in ops.dataset and '_'.join(to_check) not in ops.dataset:
                         should_raise = True
 
                 break

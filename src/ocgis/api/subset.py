@@ -237,11 +237,11 @@ class SubsetOperation(object):
             if len(field) > 1:
                 try:
                     # reset the variable uid and let the collection handle its assignment
-                    variable_to_add = field[1].variables.first()
-                    variable_to_add.uid = None
-                    field[0].variables.add_variable(variable_to_add)
-                    # reset the field names and let these be auto-generated
-                    for f in field:
+                    for f in field[1:]:
+                        for key, variable_to_add in f.variables.items():
+                            variable_to_add.uid = None
+                            field[0].variables.add_variable(variable_to_add)
+                        # reset the field names and let these be auto-generated
                         f._name = None
                 # this will fail for optimizations as the fields are already joined
                 except VariableInCollectionError:
