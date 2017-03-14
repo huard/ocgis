@@ -652,6 +652,7 @@ class AbstractMultivariateFunction(AbstractFunction):
     #: If True, time aggregation is external to the calculation and will require running the standard time aggregation
     #: methods.
     time_aggregation_external = True
+    joined_variables = False
 
     def __init__(self, *args, **kwargs):
         if kwargs.get('calc_sample_size') is True:
@@ -679,7 +680,10 @@ class AbstractMultivariateFunction(AbstractFunction):
             new_parms = {}
             for k, v in parms.iteritems():
                 if k in self.required_variables:
-                    new_parms[k] = v[ir, self._curr_group, il, :, :]
+                    if not self.joined_variables:
+                        new_parms[k] = v[ir, self._curr_group, il, :, :]
+                    else:
+                        new_parms[k] = np.array([x[ir, self._curr_group, il, :, :] for x in v])
                 else:
                     new_parms[k] = v
             cc = f(**new_parms)
