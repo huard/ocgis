@@ -5,8 +5,9 @@ from datetime import datetime
 
 import numpy as np
 
+import ocgis
 from ocgis.calc import base
-from ocgis.calc.base import AbstractUnivariateFunction, AbstractParameterizedFunction
+from ocgis.calc.base import AbstractUnivariateFunction, AbstractParameterizedFunction, AbstractFieldFunction
 from ocgis.exc import DefinitionValidationError
 
 
@@ -424,3 +425,49 @@ class StandardDeviation(base.AbstractUnivariateSetFunction):
 
     def calculate(self, values):
         return np.ma.std(values, axis=0)
+
+class ScipyStatFit(AbstractFieldFunction, AbstractParameterizedFunction):
+    from scipy import stats
+    description = "Fit the parameters of a statistical distribution from scipy.stats to a series."
+    key = 'scipystatfit'
+
+    standard_name = 'fitted_parameters'
+    long_name = 'Fitted parameters of a statistical distribution.'
+
+    parms_definition = {'dist': str}
+    _potential_dist = stats._continuous_distns._distn_names + stats._discrete_distns._distn_names
+
+    def calculate(self,  dist='norm'):
+        from scipy import stats
+        # Get the distribution class
+        dc = getattr(stats, dist, None)
+        if dc is None:
+            raise ValueError("Statistical distribution {} is not in scipy.stats.".format(dist))
+
+        field = self.field
+        data = self.field['max']
+
+        dimension_map = field.dimension_map
+
+        timedim = dimension_map.get_dimension(ocgis.constants.DMK.TIME, dimensions=field.dimensions)
+        time_axis = data.dimension_names.index(timedim.name)
+
+        # Fit the parameters
+        params = np.apply_along_axis(dc.fit, time_axis, data.get_value())
+
+        # Create the output variable
+        fill_dimensions = list(data.dimensions)
+        fill_dimensions.pop(time_axis)
+        pdim = ocgis.Dimension(name='parameters', size=params.shape[time_axis])
+        fill_dimensions.insert(time_axis, pdim)
+        fill = ocgis.Variable(name=self.alias, dimensions=fill_dimensions, dtype=float)
+        arr = self.get_variable_value(fill)
+        arr[:] = params
+
+        self.vc.add_variable(fill)
+
+        # Create a well-formed climatology time variable for the full time extent (with bounds).
+        tgv = self.field.time.get_grouping('all')
+        # Replaces the time value on the field.
+        self.field.set_time(tgv)
+        fill.units = ''

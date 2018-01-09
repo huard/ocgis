@@ -1,7 +1,7 @@
 import numpy as np
 
 import ocgis
-from ocgis.calc.library.statistics import Mean, FrequencyPercentile, MovingWindow, DailyPercentile
+from ocgis.calc.library.statistics import Mean, FrequencyPercentile, MovingWindow, DailyPercentile, ScipyStatFit
 from ocgis.collection.field import Field
 from ocgis.constants import OutputFormatName
 from ocgis.exc import DefinitionValidationError
@@ -322,3 +322,21 @@ class TestMean(AbstractTestField):
         mu = Mean(field=field, tgd=tgd, alias='my_mean', calc_sample_size=False, dtype=np.float64)
         dvc = mu.execute()
         self.assertEqual(dvc['my_mean'].cfunits, units_kelvin)
+
+
+class TestScipyStatFit(AbstractTestField):
+    def test_execute(self):
+        from scipy import stats
+        # Just a smoke test for the class.
+        field = self.get_field(with_value=True, month_count=120, with_level=True, with_realization=True, name='pr', units='mm')
+        tgd = field.temporal.get_grouping(['year'])
+        shp_out = (10, 3, 4)
+
+        # Compute the annual max
+        ret = ocgis.OcgOperations(field, calc=[{'func': 'max', 'name': 'max'}], calc_grouping='all').execute()
+        out = ret.get_element()
+
+        pret = ScipyStatFit(field=out, parms={'dist': 'gumbel_r'}, tgd=out.temporal.get_grouping('all'), alias='parameters').execute()
+        p = pret['parameters'].get_value()
+        x = out['max'][0,:,0,0,0].get_value()
+        self.assertNumpyAllClose(stats.gumbel_r.fit(x), p[0,:,0,0,0])
