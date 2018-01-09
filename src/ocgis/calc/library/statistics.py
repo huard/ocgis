@@ -445,7 +445,7 @@ class ScipyStatFit(AbstractFieldFunction, AbstractParameterizedFunction):
             raise ValueError("Statistical distribution {} is not in scipy.stats.".format(dist))
 
         field = self.field
-        data = self.field['max']
+        data = field.data_variables[0]
 
         dimension_map = field.dimension_map
 
@@ -453,16 +453,16 @@ class ScipyStatFit(AbstractFieldFunction, AbstractParameterizedFunction):
         time_axis = data.dimension_names.index(timedim.name)
 
         # Fit the parameters
-        params = np.apply_along_axis(dc.fit, time_axis, data.get_value())
+        out = np.apply_along_axis(dc.fit, time_axis, data.get_value())
 
         # Create the output variable
         fill_dimensions = list(data.dimensions)
         fill_dimensions.pop(time_axis)
-        pdim = ocgis.Dimension(name='parameters', size=params.shape[time_axis])
+        pdim = ocgis.Dimension(name='parameters', size=out.shape[time_axis])
         fill_dimensions.insert(time_axis, pdim)
-        fill = ocgis.Variable(name=self.alias, dimensions=fill_dimensions, dtype=float)
+        fill = ocgis.Variable(name=self.alias, dimensions=fill_dimensions, dtype=float, attrs={'parnames':dc.shapes or '' +',loc,scale', 'fit_method':'MLE', 'distribution':dist})
         arr = self.get_variable_value(fill)
-        arr[:] = params
+        arr[:] = out
 
         self.vc.add_variable(fill)
 
@@ -471,3 +471,52 @@ class ScipyStatFit(AbstractFieldFunction, AbstractParameterizedFunction):
         # Replaces the time value on the field.
         self.field.set_time(tgv)
         fill.units = ''
+
+
+class ScipyStatFrozen(AbstractFieldFunction, AbstractParameterizedFunction):
+
+    description = "Statistics from scipy.stats frozen distributions."
+    key = 'scipystats'
+
+    standard_name = 'scipy_statistics'
+    long_name = 'Statistics from a distribution given its parameters.'
+
+    parms_definition = {'dist':str, 'method':str, 'arg':float}
+    parms_required = ['method', 'arg']
+
+    def calculate(self, method, arg, dist=None):
+        from scipy import stats
+
+        field = self.field
+        data = field.data_variables[0]
+
+        # Get the distribution class
+        if dist is None:
+            dist = data.attrs['distribution']
+
+        dc = getattr(stats, dist, None)
+        if dc is None:
+            raise ValueError("Statistical distribution {} is not in scipy.stats.".format(dist))
+
+        func = getattr(dc, method, None)
+        if func is None:
+            raise ValueError("There is no method named {} for {}.".format(method, dc))
+
+
+        paxis = data.dimension_names.index('parameters')
+
+        # Compute the statistics
+        out = np.apply_along_axis(lambda p: np.atleast_1d(func(arg, *p)), paxis, data.get_value())
+
+        # Create the output variable
+        fill_dimensions = list(data.dimensions)
+        fill_dimensions.pop(paxis)
+        sdim = ocgis.Dimension(name='statistics', size=out.shape[paxis])
+        fill_dimensions.insert(paxis, sdim)
+        fill = ocgis.Variable(name=self.alias, dimensions=fill_dimensions, dtype=float,
+                              attrs={'distribution': dist, 'method':method, 'arg':arg})
+        arr = self.get_variable_value(fill)
+        arr[:] = out
+
+        self.vc.add_variable(fill)
+

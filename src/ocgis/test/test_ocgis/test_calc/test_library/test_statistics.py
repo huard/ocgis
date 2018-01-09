@@ -1,7 +1,7 @@
 import numpy as np
 
 import ocgis
-from ocgis.calc.library.statistics import Mean, FrequencyPercentile, MovingWindow, DailyPercentile, ScipyStatFit
+from ocgis.calc.library.statistics import Mean, FrequencyPercentile, MovingWindow, DailyPercentile, ScipyStatFit, ScipyStatFrozen
 from ocgis.collection.field import Field
 from ocgis.constants import OutputFormatName
 from ocgis.exc import DefinitionValidationError
@@ -324,19 +324,39 @@ class TestMean(AbstractTestField):
         self.assertEqual(dvc['my_mean'].cfunits, units_kelvin)
 
 
-class TestScipyStatFit(AbstractTestField):
+class TestScipyStat(AbstractTestField):
     def test_execute(self):
         from scipy import stats
-        # Just a smoke test for the class.
-        field = self.get_field(with_value=True, month_count=120, with_level=True, with_realization=True, name='pr', units='mm')
-        tgd = field.temporal.get_grouping(['year'])
-        shp_out = (10, 3, 4)
 
         # Compute the annual max
-        ret = ocgis.OcgOperations(field, calc=[{'func': 'max', 'name': 'max'}], calc_grouping='all').execute()
-        out = ret.get_element()
+        field = self.get_field(with_value=True, month_count=119, with_level=True, with_realization=True, name='pr', units='mm')
+        ret = ocgis.OcgOperations(field, calc=[{'func': 'max', 'name': 'max'}],
+                                  calc_grouping=['year', 'unique']).execute()
+        field_max = ret.get_element()
+        shp_out = (2, 10, 2, 3, 4)
+        self.assertTupleEqual(field_max['max'].shape, shp_out)
 
-        pret = ScipyStatFit(field=out, parms={'dist': 'gumbel_r'}, tgd=out.temporal.get_grouping('all'), alias='parameters').execute()
-        p = pret['parameters'].get_value()
-        x = out['max'][0,:,0,0,0].get_value()
+        # Compute the distribution parameters
+        ret = ocgis.OcgOperations(field_max, calc=[{'func':'scipystatfit', 'name':'params', 'kwds':{'dist':'gumbel_r'}}], calc_grouping='all').execute()
+        field_params = ret.get_element()
+        x = field_max['max'][0,:,0,0,0].get_value()
+        p = field_params['params'].get_value()
         self.assertNumpyAllClose(stats.gumbel_r.fit(x), p[0,:,0,0,0])
+
+        # Compute statistics using the parameters
+        ret = ScipyStatFrozen(field=field_params, parms={'method': 'ppf', 'arg': .99}, alias='p99').execute()
+        sout = ret['p99'].get_value()
+        fd = stats.gumbel_r.freeze(*p[0,:,0,0,0])
+        self.assertNumpyAllClose(fd.ppf(.99), sout[0,0,0,0,0])
+
+        # Idem but with OcgOperations
+        ret = ocgis.OcgOperations(field_params, calc=[{'func':'scipystats', 'name':'p99', 'kwds':{'method': 'ppf', 'arg':.99}}]).execute()
+        field_ppf = ret.get_element()
+        sout = field_ppf['p99'].get_value()
+        fd = stats.gumbel_r.freeze(*p[0, :, 0, 0, 0])
+        self.assertNumpyAllClose(fd.ppf(.99), sout[0, 0, 0, 0, 0])
+
+
+
+
+

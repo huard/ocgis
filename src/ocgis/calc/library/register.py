@@ -14,7 +14,8 @@ class FunctionRegistry(dict):
 
         self.reg += [math.Divide, math.NaturalLogarithm, math.Sum]
         self.reg += [statistics.FrequencyPercentile, statistics.Mean, statistics.StandardDeviation, statistics.Max,
-                     statistics.Median, statistics.Min, Convolve1D, statistics.MovingWindow, statistics.DailyPercentile]
+                     statistics.Median, statistics.Min, Convolve1D, statistics.MovingWindow, statistics.DailyPercentile,
+                     statistics.ScipyStatFit, statistics.ScipyStatFrozen]
         self.reg += [thresholds.Between, thresholds.Threshold]
         self.reg += [heat_index.HeatIndex, duration.Duration, freeze_thaw.FreezeThaw]
 
