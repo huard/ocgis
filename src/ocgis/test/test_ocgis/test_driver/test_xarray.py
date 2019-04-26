@@ -200,3 +200,53 @@ class TestDriverXarray(TestBase):
         da = xr.DataArray([4, 5, 6], attrs={'bounds': 'not_here'})
         ds = xr.Dataset(data_vars={'foo': da})
         self.assertFalse(DriverXarray.has_bounds(da, ds))
+
+
+from ocgis.calc.base import AbstractFieldFunction
+
+
+class XMax(AbstractFieldFunction):
+    """
+    OCGIS class to compute a dissimilarity metric between two
+    distributions.
+    """
+    key = 'xmax'
+    long_name = 'max of period using xclim'
+    standard_name = 'max'
+    description = 'Return max at given frequency'
+
+    def calculate(self):
+        """
+        """
+        name = 'tas'
+        variable = self.field[name]
+        dims = variable.dimensions[1:]
+
+        # Initialization
+        ds = self.field.to_xarray()
+        da = ds[name]
+
+        # Computation
+        out = da.max(dim='time')
+
+        self.fill_value = np.nan
+        fill = self.get_fill_variable(self.field[name], 'max', dims, variable_value=out.data)
+
+        # Output preparation
+        self.vc.add_variable(fill)
+
+
+class TestOperation(TestBase):
+
+    def test_simple(self):
+        import xarray as xr
+        from ocgis import FunctionRegistry, RequestDataset, OcgOperations, Field
+        ds = xr.open_dataset('/home/david/data/cmip5/tas_Amon_GFDL-CM3_historical_r1i1p1_186001-186412.nc')
+        f = Field(initial_data=ds, driver='xarray')
+        rd = RequestDataset('/home/david/data/cmip5/tas_Amon_GFDL-CM3_historical_r1i1p1_186001-186412.nc',
+                            variable='tas')
+
+        FunctionRegistry.append(XMax)
+
+        o = OcgOperations(dataset=rd, calc=[{'func': 'xmax', 'name': 'xmax'}]).execute()
+        o
